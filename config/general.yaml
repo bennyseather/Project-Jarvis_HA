@@ -1,0 +1,9 @@
+project:
+  name: "Project Jarvis"
+  version: "0.1.0"
+
+system:
+  debug: false
+
+logging:
+  level: INFO
