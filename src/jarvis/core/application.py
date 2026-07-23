@@ -10,6 +10,7 @@ from rich.panel import Panel
 
 from jarvis.core.container import ServiceContainer
 from jarvis.homeassistant.client import HomeAssistantClient
+from jarvis.homeassistant.entity_registry import EntityRegistry
 
 class JarvisApplication:
     """
@@ -22,7 +23,7 @@ class JarvisApplication:
         """
         self.console = Console()
         self.container = ServiceContainer()
-
+        self.entity_registry = EntityRegistry()
         self.general = None
         self.status = "Stopped"
         self.debug_mode = True
@@ -98,7 +99,15 @@ class JarvisApplication:
         Connect external services.
         """
 
-        asyncio.run(self.container.home_assistant.connect())
+        entities = asyncio.run(
+            self.container.home_assistant.connect()
+        )
+
+        self.entity_registry.load(entities)
+
+        self.container.logger.info(
+            f"Loaded {self.entity_registry.count()} entities into registry."
+        )
         
     def show_banner(self):
         """

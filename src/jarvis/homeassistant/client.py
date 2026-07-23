@@ -88,11 +88,7 @@ class HomeAssistantClient:
         if auth_response["type"] == "auth_ok":
             self.logger.info("Successfully authenticated with Home Assistant")
 
-            states = await self.get_states()
-
-            self.logger.info(
-                f"Discovered {len(states)} Home Assistant entities."
-            )
+            return await self.get_states()
 
         elif auth_response["type"] == "auth_invalid":
             raise RuntimeError(
