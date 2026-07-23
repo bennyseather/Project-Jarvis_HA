@@ -18,6 +18,7 @@ class HomeAssistantClient:
         self.logger = logger
 
         self.websocket = None
+        self.next_message_id = 1
 
     async def send_json(self, data: dict):
         """
@@ -37,6 +38,16 @@ class HomeAssistantClient:
         self.logger.info(f"Received message of type '{message_type}'")
 
         return data
+
+    def get_next_message_id(self) -> int:
+        """
+        Return the next available Home Assistant message ID.
+        """
+
+        message_id = self.next_message_id
+        self.next_message_id += 1
+
+        return message_id
 
     async def connect(self):
         """
@@ -101,8 +112,8 @@ class HomeAssistantClient:
         self.logger.info("Requesting entity states...")
 
         request = {
-            "id": 1,
-            "type": "get_states",
+       "id": self.get_next_message_id(),
+        "type": "get_states",
         }
 
         await self.send_json(request)
