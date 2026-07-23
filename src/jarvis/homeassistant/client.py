@@ -51,7 +51,24 @@ class HomeAssistantClient:
         await self.websocket.send(json.dumps(auth_message))
 
         self.logger.info("Authentication request sent")
-        
+        response = await self.websocket.recv()
+
+        self.logger.info(f"Authentication response: {response}")
+
+        auth_response = json.loads(response)
+        if auth_response["type"] == "auth_ok":
+            self.logger.info("Successfully authenticated with Home Assistant")
+
+        elif auth_response["type"] == "auth_invalid":
+            raise RuntimeError(
+        f"Authentication failed: {auth_response['message']}"
+        )
+
+        else:
+            raise RuntimeError(
+        f"Unexpected authentication response: {auth_response}"
+        )
+
     async def authenticate(self):
         """
         Authenticate with Home Assistant.
