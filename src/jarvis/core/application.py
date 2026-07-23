@@ -72,6 +72,8 @@ class JarvisApplication:
 
         self.container.logger.info("Configuration loaded")
 
+        self.container.event_bus.publish("ApplicationStarted")
+
     def show_banner(self):
         """
         Display the startup banner.
