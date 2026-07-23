@@ -38,6 +38,20 @@ class HomeAssistantClient:
 
         self.logger.info(f"Received: {message}")
 
+        response = json.loads(message)
+        if response["type"] != "auth_required":
+            raise RuntimeError(
+        f"Unexpected response from Home Assistant: {response}"
+        )
+        auth_message = {
+        "type": "auth",
+        "access_token": self.token,
+        }
+
+        await self.websocket.send(json.dumps(auth_message))
+
+        self.logger.info("Authentication request sent")
+        
     async def authenticate(self):
         """
         Authenticate with Home Assistant.
