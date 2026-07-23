@@ -34,6 +34,10 @@ class HomeAssistantClient:
 
         self.logger.info("Connected successfully")
 
+        message = await self.websocket.recv()
+
+        self.logger.info(f"Received: {message}")
+
     async def authenticate(self):
         """
         Authenticate with Home Assistant.
