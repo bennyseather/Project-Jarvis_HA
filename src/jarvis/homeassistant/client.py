@@ -29,9 +29,14 @@ class HomeAssistantClient:
         """
         Receive a JSON message from Home Assistant.
         """
+
         message = await self.websocket.recv()
-        self.logger.info(f"Received: {message}")
-        return json.loads(message)
+        data = json.loads(message)
+
+        message_type = data.get("type", "unknown")
+        self.logger.info(f"Received message of type '{message_type}'")
+
+        return data
 
     async def connect(self):
         """
@@ -72,6 +77,12 @@ class HomeAssistantClient:
         if auth_response["type"] == "auth_ok":
             self.logger.info("Successfully authenticated with Home Assistant")
 
+            states = await self.get_states()
+
+            self.logger.info(
+                f"Discovered {len(states)} Home Assistant entities."
+            )
+
         elif auth_response["type"] == "auth_invalid":
             raise RuntimeError(
                 f"Authentication failed: {auth_response['message']}"
@@ -81,6 +92,33 @@ class HomeAssistantClient:
             raise RuntimeError(
                 f"Unexpected authentication response: {auth_response}"
             )
+
+    async def get_states(self) -> list:
+        """
+        Retrieve all entity states from Home Assistant.
+        """
+
+        self.logger.info("Requesting entity states...")
+
+        request = {
+            "id": 1,
+            "type": "get_states",
+        }
+
+        await self.send_json(request)
+
+        response = await self.receive_json()
+
+        if response["type"] != "result":
+            raise RuntimeError(
+                f"Unexpected response while retrieving states: {response}"
+            )
+
+        entities = response["result"]
+
+        self.logger.info(f"Retrieved {len(entities)} entities.")
+
+        return entities
 
     async def authenticate(self):
         """
