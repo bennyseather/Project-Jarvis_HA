@@ -3,6 +3,7 @@ Project Jarvis
 
 Main application class.
 """
+import asyncio
 
 from rich.console import Console
 from rich.panel import Panel
@@ -36,7 +37,7 @@ class JarvisApplication:
         self.connect_services()
 
         self.status = "Running"
-        
+
         self.show_banner()
         self.console.print("[green]✓ Jarvis started successfully[/green]")
         if self.debug_mode:
@@ -89,13 +90,15 @@ class JarvisApplication:
         self.container.home_assistant = HomeAssistantClient(
             url=ha_config["url"],
             token=ha_config["token"],
+            logger=self.container.logger,
         )
+        
     def connect_services(self):
         """
         Connect external services.
         """
 
-        self.container.home_assistant.connect()
+        asyncio.run(self.container.home_assistant.connect())
         
     def show_banner(self):
         """
