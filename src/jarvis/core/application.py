@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from jarvis.core.container import ServiceContainer
+from jarvis.homeassistant.client import HomeAssistantClient
 
 class JarvisApplication:
     """
@@ -31,7 +32,11 @@ class JarvisApplication:
         Start Jarvis.
         """
         self.load_configuration()
+        self.initialize_services()
+        self.connect_services()
+
         self.status = "Running"
+        
         self.show_banner()
         self.console.print("[green]✓ Jarvis started successfully[/green]")
         if self.debug_mode:
@@ -66,14 +71,32 @@ class JarvisApplication:
 
     def load_configuration(self):
         """
-        Load the main configuration file.
+        Load the application configuration.
         """
-        self.general = self.container.config_loader.load("general.yaml")
-
+        self.general = self.container.config_loader.load()
+           
         self.container.logger.info("Configuration loaded")
 
         self.container.event_bus.publish("ApplicationStarted")
 
+    def initialize_services(self):
+        """
+        Create shared services.
+        """
+
+        ha_config = self.general["home_assistant"]
+
+        self.container.home_assistant = HomeAssistantClient(
+            url=ha_config["url"],
+            token=ha_config["token"],
+        )
+    def connect_services(self):
+        """
+        Connect external services.
+        """
+
+        self.container.home_assistant.connect()
+        
     def show_banner(self):
         """
         Display the startup banner.

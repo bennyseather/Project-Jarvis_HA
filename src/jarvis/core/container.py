@@ -17,4 +17,4 @@ class ServiceContainer:
         self.logger = JarvisLogger()
         self.config_loader = ConfigLoader()
         self.event_bus = EventBus()
-        self.home_assistant = HomeAssistantClient()
+        self.home_assistant = None

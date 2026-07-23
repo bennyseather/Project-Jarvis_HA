@@ -1,5 +1,5 @@
 """
-Home Assistant client.
+Home Assistant client for Project Jarvis.
 """
 
 
@@ -8,15 +8,13 @@ class HomeAssistantClient:
     Handles communication with Home Assistant.
     """
 
-    def __init__(self):
-        self.connected = False
+    def __init__(self, url: str, token: str):
+        self.url = url
+        self.token = token
 
     def connect(self):
         """
         Connect to Home Assistant.
         """
 
-        self.connected = True
-
-    def is_connected(self):
-        return self.connected
+        print(f"Connecting to Home Assistant at {self.url}")
