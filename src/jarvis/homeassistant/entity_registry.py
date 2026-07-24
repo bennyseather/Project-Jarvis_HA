@@ -31,6 +31,41 @@ class EntityRegistry:
 
         return self.entities.get(entity_id)
 
+    def find(self, name: str):
+        """
+        Find an entity by a partial entity ID.
+
+        Returns the matching Entity if exactly one match is found.
+        Returns None if no match or multiple matches are found.
+        """
+
+        name = name.lower().strip()
+
+        matches = [
+            entity
+            for entity in self.entities.values()
+            if name in entity.entity_id.lower()
+        ]
+
+        print()
+        print(f"Searching for: {name}")
+        print(f"Matches found: {len(matches)}")
+
+        for entity in matches:
+            print(f" - {entity.entity_id}")
+
+        if len(matches) == 1:
+            return matches[0]
+
+        return None
+
+    def all(self) -> list[Entity]:
+        """
+        Return all loaded entities.
+        """
+
+        return list(self.entities.values())
+
     def count(self) -> int:
         """
         Return the number of loaded entities.

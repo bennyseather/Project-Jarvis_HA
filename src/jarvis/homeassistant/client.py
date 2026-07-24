@@ -108,8 +108,8 @@ class HomeAssistantClient:
         self.logger.info("Requesting entity states...")
 
         request = {
-       "id": self.get_next_message_id(),
-        "type": "get_states",
+            "id": self.get_next_message_id(),
+            "type": "get_states",
         }
 
         await self.send_json(request)
@@ -126,6 +126,44 @@ class HomeAssistantClient:
         self.logger.info(f"Retrieved {len(entities)} entities.")
 
         return entities
+
+    async def call_service(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict,
+    ) -> bool:
+        """
+        Call a Home Assistant service.
+        """
+
+        self.logger.info(f"Calling service {domain}.{service}")
+
+        request = {
+            "id": self.get_next_message_id(),
+            "type": "call_service",
+            "domain": domain,
+            "service": service,
+            "service_data": service_data,
+        }
+
+        await self.send_json(request)
+
+        response = await self.receive_json()
+
+        if response["type"] != "result":
+            raise RuntimeError(
+                f"Unexpected response while calling service: {response}"
+            )
+
+        if not response.get("success", False):
+            raise RuntimeError(
+                f"Home Assistant reported a failed service call: {response}"
+            )
+
+        self.logger.info("Service call completed successfully.")
+
+        return True
 
     async def authenticate(self):
         """
