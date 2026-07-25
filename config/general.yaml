@@ -12,3 +12,7 @@ home_assistant:
   url: "http://homeassistant.local:8123"
   token: ""
   allowed_read_entities: []
+  action_policy:
+    confirm_required: []
+    high_impact: []
+    allowed_entities: []

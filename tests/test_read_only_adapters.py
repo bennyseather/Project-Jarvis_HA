@@ -14,3 +14,6 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   self.assertEqual((await HomeAssistantReadAdapter(HA()).read_entity_state("light.kitchen")).state,"on")
  def test_bad_model_output_is_unsupported(self):
   self.assertEqual(OpenAIAssistantProposalProvider(OpenAI("bad")).propose(AssistantInput("x")).kind,AssistantProposalKind.UNSUPPORTED)
+ def test_action_schema_is_structurally_validated(self):
+  provider=OpenAIAssistantProposalProvider(OpenAI('{"kind":"home_assistant_action","action":{"domain":"light","service":"turn_on","entity_ids":["light.kitchen"],"service_data":{},"summary":"Turn on kitchen"}}'))
+  self.assertEqual(provider.propose(AssistantInput("turn on kitchen")).kind,AssistantProposalKind.HOME_ASSISTANT_ACTION)

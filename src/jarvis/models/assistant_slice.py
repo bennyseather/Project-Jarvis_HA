@@ -11,6 +11,7 @@ class AssistantProposalKind(str, Enum):
     CONVERSATION = "conversation"
     READ_ENTITY_STATE = "read_entity_state"
     UNSUPPORTED = "unsupported"
+    HOME_ASSISTANT_ACTION = "home_assistant_action"
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +25,7 @@ class AssistantProposal:
     kind: AssistantProposalKind
     message: str = ""
     entity_id: str | None = None
+    action: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -47,7 +47,16 @@ Conversation Management
 - M5.1 Safe Read-Only Assistant Slice ✅
 - M5.5 Console Request Loop ✅
 - M5.6 Provider Response Hardening ✅
+- M5.7 Read-Only Entity Resolution ✅
+- M5.8 General Home Assistant Capability Gateway ✅
+- M5.9 Console Action Confirmation Flow ✅
+- M5.10 Model Action Proposal Schema ✅
+- M5.11 Action Authorization Configuration ✅
+- M5.12 End-to-End Confirmed Action Flow ✅
+- M5.13 Assistant Runtime Review and Commit ✅
 
 ## EPIC 6 – Learning
 
 Learning & Adaptation
+
+- M6.1 Learning Foundations ✅

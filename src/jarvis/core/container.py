@@ -34,4 +34,5 @@ class ServiceContainer:
         self.context_builder: ContextBuilder | None = None
         self.assistant: Assistant | None = None
         self.read_only_assistant = None
+        self.home_assistant_action_gateway = None
         self.entity_resolver: EntityResolver | None = None

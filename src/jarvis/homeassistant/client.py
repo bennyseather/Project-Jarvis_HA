@@ -127,6 +127,15 @@ class HomeAssistantClient:
 
         return entities
 
+    async def get_services(self) -> list:
+        """Retrieve Home Assistant's available service descriptions read-only."""
+        request = {"id": self.get_next_message_id(), "type": "get_services"}
+        await self.send_json(request)
+        response = await self.receive_json()
+        if response["type"] != "result":
+            raise RuntimeError(f"Unexpected response while retrieving services: {response}")
+        return response["result"]
+
     async def call_service(
         self,
         domain: str,

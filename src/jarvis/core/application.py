@@ -16,6 +16,11 @@ from jarvis.homeassistant.client import HomeAssistantClient
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
 from jarvis.core.assistant_factory import create_read_only_assistant
+from jarvis.homeassistant.capability_discovery import HomeAssistantCapabilityDiscovery
+from jarvis.homeassistant.capability_gateway import HomeAssistantCapabilityGateway
+from jarvis.homeassistant.risk_policy import HomeAssistantRiskPolicy
+from jarvis.homeassistant.pending_actions import PendingActionStore
+from jarvis.homeassistant.action_gateway import ConfirmedHomeAssistantActionGateway
 
 
 class JarvisApplication:
@@ -32,6 +37,7 @@ class JarvisApplication:
         self.general = None
         self.status = "Stopped"
         self.debug_mode = True
+        self._pending_action_payloads: dict[str, dict[str, object]] = {}
 
     async def run(self):
         """
@@ -132,6 +138,21 @@ class JarvisApplication:
 
         self.container.entity_registry.load(entities)
 
+        catalog = await HomeAssistantCapabilityDiscovery(
+            self.container.home_assistant
+        ).discover()
+        action_config = self.general.get("home_assistant", {}).get("action_policy", {})
+        self.container.home_assistant_action_gateway = ConfirmedHomeAssistantActionGateway(
+            HomeAssistantCapabilityGateway(catalog),
+            HomeAssistantRiskPolicy(
+                action_config.get("confirm_required", ()),
+                action_config.get("high_impact", ()),
+                action_config.get("allowed_entities", ()),
+            ),
+            PendingActionStore(),
+            self.container.home_assistant,
+        )
+
         self.container.logger.info(
             f"Loaded {self.container.entity_registry.count()} entities into registry."
         )
@@ -179,7 +200,21 @@ class JarvisApplication:
                 return
             if not text.strip():
                 continue
+            if text.strip().startswith("confirm "):
+                token = text.strip().split(maxsplit=1)[1]
+                payload = self._pending_action_payloads.pop(token, None)
+                result = ({"status": "forbidden", "message": "Confirmation is invalid."}
+                          if payload is None else await self.container.read_only_assistant.confirm_action(token, payload))
+                self.console.print(f"Jarvis [{result['status']}]: {result.get('message', result.get('reason_code', 'Action completed.'))}")
+                continue
             result = await self.handle_request(text)
+            if result.get("status") == "requires_confirmation":
+                token = result.get("token")
+                payload = result.pop("action_payload", None)
+                if token and payload:
+                    self._pending_action_payloads[token] = payload
+                    self.console.print(f"Confirm action: {result.get('summary', '')}. Type: confirm {token}")
+                    continue
             self.console.print(f"Jarvis [{result['status']}]: {result['message']}")
 
     def show_banner(self):
