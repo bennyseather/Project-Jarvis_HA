@@ -98,3 +98,11 @@ Learning & Adaptation
 - M11.3 Entity and Service Clarification ✅
 - M11.4 Service and Alias Validation ✅
 - M11.5 Confirmed Action Acceptance ✅
+
+## EPIC 12 – Home Assistant Access Enrollment
+
+- M12.1 Discovery and Enrollment Boundary ✅
+- M12.2 Read and Action Enrollment ✅
+- M12.3 Alias Management ✅
+- M12.4 Risk Classification Validation ✅
+- M12.5 Operational Documentation and Tests ✅

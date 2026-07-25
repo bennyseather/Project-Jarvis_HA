@@ -48,6 +48,7 @@ from jarvis.knowledge.writer import PolicyControlledKnowledgeWriter
 from jarvis.models.knowledge import KnowledgeRecordFactory
 from jarvis.management.console_commands import ExplicitDataConsole
 from jarvis.homeassistant.capability_context import HomeAssistantCapabilityContext
+from jarvis.homeassistant.enrollment import HomeAccessEnrollment
 
 
 class JarvisApplication:
@@ -250,6 +251,9 @@ class JarvisApplication:
             tuple(action_config.get("confirm_required", ())) + tuple(action_config.get("high_impact", ())),
             self.general["home_assistant"].get("entity_aliases", {}),
         )
+        self.container.home_access_enrollment = HomeAccessEnrollment(
+            self.container.config_loader.config_folder / "general.yaml", catalog
+        )
         self.container.home_assistant_action_gateway = ConfirmedHomeAssistantActionGateway(
             HomeAssistantCapabilityGateway(catalog),
             HomeAssistantRiskPolicy(
@@ -353,6 +357,14 @@ class JarvisApplication:
                 return
             if not text.strip():
                 continue
+            enrollment_result = self._handle_home_access_command(text)
+            if enrollment_result is not None:
+                self.console.print(f"Jarvis [{enrollment_result['status']}]: {enrollment_result.get('message', '')}")
+                if enrollment_result.get("entities"):
+                    self.console.print("Entities: " + ", ".join(enrollment_result["entities"]))
+                if enrollment_result.get("services"):
+                    self.console.print("Services: " + ", ".join(enrollment_result["services"]))
+                continue
             management_result = self.container.explicit_data_console.handle(text)
             if management_result is not None:
                 self.console.print(f"Jarvis [{management_result['status']}]: {management_result['message']}")
@@ -394,6 +406,22 @@ class JarvisApplication:
                     self.console.print(f"Confirm action: {result.get('summary', '')}. Type: confirm {token}")
                     continue
             self.console.print(f"Jarvis [{result['status']}]: {self._user_message(result)}")
+
+    def _handle_home_access_command(self, text: str) -> dict[str, object] | None:
+        """Handle explicit enrollment commands before the model request path."""
+        parts = text.strip().split()
+        if not parts or parts[0] != "home":
+            return None
+        enrollment = self.container.home_access_enrollment
+        if len(parts) in {2, 3} and parts[1] == "discover":
+            return enrollment.discover(parts[2] if len(parts) == 3 else None)
+        if len(parts) == 4 and parts[1:3] == ["enroll", "read"]:
+            return enrollment.enroll_read(parts[3])
+        if len(parts) in {5, 6} and parts[1:3] == ["enroll", "action"]:
+            return enrollment.enroll_action(parts[3], parts[4], parts[5] if len(parts) == 6 else "normal")
+        if len(parts) == 4 and parts[1] == "alias":
+            return enrollment.set_alias(parts[2], parts[3])
+        return {"status":"not_supported","message":"Use: home discover [domain], home enroll read <entity>, home enroll action <entity> <service> [normal|high], or home alias <name> <entity>."}
 
     def show_banner(self):
         """
