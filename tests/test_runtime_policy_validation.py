@@ -29,3 +29,11 @@ class RuntimePolicyValidationTests(unittest.TestCase):
             JarvisApplication._validate_home_assistant_policy(
                 {"entity_aliases": {"": "light.blocks"}, "action_policy": {}}
             )
+
+    def test_rejects_malformed_timeline_configuration(self):
+        with self.assertRaises(ValueError):
+            JarvisApplication._validate_timeline_config({"enabled": "yes"})
+        with self.assertRaises(ValueError):
+            JarvisApplication._validate_timeline_config({"allowed_entities": "light.blocks"})
+        with self.assertRaises(ValueError):
+            JarvisApplication._validate_timeline_config({"max_events": 0})

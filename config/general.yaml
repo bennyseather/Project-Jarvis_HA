@@ -17,9 +17,18 @@ home_assistant:
   action_policy:
     confirm_required:
       - light.turn_on
+      - light.turn_off
     high_impact: []
     allowed_entities:
       - light.blocks
 
 conversation:
   max_messages: 12
+
+event_timeline:
+  enabled: true
+  allowed_event_types:
+    - state_changed
+  allowed_entities:
+    - light.blocks
+  max_events: 50

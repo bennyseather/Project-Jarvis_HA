@@ -38,4 +38,8 @@ class ServiceContainer:
         self.read_only_assistant = None
         self.runtime_context_assembler = None
         self.home_assistant_action_gateway = None
+        self.timeline_store = None
+        self.timeline_subscriber = None
+        self.timeline_client = None
+        self.timeline_task = None
         self.entity_resolver: EntityResolver | None = None

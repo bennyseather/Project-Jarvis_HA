@@ -36,6 +36,10 @@ from jarvis.homeassistant.risk_policy import HomeAssistantRiskPolicy
 from jarvis.homeassistant.pending_actions import PendingActionStore
 from jarvis.homeassistant.action_gateway import ConfirmedHomeAssistantActionGateway
 from jarvis.homeassistant.entity_reference_resolver import EntityReferenceResolver
+from jarvis.timeline.policy import EventTimelinePolicy
+from jarvis.timeline.store import InMemoryTimelineStore
+from jarvis.timeline.subscriber import HomeAssistantEventSubscriber
+from jarvis.models.event_timeline import TimelineQuery
 
 
 class JarvisApplication:
@@ -110,6 +114,10 @@ class JarvisApplication:
             try:
                 await self.keep_running()
             finally:
+                if self.container.timeline_task is not None:
+                    self.container.timeline_task.cancel()
+                if self.container.timeline_client is not None:
+                    await self.container.timeline_client.disconnect()
                 await self.container.home_assistant.disconnect()
         else:
             self.console.print("[red]Jarvis is not running.[/red]")
@@ -182,6 +190,14 @@ class JarvisApplication:
             allowed_read_entities,
             resolver,
         )
+        timeline_config = self.general.get("event_timeline", {})
+        self._validate_timeline_config(timeline_config)
+        self.container.timeline_store = InMemoryTimelineStore(timeline_config.get("max_events", 50))
+        self.container.timeline_policy = EventTimelinePolicy(
+            timeline_config.get("enabled", False),
+            timeline_config.get("allowed_event_types", ()),
+            timeline_config.get("allowed_entities", ()),
+        )
 
 
     async def connect_services(self):
@@ -210,6 +226,19 @@ class JarvisApplication:
         self.container.read_only_assistant.set_action_gateway(
             self.container.home_assistant_action_gateway
         )
+        if self.container.timeline_policy.enabled:
+            ha_config = self.general["home_assistant"]
+            self.container.timeline_client = HomeAssistantClient(
+                ha_config["url"], ha_config["token"], self.container.logger
+            )
+            self.container.timeline_subscriber = HomeAssistantEventSubscriber(
+                self.container.timeline_client,
+                self.container.timeline_policy,
+                self.container.timeline_store,
+            )
+            self.container.timeline_task = asyncio.create_task(
+                self.container.timeline_subscriber.run()
+            )
 
         self.container.logger.info(
             f"Loaded {self.container.entity_registry.count()} entities into registry."
@@ -285,6 +314,17 @@ class JarvisApplication:
             if text.strip().casefold() in {"quit", "exit"}:
                 return
             if not text.strip():
+                continue
+            if text.strip().casefold().startswith("timeline"):
+                parts = text.strip().split(maxsplit=1)
+                entity_id = parts[1] if len(parts) == 2 else None
+                events = self.container.timeline_store.retrieve(TimelineQuery(entity_id=entity_id))
+                if not events:
+                    self.console.print("Jarvis [success]: No configured recent events are available.")
+                else:
+                    for event in events:
+                        state = "" if event.state is None else f" → {event.state}"
+                        self.console.print(f"{event.occurred_at.isoformat()} {event.entity_id}{state}")
                 continue
             if text.strip().startswith("confirm "):
                 token = text.strip().split(maxsplit=1)[1]
@@ -372,3 +412,15 @@ class JarvisApplication:
             for alias, entity in aliases.items()
         ):
             raise ValueError("home_assistant.entity_aliases must map non-empty strings to non-empty strings.")
+
+    @staticmethod
+    def _validate_timeline_config(config: dict) -> None:
+        if not isinstance(config, dict) or not isinstance(config.get("enabled", False), bool):
+            raise ValueError("event_timeline.enabled must be a boolean")
+        for name in ("allowed_event_types", "allowed_entities"):
+            values = config.get(name, ())
+            if not isinstance(values, (list, tuple)) or any(not isinstance(value, str) or not value.strip() for value in values):
+                raise ValueError(f"event_timeline.{name} must be a list of non-empty strings.")
+        max_events = config.get("max_events", 50)
+        if not isinstance(max_events, int) or isinstance(max_events, bool) or not 1 <= max_events <= 500:
+            raise ValueError("event_timeline.max_events must be an integer between 1 and 500")

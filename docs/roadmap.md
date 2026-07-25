@@ -38,7 +38,11 @@
 
 ## EPIC 4 – Event Timeline
 
-Event Processing
+- M8.1 Event Timeline Contracts and Privacy Policy ✅
+- M8.2 Ephemeral Timeline Store ✅
+- M8.3 Home Assistant Event Subscription ✅
+- M8.4 Timeline Retrieval and Console Context ✅
+- M8.5 Safe Acceptance and Operational Documentation ✅
 
 ## EPIC 5 – Conversation Pipeline
 
