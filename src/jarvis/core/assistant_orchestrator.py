@@ -15,6 +15,10 @@ class AssistantOrchestrator:
         self._resolver = resolver
         self._action_gateway = action_gateway
 
+    def set_action_gateway(self, action_gateway) -> None:
+        """Attach the discovered runtime action gateway after Home Assistant connects."""
+        self._action_gateway = action_gateway
+
     async def handle(self, request_text: str, context: dict[str, object] | None = None) -> dict[str, object]:
         proposal = self._language_model.propose(AssistantInput(request_text, {} if context is None else context))
         if proposal.kind is AssistantProposalKind.CONVERSATION:

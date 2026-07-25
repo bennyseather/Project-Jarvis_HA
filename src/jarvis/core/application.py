@@ -5,6 +5,7 @@ Main application class.
 """
 
 import asyncio
+from datetime import datetime, timezone
 
 from rich.console import Console
 from rich.panel import Panel
@@ -16,6 +17,18 @@ from jarvis.homeassistant.client import HomeAssistantClient
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
 from jarvis.core.assistant_factory import create_read_only_assistant
+from jarvis.context.context_assembler import ContextAssembler
+from jarvis.context.providers import MemoryContextProvider, KnowledgeContextProvider
+from jarvis.memory.in_memory_store import InMemoryMemoryStore
+from jarvis.memory.policy import ExplicitMemoryPolicy
+from jarvis.memory.ranker import DeterministicMemoryRanker
+from jarvis.memory.retriever import PolicyControlledMemoryRetriever
+from jarvis.knowledge.in_memory_store import InMemoryKnowledgeStore
+from jarvis.knowledge.policy import ExplicitKnowledgePolicy
+from jarvis.knowledge.ranker import DeterministicKnowledgeRanker
+from jarvis.knowledge.retriever import PolicyControlledKnowledgeRetriever
+from jarvis.models.request import Request
+from jarvis.models.request_context import RequestContext
 from jarvis.homeassistant.capability_discovery import HomeAssistantCapabilityDiscovery
 from jarvis.homeassistant.capability_gateway import HomeAssistantCapabilityGateway
 from jarvis.homeassistant.risk_policy import HomeAssistantRiskPolicy
@@ -105,6 +118,7 @@ class JarvisApplication:
         """
 
         ha_config = self.general["home_assistant"]
+        self._validate_home_assistant_policy(ha_config)
 
         self.container.home_assistant = HomeAssistantClient(
             url=ha_config["url"],
@@ -118,6 +132,18 @@ class JarvisApplication:
         )
 
         self.container.context_builder = ContextBuilder()
+        self.container.memory_store = InMemoryMemoryStore()
+        self.container.knowledge_store = InMemoryKnowledgeStore()
+        self.container.runtime_context_assembler = ContextAssembler((
+            MemoryContextProvider(PolicyControlledMemoryRetriever(
+                self.container.memory_store, ExplicitMemoryPolicy(),
+                DeterministicMemoryRanker(), lambda: datetime.now(timezone.utc),
+            )),
+            KnowledgeContextProvider(PolicyControlledKnowledgeRetriever(
+                self.container.knowledge_store, ExplicitKnowledgePolicy(),
+                DeterministicKnowledgeRanker(),
+            )),
+        ))
 
         self.container.assistant = Assistant(
             openai=self.container.openai,
@@ -126,6 +152,14 @@ class JarvisApplication:
 
         self.container.entity_resolver = EntityResolver(
             self.container.entity_registry
+        )
+        allowed_read_entities = frozenset(
+            ha_config.get("allowed_read_entities", ())
+        )
+        self.container.read_only_assistant = create_read_only_assistant(
+            self.container.openai,
+            self.container.home_assistant,
+            allowed_read_entities,
         )
 
 
@@ -152,6 +186,9 @@ class JarvisApplication:
             PendingActionStore(),
             self.container.home_assistant,
         )
+        self.container.read_only_assistant.set_action_gateway(
+            self.container.home_assistant_action_gateway
+        )
 
         self.container.logger.info(
             f"Loaded {self.container.entity_registry.count()} entities into registry."
@@ -172,15 +209,6 @@ class JarvisApplication:
             "Home Assistant startup checks are read-only."
         )
 
-        allowed_read_entities = frozenset(
-            self.general.get("home_assistant", {}).get("allowed_read_entities", ())
-        )
-        self.container.read_only_assistant = create_read_only_assistant(
-            self.container.openai,
-            self.container.home_assistant,
-            allowed_read_entities,
-        )
-
         self.container.logger.info("Provider startup checks are connectivity-only.")
 
     async def handle_request(self, text: str) -> dict[str, object]:
@@ -188,7 +216,28 @@ class JarvisApplication:
 
         if not hasattr(self.container, "read_only_assistant"):
             return {"status": "not_supported", "message": "Assistant runtime is unavailable."}
-        return await self.container.read_only_assistant.handle(text)
+        request_context = RequestContext(Request(text))
+        package = self.container.runtime_context_assembler.assemble(request_context)
+        context = {
+            "memory": self._context_items(package.memory),
+            "knowledge": self._context_items(package.knowledge),
+        }
+        return await self.container.read_only_assistant.handle(text, context)
+
+    @staticmethod
+    def _context_items(section) -> tuple[dict[str, object], ...]:
+        if section is None:
+            return ()
+        return tuple(
+            {
+                "content": match.content,
+                "title": getattr(match, "title", None),
+                "type": str(getattr(match, "memory_type", getattr(match, "knowledge_type", ""))),
+                "tags": match.tags,
+                "score": match.retrieval_score,
+            }
+            for match in section.matches
+        )
 
     async def keep_running(self):
         """Run the first minimal interactive request loop."""
@@ -260,3 +309,18 @@ class JarvisApplication:
         """
 
         return self.status
+
+    @staticmethod
+    def _validate_home_assistant_policy(config: dict) -> None:
+        """Reject malformed read/action authorization configuration at startup."""
+        policy = config.get("action_policy", {})
+        for name, values in {
+            "allowed_read_entities": config.get("allowed_read_entities", ()),
+            "confirm_required": policy.get("confirm_required", ()),
+            "high_impact": policy.get("high_impact", ()),
+            "allowed_entities": policy.get("allowed_entities", ()),
+        }.items():
+            if not isinstance(values, (list, tuple)) or any(
+                not isinstance(value, str) or not value.strip() for value in values
+            ):
+                raise ValueError(f"home_assistant.{name} must be a list of non-empty strings.")

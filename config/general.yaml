@@ -11,8 +11,11 @@ logging:
 home_assistant:
   url: "http://homeassistant.local:8123"
   token: ""
-  allowed_read_entities: []
+  allowed_read_entities:
+    - light.blocks
   action_policy:
-    confirm_required: []
+    confirm_required:
+      - light.turn_on
     high_impact: []
-    allowed_entities: []
+    allowed_entities:
+      - light.blocks

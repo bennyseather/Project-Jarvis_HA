@@ -61,3 +61,10 @@ Learning & Adaptation
 
 - M6.1 Learning Foundations ✅
 - M6.2–M6.6 Explicit Learning Review ✅
+
+## EPIC 7 – Runtime Integration and Acceptance
+
+- M7.1 Bounded Memory and Knowledge Runtime Context ✅
+- M7.2 Confirmed Action Gateway Runtime Composition ✅
+- M7.3 Home Assistant Authorization Configuration Validation ✅
+- M7.4 Safe Home Assistant Acceptance Test ✅
