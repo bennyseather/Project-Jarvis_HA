@@ -8,6 +8,8 @@ class JarvisConversationBridge:
         self._application = application
 
     async def process(self, text: str, confirmation_token: str | None = None) -> dict[str, object]:
+        if confirmation_token is None and text.strip().startswith("confirm "):
+            confirmation_token = text.strip().split(maxsplit=1)[1]
         if confirmation_token is not None:
             payload = self._application._pending_action_payloads.pop(confirmation_token, None)
             if payload is None:

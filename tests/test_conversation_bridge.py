@@ -23,5 +23,5 @@ class ConversationBridgeTests(unittest.IsolatedAsyncioTestCase):
         bridge = JarvisConversationBridge(App())
         pending = await bridge.process("turn on blocks")
         self.assertEqual(pending["status"], "requires_confirmation")
-        self.assertEqual((await bridge.process("", pending["confirmation_token"]))["status"], "success")
+        self.assertEqual((await bridge.process("confirm " + pending["confirmation_token"]))["status"], "success")
         self.assertEqual((await bridge.process("", pending["confirmation_token"]))["status"], "forbidden")
