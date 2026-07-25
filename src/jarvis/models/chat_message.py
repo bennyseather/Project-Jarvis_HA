@@ -2,7 +2,7 @@
 Chat message model.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -14,7 +14,7 @@ class ChatMessage:
 
     role: str
     content: str
-    timestamp: datetime = datetime.now()
+    timestamp: datetime = field(default_factory=datetime.now)
 
     def to_openai(self) -> dict[str, str]:
         return {

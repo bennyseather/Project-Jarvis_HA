@@ -1,6 +1,7 @@
 import unittest
 from jarvis.core.assistant_orchestrator import AssistantOrchestrator
 from jarvis.models.assistant_slice import AssistantProposal, AssistantProposalKind, HomeAssistantState
+from jarvis.homeassistant.entity_reference_resolver import EntityReferenceResolver
 
 class Model:
  def __init__(self,p): self.p=p
@@ -17,3 +18,7 @@ class Tests(unittest.IsolatedAsyncioTestCase):
  async def test_blocked_entity_never_calls_home_assistant(self):
   home=Home();o=AssistantOrchestrator(Model(AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="light.secret")),home)
   self.assertEqual((await o.handle("state"))["status"],"not_supported");self.assertEqual(home.calls,[])
+ async def test_alias_resolves_only_to_allowed_entity(self):
+  home=Home(); resolver=EntityReferenceResolver({"light.kitchen"},{"kitchen lamp":"light.kitchen"})
+  orchestrator=AssistantOrchestrator(Model(AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="kitchen lamp")),home,frozenset({"light.kitchen"}),resolver)
+  self.assertEqual((await orchestrator.handle("state"))["entity_id"],"light.kitchen")

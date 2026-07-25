@@ -13,9 +13,13 @@ home_assistant:
   token: ""
   allowed_read_entities:
     - light.blocks
+  entity_aliases: {}
   action_policy:
     confirm_required:
       - light.turn_on
     high_impact: []
     allowed_entities:
       - light.blocks
+
+conversation:
+  max_messages: 12

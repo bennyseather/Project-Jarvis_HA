@@ -13,6 +13,7 @@ from rich.panel import Panel
 from jarvis.core.assistant import Assistant
 from jarvis.core.container import ServiceContainer
 from jarvis.core.context_builder import ContextBuilder
+from jarvis.core.conversation import Conversation
 from jarvis.homeassistant.client import HomeAssistantClient
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
@@ -34,6 +35,7 @@ from jarvis.homeassistant.capability_gateway import HomeAssistantCapabilityGatew
 from jarvis.homeassistant.risk_policy import HomeAssistantRiskPolicy
 from jarvis.homeassistant.pending_actions import PendingActionStore
 from jarvis.homeassistant.action_gateway import ConfirmedHomeAssistantActionGateway
+from jarvis.homeassistant.entity_reference_resolver import EntityReferenceResolver
 
 
 class JarvisApplication:
@@ -58,8 +60,15 @@ class JarvisApplication:
         """
         self.load_configuration()
         self.initialize_services()
-        await self.connect_services()
-        await self.startup_checks()
+        try:
+            await self.connect_services()
+            await self.startup_checks()
+        except Exception:
+            self.status = "Unavailable"
+            self.container.logger.error("Startup checks failed; Home Assistant is unavailable.")
+            self.console.print("[red]Jarvis could not start because Home Assistant is unavailable.[/red]")
+            await self.container.home_assistant.disconnect()
+            return
 
         self.status = "Running"
 
@@ -98,7 +107,10 @@ class JarvisApplication:
             )
 
         if self.get_status() == "Running":
-            await self.keep_running()
+            try:
+                await self.keep_running()
+            finally:
+                await self.container.home_assistant.disconnect()
         else:
             self.console.print("[red]Jarvis is not running.[/red]")
 
@@ -119,6 +131,10 @@ class JarvisApplication:
 
         ha_config = self.general["home_assistant"]
         self._validate_home_assistant_policy(ha_config)
+        conversation_config = self.general.get("conversation", {})
+        max_messages = conversation_config.get("max_messages", 12)
+        if not isinstance(max_messages, int) or isinstance(max_messages, bool) or max_messages < 2:
+            raise ValueError("conversation.max_messages must be an integer of at least 2")
 
         self.container.home_assistant = HomeAssistantClient(
             url=ha_config["url"],
@@ -132,6 +148,7 @@ class JarvisApplication:
         )
 
         self.container.context_builder = ContextBuilder()
+        self.container.conversation = Conversation(max_messages)
         self.container.memory_store = InMemoryMemoryStore()
         self.container.knowledge_store = InMemoryKnowledgeStore()
         self.container.runtime_context_assembler = ContextAssembler((
@@ -156,10 +173,14 @@ class JarvisApplication:
         allowed_read_entities = frozenset(
             ha_config.get("allowed_read_entities", ())
         )
+        resolver = EntityReferenceResolver(
+            allowed_read_entities, ha_config.get("entity_aliases", {})
+        )
         self.container.read_only_assistant = create_read_only_assistant(
             self.container.openai,
             self.container.home_assistant,
             allowed_read_entities,
+            resolver,
         )
 
 
@@ -199,14 +220,10 @@ class JarvisApplication:
         Run startup verification checks.
         """
 
-        self.container.logger.info("Available lights:")
-
-        for entity in self.container.entity_registry.all():
-            if entity.entity_id.startswith("light."):
-                self.console.print(entity.entity_id)
-
         self.container.logger.info(
-            "Home Assistant startup checks are read-only."
+            f"Home Assistant ready with {self.container.entity_registry.count()} discovered entities, "
+            f"{len(self.general['home_assistant']['allowed_read_entities'])} allowed reads, and "
+            f"{len(self.general['home_assistant']['action_policy']['allowed_entities'])} allowed action entities."
         )
 
         self.container.logger.info("Provider startup checks are connectivity-only.")
@@ -216,13 +233,33 @@ class JarvisApplication:
 
         if not hasattr(self.container, "read_only_assistant"):
             return {"status": "not_supported", "message": "Assistant runtime is unavailable."}
+        conversation = self.container.conversation
+        conversation.add_user_message(text)
         request_context = RequestContext(Request(text))
         package = self.container.runtime_context_assembler.assemble(request_context)
         context = {
             "memory": self._context_items(package.memory),
             "knowledge": self._context_items(package.knowledge),
+            "conversation": tuple(message.to_openai() for message in conversation.history()[:-1]),
         }
-        return await self.container.read_only_assistant.handle(text, context)
+        result = await self.container.read_only_assistant.handle(text, context)
+        message = self._user_message(result)
+        if message:
+            conversation.add_assistant_message(message)
+        return result
+
+    @staticmethod
+    def _user_message(result: dict[str, object]) -> str:
+        """Return a stable, safe console response for every runtime outcome."""
+        messages = {
+            "success": "Action completed." if "message" not in result else str(result["message"]),
+            "clarification_required": "Please specify the exact configured entity you mean.",
+            "not_supported": "That request is not available in the current configuration.",
+            "unavailable": "Home Assistant is temporarily unavailable. Please try again.",
+            "forbidden": "That action is not authorized.",
+            "requires_confirmation": "Confirmation is required before this action can run.",
+        }
+        return messages.get(str(result.get("status")), str(result.get("message", "Request could not be completed.")))
 
     @staticmethod
     def _context_items(section) -> tuple[dict[str, object], ...]:
@@ -252,9 +289,14 @@ class JarvisApplication:
             if text.strip().startswith("confirm "):
                 token = text.strip().split(maxsplit=1)[1]
                 payload = self._pending_action_payloads.pop(token, None)
-                result = ({"status": "forbidden", "message": "Confirmation is invalid."}
-                          if payload is None else await self.container.read_only_assistant.confirm_action(token, payload))
-                self.console.print(f"Jarvis [{result['status']}]: {result.get('message', result.get('reason_code', 'Action completed.'))}")
+                try:
+                    result = ({"status": "forbidden", "message": "Confirmation is invalid."}
+                              if payload is None else await self.container.read_only_assistant.confirm_action(token, payload))
+                except Exception:
+                    result = {"status": "unavailable"}
+                message = self._user_message(result)
+                self.container.conversation.add_assistant_message(message)
+                self.console.print(f"Jarvis [{result['status']}]: {message}")
                 continue
             result = await self.handle_request(text)
             if result.get("status") == "requires_confirmation":
@@ -264,7 +306,7 @@ class JarvisApplication:
                     self._pending_action_payloads[token] = payload
                     self.console.print(f"Confirm action: {result.get('summary', '')}. Type: confirm {token}")
                     continue
-            self.console.print(f"Jarvis [{result['status']}]: {result['message']}")
+            self.console.print(f"Jarvis [{result['status']}]: {self._user_message(result)}")
 
     def show_banner(self):
         """
@@ -324,3 +366,9 @@ class JarvisApplication:
                 not isinstance(value, str) or not value.strip() for value in values
             ):
                 raise ValueError(f"home_assistant.{name} must be a list of non-empty strings.")
+        aliases = config.get("entity_aliases", {})
+        if not isinstance(aliases, dict) or any(
+            not isinstance(alias, str) or not alias.strip() or not isinstance(entity, str) or not entity.strip()
+            for alias, entity in aliases.items()
+        ):
+            raise ValueError("home_assistant.entity_aliases must map non-empty strings to non-empty strings.")

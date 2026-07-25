@@ -68,3 +68,5 @@ Learning & Adaptation
 - M7.2 Confirmed Action Gateway Runtime Composition ✅
 - M7.3 Home Assistant Authorization Configuration Validation ✅
 - M7.4 Safe Home Assistant Acceptance Test ✅
+- M7.5 Conversation Quality ✅
+- M7.6 Operational Readiness ✅

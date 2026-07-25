@@ -6,6 +6,7 @@ from jarvis.capabilities.capability_registry import CapabilityRegistry
 from jarvis.core.assistant import Assistant
 from jarvis.core.config_loader import ConfigLoader
 from jarvis.core.context_builder import ContextBuilder
+from jarvis.core.conversation import Conversation
 from jarvis.core.event_bus import EventBus
 from jarvis.core.logger import JarvisLogger
 from jarvis.homeassistant.client import HomeAssistantClient
@@ -33,6 +34,7 @@ class ServiceContainer:
 
         self.context_builder: ContextBuilder | None = None
         self.assistant: Assistant | None = None
+        self.conversation: Conversation | None = None
         self.read_only_assistant = None
         self.runtime_context_assembler = None
         self.home_assistant_action_gateway = None

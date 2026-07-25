@@ -10,7 +10,10 @@ class Conversation:
     Stores the current conversation between the user and Jarvis.
     """
 
-    def __init__(self):
+    def __init__(self, max_messages: int = 12):
+        if max_messages < 2:
+            raise ValueError("max_messages must be at least 2")
+        self.max_messages = max_messages
         self.messages: list[ChatMessage] = []
 
     def add_user_message(self, message: str) -> None:
@@ -23,6 +26,7 @@ class Conversation:
                 content=message,
             )
         )
+        self._trim()
 
     def add_assistant_message(self, message: str) -> None:
         """
@@ -34,6 +38,11 @@ class Conversation:
                 content=message,
             )
         )
+        self._trim()
+
+    def _trim(self) -> None:
+        """Keep in-process continuity bounded and non-durable."""
+        del self.messages[:-self.max_messages]
 
     def history(self) -> list[ChatMessage]:
         """
