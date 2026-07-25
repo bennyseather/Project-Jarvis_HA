@@ -90,3 +90,11 @@ Learning & Adaptation
 - M10.3 Curated Knowledge Management ✅
 - M10.4 Durable Runtime Wiring ✅
 - M10.5 Privacy Acceptance and Documentation ✅
+
+## EPIC 11 – Home Assistant Capability Context
+
+- M11.1 Bounded Capability Snapshot ✅
+- M11.2 Model Context Integration ✅
+- M11.3 Entity and Service Clarification ✅
+- M11.4 Service and Alias Validation ✅
+- M11.5 Confirmed Action Acceptance ✅

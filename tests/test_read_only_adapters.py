@@ -3,8 +3,8 @@ from jarvis.homeassistant.read_adapter import HomeAssistantReadAdapter
 from jarvis.models.assistant_slice import AssistantInput,AssistantProposalKind
 from jarvis.providers.assistant_proposal_provider import OpenAIAssistantProposalProvider
 class OpenAI:
- def __init__(self,v):self.v=v
- def ask(self,x):return self.v
+ def __init__(self,v):self.v=v;self.request=None
+ def ask(self,x):self.request=x;return self.v
 class HA:
  async def get_states(self):return [{"entity_id":"light.kitchen","state":"on","attributes":{"x":1}}]
 class Tests(unittest.IsolatedAsyncioTestCase):
@@ -17,3 +17,7 @@ class Tests(unittest.IsolatedAsyncioTestCase):
  def test_action_schema_is_structurally_validated(self):
   provider=OpenAIAssistantProposalProvider(OpenAI('{"kind":"home_assistant_action","action":{"domain":"light","service":"turn_on","entity_ids":["light.kitchen"],"service_data":{},"summary":"Turn on kitchen"}}'))
   self.assertEqual(provider.propose(AssistantInput("turn on kitchen")).kind,AssistantProposalKind.HOME_ASSISTANT_ACTION)
+ def test_model_receives_capability_context(self):
+  model=OpenAI('{"kind":"conversation","message":"Hi"}')
+  OpenAIAssistantProposalProvider(model).propose(AssistantInput("hi",{"home_assistant":{"action_entities":["light.blocks"]}}))
+  self.assertEqual(model.request["context"]["home_assistant"]["action_entities"],["light.blocks"])

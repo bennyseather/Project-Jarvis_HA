@@ -27,10 +27,23 @@ class AssistantOrchestrator:
             if self._action_gateway is None or not proposal.action:
                 return {"status": "not_supported", "message": "Actions are unavailable."}
             from jarvis.models.home_assistant_gateway import HomeAssistantActionProposal
-            action = HomeAssistantActionProposal(**proposal.action)
+            action_data = dict(proposal.action)
+            if self._resolver is not None:
+                resolved = []
+                for entity_id in action_data.get("entity_ids", ()):
+                    matches = self._resolver.resolve(entity_id)
+                    if len(matches) != 1:
+                        return {"status": "clarification_required", "message": "Please specify a configured action entity."}
+                    resolved.append(matches[0])
+                action_data["entity_ids"] = tuple(resolved)
+            action = HomeAssistantActionProposal(**action_data)
             result = self._action_gateway.request(action)
+            if result.get("reason_code") == "unknown_entity":
+                return {"status": "clarification_required", "message": "Please specify a configured action entity."}
+            if result.get("reason_code") == "unknown_service":
+                return {"status": "clarification_required", "message": "Please specify a configured service."}
             if result.get("status") == "requires_confirmation":
-                result["action_payload"] = dict(proposal.action)
+                result["action_payload"] = dict(action_data)
             return result
         if proposal.kind is AssistantProposalKind.READ_ENTITY_STATE:
             if self._resolver is not None:

@@ -42,4 +42,5 @@ class ServiceContainer:
         self.timeline_subscriber = None
         self.timeline_client = None
         self.timeline_task = None
+        self.home_assistant_capability_context = None
         self.entity_resolver: EntityResolver | None = None

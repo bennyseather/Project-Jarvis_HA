@@ -47,6 +47,7 @@ from jarvis.models.memory import MemoryRecordFactory
 from jarvis.knowledge.writer import PolicyControlledKnowledgeWriter
 from jarvis.models.knowledge import KnowledgeRecordFactory
 from jarvis.management.console_commands import ExplicitDataConsole
+from jarvis.homeassistant.capability_context import HomeAssistantCapabilityContext
 
 
 class JarvisApplication:
@@ -210,7 +211,8 @@ class JarvisApplication:
             ha_config.get("allowed_read_entities", ())
         )
         resolver = EntityReferenceResolver(
-            allowed_read_entities, ha_config.get("entity_aliases", {})
+            allowed_read_entities | frozenset(ha_config.get("action_policy", {}).get("allowed_entities", ())),
+            ha_config.get("entity_aliases", {}),
         )
         self.container.read_only_assistant = create_read_only_assistant(
             self.container.openai,
@@ -241,6 +243,13 @@ class JarvisApplication:
             self.container.home_assistant
         ).discover()
         action_config = self.general.get("home_assistant", {}).get("action_policy", {})
+        self.container.home_assistant_capability_context = HomeAssistantCapabilityContext(
+            catalog,
+            self.general["home_assistant"].get("allowed_read_entities", ()),
+            action_config.get("allowed_entities", ()),
+            tuple(action_config.get("confirm_required", ())) + tuple(action_config.get("high_impact", ())),
+            self.general["home_assistant"].get("entity_aliases", {}),
+        )
         self.container.home_assistant_action_gateway = ConfirmedHomeAssistantActionGateway(
             HomeAssistantCapabilityGateway(catalog),
             HomeAssistantRiskPolicy(
@@ -298,6 +307,7 @@ class JarvisApplication:
             "memory": self._context_items(package.memory),
             "knowledge": self._context_items(package.knowledge),
             "conversation": tuple(message.to_openai() for message in conversation.history()[:-1]),
+            "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
         result = await self.container.read_only_assistant.handle(text, context)
         message = self._user_message(result)
