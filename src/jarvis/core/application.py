@@ -5,6 +5,7 @@ Main application class.
 """
 
 import asyncio
+import os
 from datetime import datetime, timezone
 
 from rich.console import Console
@@ -138,6 +139,9 @@ class JarvisApplication:
         Load the application configuration.
         """
         self.general = self.container.config_loader.load()
+        storage_path = os.environ.get("JARVIS_STORAGE_PATH")
+        if storage_path:
+            self.general.setdefault("storage", {})["database_path"] = storage_path
 
         self.container.logger.info("Configuration loaded")
 

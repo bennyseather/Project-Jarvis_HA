@@ -54,9 +54,12 @@ class HomeAssistantClient:
         Connect and authenticate with Home Assistant.
         """
 
-        ws_url = self.url.replace("http://", "ws://")
-        ws_url = ws_url.replace("https://", "wss://")
-        ws_url += "/api/websocket"
+        if self.url.rstrip("/") == "http://supervisor/core":
+            ws_url = "ws://supervisor/core/websocket"
+        else:
+            ws_url = self.url.replace("http://", "ws://")
+            ws_url = ws_url.replace("https://", "wss://")
+            ws_url += "/api/websocket"
 
         self.logger.info(f"Connecting to {ws_url}")
 
