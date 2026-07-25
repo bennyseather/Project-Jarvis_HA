@@ -8,6 +8,9 @@ system:
 logging:
   level: INFO
 
+storage:
+  database_path: "data/jarvis.sqlite3"
+
 home_assistant:
   url: "http://homeassistant.local:8123"
   token: ""

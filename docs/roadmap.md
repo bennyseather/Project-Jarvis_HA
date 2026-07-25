@@ -74,3 +74,11 @@ Learning & Adaptation
 - M7.4 Safe Home Assistant Acceptance Test ✅
 - M7.5 Conversation Quality ✅
 - M7.6 Operational Readiness ✅
+
+## EPIC 9 – Durable Storage and Restart Resilience
+
+- M9.1 SQLite Storage Foundation ✅
+- M9.2 Durable Explicit Memory ✅
+- M9.3 Durable Curated Knowledge ✅
+- M9.4 Runtime Restart Resilience ✅
+- M9.5 Privacy and Operational Acceptance ✅

@@ -40,6 +40,7 @@ from jarvis.timeline.policy import EventTimelinePolicy
 from jarvis.timeline.store import InMemoryTimelineStore
 from jarvis.timeline.subscriber import HomeAssistantEventSubscriber
 from jarvis.models.event_timeline import TimelineQuery
+from jarvis.storage.sqlite_stores import SQLiteKnowledgeStore, SQLiteMemoryStore
 
 
 class JarvisApplication:
@@ -119,6 +120,8 @@ class JarvisApplication:
                 if self.container.timeline_client is not None:
                     await self.container.timeline_client.disconnect()
                 await self.container.home_assistant.disconnect()
+                self.container.memory_store.close()
+                self.container.knowledge_store.close()
         else:
             self.console.print("[red]Jarvis is not running.[/red]")
 
@@ -139,6 +142,11 @@ class JarvisApplication:
 
         ha_config = self.general["home_assistant"]
         self._validate_home_assistant_policy(ha_config)
+        storage_config = self.general.get("storage", {})
+        database_path = storage_config.get("database_path", "data/jarvis.sqlite3")
+        if not isinstance(database_path, str) or not database_path.strip():
+            raise ValueError("storage.database_path must be a non-empty string")
+        database_file = self.container.config_loader.project_root / database_path
         conversation_config = self.general.get("conversation", {})
         max_messages = conversation_config.get("max_messages", 12)
         if not isinstance(max_messages, int) or isinstance(max_messages, bool) or max_messages < 2:
@@ -157,8 +165,8 @@ class JarvisApplication:
 
         self.container.context_builder = ContextBuilder()
         self.container.conversation = Conversation(max_messages)
-        self.container.memory_store = InMemoryMemoryStore()
-        self.container.knowledge_store = InMemoryKnowledgeStore()
+        self.container.memory_store = SQLiteMemoryStore(database_file)
+        self.container.knowledge_store = SQLiteKnowledgeStore(database_file)
         self.container.runtime_context_assembler = ContextAssembler((
             MemoryContextProvider(PolicyControlledMemoryRetriever(
                 self.container.memory_store, ExplicitMemoryPolicy(),
