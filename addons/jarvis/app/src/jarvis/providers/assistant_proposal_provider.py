@@ -1,0 +1,27 @@
+"""Schema-validating OpenAI adapter for the safe assistant slice."""
+from __future__ import annotations
+import json
+from jarvis.models.assistant_slice import AssistantInput, AssistantProposal, AssistantProposalKind
+
+class OpenAIAssistantProposalProvider:
+    def __init__(self, provider) -> None: self._provider = provider
+    def propose(self, request: AssistantInput) -> AssistantProposal:
+        instruction={"request":request.request_text,"context":dict(request.context),"output":"JSON only: kind conversation/read_entity_state/home_assistant_action, message, entity_id, or action {domain,service,entity_ids,service_data,summary}. Use only home_assistant context entities and services."}
+        try: payload=json.loads(self._provider.ask(instruction))
+        except Exception: return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unable to interpret the request.")
+        try: kind=AssistantProposalKind(payload["kind"])
+        except (KeyError, ValueError, TypeError): return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unsupported model proposal.")
+        if kind is AssistantProposalKind.READ_ENTITY_STATE and not isinstance(payload.get("entity_id"),str): return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Invalid entity proposal.")
+        if kind is AssistantProposalKind.HOME_ASSISTANT_ACTION:
+            action = payload.get("action")
+            if (not isinstance(action, dict) or not isinstance(action.get("domain"), str)
+                    or not isinstance(action.get("service"), str)
+                    or not isinstance(action.get("entity_ids", ()), list)
+                    or not all(isinstance(entity, str) for entity in action.get("entity_ids", ()))
+                    or not isinstance(action.get("service_data", {}), dict)
+                    or not isinstance(action.get("summary"), str)):
+                return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Invalid action proposal.")
+            action["entity_ids"] = tuple(action.get("entity_ids", ()))
+            return AssistantProposal(kind, str(payload.get("message", "")), action=action)
+        if kind not in {AssistantProposalKind.CONVERSATION,AssistantProposalKind.READ_ENTITY_STATE}: return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unsupported model proposal.")
+        return AssistantProposal(kind,str(payload.get("message","")),payload.get("entity_id"))
