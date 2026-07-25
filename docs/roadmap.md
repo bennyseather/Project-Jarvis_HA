@@ -82,3 +82,11 @@ Learning & Adaptation
 - M9.3 Durable Curated Knowledge ✅
 - M9.4 Runtime Restart Resilience ✅
 - M9.5 Privacy and Operational Acceptance ✅
+
+## EPIC 10 – Explicit Memory and Knowledge Experience
+
+- M10.1 Console Command Grammar ✅
+- M10.2 Explicit Memory Management ✅
+- M10.3 Curated Knowledge Management ✅
+- M10.4 Durable Runtime Wiring ✅
+- M10.5 Privacy Acceptance and Documentation ✅

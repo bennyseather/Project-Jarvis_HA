@@ -41,6 +41,12 @@ from jarvis.timeline.store import InMemoryTimelineStore
 from jarvis.timeline.subscriber import HomeAssistantEventSubscriber
 from jarvis.models.event_timeline import TimelineQuery
 from jarvis.storage.sqlite_stores import SQLiteKnowledgeStore, SQLiteMemoryStore
+from jarvis.memory.writer import PolicyControlledMemoryWriter
+from jarvis.memory.manager import PolicyControlledMemoryManager
+from jarvis.models.memory import MemoryRecordFactory
+from jarvis.knowledge.writer import PolicyControlledKnowledgeWriter
+from jarvis.models.knowledge import KnowledgeRecordFactory
+from jarvis.management.console_commands import ExplicitDataConsole
 
 
 class JarvisApplication:
@@ -177,6 +183,20 @@ class JarvisApplication:
                 DeterministicKnowledgeRanker(),
             )),
         ))
+        clock = lambda: datetime.now(timezone.utc)
+        self.container.memory_writer = PolicyControlledMemoryWriter(
+            self.container.memory_store, ExplicitMemoryPolicy(), MemoryRecordFactory(timestamp_factory=clock), clock
+        )
+        self.container.memory_manager = PolicyControlledMemoryManager(
+            self.container.memory_store, ExplicitMemoryPolicy()
+        )
+        self.container.knowledge_writer = PolicyControlledKnowledgeWriter(
+            self.container.knowledge_store, ExplicitKnowledgePolicy(), KnowledgeRecordFactory(timestamp_factory=clock), clock
+        )
+        self.container.explicit_data_console = ExplicitDataConsole(
+            self.container.memory_writer, self.container.memory_manager,
+            self.container.knowledge_writer, self.container.knowledge_store,
+        )
 
         self.container.assistant = Assistant(
             openai=self.container.openai,
@@ -322,6 +342,15 @@ class JarvisApplication:
             if text.strip().casefold() in {"quit", "exit"}:
                 return
             if not text.strip():
+                continue
+            management_result = self.container.explicit_data_console.handle(text)
+            if management_result is not None:
+                self.console.print(f"Jarvis [{management_result['status']}]: {management_result['message']}")
+                if management_result.get("id"):
+                    self.console.print(f"ID: {management_result['id']}")
+                if management_result.get("token"):
+                    command = management_result.get("confirmation_command", "memory confirm")
+                    self.console.print(f"Confirm: {command} {management_result['token']}")
                 continue
             if text.strip().casefold().startswith("timeline"):
                 parts = text.strip().split(maxsplit=1)
