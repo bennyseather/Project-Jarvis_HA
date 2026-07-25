@@ -60,3 +60,4 @@ Conversation Management
 Learning & Adaptation
 
 - M6.1 Learning Foundations ✅
+- M6.2–M6.6 Explicit Learning Review ✅
