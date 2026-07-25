@@ -9,13 +9,13 @@ import asyncio
 from rich.console import Console
 from rich.panel import Panel
 
-from jarvis.capabilities.turn_on_light import TurnOnLightCapability
 from jarvis.core.assistant import Assistant
 from jarvis.core.container import ServiceContainer
 from jarvis.core.context_builder import ContextBuilder
 from jarvis.homeassistant.client import HomeAssistantClient
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
+from jarvis.core.assistant_factory import create_read_only_assistant
 
 
 class JarvisApplication:
@@ -122,10 +122,6 @@ class JarvisApplication:
             self.container.entity_registry
         )
 
-        self.container.turn_on_light = TurnOnLightCapability(
-            home_assistant=self.container.home_assistant,
-            resolver=self.container.entity_resolver,
-        )
 
     async def connect_services(self):
         """
@@ -151,48 +147,40 @@ class JarvisApplication:
             if entity.entity_id.startswith("light."):
                 self.console.print(entity.entity_id)
 
-        self.container.logger.info("Testing TurnOnLightCapability...")
-
-        success = await self.container.turn_on_light.execute("blocks")
-
-        if success:
-            self.container.logger.info(
-                "TurnOnLightCapability completed successfully."
-            )
-        else:
-            self.container.logger.error(
-                "TurnOnLightCapability failed."
-            )
-
-        self.container.logger.info("Connecting to OpenAI...")
-
-        self.container.logger.info("Testing conversation...")
-
-        response = self.container.assistant.ask(
-            "My favourite colour is blue."
+        self.container.logger.info(
+            "Home Assistant startup checks are read-only."
         )
-        self.container.logger.info(f"Jarvis: {response}")
 
-        response = self.container.assistant.ask(
-            "What is my favourite colour?"
+        allowed_read_entities = frozenset(
+            self.general.get("home_assistant", {}).get("allowed_read_entities", ())
         )
-        self.container.logger.info(f"Jarvis: {response}")
+        self.container.read_only_assistant = create_read_only_assistant(
+            self.container.openai,
+            self.container.home_assistant,
+            allowed_read_entities,
+        )
+
+        self.container.logger.info("Provider startup checks are connectivity-only.")
+
+    async def handle_request(self, text: str) -> dict[str, object]:
+        """Route one user request through the configured safe assistant slice."""
+
+        if not hasattr(self.container, "read_only_assistant"):
+            return {"status": "not_supported", "message": "Assistant runtime is unavailable."}
+        return await self.container.read_only_assistant.handle(text)
 
     async def keep_running(self):
-        """
-        Keep Jarvis alive and ready for work.
-        """
+        """Run the first minimal interactive request loop."""
 
-        self.console.print(
-            "[green]Jarvis is ready and waiting for work...[/green]"
-        )
-
-        try:
-            while True:
-                await asyncio.sleep(1)
-
-        except asyncio.CancelledError:
-            raise
+        self.console.print("[green]Jarvis is ready. Type 'quit' to exit.[/green]")
+        while True:
+            text = await asyncio.to_thread(input, "You: ")
+            if text.strip().casefold() in {"quit", "exit"}:
+                return
+            if not text.strip():
+                continue
+            result = await self.handle_request(text)
+            self.console.print(f"Jarvis [{result['status']}]: {result['message']}")
 
     def show_banner(self):
         """

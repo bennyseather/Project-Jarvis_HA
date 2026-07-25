@@ -30,7 +30,11 @@
 
 ## EPIC 3 – Knowledge
 
-Knowledge Engine
+- M3.1 Knowledge Contracts and Boundaries ✅
+- M3.2 In-Memory Knowledge Store ✅
+- M3.3 Explicit Knowledge Approval and Writing ✅
+- M3.4 Knowledge Retrieval ✅
+- M3.5 Knowledge Context Integration ✅
 
 ## EPIC 4 – Event Timeline
 
@@ -39,6 +43,10 @@ Event Processing
 ## EPIC 5 – Conversation Pipeline
 
 Conversation Management
+
+- M5.1 Safe Read-Only Assistant Slice ✅
+- M5.5 Console Request Loop ✅
+- M5.6 Provider Response Hardening ✅
 
 ## EPIC 6 – Learning
 

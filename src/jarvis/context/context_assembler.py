@@ -58,10 +58,7 @@ class ContextAssembler:
                 current.home_assistant,
                 partial.home_assistant,
             ),
-            knowledge=ContextAssembler._merge_mapping(
-                current.knowledge,
-                partial.knowledge,
-            ),
+            knowledge=partial.knowledge if partial.knowledge is not None else current.knowledge,
             time=partial.time if partial.time is not None else current.time,
             metadata=ContextAssembler._merge_mapping(current.metadata, partial.metadata),
         )

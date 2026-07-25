@@ -11,3 +11,4 @@ logging:
 home_assistant:
   url: "http://homeassistant.local:8123"
   token: ""
+  allowed_read_entities: []

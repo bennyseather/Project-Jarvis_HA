@@ -33,4 +33,5 @@ class ServiceContainer:
 
         self.context_builder: ContextBuilder | None = None
         self.assistant: Assistant | None = None
+        self.read_only_assistant = None
         self.entity_resolver: EntityResolver | None = None

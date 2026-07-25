@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from jarvis.memory.retriever import MemoryRetriever
+from jarvis.knowledge.retriever import KnowledgeRetriever
 from jarvis.models.context import ContextPackage
 from jarvis.models.context import MemoryContext, MemoryContextMatch
+from jarvis.models.context import KnowledgeContext, KnowledgeContextMatch
+from jarvis.models.knowledge_retrieval import KnowledgeRetrievalQuery
 from jarvis.models.memory_retrieval import MemoryRetrievalQuery
 from jarvis.models.request_context import RequestContext
 
@@ -71,3 +74,13 @@ class MemoryContextProvider:
             for match in result.matches[: self._result_limit]
         )
         return ContextPackage(memory=MemoryContext(matches, self._result_limit))
+
+class KnowledgeContextProvider:
+    _DEFAULT_RESULT_LIMIT = 5; _MAXIMUM_RESULT_LIMIT = 10
+    def __init__(self, retriever: KnowledgeRetriever, *, result_limit: int = _DEFAULT_RESULT_LIMIT) -> None:
+        if not 0 <= result_limit <= self._MAXIMUM_RESULT_LIMIT: raise ValueError("result_limit must be between 0 and 10.")
+        self._retriever,self._result_limit=retriever,result_limit
+    def assemble(self, request_context: RequestContext) -> ContextPackage:
+        result=self._retriever.retrieve(KnowledgeRetrievalQuery(query_text=request_context.request.content,maximum_results=self._result_limit))
+        matches=tuple(KnowledgeContextMatch(m.record.content,m.record.title,m.record.knowledge_type,m.record.tags,m.record.source,m.total_score) for m in result.matches[:self._result_limit])
+        return ContextPackage(knowledge=KnowledgeContext(matches,self._result_limit))

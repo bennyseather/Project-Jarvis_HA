@@ -8,6 +8,7 @@ from typing import Mapping
 
 from jarvis.models.chat_message import ChatMessage
 from jarvis.models.memory import MemorySource, MemoryType
+from jarvis.models.knowledge import KnowledgeSource, KnowledgeType
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +29,14 @@ class MemoryContext:
     matches: tuple[MemoryContextMatch, ...]
     result_limit: int
 
+@dataclass(frozen=True, slots=True)
+class KnowledgeContextMatch:
+    content: str; title: str | None; knowledge_type: KnowledgeType; tags: tuple[str, ...]; source: KnowledgeSource; retrieval_score: float
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeContext:
+    matches: tuple[KnowledgeContextMatch, ...]; result_limit: int
+
 
 @dataclass(frozen=True, slots=True)
 class ContextPackage:
@@ -36,6 +45,6 @@ class ContextPackage:
     conversation: tuple[ChatMessage, ...] | None = None
     memory: MemoryContext | None = None
     home_assistant: Mapping[str, object] | None = None
-    knowledge: Mapping[str, object] | None = None
+    knowledge: KnowledgeContext | None = None
     time: datetime | None = None
     metadata: Mapping[str, object] | None = None
