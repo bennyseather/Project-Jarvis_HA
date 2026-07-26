@@ -35,6 +35,5 @@ event_timeline:
   enabled: true
   allowed_event_types:
     - state_changed
-  allowed_entities:
-    - light.blocks
+  allowed_entities: []
   max_events: 50
