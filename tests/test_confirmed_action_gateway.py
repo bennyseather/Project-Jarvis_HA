@@ -15,3 +15,8 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   pending=g.request(p);self.assertEqual(pending["status"],"requires_confirmation")
   self.assertEqual((await g.confirm(pending["token"],p))["status"],"success");self.assertEqual(len(c.calls),1)
   self.assertEqual((await g.confirm(pending["token"],p))["status"],"forbidden");self.assertEqual(len(c.calls),1)
+ async def test_immediate_action_needs_no_token(self):
+  c=C();p=HomeAssistantActionProposal("light","turn_on",("light.kitchen",),summary="Turn on kitchen")
+  g=ConfirmedHomeAssistantActionGateway(HomeAssistantCapabilityGateway(HomeAssistantCapabilityCatalog((HomeAssistantServiceDefinition("light","turn_on"),),frozenset({"light.kitchen"}))),HomeAssistantRiskPolicy(allowed_entities={"light.kitchen"},immediate_services={"light.turn_on"}),PendingActionStore(),c)
+  self.assertEqual(g.request(p)["status"],"immediate_action")
+  self.assertEqual((await g.execute_immediate(p))["status"],"success");self.assertEqual(len(c.calls),1)

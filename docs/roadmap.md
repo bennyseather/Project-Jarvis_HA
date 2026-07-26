@@ -1,5 +1,11 @@
 # Project Jarvis Roadmap
 
+## EPIC 16 – Immediate All-Device Control
+
+- M16.1 Durable All-Device Policy ✓
+- M16.2 Immediate Device Action Gateway ✓
+- M16.3 Audit, Exclusion, and Acceptance ✓
+
 ## EPIC 15 – Everyday Assist Experience
 
 - M15.1 Assist Command Routing ✓

@@ -44,6 +44,8 @@ class AssistantOrchestrator:
                 return {"status": "clarification_required", "message": "Please specify a configured service."}
             if result.get("status") == "requires_confirmation":
                 result["action_payload"] = dict(action_data)
+            if result.get("status") == "immediate_action":
+                return await self._action_gateway.execute_immediate(action)
             return result
         if proposal.kind is AssistantProposalKind.READ_ENTITY_STATE:
             if self._resolver is not None:

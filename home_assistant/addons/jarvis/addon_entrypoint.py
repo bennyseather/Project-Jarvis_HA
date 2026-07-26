@@ -1,11 +1,23 @@
 import json
 import os
 from pathlib import Path
+import yaml
 
 options = json.loads(Path("/data/options.json").read_text())
 policy_path = Path("/config/home_access_policy.yaml")
 if not policy_path.exists():
     policy_path.write_text(Path("/app/config/home_access_policy.defaults.yaml").read_text())
+policy = yaml.safe_load(policy_path.read_text()) or {}
+if not policy.get("m16_immediate_all_device_control", False):
+    home_assistant = policy.setdefault("home_assistant", {})
+    action_policy = home_assistant.setdefault("action_policy", {})
+    home_assistant["all_entities"] = True
+    action_policy["all_entities"] = True
+    action_policy["all_device_services"] = True
+    action_policy["confirm_required"] = []
+    action_policy["high_impact"] = []
+    policy["m16_immediate_all_device_control"] = True
+    policy_path.write_text(yaml.safe_dump(policy, sort_keys=False, allow_unicode=True))
 Path("/app/config/secrets.yaml").write_text(
     "home_assistant:\n  url: 'http://supervisor/core'\n  token: '" + os.environ["SUPERVISOR_TOKEN"] + "'\n"
     "openai:\n  api_key: '" + options["openai_api_key"] + "'\n"
