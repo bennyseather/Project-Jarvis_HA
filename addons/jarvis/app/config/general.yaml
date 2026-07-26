@@ -16,6 +16,8 @@ home_assistant:
   token: ""
   allowed_read_entities:
     - light.blocks
+  allowed_read_domains: [light, switch]
+  excluded_entities: [camera.porch_camera]
   entity_aliases: {}
   action_policy:
     confirm_required:
@@ -24,6 +26,8 @@ home_assistant:
     high_impact: []
     allowed_entities:
       - light.blocks
+    allowed_domains: [light, switch]
+    excluded_entities: []
 
 conversation:
   max_messages: 12
