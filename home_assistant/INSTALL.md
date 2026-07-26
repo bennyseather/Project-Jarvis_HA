@@ -14,7 +14,7 @@
    Jarvis Conversation**, enter `http://local-jarvis:8099` and the same bridge
    API key.
 5. Select Project Jarvis as the conversation agent in Assist, then test a
-   harmless request such as “what is the state of light.blocks?”.
+   harmless request for an entity you choose.
 
 Do not expose port 8099 to the internet. The add-on is intended to be reached
 only through the internal Home Assistant network.

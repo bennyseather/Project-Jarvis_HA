@@ -8,7 +8,7 @@ Jarvis can read every discovered Home Assistant entity and immediately execute c
 
 - Discovery determines the current entity and service catalog at startup.
 - All discovered entities are available unless explicitly removed with `home exclude <entity_id>`.
-- A service must target one or more entities in its own device domain. For example, `light.turn_on` may target `light.blocks`; it cannot target a lock.
+- A service must target one or more entities in its own device domain. For example, `light.turn_on` may target a light; it cannot target a lock.
 - Home Assistant control-plane and administrative domains remain unavailable: automations, scripts, backups, add-on management, configuration, updates, logging, notifications, webhooks, and similar system operations.
 - Every immediate device action is recorded in the bounded non-content audit.
 
@@ -21,7 +21,7 @@ Jarvis can read every discovered Home Assistant entity and immediately execute c
 
 ## Acceptance
 
-1. Ask for the state of `light.blocks`.
-2. Ask Jarvis to turn on `light.blocks`; it must complete without a confirmation token.
+1. Ask for the state of a device you choose.
+2. Ask Jarvis to control that device; it must complete without a confirmation token.
 3. Run `home audit` and confirm that it contains the device service, entity, time, and outcome only.
 4. Confirm that an administrative request such as running an automation is unavailable.

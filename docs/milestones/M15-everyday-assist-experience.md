@@ -31,7 +31,7 @@ At startup Jarvis logs effective authorization counts, the durable-policy source
 1. Use the add-on Store's **Update** button, then restart the add-on.
 2. In Assist, use `home review` to inspect enabled access and `home exclude <entity_id>` to remove an entity immediately.
 3. Use `home audit` to view recent device actions; it is deliberately bounded to 50 records per request.
-4. Verify a release with `what is the state of light.blocks?`, then request a safe action and reply with its exact one-use confirmation token.
+4. Verify a release with a read and action request for an entity you choose.
 5. If a request reports an unavailable service, restart the add-on and confirm the Home Assistant URL, bridge key, and policy file configuration. Do not paste secrets into chat or logs.
 
 ## Out of scope
