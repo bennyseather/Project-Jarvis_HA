@@ -8,13 +8,25 @@ class ConfirmedHomeAssistantActionGateway:
   if not valid:return {"status":"forbidden","reason_code":reason}
   decision=self._risk.evaluate(p)
   if decision.risk is HomeAssistantRisk.FORBIDDEN:return {"status":"forbidden","reason_code":decision.reason_code}
+  if decision.risk is HomeAssistantRisk.IMMEDIATE:return {"status":"immediate_action","summary":p.summary}
   return {"status":"requires_confirmation","token":self._pending.create(p,decision.risk),"summary":p.summary,"risk":decision.risk.value}
+ async def execute_immediate(self,p):
+  valid,reason=self._cap.validate(p)
+  if not valid:return {"status":"forbidden","reason_code":reason}
+  decision=self._risk.evaluate(p)
+  if decision.risk is not HomeAssistantRisk.IMMEDIATE:return {"status":"forbidden","reason_code":"immediate_action_not_authorized"}
+  try: await self._client.call_service(p.domain,p.service,{"entity_id":self._entity_target(p),**p.service_data})
+  except Exception:
+   self._record(p,"unavailable","home_assistant_service_failed")
+   return {"status":"unavailable","reason_code":"home_assistant_service_failed"}
+  self._record(p,"success")
+  return {"status":"success"}
  async def confirm(self,token,p):
   decision=self._risk.evaluate(p)
   if decision.risk is HomeAssistantRisk.FORBIDDEN or not self._pending.consume(token,p,decision.risk):
    self._record(p,"forbidden","invalid_confirmation")
    return {"status":"forbidden","reason_code":"invalid_confirmation"}
-  try: await self._client.call_service(p.domain,p.service,{"entity_id":p.entity_ids[0],**p.service_data})
+  try: await self._client.call_service(p.domain,p.service,{"entity_id":self._entity_target(p),**p.service_data})
   except Exception:
    self._record(p,"unavailable","home_assistant_service_failed")
    return {"status":"unavailable","reason_code":"home_assistant_service_failed"}
@@ -22,3 +34,5 @@ class ConfirmedHomeAssistantActionGateway:
   return {"status":"success"}
  def _record(self,p,outcome,reason_code=None):
   if self._audit is not None:self._audit.record(p.domain,p.service,p.entity_ids,outcome,reason_code)
+ @staticmethod
+ def _entity_target(p):return p.entity_ids[0] if len(p.entity_ids)==1 else list(p.entity_ids)

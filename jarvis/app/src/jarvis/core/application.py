@@ -50,7 +50,7 @@ from jarvis.models.knowledge import KnowledgeRecordFactory
 from jarvis.management.console_commands import ExplicitDataConsole
 from jarvis.homeassistant.capability_context import HomeAssistantCapabilityContext
 from jarvis.homeassistant.enrollment import HomeAccessEnrollment
-from jarvis.homeassistant.access_policy import resolve_entities
+from jarvis.homeassistant.access_policy import resolve_device_services, resolve_entities
 from jarvis.homeassistant.action_audit import SQLiteConfirmedActionAuditStore
 
 
@@ -253,15 +253,26 @@ class JarvisApplication:
         ).discover()
         action_config = self.general.get("home_assistant", {}).get("action_policy", {})
         ha_config = self.general["home_assistant"]
-        allowed_reads = resolve_entities(catalog, ha_config.get("allowed_read_entities", ()), ha_config.get("allowed_read_domains", ()), ha_config.get("excluded_entities", ()), ("camera.porch_camera",))
-        allowed_actions = resolve_entities(catalog, action_config.get("allowed_entities", ()), action_config.get("allowed_domains", ()), tuple(ha_config.get("excluded_entities", ())) + tuple(action_config.get("excluded_entities", ())))
+        allowed_reads = resolve_entities(
+            catalog, ha_config.get("allowed_read_entities", ()), ha_config.get("allowed_read_domains", ()),
+            ha_config.get("excluded_entities", ()), all_entities=ha_config.get("all_entities", False),
+        )
+        allowed_actions = resolve_entities(
+            catalog, action_config.get("allowed_entities", ()), action_config.get("allowed_domains", ()),
+            tuple(ha_config.get("excluded_entities", ())) + tuple(action_config.get("excluded_entities", ())),
+            all_entities=action_config.get("all_entities", False),
+        )
+        allowed_services = resolve_device_services(
+            catalog, action_config.get("all_device_services", False),
+            tuple(action_config.get("confirm_required", ())) + tuple(action_config.get("high_impact", ())),
+        )
         self.container.read_only_assistant._allowed_entity_ids = allowed_reads
         self.container.read_only_assistant._resolver = EntityReferenceResolver(allowed_reads | allowed_actions, ha_config.get("entity_aliases", {}))
         self.container.home_assistant_capability_context = HomeAssistantCapabilityContext(
             catalog,
             allowed_reads,
             allowed_actions,
-            tuple(action_config.get("confirm_required", ())) + tuple(action_config.get("high_impact", ())),
+            allowed_services,
             self.general["home_assistant"].get("entity_aliases", {}),
         )
         self.container.home_access_enrollment = HomeAccessEnrollment(
@@ -273,6 +284,7 @@ class JarvisApplication:
                 action_config.get("confirm_required", ()),
                 action_config.get("high_impact", ()),
                 allowed_actions,
+                allowed_services,
             ),
             PendingActionStore(),
             self.container.home_assistant,
@@ -457,13 +469,13 @@ class JarvisApplication:
             except ValueError:
                 return {"status": "not_supported", "message": "Use: home audit [1-50]."}
             if not records:
-                return {"status": "success", "message": "No confirmed actions have been recorded."}
+                return {"status": "success", "message": "No device actions have been recorded."}
             entries = "; ".join(
                 f"{record.occurred_at.isoformat(timespec='seconds')} {record.domain}.{record.service} "
                 f"{', '.join(record.entity_ids)}: {record.outcome}"
                 for record in records
             )
-            return {"status": "success", "message": f"Recent confirmed actions: {entries}"}
+            return {"status": "success", "message": f"Recent device actions: {entries}"}
         return {"status":"not_supported","message":"Use: home discover [domain], home enroll read <entity>, home enroll action <entity> <service> [normal|high], home alias <name> <entity>, home review, home exclude <entity>, or home audit [1-50]."}
 
     def show_banner(self):
@@ -528,6 +540,13 @@ class JarvisApplication:
                 not isinstance(value, str) or not value.strip() for value in values
             ):
                 raise ValueError(f"home_assistant.{name} must be a list of non-empty strings.")
+        for name, value in {
+            "all_entities": config.get("all_entities", False),
+            "action_policy.all_entities": policy.get("all_entities", False),
+            "action_policy.all_device_services": policy.get("all_device_services", False),
+        }.items():
+            if not isinstance(value, bool):
+                raise ValueError(f"home_assistant.{name} must be a boolean.")
         aliases = config.get("entity_aliases", {})
         if not isinstance(aliases, dict) or any(
             not isinstance(alias, str) or not alias.strip() or not isinstance(entity, str) or not entity.strip()

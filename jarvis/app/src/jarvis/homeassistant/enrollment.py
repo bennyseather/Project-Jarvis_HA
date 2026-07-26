@@ -19,7 +19,7 @@ class HomeAccessEnrollment:
     def review(self) -> dict[str, object]:
         section = self._load().get("home_assistant", {})
         policy = section.get("action_policy", {})
-        return {"status":"success","reads":tuple(section.get("allowed_read_entities", ())),"read_domains":tuple(section.get("allowed_read_domains", ())),"actions":tuple(policy.get("allowed_entities", ())),"action_domains":tuple(policy.get("allowed_domains", ())),"excluded":tuple(section.get("excluded_entities", ())) + tuple(policy.get("excluded_entities", ())),"aliases":dict(section.get("entity_aliases", {}))}
+        return {"status":"success","all_reads":bool(section.get("all_entities", False)),"all_actions":bool(policy.get("all_entities", False)),"all_device_services":bool(policy.get("all_device_services", False)),"reads":tuple(section.get("allowed_read_entities", ())),"read_domains":tuple(section.get("allowed_read_domains", ())),"actions":tuple(policy.get("allowed_entities", ())),"action_domains":tuple(policy.get("allowed_domains", ())),"excluded":tuple(section.get("excluded_entities", ())) + tuple(policy.get("excluded_entities", ())),"aliases":dict(section.get("entity_aliases", {}))}
 
     def exclude(self, entity_id: str) -> dict[str, object]:
         if entity_id not in self._catalog.entity_ids: return self._error("unknown_entity")
@@ -50,6 +50,8 @@ class HomeAccessEnrollment:
         if not alias.strip() or entity_id not in self._catalog.entity_ids: return self._error("invalid_alias_or_entity")
         config = self._load(); section = config.setdefault("home_assistant", {})
         permitted = set(section.get("allowed_read_entities", ())) | set(section.get("action_policy", {}).get("allowed_entities", ()))
+        if section.get("all_entities", False) or section.get("action_policy", {}).get("all_entities", False):
+            permitted.add(entity_id)
         if entity_id not in permitted: return self._error("entity_not_enrolled")
         section.setdefault("entity_aliases", {})[alias.strip()] = entity_id
         self._save(config)
