@@ -12,7 +12,9 @@ requires-python = ">=3.13"
 dependencies = [
     "PyYAML",
     "rich",
-    "python-dotenv"
+    "python-dotenv",
+    "openai",
+    "websockets"
 ]
 
 [tool.setuptools]
