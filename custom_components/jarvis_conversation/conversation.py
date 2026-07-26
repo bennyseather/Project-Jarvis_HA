@@ -7,8 +7,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 class JarvisConversationEntity(conversation.ConversationEntity):
     _attr_name = "Project Jarvis"
-    _attr_supported_languages = "*"
     def __init__(self, hass, entry): self.hass, self.entry = hass, entry
+    @property
+    def supported_languages(self): return "*"
     async def _async_handle_message(self, user_input, chat_log):
         session = async_get_clientsession(self.hass)
         async with session.post(self.entry.data["bridge_url"] + "/v1/conversation", json={"text": user_input.text}, headers={"Authorization": "Bearer " + self.entry.data["api_key"]}, timeout=60) as response:
