@@ -1,5 +1,4 @@
 from homeassistant.components import conversation
-from homeassistant.components.conversation import agent
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import intent
 
@@ -18,4 +17,4 @@ class JarvisConversationEntity(conversation.ConversationEntity):
         answer = payload.get("message", "Jarvis is unavailable.")
         result = intent.IntentResponse(language=user_input.language)
         result.async_set_speech(answer)
-        return agent.ConversationResult(conversation_id=user_input.conversation_id, response=result, continue_conversation=payload.get("status") == "requires_confirmation")
+        return conversation.ConversationResult(conversation_id=user_input.conversation_id, response=result, continue_conversation=payload.get("status") == "requires_confirmation")
