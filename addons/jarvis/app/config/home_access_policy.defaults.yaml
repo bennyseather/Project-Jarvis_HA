@@ -1,0 +1,11 @@
+home_assistant:
+  allowed_read_entities: [light.blocks, camera.porch_camera]
+  allowed_read_domains: [light, switch]
+  excluded_entities: []
+  entity_aliases: {}
+  action_policy:
+    confirm_required: [light.turn_on, light.turn_off]
+    high_impact: []
+    allowed_entities: [light.blocks]
+    allowed_domains: [light, switch]
+    excluded_entities: []
