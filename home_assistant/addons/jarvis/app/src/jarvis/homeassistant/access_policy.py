@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 
-PROTECTED_DOMAINS = frozenset({"camera", "lock", "alarm_control_panel", "cover", "button", "automation", "script", "device_tracker"})
+PROTECTED_DOMAINS = frozenset({"camera", "lock", "alarm_control_panel", "automation", "script", "device_tracker"})
 
 
 def resolve_entities(catalog, entity_ids=(), domains=(), excluded_entities=(), read_only_exceptions=()):
