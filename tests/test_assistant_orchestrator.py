@@ -16,7 +16,8 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   home=Home(); o=AssistantOrchestrator(Model(AssistantProposal(AssistantProposalKind.CONVERSATION,"Hello")),home)
   self.assertEqual((await o.handle("Hi"))["message"],"Hello")
   o=AssistantOrchestrator(Model(AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,"", "light.kitchen")),home,frozenset({"light.kitchen"}))
-  self.assertEqual((await o.handle("state"))["state"],"on");self.assertEqual(home.calls,["light.kitchen"])
+  state_result = await o.handle("state")
+  self.assertEqual(state_result["state"],"on");self.assertEqual(state_result["message"],"light.kitchen is on.");self.assertEqual(home.calls,["light.kitchen"])
  async def test_blocked_entity_never_calls_home_assistant(self):
   home=Home();o=AssistantOrchestrator(Model(AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="light.secret")),home)
   self.assertEqual((await o.handle("state"))["status"],"not_supported");self.assertEqual(home.calls,[])

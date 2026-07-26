@@ -57,7 +57,7 @@ class AssistantOrchestrator:
                 state = await self._home_assistant.read_entity_state(proposal.entity_id)
             except Exception:
                 return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
-            return {"status": "success", "message": proposal.message, "entity_id": state.entity_id,
+            return {"status": "success", "message": f"{state.entity_id} is {state.state}.", "entity_id": state.entity_id,
                     "state": state.state, "attributes": dict(state.attributes)}
         return {"status": "not_supported", "message": "That request is not supported."}
 
