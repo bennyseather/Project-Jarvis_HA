@@ -16,6 +16,17 @@ class HomeAccessEnrollment:
         services = sorted(f"{service.domain}.{service.service}" for service in self._catalog.services if domain is None or service.domain == domain)
         return {"status":"success","entities":tuple(entities[:100]),"services":tuple(services[:100])}
 
+    def review(self) -> dict[str, object]:
+        section = self._load().get("home_assistant", {})
+        policy = section.get("action_policy", {})
+        return {"status":"success","reads":tuple(section.get("allowed_read_entities", ())),"read_domains":tuple(section.get("allowed_read_domains", ())),"actions":tuple(policy.get("allowed_entities", ())),"action_domains":tuple(policy.get("allowed_domains", ())),"excluded":tuple(section.get("excluded_entities", ())) + tuple(policy.get("excluded_entities", ())),"aliases":dict(section.get("entity_aliases", {}))}
+
+    def exclude(self, entity_id: str) -> dict[str, object]:
+        if entity_id not in self._catalog.entity_ids: return self._error("unknown_entity")
+        config = self._load(); section = config.setdefault("home_assistant", {})
+        self._append(section.setdefault("excluded_entities", []), entity_id)
+        self._save(config); return self._result("entity_excluded")
+
     def enroll_read(self, entity_id: str) -> dict[str, object]:
         if entity_id not in self._catalog.entity_ids: return self._error("unknown_entity")
         config = self._load(); section = config.setdefault("home_assistant", {})

@@ -250,7 +250,7 @@ class JarvisApplication:
         ).discover()
         action_config = self.general.get("home_assistant", {}).get("action_policy", {})
         ha_config = self.general["home_assistant"]
-        allowed_reads = resolve_entities(catalog, ha_config.get("allowed_read_entities", ()), ha_config.get("allowed_read_domains", ()), ha_config.get("excluded_entities", ()))
+        allowed_reads = resolve_entities(catalog, ha_config.get("allowed_read_entities", ()), ha_config.get("allowed_read_domains", ()), ha_config.get("excluded_entities", ()), ("camera.porch_camera",))
         allowed_actions = resolve_entities(catalog, action_config.get("allowed_entities", ()), action_config.get("allowed_domains", ()), tuple(ha_config.get("excluded_entities", ())) + tuple(action_config.get("excluded_entities", ())))
         self.container.read_only_assistant._allowed_entity_ids = allowed_reads
         self.container.read_only_assistant._resolver = EntityReferenceResolver(allowed_reads | allowed_actions, ha_config.get("entity_aliases", {}))
@@ -262,7 +262,7 @@ class JarvisApplication:
             self.general["home_assistant"].get("entity_aliases", {}),
         )
         self.container.home_access_enrollment = HomeAccessEnrollment(
-            self.container.config_loader.config_folder / "general.yaml", catalog
+            os.environ.get("JARVIS_HOME_POLICY_PATH", str(self.container.config_loader.config_folder / "general.yaml")), catalog
         )
         self.container.home_assistant_action_gateway = ConfirmedHomeAssistantActionGateway(
             HomeAssistantCapabilityGateway(catalog),
@@ -431,6 +431,8 @@ class JarvisApplication:
             return enrollment.enroll_action(parts[3], parts[4], parts[5] if len(parts) == 6 else "normal")
         if len(parts) == 4 and parts[1] == "alias":
             return enrollment.set_alias(parts[2], parts[3])
+        if len(parts) == 2 and parts[1] == "review": return enrollment.review()
+        if len(parts) == 3 and parts[1] == "exclude": return enrollment.exclude(parts[2])
         return {"status":"not_supported","message":"Use: home discover [domain], home enroll read <entity>, home enroll action <entity> <service> [normal|high], or home alias <name> <entity>."}
 
     def show_banner(self):

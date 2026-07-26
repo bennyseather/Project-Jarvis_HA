@@ -13,7 +13,7 @@ class HomeAssistantCapabilityContext:
         self._services = tuple(
             {"domain": service.domain, "service": service.service, "fields": tuple(sorted(service.fields))}
             for service in catalog.services
-            if f"{service.domain}.{service.service}" in permitted_services
+            if f"{service.domain}.{service.service}" in permitted_services or f"{service.domain}.*" in permitted_services
         )[:maximum_items]
         aliases = aliases or {}
         permitted_entities = set(self._reads) | set(self._actions)
