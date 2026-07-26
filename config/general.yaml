@@ -14,10 +14,9 @@ storage:
 home_assistant:
   url: "http://homeassistant.local:8123"
   token: ""
-  allowed_read_entities:
-    - light.blocks
+  allowed_read_entities: [light.blocks, camera.porch_camera]
   allowed_read_domains: [light, switch]
-  excluded_entities: [camera.porch_camera]
+  excluded_entities: []
   entity_aliases: {}
   action_policy:
     confirm_required:

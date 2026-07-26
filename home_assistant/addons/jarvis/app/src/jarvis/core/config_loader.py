@@ -38,6 +38,17 @@ class ConfigLoader:
             secrets = self._load_yaml("secrets.yaml")
             self._merge(self.config, secrets)
 
+        policy_path = os.environ.get("JARVIS_HOME_POLICY_PATH")
+        if policy_path:
+            policy_file = Path(policy_path)
+            if not policy_file.exists():
+                raise FileNotFoundError(f"Home access policy is missing: {policy_file}")
+            with policy_file.open("r", encoding="utf-8") as file:
+                policy = yaml.safe_load(file) or {}
+            if not isinstance(policy, dict) or "home_assistant" not in policy:
+                raise ValueError("Home access policy must contain a home_assistant mapping.")
+            self._merge(self.config, policy)
+
         return self.config
 
     def _load_yaml(self, filename: str):
