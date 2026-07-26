@@ -50,6 +50,7 @@ from jarvis.models.knowledge import KnowledgeRecordFactory
 from jarvis.management.console_commands import ExplicitDataConsole
 from jarvis.homeassistant.capability_context import HomeAssistantCapabilityContext
 from jarvis.homeassistant.enrollment import HomeAccessEnrollment
+from jarvis.homeassistant.access_policy import resolve_entities
 
 
 class JarvisApplication:
@@ -248,10 +249,15 @@ class JarvisApplication:
             self.container.home_assistant
         ).discover()
         action_config = self.general.get("home_assistant", {}).get("action_policy", {})
+        ha_config = self.general["home_assistant"]
+        allowed_reads = resolve_entities(catalog, ha_config.get("allowed_read_entities", ()), ha_config.get("allowed_read_domains", ()), ha_config.get("excluded_entities", ()))
+        allowed_actions = resolve_entities(catalog, action_config.get("allowed_entities", ()), action_config.get("allowed_domains", ()), tuple(ha_config.get("excluded_entities", ())) + tuple(action_config.get("excluded_entities", ())))
+        self.container.read_only_assistant._allowed_entity_ids = allowed_reads
+        self.container.read_only_assistant._resolver = EntityReferenceResolver(allowed_reads | allowed_actions, ha_config.get("entity_aliases", {}))
         self.container.home_assistant_capability_context = HomeAssistantCapabilityContext(
             catalog,
-            self.general["home_assistant"].get("allowed_read_entities", ()),
-            action_config.get("allowed_entities", ()),
+            allowed_reads,
+            allowed_actions,
             tuple(action_config.get("confirm_required", ())) + tuple(action_config.get("high_impact", ())),
             self.general["home_assistant"].get("entity_aliases", {}),
         )
@@ -263,7 +269,7 @@ class JarvisApplication:
             HomeAssistantRiskPolicy(
                 action_config.get("confirm_required", ()),
                 action_config.get("high_impact", ()),
-                action_config.get("allowed_entities", ()),
+                allowed_actions,
             ),
             PendingActionStore(),
             self.container.home_assistant,
@@ -477,9 +483,13 @@ class JarvisApplication:
         policy = config.get("action_policy", {})
         for name, values in {
             "allowed_read_entities": config.get("allowed_read_entities", ()),
+            "allowed_read_domains": config.get("allowed_read_domains", ()),
+            "excluded_entities": config.get("excluded_entities", ()),
             "confirm_required": policy.get("confirm_required", ()),
             "high_impact": policy.get("high_impact", ()),
             "allowed_entities": policy.get("allowed_entities", ()),
+            "allowed_domains": policy.get("allowed_domains", ()),
+            "action_excluded_entities": policy.get("excluded_entities", ()),
         }.items():
             if not isinstance(values, (list, tuple)) or any(
                 not isinstance(value, str) or not value.strip() for value in values
