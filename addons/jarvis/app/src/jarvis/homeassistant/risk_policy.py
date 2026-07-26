@@ -6,6 +6,6 @@ class HomeAssistantRiskPolicy:
  def evaluate(self,p:HomeAssistantActionProposal):
   key=f"{p.domain}.{p.service}"
   if not p.entity_ids or any(entity not in self._entities for entity in p.entity_ids):return HomeAssistantRiskDecision(HomeAssistantRisk.FORBIDDEN,"unauthorized_entity")
-  if key in self._high:return HomeAssistantRiskDecision(HomeAssistantRisk.HIGH_IMPACT_CONFIRM_REQUIRED,"high_impact")
-  if key in self._allowed:return HomeAssistantRiskDecision(HomeAssistantRisk.CONFIRM_REQUIRED,"confirmation_required")
+  if key in self._high or f"{p.domain}.*" in self._high:return HomeAssistantRiskDecision(HomeAssistantRisk.HIGH_IMPACT_CONFIRM_REQUIRED,"high_impact")
+  if key in self._allowed or f"{p.domain}.*" in self._allowed:return HomeAssistantRiskDecision(HomeAssistantRisk.CONFIRM_REQUIRED,"confirmation_required")
   return HomeAssistantRiskDecision(HomeAssistantRisk.FORBIDDEN,"unclassified_service")
