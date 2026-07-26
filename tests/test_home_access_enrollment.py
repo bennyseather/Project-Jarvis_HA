@@ -35,3 +35,8 @@ class HomeAccessEnrollmentTests(unittest.TestCase):
     def test_discovery_is_not_enrollment(self):
         self.assertIn("cover.living_room", self.enrollment.discover("cover")["entities"])
         self.assertEqual(yaml.safe_load(self.path.read_text(encoding="utf-8"))["home_assistant"]["action_policy"], {})
+
+    def test_review_and_exclusion_are_durable(self):
+        self.enrollment.enroll_read("light.blocks")
+        self.assertEqual(self.enrollment.exclude("light.blocks")["status"], "success")
+        self.assertEqual(self.enrollment.review()["excluded"], ("light.blocks",))
