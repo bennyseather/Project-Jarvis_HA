@@ -3,6 +3,7 @@ Configuration loader for Project Jarvis.
 """
 
 from pathlib import Path
+import os
 
 import yaml
 
@@ -16,7 +17,12 @@ class ConfigLoader:
         current_file = Path(__file__).resolve()
 
         self.project_root = current_file.parents[3]
-        self.config_folder = self.project_root / "config"
+        configured_folder = os.environ.get("JARVIS_CONFIG_DIR")
+        self.config_folder = (
+            Path(configured_folder).resolve()
+            if configured_folder
+            else self.project_root / "config"
+        )
         self.config = {}
 
     def load(self):
