@@ -21,5 +21,10 @@ class JarvisConversationBridge:
             token, payload = result.get("token"), result.pop("action_payload", None)
             if token and payload:
                 self._application._pending_action_payloads[token] = payload
-                return {"status":"requires_confirmation","message":result.get("summary", "Confirmation is required."),"confirmation_token":token}
+                summary = result.get("summary", "Confirmation is required.")
+                return {
+                    "status": "requires_confirmation",
+                    "message": f"Confirm action: {summary}. Reply: confirm {token}",
+                    "confirmation_token": token,
+                }
         return {"status":result.get("status", "unavailable"),"message":self._application._user_message(result)}
