@@ -311,6 +311,12 @@ class JarvisApplication:
     async def handle_request(self, text: str) -> dict[str, object]:
         """Route one user request through the configured safe assistant slice."""
 
+        home_result = self._handle_home_access_command(text)
+        if home_result is not None:
+            return home_result
+        management_result = self.container.explicit_data_console.handle(text)
+        if management_result is not None:
+            return management_result
         if not hasattr(self.container, "read_only_assistant"):
             return {"status": "not_supported", "message": "Assistant runtime is unavailable."}
         conversation = self.container.conversation

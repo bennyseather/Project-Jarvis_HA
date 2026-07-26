@@ -27,4 +27,8 @@ class JarvisConversationBridge:
                     "message": f"Confirm action: {summary}. Reply: confirm {token}",
                     "confirmation_token": token,
                 }
+            token = result.get("token")
+            if token:
+                command = result.get("confirmation_command", "memory confirm")
+                return {"status": "requires_confirmation", "message": f"{result.get('message', 'Confirmation is required.')} Reply: {command} {token}"}
         return {"status":result.get("status", "unavailable"),"message":self._application._user_message(result)}
