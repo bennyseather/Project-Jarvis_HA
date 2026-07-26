@@ -3,10 +3,9 @@ OpenAI provider for Project Jarvis.
 """
 
 from typing import Any
+import json
 
 from openai import OpenAI
-
-from pprint import pprint
 
 
 class OpenAIProvider:
@@ -24,12 +23,10 @@ class OpenAIProvider:
         """
 
         try:
-            self.logger.info("Sending context to OpenAI:")
-
-            pprint(input_data)
+            self.logger.info("Sending request to OpenAI.")
             response = self.client.responses.create(
                 model="gpt-5.5",
-                input=input_data,
+                input=json.dumps(input_data),
             )
 
             return response.output_text
