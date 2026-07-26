@@ -250,7 +250,7 @@ class JarvisApplication:
         ).discover()
         action_config = self.general.get("home_assistant", {}).get("action_policy", {})
         ha_config = self.general["home_assistant"]
-        allowed_reads = resolve_entities(catalog, ha_config.get("allowed_read_entities", ()), ha_config.get("allowed_read_domains", ()), ha_config.get("excluded_entities", ()))
+        allowed_reads = resolve_entities(catalog, ha_config.get("allowed_read_entities", ()), ha_config.get("allowed_read_domains", ()), ha_config.get("excluded_entities", ()), ("camera.porch_camera",))
         allowed_actions = resolve_entities(catalog, action_config.get("allowed_entities", ()), action_config.get("allowed_domains", ()), tuple(ha_config.get("excluded_entities", ())) + tuple(action_config.get("excluded_entities", ())))
         self.container.read_only_assistant._allowed_entity_ids = allowed_reads
         self.container.read_only_assistant._resolver = EntityReferenceResolver(allowed_reads | allowed_actions, ha_config.get("entity_aliases", {}))
