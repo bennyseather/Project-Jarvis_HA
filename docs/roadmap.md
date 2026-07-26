@@ -1,5 +1,12 @@
 # Project Jarvis Roadmap
 
+## EPIC 15 – Everyday Assist Experience
+
+- M15.1 Assist Command Routing ✓
+- M15.2 Clear Outcomes and Recovery ✓
+- M15.3 Privacy-Bounded Confirmed Action Audit ✓
+- M15.4 Operational Diagnostics and Acceptance ✓
+
 ## EPIC 0 – Foundation (Active)
 
 - Documentation

@@ -51,6 +51,7 @@ from jarvis.management.console_commands import ExplicitDataConsole
 from jarvis.homeassistant.capability_context import HomeAssistantCapabilityContext
 from jarvis.homeassistant.enrollment import HomeAccessEnrollment
 from jarvis.homeassistant.access_policy import resolve_entities
+from jarvis.homeassistant.action_audit import SQLiteConfirmedActionAuditStore
 
 
 class JarvisApplication:
@@ -132,6 +133,7 @@ class JarvisApplication:
                 await self.container.home_assistant.disconnect()
                 self.container.memory_store.close()
                 self.container.knowledge_store.close()
+                self.container.confirmed_action_audit_store.close()
         else:
             self.console.print("[red]Jarvis is not running.[/red]")
 
@@ -180,6 +182,7 @@ class JarvisApplication:
         self.container.conversation = Conversation(max_messages)
         self.container.memory_store = SQLiteMemoryStore(database_file)
         self.container.knowledge_store = SQLiteKnowledgeStore(database_file)
+        self.container.confirmed_action_audit_store = SQLiteConfirmedActionAuditStore(database_file)
         self.container.runtime_context_assembler = ContextAssembler((
             MemoryContextProvider(PolicyControlledMemoryRetriever(
                 self.container.memory_store, ExplicitMemoryPolicy(),
@@ -273,6 +276,7 @@ class JarvisApplication:
             ),
             PendingActionStore(),
             self.container.home_assistant,
+            self.container.confirmed_action_audit_store,
         )
         self.container.read_only_assistant.set_action_gateway(
             self.container.home_assistant_action_gateway
@@ -294,16 +298,23 @@ class JarvisApplication:
         self.container.logger.info(
             f"Loaded {self.container.entity_registry.count()} entities into registry."
         )
+        self.container.logger.info(
+            f"Home policy ready: {len(allowed_reads)} read entities, {len(allowed_actions)} action entities."
+        )
 
     async def startup_checks(self):
         """
         Run startup verification checks.
         """
 
+        capabilities = self.container.home_assistant_capability_context.as_context()
         self.container.logger.info(
             f"Home Assistant ready with {self.container.entity_registry.count()} discovered entities, "
-            f"{len(self.general['home_assistant']['allowed_read_entities'])} allowed reads, and "
-            f"{len(self.general['home_assistant']['action_policy']['allowed_entities'])} allowed action entities."
+            f"{len(capabilities['read_entities'])} effective allowed reads, and "
+            f"{len(capabilities['action_entities'])} effective allowed action entities."
+        )
+        self.container.logger.info(
+            "Home policy source is the configured durable policy file; bridge runtime is ready."
         )
 
         self.container.logger.info("Provider startup checks are connectivity-only.")
@@ -342,8 +353,8 @@ class JarvisApplication:
             "success": "Action completed." if "message" not in result else str(result["message"]),
             "clarification_required": "Please specify the exact configured entity you mean.",
             "not_supported": "That request is not available in the current configuration.",
-            "unavailable": "Home Assistant is temporarily unavailable. Please try again.",
-            "forbidden": "That action is not authorized.",
+            "unavailable": "The requested service is temporarily unavailable. Please try again.",
+            "forbidden": "That confirmation is invalid or has expired." if result.get("reason_code") == "invalid_confirmation" else "That action is not authorized.",
             "requires_confirmation": "Confirmation is required before this action can run.",
         }
         return messages.get(str(result.get("status")), str(result.get("message", "Request could not be completed.")))
@@ -439,7 +450,21 @@ class JarvisApplication:
             return enrollment.set_alias(parts[2], parts[3])
         if len(parts) == 2 and parts[1] == "review": return enrollment.review()
         if len(parts) == 3 and parts[1] == "exclude": return enrollment.exclude(parts[2])
-        return {"status":"not_supported","message":"Use: home discover [domain], home enroll read <entity>, home enroll action <entity> <service> [normal|high], or home alias <name> <entity>."}
+        if len(parts) in {2, 3} and parts[1] == "audit":
+            try:
+                limit = 10 if len(parts) == 2 else int(parts[2])
+                records = self.container.confirmed_action_audit_store.recent(limit)
+            except ValueError:
+                return {"status": "not_supported", "message": "Use: home audit [1-50]."}
+            if not records:
+                return {"status": "success", "message": "No confirmed actions have been recorded."}
+            entries = "; ".join(
+                f"{record.occurred_at.isoformat(timespec='seconds')} {record.domain}.{record.service} "
+                f"{', '.join(record.entity_ids)}: {record.outcome}"
+                for record in records
+            )
+            return {"status": "success", "message": f"Recent confirmed actions: {entries}"}
+        return {"status":"not_supported","message":"Use: home discover [domain], home enroll read <entity>, home enroll action <entity> <service> [normal|high], home alias <name> <entity>, home review, home exclude <entity>, or home audit [1-50]."}
 
     def show_banner(self):
         """
