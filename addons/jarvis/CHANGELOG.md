@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.5
+
+- Display Home Assistant friendly names in state summaries and clarifications.
+- Reject oversized pending follow-ups before reading Home Assistant.
+- Clear stale read context when a new explicit selection is unknown or oversized.
+- Report the number of permitted entities when an area must be narrowed.
+
 ## 0.5.4
 
 - Match bounded category phrases such as “porch lights” to permitted friendly names.
