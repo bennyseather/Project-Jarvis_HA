@@ -27,6 +27,9 @@ class EntityReferenceResolver:
         self._ids = frozenset(allowed_entity_ids)
         self._areas = self._collectives(areas or {})
         self._groups = self._collectives(groups or {})
+        self._group_entity_ids = frozenset(
+            name for name in self._groups if name in self._ids and "." in name
+        )
         self._names: dict[str, set[str]] = {}
         self._descriptive_names: set[str] = set()
         self._labels: dict[str, str] = {}
@@ -50,6 +53,7 @@ class EntityReferenceResolver:
 
     def resolve(self, reference, domain: str | None = None):
         normalized = self._norm(reference)
+        area_reference = normalized in self._areas
         matches = self._areas.get(normalized) or self._groups.get(normalized)
         if matches is None:
             matches = self._names.get(normalized, ())
@@ -57,6 +61,7 @@ class EntityReferenceResolver:
             entity_id for entity_id in matches
             if entity_id in self._ids
             and (domain is None or entity_id.partition(".")[0] == domain)
+            and not (area_reference and domain is not None and entity_id in self._group_entity_ids)
         ))
 
     def is_collective(self, reference) -> bool:
