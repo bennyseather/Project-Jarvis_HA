@@ -5,6 +5,17 @@
 ### M20 - Voice Experience
 
 - Use Home Assistant's existing Assist speech-to-text and text-to-speech pipeline.
+- Use the microphone presented by the Home Assistant mobile app on the device
+  named `NSPanel Upstairs` as the initial acceptance-test input.
+- Route spoken Jarvis responses to the Home Assistant media-player device named
+  `Loftstue Group` as the initial acceptance-test output.
+- Resolve and record the exact Home Assistant device and entity identifiers
+  during M20 discovery; friendly names are acceptance references, not durable
+  authorization identifiers.
+- Treat remote speaker routing as an explicit Home Assistant TTS output step,
+  because a conversation agent returns text and does not itself choose the
+  pipeline's playback device.
+- Prevent duplicate speech from both the NSPanel and `Loftstue Group`.
 - Give Jarvis an original, refined voice presentation with a measured
   British-inspired cadence, calm delivery, precise wording, warmth, and subtle
   dry wit.
