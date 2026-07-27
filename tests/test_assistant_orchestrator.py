@@ -97,6 +97,21 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   self.assertIn("5 devices: 5 on",narrowed["message"])
   self.assertIn("Office Light",narrowed["message"])
   self.assertIn("5 devices: 5 on",direct["message"])
+ async def test_unique_partial_area_name_resolves_all_lights_without_model(self):
+  ids={"light.office_1","light.office_2","sensor.office_temperature"}
+  home=Home(); resolver=EntityReferenceResolver(
+   ids,{},friendly_names={
+    "Blocks":"light.office_1",
+    "Lights Office":"light.office_2",
+    "Office Temperature":"sensor.office_temperature",
+   },areas={"upstairs office":tuple(ids)})
+  model=Model(AssistantProposal(AssistantProposalKind.CONVERSATION,"Wrong"))
+  result=await AssistantOrchestrator(
+   model,home,frozenset(ids),resolver
+  ).handle("What is the state of all the office lights?")
+  self.assertEqual(result["status"],"success")
+  self.assertIn("2 devices: 2 on",result["message"])
+  self.assertEqual(home.calls,[("light.office_1","light.office_2")])
  async def test_bare_group_name_is_a_read_not_an_action(self):
   home=Home(); resolver=EntityReferenceResolver(
    {"light.office_1","light.office_2"},{},

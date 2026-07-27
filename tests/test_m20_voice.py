@@ -47,6 +47,11 @@ class M20VoiceTests(unittest.TestCase):
         self.assertTrue(
             voice.should_route_external(self.options, "device-panel")
         )
+        self.assertTrue(
+            voice.should_route_external(
+                self.options, None, "device-panel"
+            )
+        )
         self.assertFalse(
             voice.should_route_external(self.options, "another-device")
         )

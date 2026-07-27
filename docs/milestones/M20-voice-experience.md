@@ -15,8 +15,8 @@ input and `Loftstue Group` as output.
   media playback.
 - Jarvis receives text plus a bounded `voice_mode` flag. It does not receive or
   store raw audio.
-- External output activates only when the incoming Home Assistant `device_id`
-  exactly matches the selected microphone device.
+- External output activates only when the incoming Home Assistant source device
+  or its registered Assist satellite matches the selected microphone device.
 - The custom integration calls Home Assistant's `tts.speak` action with the
   selected TTS entity and media player.
 - Requests from other devices remain text/local responses.
