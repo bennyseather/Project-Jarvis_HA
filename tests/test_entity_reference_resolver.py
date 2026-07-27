@@ -48,3 +48,18 @@ class Tests(unittest.TestCase):
   self.assertFalse(collective)
   self.assertEqual(r.display_name("light.porch_1"),"Outside Porch 1")
   self.assertEqual(r.display_name("sensor.missing"),"sensor.missing")
+ def test_area_domain_filter_excludes_group_helpers_but_keeps_member_lights(self):
+  r=EntityReferenceResolver(
+   {"light.upstairs_office_lights","light.blocks","light.desk"},{},
+   areas={"upstairs office":(
+    "light.upstairs_office_lights","light.blocks","light.desk",
+   )},
+   groups={
+    "light.upstairs_office_lights":("light.blocks","light.desk"),
+    "upstairs office lights":("light.blocks","light.desk"),
+   },
+  )
+  self.assertEqual(
+   r.resolve("upstairs office","light"),
+   ("light.blocks","light.desk"),
+  )

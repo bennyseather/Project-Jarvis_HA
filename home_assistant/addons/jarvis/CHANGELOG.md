@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.7
+
+- Exclude Home Assistant helper-group entities when reading all devices of one domain in an area.
+- Keep the actual member lights, including individually area-assigned lights such as Blocks.
+
 ## 0.5.6
 
 - Narrow oversized areas by an explicitly requested device domain on the same or next turn.

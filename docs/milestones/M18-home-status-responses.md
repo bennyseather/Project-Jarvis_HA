@@ -40,3 +40,6 @@ scope without retaining or reading its entity set. A same-turn phrase such as
 lights,” filters that area by the explicitly named Home Assistant domain before
 the 20-entity bound is applied. A bare configured group name is a read selection
 and cannot become an action without an action verb.
+Area-by-domain reads exclude aggregate helper entities from their results while
+retaining the helper's actual member entities. Directly asking for the helper
+still resolves the helper to its members.
