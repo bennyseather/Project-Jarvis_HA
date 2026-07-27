@@ -17,3 +17,9 @@ user and assistant messages. Stable orchestration instructions remain separate
 from the current request and Home Assistant context. This lets the language
 model resolve an unambiguous follow-up such as “all of them?” or “what about the
 rest?” while the resolver and policy layer still determine the permitted target.
+
+Acceptance testing added a deterministic active read scope. Explicit configured
+group and area names are resolved before model routing, and successful reads
+retain only their bounded entity identifiers for the current process. Ambiguous
+read candidates are likewise retained until the user selects one or says “both.”
+This session state is non-durable and never expands the configured permissions.

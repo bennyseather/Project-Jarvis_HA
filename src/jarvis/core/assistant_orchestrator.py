@@ -14,12 +14,17 @@ class AssistantOrchestrator:
         self._allowed_entity_ids = allowed_entity_ids
         self._resolver = resolver
         self._action_gateway = action_gateway
+        self._last_read_targets: tuple[str, ...] = ()
+        self._pending_read_targets: tuple[str, ...] = ()
 
     def set_action_gateway(self, action_gateway) -> None:
         """Attach the discovered runtime action gateway after Home Assistant connects."""
         self._action_gateway = action_gateway
 
     async def handle(self, request_text: str, context: dict[str, object] | None = None) -> dict[str, object]:
+        deterministic_read = await self._resolve_read_followup(request_text)
+        if deterministic_read is not None:
+            return deterministic_read
         proposal = self._language_model.propose(AssistantInput(request_text, {} if context is None else context))
         if proposal.kind is AssistantProposalKind.CONVERSATION:
             return {"status": "success", "message": proposal.message}
@@ -57,10 +62,12 @@ class AssistantOrchestrator:
                 if not matches:
                     return {"status": "not_supported", "message": "That entity is not available."}
                 if len(matches) > 1 and not self._resolver.is_collective(proposal.entity_id or ""):
+                    self._pending_read_targets = tuple(matches)
                     return self._clarification(matches)
                 if len(matches) > 20:
                     return {"status": "clarification_required", "message": "Please specify a smaller configured group or area."}
                 if len(matches) > 1:
+                    self._remember_read_targets(matches)
                     return await self._read_summary(matches)
                 proposal = type(proposal)(proposal.kind, proposal.message, matches[0])
             if proposal.entity_id not in self._allowed_entity_ids:
@@ -69,9 +76,73 @@ class AssistantOrchestrator:
                 state = await self._home_assistant.read_entity_state(proposal.entity_id)
             except Exception:
                 return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
+            self._remember_read_targets((state.entity_id,))
             return {"status": "success", "message": f"{state.entity_id} is {state.state}.", "entity_id": state.entity_id,
                     "state": state.state, "attributes": dict(state.attributes)}
         return {"status": "not_supported", "message": "That request is not supported."}
+
+    async def _resolve_read_followup(self, request_text):
+        """Resolve explicit status targets and unambiguous read follow-ups locally."""
+        if self._resolver is None:
+            return None
+        normalized = " ".join(request_text.casefold().split()).strip(" .?!")
+        if self._pending_read_targets and normalized in {
+            "all", "all of them", "both", "both of them", "every one", "everyone",
+        }:
+            targets = self._pending_read_targets
+            self._remember_read_targets(targets)
+            return await self._read_summary(targets)
+        explicit = self._resolver.find_in_text(request_text)
+        if explicit is not None and self._looks_like_read(normalized):
+            _, targets, collective = explicit
+            if len(targets) > 1 and not collective:
+                self._pending_read_targets = tuple(targets)
+                return self._clarification(targets)
+            if len(targets) > 20:
+                return {"status": "clarification_required", "message": "Please specify a smaller configured group or area."}
+            self._remember_read_targets(targets)
+            if len(targets) > 1:
+                return await self._read_summary(targets)
+            try:
+                state = await self._home_assistant.read_entity_state(targets[0])
+            except Exception:
+                return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
+            return {
+                "status": "success",
+                "message": f"{state.entity_id} is {state.state}.",
+                "entity_id": state.entity_id,
+                "state": state.state,
+                "attributes": dict(state.attributes),
+            }
+        if self._last_read_targets and self._looks_like_read_followup(normalized):
+            return await self._read_summary(self._last_read_targets)
+        return None
+
+    @staticmethod
+    def _looks_like_read(text):
+        return (
+            "state" in text
+            or "status" in text
+            or text.startswith(("is ", "are ", "what about "))
+        )
+
+    @staticmethod
+    def _looks_like_read_followup(text):
+        if text in {"all", "all of them", "both", "both of them"}:
+            return True
+        words = set(text.split())
+        return (
+            bool(words & {"them", "those", "there", "rest", "all", "both"})
+            and (
+                text.startswith(("is ", "are ", "what about "))
+                or "status" in words
+                or "state" in words
+            )
+        )
+
+    def _remember_read_targets(self, targets):
+        self._last_read_targets = tuple(targets)
+        self._pending_read_targets = ()
 
     async def _read_summary(self, entity_ids):
         permitted = tuple(entity_id for entity_id in entity_ids if entity_id in self._allowed_entity_ids)

@@ -23,3 +23,13 @@ class Tests(unittest.TestCase):
   self.assertFalse(r.is_collective("office"))
   self.assertEqual(r.resolve("upstairs office","light"),("light.office",))
   self.assertTrue(r.is_collective("upstairs office"))
+ def test_finds_longest_explicit_reference_in_natural_text(self):
+  r=EntityReferenceResolver(
+   {"light.office","switch.heater"},
+   friendly_names={"Office":"light.office"},
+   areas={"upstairs office":("light.office","switch.heater")},
+  )
+  reference,matches,collective=r.find_in_text("What is the status of the upstairs office?")
+  self.assertEqual(reference,"upstairs office")
+  self.assertEqual(matches,("light.office","switch.heater"))
+  self.assertTrue(collective)

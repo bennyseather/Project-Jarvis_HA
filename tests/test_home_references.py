@@ -26,3 +26,4 @@ class HomeReferenceTests(unittest.TestCase):
         self.assertEqual(names["Office"], ["light.office"])
         self.assertEqual(area_members["upstairs office"], ["light.office", "light.hall"])
         self.assertEqual(groups["interior lights"], ("light.office", "light.hall"))
+        self.assertEqual(groups["light.interior"], ("light.office", "light.hall"))

@@ -32,6 +32,31 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   result=await AssistantOrchestrator(Model(proposal),home,frozenset({"light.kitchen","light.table"}),resolver).handle("state")
   self.assertEqual(result["status"],"success");self.assertIn("2 devices: 2 on",result["message"])
   self.assertEqual(home.calls,[("light.kitchen","light.table")])
+ async def test_explicit_group_and_followup_reads_bypass_model_guessing(self):
+  home=Home(); resolver=EntityReferenceResolver(
+   {"light.kitchen","light.table"},{},
+   groups={"interior lights":("light.kitchen","light.table"),
+           "light.interior_lights":("light.kitchen","light.table")})
+  model=Model(AssistantProposal(AssistantProposalKind.CONVERSATION,"Wrong"))
+  orchestrator=AssistantOrchestrator(model,home,frozenset({"light.kitchen","light.table"}),resolver)
+  first=await orchestrator.handle("What is the state of the interior lights?")
+  followup=await orchestrator.handle("Are all of them on?")
+  exact_group=await orchestrator.handle("What is the state of light.interior_lights?")
+  bare_followup=await orchestrator.handle("all of them")
+  self.assertIn("2 devices: 2 on",first["message"])
+  self.assertIn("2 devices: 2 on",followup["message"])
+  self.assertIn("2 devices: 2 on",exact_group["message"])
+  self.assertIn("2 devices: 2 on",bare_followup["message"])
+ async def test_both_resolves_pending_ambiguous_read_candidates(self):
+  home=Home(); resolver=EntityReferenceResolver(
+   {"light.porch_1","light.porch_2"},{},
+   friendly_names={"porch lights":("light.porch_1","light.porch_2")})
+  proposal=AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="porch lights")
+  orchestrator=AssistantOrchestrator(Model(proposal),home,frozenset({"light.porch_1","light.porch_2"}),resolver)
+  clarification=await orchestrator.handle("check porch")
+  both=await orchestrator.handle("both")
+  self.assertEqual(clarification["status"],"clarification_required")
+  self.assertIn("2 devices: 2 on",both["message"])
  async def test_ambiguous_friendly_name_returns_candidates_without_reading(self):
   home=Home(); resolver=EntityReferenceResolver({"light.office","light.office_desk"},{},friendly_names={"Office":("light.office","light.office_desk")})
   proposal=AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="Office")
