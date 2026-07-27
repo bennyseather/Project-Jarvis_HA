@@ -139,6 +139,14 @@ class HomeAssistantClient:
             raise RuntimeError(f"Unexpected response while retrieving services: {response}")
         return response["result"]
 
+    async def get_registry(self, command: str) -> list:
+        request = {"id": self.get_next_message_id(), "type": command}
+        await self.send_json(request)
+        response = await self.receive_json()
+        if response["type"] != "result":
+            raise RuntimeError(f"Unexpected response while retrieving {command}: {response}")
+        return response["result"]
+
     async def call_service(
         self,
         domain: str,
