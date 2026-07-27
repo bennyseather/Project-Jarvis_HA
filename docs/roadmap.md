@@ -1,5 +1,33 @@
 # Project Jarvis Roadmap
 
+## Approved Future Direction
+
+### M20 - Voice Experience
+
+- Use Home Assistant's existing Assist speech-to-text and text-to-speech pipeline.
+- Give Jarvis an original, refined voice presentation with a measured
+  British-inspired cadence, calm delivery, precise wording, warmth, and subtle
+  dry wit.
+- Do not clone a performer's voice, reproduce film dialogue, or claim to be the
+  copyrighted fictional character.
+- Keep spoken answers concise and natural, with voice-friendly clarification
+  and confirmation flows.
+
+### M21 - Reflective Learning and Companion Continuity
+
+- Develop ongoing reflection across conversations using bounded, inspectable
+  memories.
+- Connect related facts, preferences, people, rooms, routines, and projects.
+- Track uncertainty, contradictions, unresolved topics, and useful follow-ups.
+- Gradually refine interaction style from explicit feedback.
+- Consolidate duplicate memories without retaining deleted history.
+- Keep all learned information inspectable, correctable, and permanently
+  deletable by the user.
+- Never autonomously rewrite Jarvis code, expand permissions, or change privacy
+  and safety policy.
+- Present continuity and self-reflection honestly without claiming
+  consciousness or subjective awareness.
+
 ## EPIC 19 - Persistent Conversation Memory and Character
 
 - M19.1 Durable Conversation Identity and Short-Term Retention complete
