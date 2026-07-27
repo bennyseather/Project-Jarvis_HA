@@ -47,6 +47,20 @@ class EntityReferenceResolver:
     def candidates(self, reference, limit: int = 5):
         return self.resolve(reference)[:limit]
 
+    def find_in_text(self, text):
+        """Return the longest configured reference explicitly present in text."""
+        normalized_text = self._norm(text)
+        references = set(self._areas) | set(self._groups) | set(self._names)
+        matches = [
+            reference for reference in references
+            if self._contains_reference(normalized_text, reference)
+            and self.resolve(reference)
+        ]
+        if not matches:
+            return None
+        reference = max(matches, key=lambda value: (len(value.split()), len(value), value))
+        return reference, self.resolve(reference), self.is_collective(reference)
+
     def _add_name(self, name, entity_id):
         if entity_id in self._ids:
             self._names.setdefault(self._norm(name), set()).add(entity_id)
@@ -60,3 +74,12 @@ class EntityReferenceResolver:
     @staticmethod
     def _norm(value):
         return " ".join(str(value).casefold().split())
+
+    @staticmethod
+    def _contains_reference(text, reference):
+        padded = f" {text} "
+        return (
+            f" {reference} " in padded
+            or f" {reference}?" in padded
+            or f" {reference}." in padded
+        )

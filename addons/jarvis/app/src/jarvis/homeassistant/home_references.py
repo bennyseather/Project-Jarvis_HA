@@ -32,7 +32,10 @@ def build_home_references(entities, areas, registry, devices, permitted_entities
     for item in entities:
         members = item.get("attributes", {}).get("entity_id")
         if isinstance(members, (list, tuple)):
-            name = str(item.get("attributes", {}).get("friendly_name", item["entity_id"])).casefold()
-            groups[name] = tuple(entity_id for entity_id in members if entity_id in permitted)
+            entity_id = item["entity_id"]
+            targets = tuple(member for member in members if member in permitted)
+            name = str(item.get("attributes", {}).get("friendly_name", entity_id)).casefold()
+            groups[name] = targets
+            groups[entity_id] = targets
 
     return friendly_names, area_members, groups

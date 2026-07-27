@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3
+
+- Resolve explicit group and area status questions before model routing.
+- Expand light-group entity IDs to their member entities.
+- Retain the last successful read scope for “them,” “there,” and “all of them.”
+- Retain ambiguous read candidates so “both” reads every offered entity.
+
 ## 0.5.2
 
 - Send bounded session history to OpenAI as real alternating conversation messages.
