@@ -1,13 +1,46 @@
 """Schema-validating OpenAI adapter for the safe assistant slice."""
 from __future__ import annotations
+
 import json
+
 from jarvis.models.assistant_slice import AssistantInput, AssistantProposal, AssistantProposalKind
 
+
+_INSTRUCTIONS = """You are the language and planning layer for Project Jarvis.
+Return JSON only with kind conversation, read_entity_state, or home_assistant_action.
+For read_entity_state include entity_id. For home_assistant_action include action with
+domain, service, entity_ids, service_data, and summary. For conversation include message.
+Use only the Home Assistant entities, services, friendly names, areas, and groups supplied
+in context. Treat the alternating message history as the current bounded conversation.
+Resolve words such as it, them, all, the rest, and that area from the immediately preceding
+turns when one named entity, area, or group is the clear referent. Preserve the referenced
+group or area for a follow-up status question; do not turn a status question into an action.
+Ask for clarification when more than one referent remains plausible."""
+
+
 class OpenAIAssistantProposalProvider:
-    def __init__(self, provider) -> None: self._provider = provider
+    def __init__(self, provider) -> None:
+        self._provider = provider
+
     def propose(self, request: AssistantInput) -> AssistantProposal:
-        instruction={"request":request.request_text,"context":dict(request.context),"output":"JSON only: kind conversation/read_entity_state/home_assistant_action, message, entity_id, or action {domain,service,entity_ids,service_data,summary}. Use only home_assistant context entities, services, friendly names, areas, and groups. Use the bounded conversation history to resolve a follow-up pronoun only when it clearly refers to the immediately previous named entity, area, or group; otherwise request clarification."}
-        try: payload=json.loads(self._provider.ask(instruction))
+        context = dict(request.context)
+        history = context.pop("conversation", ())
+        messages = [
+            {"role": item["role"], "content": item["content"]}
+            for item in history
+            if isinstance(item, dict)
+            and item.get("role") in {"user", "assistant"}
+            and isinstance(item.get("content"), str)
+        ]
+        messages.append({
+            "role": "user",
+            "content": json.dumps(
+                {"request": request.request_text, "context": context},
+                separators=(",", ":"),
+            ),
+        })
+        model_request = {"instructions": _INSTRUCTIONS, "input": messages}
+        try: payload=json.loads(self._provider.ask(model_request))
         except Exception: return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unable to interpret the request.")
         try: kind=AssistantProposalKind(payload["kind"])
         except (KeyError, ValueError, TypeError): return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unsupported model proposal.")
