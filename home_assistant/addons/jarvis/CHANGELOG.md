@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+- Send bounded session history to OpenAI as real alternating conversation messages.
+- Keep orchestration instructions separate from the current request and home context.
+- Resolve clear follow-ups such as “all of them?” and “what about the rest?” without changing a status question into an action.
+
 ## 0.5.1
 
 - Recognize Home Assistant light groups by membership, not only `group.*`.

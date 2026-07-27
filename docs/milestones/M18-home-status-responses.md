@@ -11,3 +11,9 @@ candidates. Multi-device actions execute per entity and report succeeded and
 unavailable entities without exposing internal exceptions. Empty, oversized,
 unavailable, and unknown requests fail safely. M18 does not add permissions or
 retain state history.
+
+The bounded in-process conversation is sent to the Responses API as alternating
+user and assistant messages. Stable orchestration instructions remain separate
+from the current request and Home Assistant context. This lets the language
+model resolve an unambiguous follow-up such as “all of them?” or “what about the
+rest?” while the resolver and policy layer still determine the permitted target.

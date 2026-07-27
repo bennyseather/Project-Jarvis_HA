@@ -1,3 +1,4 @@
+import json
 import unittest
 from jarvis.homeassistant.read_adapter import HomeAssistantReadAdapter
 from jarvis.models.assistant_slice import AssistantInput,AssistantProposalKind
@@ -19,5 +20,14 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   self.assertEqual(provider.propose(AssistantInput("turn on kitchen")).kind,AssistantProposalKind.HOME_ASSISTANT_ACTION)
  def test_model_receives_capability_context(self):
   model=OpenAI('{"kind":"conversation","message":"Hi"}')
-  OpenAIAssistantProposalProvider(model).propose(AssistantInput("hi",{"home_assistant":{"action_entities":["light.blocks"]}}))
-  self.assertEqual(model.request["context"]["home_assistant"]["action_entities"],["light.blocks"])
+  context={"home_assistant":{"action_entities":["light.blocks"]},"conversation":(
+   {"role":"user","content":"What about the blocks?"},
+   {"role":"assistant","content":"The blocks are off."},
+  )}
+  OpenAIAssistantProposalProvider(model).propose(AssistantInput("turn them on",context))
+  self.assertIn("Return JSON only",model.request["instructions"])
+  self.assertEqual(model.request["input"][:2],list(context["conversation"]))
+  current=json.loads(model.request["input"][-1]["content"])
+  self.assertEqual(current["request"],"turn them on")
+  self.assertEqual(current["context"]["home_assistant"]["action_entities"],["light.blocks"])
+  self.assertNotIn("conversation",current["context"])
