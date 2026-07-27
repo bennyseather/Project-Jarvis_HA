@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+- Add durable, conversation-isolated short-term memory using Home Assistant conversation IDs.
+- Retain at most 20 conversations or 72 hours, with 100 messages per conversation and a 20-message model context.
+- Promote schema-validated stable user context after three distinct repetitions.
+- Require confirmation before sensitive information becomes durable memory.
+- Add natural remember, recall, provenance, correction, forgetting, learned-memory, and recent-conversation controls.
+- Preserve existing memory through a transactional SQLite schema upgrade.
+- Add a centralized, configurable Jarvis character profile subordinate to privacy and safety.
+
 ## 0.5.7
 
 - Exclude Home Assistant helper-group entities when reading all devices of one domain in an area.
