@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.1
+
+- Match Companion microphone requests through either the direct device identity or an Assist satellite's registered device.
+- Retry external TTS with provider defaults when a configured language or voice is unsupported.
+- Reconnect once when a current-state read encounters a stale Home Assistant websocket.
+- Resolve an unambiguous partial area phrase such as "all the office lights" deterministically.
+- Add focused external-routing diagnostics while preserving local speech fallback.
+
 ## 0.7.0
 
 - Add configurable Home Assistant-owned external voice output.
