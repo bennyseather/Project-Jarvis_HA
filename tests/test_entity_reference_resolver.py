@@ -13,3 +13,13 @@ class Tests(unittest.TestCase):
   self.assertEqual(r.resolve("kitchen lamp"),("light.kitchen",))
   self.assertEqual(r.resolve("kitchen"),("light.kitchen",))
   self.assertEqual(r.resolve("kitchen lights"),("light.kitchen","light.table"))
+ def test_duplicate_friendly_names_remain_ambiguous_and_domain_filter_is_deterministic(self):
+  r=EntityReferenceResolver(
+   {"light.office","light.office_desk","switch.office"},
+   friendly_names={"Office":("light.office","light.office_desk")},
+   areas={"upstairs office":("light.office","switch.office")},
+  )
+  self.assertEqual(r.resolve("office"),("light.office","light.office_desk"))
+  self.assertFalse(r.is_collective("office"))
+  self.assertEqual(r.resolve("upstairs office","light"),("light.office",))
+  self.assertTrue(r.is_collective("upstairs office"))

@@ -8,6 +8,10 @@ from jarvis.models.home_assistant_gateway import HomeAssistantActionProposal,Hom
 class C:
  def __init__(self):self.calls=[]
  async def call_service(self,*a):self.calls.append(a)
+class PartialC(C):
+ async def call_service(self,*a):
+  self.calls.append(a)
+  if a[2]["entity_id"]=="light.failed":raise RuntimeError("unavailable")
 class Tests(unittest.IsolatedAsyncioTestCase):
  async def test_confirmed_once(self):
   c=C();p=HomeAssistantActionProposal("light","turn_on",("light.kitchen",),summary="Turn on kitchen")
@@ -20,3 +24,8 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   g=ConfirmedHomeAssistantActionGateway(HomeAssistantCapabilityGateway(HomeAssistantCapabilityCatalog((HomeAssistantServiceDefinition("light","turn_on"),),frozenset({"light.kitchen"}))),HomeAssistantRiskPolicy(allowed_entities={"light.kitchen"},immediate_services={"light.turn_on"}),PendingActionStore(),c)
   self.assertEqual(g.request(p)["status"],"immediate_action")
   self.assertEqual((await g.execute_immediate(p))["status"],"success");self.assertEqual(len(c.calls),1)
+ async def test_immediate_multi_device_action_reports_partial_outcomes(self):
+  c=PartialC();entities=frozenset({"light.kitchen","light.failed"});p=HomeAssistantActionProposal("light","turn_on",tuple(sorted(entities)))
+  g=ConfirmedHomeAssistantActionGateway(HomeAssistantCapabilityGateway(HomeAssistantCapabilityCatalog((HomeAssistantServiceDefinition("light","turn_on"),),entities)),HomeAssistantRiskPolicy(allowed_entities=entities,immediate_services={"light.turn_on"}),PendingActionStore(),c)
+  result=await g.execute_immediate(p)
+  self.assertEqual(result["status"],"success");self.assertEqual(result["succeeded"],("light.kitchen",));self.assertEqual(result["failed"],("light.failed",));self.assertEqual(len(c.calls),2)

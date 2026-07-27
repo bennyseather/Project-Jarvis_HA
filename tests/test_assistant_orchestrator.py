@@ -9,6 +9,7 @@ class Model:
 class Home:
  def __init__(self): self.calls=[]
  async def read_entity_state(self,id): self.calls.append(id); return HomeAssistantState(id,"on")
+ async def read_entity_states(self,ids): self.calls.append(tuple(ids)); return tuple(HomeAssistantState(id,"on") for id in ids)
 class Gateway:
  def request(self, action): return {"status":"requires_confirmation","token":"token"}
 class Tests(unittest.IsolatedAsyncioTestCase):
@@ -30,6 +31,12 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   proposal=AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="kitchen lights")
   result=await AssistantOrchestrator(Model(proposal),home,frozenset({"light.kitchen","light.table"}),resolver).handle("state")
   self.assertEqual(result["status"],"success");self.assertIn("2 devices: 2 on",result["message"])
+  self.assertEqual(home.calls,[("light.kitchen","light.table")])
+ async def test_ambiguous_friendly_name_returns_candidates_without_reading(self):
+  home=Home(); resolver=EntityReferenceResolver({"light.office","light.office_desk"},{},friendly_names={"Office":("light.office","light.office_desk")})
+  proposal=AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="Office")
+  result=await AssistantOrchestrator(Model(proposal),home,frozenset({"light.office","light.office_desk"}),resolver).handle("state")
+  self.assertEqual(result["status"],"clarification_required");self.assertEqual(result["candidates"],("light.office","light.office_desk"));self.assertEqual(home.calls,[])
  async def test_action_alias_and_unknown_entity_require_clarification(self):
   home=Home(); resolver=EntityReferenceResolver({"light.kitchen"},{"kitchen":"light.kitchen"})
   proposal=AssistantProposal(AssistantProposalKind.HOME_ASSISTANT_ACTION,action={"domain":"light","service":"turn_on","entity_ids":("kitchen",),"service_data":{},"summary":"Turn on"})

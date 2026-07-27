@@ -6,7 +6,7 @@ from jarvis.models.assistant_slice import AssistantInput, AssistantProposal, Ass
 class OpenAIAssistantProposalProvider:
     def __init__(self, provider) -> None: self._provider = provider
     def propose(self, request: AssistantInput) -> AssistantProposal:
-        instruction={"request":request.request_text,"context":dict(request.context),"output":"JSON only: kind conversation/read_entity_state/home_assistant_action, message, entity_id, or action {domain,service,entity_ids,service_data,summary}. Use only home_assistant context entities and services."}
+        instruction={"request":request.request_text,"context":dict(request.context),"output":"JSON only: kind conversation/read_entity_state/home_assistant_action, message, entity_id, or action {domain,service,entity_ids,service_data,summary}. Use only home_assistant context entities, services, friendly names, areas, and groups. Use the bounded conversation history to resolve a follow-up pronoun only when it clearly refers to the immediately previous named entity, area, or group; otherwise request clarification."}
         try: payload=json.loads(self._provider.ask(instruction))
         except Exception: return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unable to interpret the request.")
         try: kind=AssistantProposalKind(payload["kind"])
