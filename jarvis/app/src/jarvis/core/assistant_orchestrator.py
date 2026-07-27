@@ -60,12 +60,14 @@ class AssistantOrchestrator:
             if self._resolver is not None:
                 matches = self._resolver.resolve(proposal.entity_id or "")
                 if not matches:
+                    self._clear_read_context()
                     return {"status": "not_supported", "message": "That entity is not available."}
+                if len(matches) > 20:
+                    self._clear_read_context()
+                    return self._too_many(matches)
                 if len(matches) > 1 and not self._resolver.is_collective(proposal.entity_id or ""):
                     self._pending_read_targets = tuple(matches)
                     return self._clarification(matches)
-                if len(matches) > 20:
-                    return {"status": "clarification_required", "message": "Please specify a smaller configured group or area."}
                 if len(matches) > 1:
                     self._remember_read_targets(matches)
                     return await self._read_summary(matches)
@@ -77,7 +79,7 @@ class AssistantOrchestrator:
             except Exception:
                 return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
             self._remember_read_targets((state.entity_id,))
-            return {"status": "success", "message": f"{state.entity_id} is {state.state}.", "entity_id": state.entity_id,
+            return {"status": "success", "message": f"{self._display_name(state.entity_id)} is {state.state}.", "entity_id": state.entity_id,
                     "state": state.state, "attributes": dict(state.attributes)}
         return {"status": "not_supported", "message": "That request is not supported."}
 
@@ -90,16 +92,21 @@ class AssistantOrchestrator:
             "all", "all of them", "both", "both of them", "every one", "everyone",
         }:
             targets = self._pending_read_targets
+            if len(targets) > 20:
+                self._clear_read_context()
+                return self._too_many(targets)
             self._remember_read_targets(targets)
             return await self._read_summary(targets)
         explicit = self._resolver.find_in_text(request_text)
         if explicit is not None and self._looks_like_read(normalized):
             _, targets, collective = explicit
+            self._pending_read_targets = ()
+            if len(targets) > 20:
+                self._clear_read_context()
+                return self._too_many(targets)
             if len(targets) > 1 and not collective:
                 self._pending_read_targets = tuple(targets)
                 return self._clarification(targets)
-            if len(targets) > 20:
-                return {"status": "clarification_required", "message": "Please specify a smaller configured group or area."}
             self._remember_read_targets(targets)
             if len(targets) > 1:
                 return await self._read_summary(targets)
@@ -109,7 +116,7 @@ class AssistantOrchestrator:
                 return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
             return {
                 "status": "success",
-                "message": f"{state.entity_id} is {state.state}.",
+                "message": f"{self._display_name(state.entity_id)} is {state.state}.",
                 "entity_id": state.entity_id,
                 "state": state.state,
                 "attributes": dict(state.attributes),
@@ -144,8 +151,15 @@ class AssistantOrchestrator:
         self._last_read_targets = tuple(targets)
         self._pending_read_targets = ()
 
+    def _clear_read_context(self):
+        self._last_read_targets = ()
+        self._pending_read_targets = ()
+
     async def _read_summary(self, entity_ids):
         permitted = tuple(entity_id for entity_id in entity_ids if entity_id in self._allowed_entity_ids)
+        if len(permitted) > 20:
+            self._clear_read_context()
+            return self._too_many(permitted)
         try:
             if hasattr(self._home_assistant, "read_entity_states"):
                 states = list(await self._home_assistant.read_entity_states(permitted))
@@ -160,17 +174,34 @@ class AssistantOrchestrator:
         counts = {}
         for state in states: counts[state.state] = counts.get(state.state, 0) + 1
         summary = ", ".join(f"{count} {value}" for value, count in sorted(counts.items()))
-        details = ", ".join(f"{state.entity_id} is {state.state}" for state in states[:5])
+        details = ", ".join(
+            f"{self._display_name(state.entity_id)} is {state.state}"
+            for state in states[:5]
+        )
         suffix = "" if not unavailable else f"; {len(unavailable)} unavailable"
         return {"status": "success", "message": f"{len(states)} devices: {summary}. {details}{suffix}", "entity_ids": tuple(state.entity_id for state in states)}
 
-    @staticmethod
-    def _clarification(matches):
-        candidates = ", ".join(matches[:5])
+    def _clarification(self, matches):
+        candidates = ", ".join(self._display_name(entity_id) for entity_id in matches[:5])
         return {
             "status": "clarification_required",
             "message": f"Please specify one of: {candidates}.",
             "candidates": tuple(matches[:5]),
+        }
+
+    def _display_name(self, entity_id):
+        if self._resolver is None:
+            return entity_id
+        return self._resolver.display_name(entity_id)
+
+    @staticmethod
+    def _too_many(matches):
+        return {
+            "status": "clarification_required",
+            "message": (
+                f"That selection contains {len(matches)} permitted entities. "
+                "Please narrow it to a group or device type with 20 or fewer."
+            ),
         }
 
     async def confirm_action(self, token: str, action: dict[str, object]) -> dict[str, object]:
