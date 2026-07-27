@@ -2,7 +2,7 @@
 
 ## Approved Future Direction
 
-### M20 - Voice Experience
+### M20 - Voice Experience (complete)
 
 - Use Home Assistant's existing Assist speech-to-text and text-to-speech pipeline.
 - Use the microphone presented by the Home Assistant mobile app on the device
@@ -23,6 +23,12 @@
   copyrighted fictional character.
 - Keep spoken answers concise and natural, with voice-friendly clarification
   and confirmation flows.
+- M20.1 Voice topology and validated configuration complete
+- M20.2 Source-device-bound external TTS routing complete
+- M20.3 Spoken response formatting and local fallback complete
+- M20.4 Session-bound natural voice confirmations complete
+- M20.5 Original voice-character guidance complete
+- M20.6 Automated acceptance, packaging, and release complete
 
 ### M21 - Reflective Learning and Companion Continuity
 

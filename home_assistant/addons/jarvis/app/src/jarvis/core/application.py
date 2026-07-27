@@ -399,16 +399,19 @@ class JarvisApplication:
         self,
         text: str,
         conversation_id: str | None = None,
+        *,
+        voice_mode: bool = False,
     ) -> dict[str, object]:
         """Route one user request through the configured safe assistant slice."""
 
         async with self._request_lock:
-            return await self._handle_request(text, conversation_id)
+            return await self._handle_request(text, conversation_id, voice_mode)
 
     async def _handle_request(
         self,
         text: str,
         conversation_id: str | None,
+        voice_mode: bool,
     ) -> dict[str, object]:
         conversation_store = self.container.conversation_store
         identifier = conversation_store.normalize_conversation_id(conversation_id)
@@ -444,6 +447,7 @@ class JarvisApplication:
             "knowledge": self._context_items(package.knowledge),
             "conversation": tuple(message.to_openai() for message in history[:-1]),
             "conversation_id": identifier,
+            "interaction": {"voice": voice_mode},
             "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
         context["home_assistant"]["references"] = self.container.home_reference_context

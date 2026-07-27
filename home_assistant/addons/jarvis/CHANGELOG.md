@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Add configurable Home Assistant-owned external voice output.
+- Route only the selected microphone device to the selected TTS provider and media player.
+- Preserve typed Assist while preventing duplicate local and external speech.
+- Add voice-friendly response formatting and safe local fallback.
+- Add session-bound natural yes, confirm, no, and cancel responses.
+- Add the original calm, British-inspired Jarvis voice-character guidance.
+
 ## 0.6.0
 
 - Add durable, conversation-isolated short-term memory using Home Assistant conversation IDs.
