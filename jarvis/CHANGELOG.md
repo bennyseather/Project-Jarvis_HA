@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.4
+
+- Match bounded category phrases such as “porch lights” to permitted friendly names.
+- Keep domain words as filters so light requests cannot select porch cameras or sensors.
+
 ## 0.5.3
 
 - Resolve explicit group and area status questions before model routing.
