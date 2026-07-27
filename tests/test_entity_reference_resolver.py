@@ -33,3 +33,16 @@ class Tests(unittest.TestCase):
   self.assertEqual(reference,"upstairs office")
   self.assertEqual(matches,("light.office","switch.heater"))
   self.assertTrue(collective)
+ def test_finds_bounded_friendly_name_candidates_for_a_category_phrase(self):
+  r=EntityReferenceResolver(
+   {"light.porch_1","light.porch_2","camera.porch"},
+   friendly_names={
+    "Outside Porch 1":"light.porch_1",
+    "Outside Porch 2":"light.porch_2",
+    "Porch camera":"camera.porch",
+   },
+  )
+  reference,matches,collective=r.find_in_text("What is the status of the porch lights?")
+  self.assertEqual(reference,"porch")
+  self.assertEqual(matches,("light.porch_1","light.porch_2"))
+  self.assertFalse(collective)

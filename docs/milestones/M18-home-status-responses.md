@@ -23,3 +23,7 @@ group and area names are resolved before model routing, and successful reads
 retain only their bounded entity identifiers for the current process. Ambiguous
 read candidates are likewise retained until the user selects one or says “both.”
 This session state is non-durable and never expands the configured permissions.
+When an exact reference is absent, a bounded category phrase may match permitted
+friendly names by its remaining descriptive words and requested device domain;
+for example, “porch lights” can offer two porch light entities without including
+a porch camera.

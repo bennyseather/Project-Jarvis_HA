@@ -50,10 +50,10 @@ class Tests(unittest.IsolatedAsyncioTestCase):
  async def test_both_resolves_pending_ambiguous_read_candidates(self):
   home=Home(); resolver=EntityReferenceResolver(
    {"light.porch_1","light.porch_2"},{},
-   friendly_names={"porch lights":("light.porch_1","light.porch_2")})
-  proposal=AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="porch lights")
+   friendly_names={"Outside Porch 1":"light.porch_1","Outside Porch 2":"light.porch_2"})
+  proposal=AssistantProposal(AssistantProposalKind.CONVERSATION,"Wrong")
   orchestrator=AssistantOrchestrator(Model(proposal),home,frozenset({"light.porch_1","light.porch_2"}),resolver)
-  clarification=await orchestrator.handle("check porch")
+  clarification=await orchestrator.handle("What is the status of the porch lights?")
   both=await orchestrator.handle("both")
   self.assertEqual(clarification["status"],"clarification_required")
   self.assertIn("2 devices: 2 on",both["message"])
