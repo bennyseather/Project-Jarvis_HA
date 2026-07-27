@@ -16,6 +16,7 @@ class AssistantOrchestrator:
         self._action_gateway = action_gateway
         self._last_read_targets: tuple[str, ...] = ()
         self._pending_read_targets: tuple[str, ...] = ()
+        self._pending_narrow_reference: str | None = None
 
     def set_action_gateway(self, action_gateway) -> None:
         """Attach the discovered runtime action gateway after Home Assistant connects."""
@@ -63,7 +64,10 @@ class AssistantOrchestrator:
                     self._clear_read_context()
                     return {"status": "not_supported", "message": "That entity is not available."}
                 if len(matches) > 20:
-                    self._clear_read_context()
+                    if self._resolver.is_collective(proposal.entity_id or ""):
+                        self._set_pending_narrowing(proposal.entity_id or "")
+                    else:
+                        self._clear_read_context()
                     return self._too_many(matches)
                 if len(matches) > 1 and not self._resolver.is_collective(proposal.entity_id or ""):
                     self._pending_read_targets = tuple(matches)
@@ -88,6 +92,24 @@ class AssistantOrchestrator:
         if self._resolver is None:
             return None
         normalized = " ".join(request_text.casefold().split()).strip(" .?!")
+        domain = self._resolver.infer_domain(request_text)
+        if (
+            self._pending_narrow_reference
+            and domain is not None
+            and not self._looks_like_action(normalized)
+        ):
+            reference = self._pending_narrow_reference
+            targets = self._resolver.resolve(reference, domain)
+            if not targets:
+                self._clear_read_context()
+                return {
+                    "status": "not_supported",
+                    "message": f"No permitted {domain} entities were found in {reference}.",
+                }
+            if len(targets) > 20:
+                return self._too_many(targets)
+            self._remember_read_targets(targets)
+            return await self._read_summary(targets)
         if self._pending_read_targets and normalized in {
             "all", "all of them", "both", "both of them", "every one", "everyone",
         }:
@@ -98,11 +120,25 @@ class AssistantOrchestrator:
             self._remember_read_targets(targets)
             return await self._read_summary(targets)
         explicit = self._resolver.find_in_text(request_text)
-        if explicit is not None and self._looks_like_read(normalized):
-            _, targets, collective = explicit
+        if explicit is not None:
+            reference, targets, collective = explicit
+            bare_reference = normalized in {reference, f"the {reference}"}
+            if not (self._looks_like_read(normalized) or bare_reference):
+                return None
             self._pending_read_targets = ()
+            if collective and domain is not None:
+                targets = self._resolver.resolve(reference, domain)
+                if not targets:
+                    self._clear_read_context()
+                    return {
+                        "status": "not_supported",
+                        "message": f"No permitted {domain} entities were found in {reference}.",
+                    }
             if len(targets) > 20:
-                self._clear_read_context()
+                if collective:
+                    self._set_pending_narrowing(reference)
+                else:
+                    self._clear_read_context()
                 return self._too_many(targets)
             if len(targets) > 1 and not collective:
                 self._pending_read_targets = tuple(targets)
@@ -147,13 +183,27 @@ class AssistantOrchestrator:
             )
         )
 
+    @staticmethod
+    def _looks_like_action(text):
+        return text.startswith((
+            "turn ", "switch ", "set ", "open ", "close ", "lock ", "unlock ",
+            "start ", "stop ", "press ",
+        ))
+
     def _remember_read_targets(self, targets):
         self._last_read_targets = tuple(targets)
         self._pending_read_targets = ()
+        self._pending_narrow_reference = None
+
+    def _set_pending_narrowing(self, reference):
+        self._last_read_targets = ()
+        self._pending_read_targets = ()
+        self._pending_narrow_reference = reference
 
     def _clear_read_context(self):
         self._last_read_targets = ()
         self._pending_read_targets = ()
+        self._pending_narrow_reference = None
 
     async def _read_summary(self, entity_ids):
         permitted = tuple(entity_id for entity_id in entity_ids if entity_id in self._allowed_entity_ids)

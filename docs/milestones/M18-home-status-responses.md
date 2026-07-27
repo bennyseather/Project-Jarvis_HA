@@ -33,3 +33,10 @@ names while keeping entity identifiers in the internal result contract. Every
 read path, including pending “both” and “all” follow-ups, enforces the 20-entity
 bound before contacting Home Assistant. A failed or oversized new selection
 clears prior read scope so a later follow-up cannot reuse stale candidates.
+
+An oversized configured area may retain its reference as a pending narrowing
+scope without retaining or reading its entity set. A same-turn phrase such as
+“lights belonging to the upstairs office,” or a next-turn phrase such as “all
+lights,” filters that area by the explicitly named Home Assistant domain before
+the 20-entity bound is applied. A bare configured group name is a read selection
+and cannot become an action without an action verb.

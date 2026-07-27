@@ -78,6 +78,38 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   self.assertIn("21 permitted entities",oversized["message"])
   self.assertEqual(followup["message"],"No active selection.")
   self.assertEqual(home.calls,[])
+ async def test_oversized_area_can_be_narrowed_to_its_lights(self):
+  lights={f"light.office_{index}" for index in range(5)}
+  sensors={f"sensor.office_{index}" for index in range(16)}
+  ids=lights|sensors
+  names={
+   **{f"Office Light {index}":entity_id for index,entity_id in enumerate(sorted(lights))},
+   **{f"Office Sensor {index}":entity_id for index,entity_id in enumerate(sorted(sensors))},
+  }
+  home=Home(); resolver=EntityReferenceResolver(
+   ids,{},friendly_names=names,areas={"upstairs office":tuple(ids)})
+  model=Model(AssistantProposal(AssistantProposalKind.CONVERSATION,"Wrong"))
+  orchestrator=AssistantOrchestrator(model,home,frozenset(ids),resolver)
+  broad=await orchestrator.handle("What is the state of the upstairs office devices?")
+  narrowed=await orchestrator.handle("all lights")
+  direct=await orchestrator.handle("the state of all lights belonging to the upstairs office")
+  self.assertIn("21 permitted entities",broad["message"])
+  self.assertIn("5 devices: 5 on",narrowed["message"])
+  self.assertIn("Office Light",narrowed["message"])
+  self.assertIn("5 devices: 5 on",direct["message"])
+ async def test_bare_group_name_is_a_read_not_an_action(self):
+  home=Home(); resolver=EntityReferenceResolver(
+   {"light.office_1","light.office_2"},{},
+   friendly_names={"Office One":"light.office_1","Office Two":"light.office_2"},
+   groups={"upstairs office lights":("light.office_1","light.office_2")})
+  action=AssistantProposal(AssistantProposalKind.HOME_ASSISTANT_ACTION,action={
+   "domain":"light","service":"turn_on","entity_ids":("light.office_1",),
+   "service_data":{},"summary":"Turn on"})
+  result=await AssistantOrchestrator(
+   Model(action),home,frozenset({"light.office_1","light.office_2"}),resolver,Gateway()
+  ).handle("upstairs office lights")
+  self.assertIn("2 devices: 2 on",result["message"])
+  self.assertEqual(home.calls,[("light.office_1","light.office_2")])
  async def test_ambiguous_friendly_name_returns_candidates_without_reading(self):
   home=Home(); resolver=EntityReferenceResolver({"light.office","light.office_desk"},{},friendly_names={"Office":("light.office","light.office_desk")})
   proposal=AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="Office")

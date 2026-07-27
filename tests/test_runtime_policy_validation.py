@@ -37,3 +37,10 @@ class RuntimePolicyValidationTests(unittest.TestCase):
             JarvisApplication._validate_timeline_config({"allowed_entities": "light.blocks"})
         with self.assertRaises(ValueError):
             JarvisApplication._validate_timeline_config({"max_events": 0})
+
+    def test_user_message_preserves_specific_clarification(self):
+        message = JarvisApplication._user_message({
+            "status": "clarification_required",
+            "message": "That selection contains 116 permitted entities.",
+        })
+        self.assertEqual(message, "That selection contains 116 permitted entities.")
