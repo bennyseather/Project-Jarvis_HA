@@ -251,6 +251,11 @@ class JarvisApplication:
         catalog = await HomeAssistantCapabilityDiscovery(
             self.container.home_assistant
         ).discover()
+        try:
+            areas = await self.container.home_assistant.get_registry("config/area_registry/list")
+            registry = await self.container.home_assistant.get_registry("config/entity_registry/list")
+        except Exception:
+            areas, registry = [], []
         action_config = self.general.get("home_assistant", {}).get("action_policy", {})
         ha_config = self.general["home_assistant"]
         allowed_reads = resolve_entities(
@@ -266,8 +271,16 @@ class JarvisApplication:
             catalog, action_config.get("all_device_services", False),
             tuple(action_config.get("confirm_required", ())) + tuple(action_config.get("high_impact", ())),
         )
+        permitted = allowed_reads | allowed_actions
+        names = {str(item.get("attributes", {}).get("friendly_name")): item["entity_id"] for item in entities if item.get("attributes", {}).get("friendly_name")}
+        area_names = {item.get("area_id"): str(item.get("name", "")).casefold() for item in areas}
+        area_members = {}
+        for item in registry:
+            area = area_names.get(item.get("area_id"))
+            if area and item.get("entity_id") in permitted: area_members.setdefault(area, []).append(item["entity_id"])
+        groups = {str(item.get("attributes", {}).get("friendly_name", item["entity_id"])).casefold(): tuple(item.get("attributes", {}).get("entity_id", ())) for item in entities if item.get("entity_id", "").startswith("group.")}
         self.container.read_only_assistant._allowed_entity_ids = allowed_reads
-        self.container.read_only_assistant._resolver = EntityReferenceResolver(allowed_reads | allowed_actions, ha_config.get("entity_aliases", {}))
+        self.container.read_only_assistant._resolver = EntityReferenceResolver(permitted, ha_config.get("entity_aliases", {}), names, area_members, groups)
         self.container.home_assistant_capability_context = HomeAssistantCapabilityContext(
             catalog,
             allowed_reads,
@@ -275,6 +288,7 @@ class JarvisApplication:
             allowed_services,
             self.general["home_assistant"].get("entity_aliases", {}),
         )
+        self.container.home_reference_context = {"friendly_names": tuple(sorted(names)[:500]), "areas": tuple(sorted(area_members)[:100]), "groups": tuple(sorted(groups)[:100])}
         self.container.home_access_enrollment = HomeAccessEnrollment(
             os.environ.get("JARVIS_HOME_POLICY_PATH", str(self.container.config_loader.config_folder / "general.yaml")), catalog
         )
@@ -352,6 +366,7 @@ class JarvisApplication:
             "conversation": tuple(message.to_openai() for message in conversation.history()[:-1]),
             "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
+        context["home_assistant"]["references"] = self.container.home_reference_context
         result = await self.container.read_only_assistant.handle(text, context)
         message = self._user_message(result)
         if message:

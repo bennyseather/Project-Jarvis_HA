@@ -1,5 +1,9 @@
 # Project Jarvis Roadmap
 
+## EPIC 17 – Home Understanding
+
+- M17 Natural Names, Areas, and Groups (in progress)
+
 ## EPIC 16 – Immediate All-Device Control
 
 - M16.1 Durable All-Device Policy ✓

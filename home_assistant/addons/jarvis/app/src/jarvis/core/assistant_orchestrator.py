@@ -32,9 +32,11 @@ class AssistantOrchestrator:
                 resolved = []
                 for entity_id in action_data.get("entity_ids", ()):
                     matches = self._resolver.resolve(entity_id)
-                    if len(matches) != 1:
+                    if not matches:
                         return {"status": "clarification_required", "message": "Please specify a configured action entity."}
-                    resolved.append(matches[0])
+                    resolved.extend(matches)
+                if len(set(resolved)) != len(resolved):
+                    return {"status": "clarification_required", "message": "Please specify the exact configured entity you mean."}
                 action_data["entity_ids"] = tuple(resolved)
             action = HomeAssistantActionProposal(**action_data)
             result = self._action_gateway.request(action)
