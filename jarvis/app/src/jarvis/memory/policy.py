@@ -77,6 +77,13 @@ class ExplicitMemoryPolicy:
     ) -> MemoryPolicyResult:
         """Approve only explicit, eligible, appropriately confirmed requests."""
 
+        if request.source is MemorySource.REPEATED_USER_CONTEXT:
+            return self._evaluate(
+                True,
+                request.is_sensitive,
+                request.has_sensitive_confirmation,
+                request.memory_type,
+            )
         if request.source is not MemorySource.EXPLICIT_USER_REQUEST:
             return self._rejected("invalid_creation_source")
         return self._evaluate(

@@ -35,6 +35,9 @@ class ServiceContainer:
         self.context_builder: ContextBuilder | None = None
         self.assistant: Assistant | None = None
         self.conversation: Conversation | None = None
+        self.conversation_store = None
+        self.repeated_context_learner = None
+        self.natural_memory_controller = None
         self.read_only_assistant = None
         self.runtime_context_assembler = None
         self.home_assistant_action_gateway = None

@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 
 from jarvis.models.assistant_slice import AssistantInput, AssistantProposal, AssistantProposalKind
+from jarvis.persona import DEFAULT_PERSONA
 
 
 _INSTRUCTIONS = """You are the language and planning layer for Project Jarvis.
@@ -19,8 +20,9 @@ Ask for clarification when more than one referent remains plausible."""
 
 
 class OpenAIAssistantProposalProvider:
-    def __init__(self, provider) -> None:
+    def __init__(self, provider, persona=DEFAULT_PERSONA) -> None:
         self._provider = provider
+        self._instructions = _INSTRUCTIONS + "\n" + persona.model_instructions()
 
     def propose(self, request: AssistantInput) -> AssistantProposal:
         context = dict(request.context)
@@ -39,7 +41,7 @@ class OpenAIAssistantProposalProvider:
                 separators=(",", ":"),
             ),
         })
-        model_request = {"instructions": _INSTRUCTIONS, "input": messages}
+        model_request = {"instructions": self._instructions, "input": messages}
         try: payload=json.loads(self._provider.ask(model_request))
         except Exception: return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unable to interpret the request.")
         try: kind=AssistantProposalKind(payload["kind"])

@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.1.0"
+  version: "0.6.0"
 
 system:
   debug: false
@@ -29,7 +29,14 @@ home_assistant:
     excluded_entities: []
 
 conversation:
-  max_messages: 12
+  context_messages: 20
+  maximum_conversations: 20
+  retention_days: 3
+  maximum_messages_per_conversation: 100
+
+persona:
+  name: "Jarvis"
+  dry_wit: true
 
 event_timeline:
   enabled: true
