@@ -118,6 +118,14 @@ class EntityReferenceResolver:
         topic = words - ignored
         if not topic:
             return None
+        collective_matches = []
+        for name in set(self._areas) | set(self._groups):
+            targets = self.resolve(name, domain)
+            if topic <= set(name.split()) and targets:
+                collective_matches.append((name, targets))
+        if len(collective_matches) == 1:
+            name, targets = collective_matches[0]
+            return name, targets, True
         candidates = set()
         for name in self._descriptive_names:
             if topic <= set(name.split()):

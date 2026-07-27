@@ -54,6 +54,16 @@ class HomeAssistantClient:
         Connect and authenticate with Home Assistant.
         """
 
+        await self._connect_socket()
+        return await self._get_states_once()
+
+    async def _connect_socket(self):
+        """Open and authenticate a fresh Home Assistant websocket."""
+        if self.websocket:
+            try:
+                await self.websocket.close()
+            except Exception:
+                pass
         if self.url.rstrip("/") == "http://supervisor/core":
             ws_url = "ws://supervisor/core/websocket"
         else:
@@ -90,8 +100,7 @@ class HomeAssistantClient:
 
         if auth_response["type"] == "auth_ok":
             self.logger.info("Successfully authenticated with Home Assistant")
-
-            return await self.get_states()
+            return
 
         elif auth_response["type"] == "auth_invalid":
             raise RuntimeError(
@@ -108,6 +117,17 @@ class HomeAssistantClient:
         Retrieve all entity states from Home Assistant.
         """
 
+        try:
+            return await self._get_states_once()
+        except Exception as error:
+            self.logger.warning(
+                f"Home Assistant state read failed; reconnecting once: {error}"
+            )
+            await self._connect_socket()
+            return await self._get_states_once()
+
+    async def _get_states_once(self) -> list:
+        """Retrieve entity states once on the current authenticated socket."""
         self.logger.info("Requesting entity states...")
 
         request = {

@@ -10,6 +10,7 @@ from homeassistant.components.conversation import AssistantContent
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import intent
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import entity_registry as er
 
 from .voice import (
     build_tts_service_data,
@@ -36,9 +37,25 @@ class JarvisConversationEntity(conversation.ConversationEntity):
 
     async def _async_handle_message(self, user_input, chat_log):
         conversation_id = user_input.conversation_id or chat_log.conversation_id
+        satellite_device_id = None
+        if user_input.satellite_id:
+            satellite = er.async_get(self.hass).async_get(user_input.satellite_id)
+            if satellite is not None:
+                satellite_device_id = satellite.device_id
         external_voice = should_route_external(
-            self.entry.options, user_input.device_id
+            self.entry.options,
+            user_input.device_id,
+            satellite_device_id,
         )
+        if self.entry.options.get("external_voice_output") and not external_voice:
+            LOGGER.warning(
+                "Jarvis external voice source did not match: configured=%s, "
+                "device=%s, satellite=%s, satellite_device=%s",
+                self.entry.options.get("input_device_id"),
+                user_input.device_id,
+                user_input.satellite_id,
+                satellite_device_id,
+            )
         session = async_get_clientsession(self.hass)
         async with session.post(
             self.entry.data["bridge_url"] + "/v1/conversation",
@@ -83,15 +100,40 @@ class JarvisConversationEntity(conversation.ConversationEntity):
         if output_state is None or output_state.state == "unavailable":
             LOGGER.warning("Jarvis external voice output is unavailable: %s", output_entity)
             return False
+        service_data = build_tts_service_data(self.entry.options, message)
         try:
             await self.hass.services.async_call(
                 "tts",
                 "speak",
-                build_tts_service_data(self.entry.options, message),
+                service_data,
                 blocking=True,
                 context=context,
             )
         except (HomeAssistantError, asyncio.TimeoutError) as error:
-            LOGGER.warning("Jarvis external TTS failed; using local response: %s", error)
-            return False
+            if "language" not in service_data and "options" not in service_data:
+                LOGGER.warning(
+                    "Jarvis external TTS failed; using local response: %s", error
+                )
+                return False
+            LOGGER.warning(
+                "Jarvis external TTS rejected the configured language or voice; "
+                "retrying with provider defaults: %s",
+                error,
+            )
+            service_data.pop("language", None)
+            service_data.pop("options", None)
+            try:
+                await self.hass.services.async_call(
+                    "tts",
+                    "speak",
+                    service_data,
+                    blocking=True,
+                    context=context,
+                )
+            except (HomeAssistantError, asyncio.TimeoutError) as retry_error:
+                LOGGER.warning(
+                    "Jarvis external TTS failed; using local response: %s",
+                    retry_error,
+                )
+                return False
         return True

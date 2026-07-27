@@ -16,12 +16,17 @@ from .const import (
 )
 
 
-def should_route_external(options, device_id: str | None) -> bool:
-    """Route only configured requests originating from the selected device."""
+def should_route_external(
+    options,
+    device_id: str | None,
+    satellite_device_id: str | None = None,
+) -> bool:
+    """Route requests originating from either supported HA source identifier."""
+    configured_device = options.get(CONF_INPUT_DEVICE_ID)
     return bool(
         options.get(CONF_EXTERNAL_VOICE_OUTPUT, False)
-        and device_id
-        and device_id == options.get(CONF_INPUT_DEVICE_ID)
+        and configured_device
+        and configured_device in {device_id, satellite_device_id}
         and options.get(CONF_OUTPUT_MEDIA_PLAYER)
         and options.get(CONF_TTS_ENTITY)
     )
