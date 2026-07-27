@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.6
+
+- Narrow oversized areas by an explicitly requested device domain on the same or next turn.
+- Treat a bare configured group name as a read selection, never an implicit action.
+- Preserve specific clarification text through the Home Assistant conversation bridge.
+
 ## 0.5.5
 
 - Display Home Assistant friendly names in state summaries and clarifications.

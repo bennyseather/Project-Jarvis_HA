@@ -5,6 +5,17 @@ from __future__ import annotations
 class EntityReferenceResolver:
     """Resolve exact entities and explicitly named collectives without guessing."""
 
+    _DOMAIN_WORDS = {
+        "light": "light", "lights": "light",
+        "switch": "switch", "switches": "switch",
+        "sensor": "sensor", "sensors": "sensor",
+        "cover": "cover", "covers": "cover",
+        "camera": "camera", "cameras": "camera",
+        "button": "button", "buttons": "button",
+        "fan": "fan", "fans": "fan",
+        "lock": "lock", "locks": "lock",
+    }
+
     def __init__(
         self,
         allowed_entity_ids,
@@ -59,6 +70,14 @@ class EntityReferenceResolver:
         """Return Home Assistant's friendly name, falling back to the entity ID."""
         return self._labels.get(entity_id, entity_id)
 
+    def infer_domain(self, text):
+        """Return an explicitly named Home Assistant device domain."""
+        words = set(self._norm(text).replace("?", " ").replace(".", " ").split())
+        return next(
+            (domain for word, domain in self._DOMAIN_WORDS.items() if word in words),
+            None,
+        )
+
     def find_in_text(self, text):
         """Return the longest configured reference explicitly present in text."""
         normalized_text = self._norm(text)
@@ -85,21 +104,11 @@ class EntityReferenceResolver:
 
     def _find_descriptive_candidates(self, text):
         words = set(text.replace("?", " ").replace(".", " ").split())
-        domain_words = {
-            "light": "light", "lights": "light",
-            "switch": "switch", "switches": "switch",
-            "sensor": "sensor", "sensors": "sensor",
-            "cover": "cover", "covers": "cover",
-            "camera": "camera", "cameras": "camera",
-            "button": "button", "buttons": "button",
-            "fan": "fan", "fans": "fan",
-            "lock": "lock", "locks": "lock",
-        }
-        domain = next((value for word, value in domain_words.items() if word in words), None)
+        domain = self.infer_domain(text)
         ignored = {
             "what", "which", "is", "are", "the", "a", "an", "of", "in", "at",
             "my", "status", "state", "on", "off", "all", "device", "devices",
-            *domain_words,
+            *self._DOMAIN_WORDS,
         }
         topic = words - ignored
         if not topic:

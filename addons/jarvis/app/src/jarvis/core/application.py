@@ -381,7 +381,9 @@ class JarvisApplication:
         """Return a stable, safe console response for every runtime outcome."""
         messages = {
             "success": "Action completed." if "message" not in result else str(result["message"]),
-            "clarification_required": "Please specify the exact configured entity you mean.",
+            "clarification_required": str(result.get(
+                "message", "Please specify the exact configured entity you mean."
+            )),
             "not_supported": "That request is not available in the current configuration.",
             "unavailable": "The requested service is temporarily unavailable. Please try again.",
             "forbidden": "That confirmation is invalid or has expired." if result.get("reason_code") == "invalid_confirmation" else "That action is not authorized.",
