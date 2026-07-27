@@ -4,6 +4,7 @@ from jarvis.models.home_assistant_gateway import HomeAssistantRisk
 class ConfirmedHomeAssistantActionGateway:
  def __init__(self,capability_gateway,risk_policy,pending,client,audit_store=None):self._cap,self._risk,self._pending,self._client,self._audit=capability_gateway,risk_policy,pending,client,audit_store
  def request(self,p):
+  if len(p.entity_ids)>20:return {"status":"forbidden","reason_code":"too_many_entities"}
   valid,reason=self._cap.validate(p)
   if not valid:return {"status":"forbidden","reason_code":reason}
   decision=self._risk.evaluate(p)
@@ -15,12 +16,18 @@ class ConfirmedHomeAssistantActionGateway:
   if not valid:return {"status":"forbidden","reason_code":reason}
   decision=self._risk.evaluate(p)
   if decision.risk is not HomeAssistantRisk.IMMEDIATE:return {"status":"forbidden","reason_code":"immediate_action_not_authorized"}
-  try: await self._client.call_service(p.domain,p.service,{"entity_id":self._entity_target(p),**p.service_data})
-  except Exception:
-   self._record(p,"unavailable","home_assistant_service_failed")
-   return {"status":"unavailable","reason_code":"home_assistant_service_failed"}
-  self._record(p,"success")
-  return {"status":"success"}
+  succeeded,failed=[],[]
+  for entity_id in p.entity_ids:
+   try:
+    await self._client.call_service(p.domain,p.service,{"entity_id":entity_id,**p.service_data})
+   except Exception:
+    failed.append(entity_id);self._record_one(p,entity_id,"unavailable","home_assistant_service_failed")
+   else:
+    succeeded.append(entity_id);self._record_one(p,entity_id,"success")
+  if not succeeded:return {"status":"unavailable","message":f"Action failed for {len(failed)} devices.","succeeded":(),"failed":tuple(failed)}
+  message=f"Action completed for {len(succeeded)} devices."
+  if failed:message+=f" {len(failed)} devices were unavailable."
+  return {"status":"success","message":message,"succeeded":tuple(succeeded),"failed":tuple(failed)}
  async def confirm(self,token,p):
   decision=self._risk.evaluate(p)
   if decision.risk is HomeAssistantRisk.FORBIDDEN or not self._pending.consume(token,p,decision.risk):
@@ -34,5 +41,7 @@ class ConfirmedHomeAssistantActionGateway:
   return {"status":"success"}
  def _record(self,p,outcome,reason_code=None):
   if self._audit is not None:self._audit.record(p.domain,p.service,p.entity_ids,outcome,reason_code)
+ def _record_one(self,p,entity_id,outcome,reason_code=None):
+  if self._audit is not None:self._audit.record(p.domain,p.service,(entity_id,),outcome,reason_code)
  @staticmethod
  def _entity_target(p):return p.entity_ids[0] if len(p.entity_ids)==1 else list(p.entity_ids)

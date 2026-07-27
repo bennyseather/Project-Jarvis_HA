@@ -30,20 +30,22 @@ class AssistantOrchestrator:
             action_data = dict(proposal.action)
             if self._resolver is not None:
                 resolved = []
-                for entity_id in action_data.get("entity_ids", ()):
-                    matches = self._resolver.resolve(entity_id)
+                for reference in action_data.get("entity_ids", ()):
+                    matches = self._resolver.resolve(reference, action_data.get("domain"))
                     if not matches:
                         return {"status": "clarification_required", "message": "Please specify a configured action entity."}
+                    if len(matches) > 1 and not self._resolver.is_collective(reference):
+                        return self._clarification(matches)
                     resolved.extend(matches)
-                if len(set(resolved)) != len(resolved):
-                    return {"status": "clarification_required", "message": "Please specify the exact configured entity you mean."}
-                action_data["entity_ids"] = tuple(resolved)
+                action_data["entity_ids"] = tuple(dict.fromkeys(resolved))
             action = HomeAssistantActionProposal(**action_data)
             result = self._action_gateway.request(action)
             if result.get("reason_code") == "unknown_entity":
                 return {"status": "clarification_required", "message": "Please specify a configured action entity."}
             if result.get("reason_code") == "unknown_service":
                 return {"status": "clarification_required", "message": "Please specify a configured service."}
+            if result.get("reason_code") == "too_many_entities":
+                return {"status": "clarification_required", "message": "Please specify a group or area with 20 devices or fewer."}
             if result.get("status") == "requires_confirmation":
                 result["action_payload"] = dict(action_data)
             if result.get("status") == "immediate_action":
@@ -54,6 +56,8 @@ class AssistantOrchestrator:
                 matches = self._resolver.resolve(proposal.entity_id or "")
                 if not matches:
                     return {"status": "not_supported", "message": "That entity is not available."}
+                if len(matches) > 1 and not self._resolver.is_collective(proposal.entity_id or ""):
+                    return self._clarification(matches)
                 if len(matches) > 20:
                     return {"status": "clarification_required", "message": "Please specify a smaller configured group or area."}
                 if len(matches) > 1:
@@ -70,14 +74,16 @@ class AssistantOrchestrator:
         return {"status": "not_supported", "message": "That request is not supported."}
 
     async def _read_summary(self, entity_ids):
-        states, unavailable = [], []
-        for entity_id in entity_ids:
-            if entity_id not in self._allowed_entity_ids:
-                continue
-            try:
-                states.append(await self._home_assistant.read_entity_state(entity_id))
-            except Exception:
-                unavailable.append(entity_id)
+        permitted = tuple(entity_id for entity_id in entity_ids if entity_id in self._allowed_entity_ids)
+        try:
+            if hasattr(self._home_assistant, "read_entity_states"):
+                states = list(await self._home_assistant.read_entity_states(permitted))
+            else:
+                states = [await self._home_assistant.read_entity_state(entity_id) for entity_id in permitted]
+        except Exception:
+            return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
+        returned = {state.entity_id for state in states}
+        unavailable = [entity_id for entity_id in permitted if entity_id not in returned]
         if not states:
             return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
         counts = {}
@@ -86,6 +92,15 @@ class AssistantOrchestrator:
         details = ", ".join(f"{state.entity_id} is {state.state}" for state in states[:5])
         suffix = "" if not unavailable else f"; {len(unavailable)} unavailable"
         return {"status": "success", "message": f"{len(states)} devices: {summary}. {details}{suffix}", "entity_ids": tuple(state.entity_id for state in states)}
+
+    @staticmethod
+    def _clarification(matches):
+        candidates = ", ".join(matches[:5])
+        return {
+            "status": "clarification_required",
+            "message": f"Please specify one of: {candidates}.",
+            "candidates": tuple(matches[:5]),
+        }
 
     async def confirm_action(self, token: str, action: dict[str, object]) -> dict[str, object]:
         """Execute one exact, previously confirmed action payload."""
