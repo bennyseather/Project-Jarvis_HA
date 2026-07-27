@@ -25,6 +25,11 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   home=Home(); resolver=EntityReferenceResolver({"light.kitchen"},{"kitchen lamp":"light.kitchen"})
   orchestrator=AssistantOrchestrator(Model(AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="kitchen lamp")),home,frozenset({"light.kitchen"}),resolver)
   self.assertEqual((await orchestrator.handle("state"))["entity_id"],"light.kitchen")
+ async def test_group_read_returns_a_bounded_summary(self):
+  home=Home(); resolver=EntityReferenceResolver({"light.kitchen","light.table"},{},groups={"kitchen lights":("light.kitchen","light.table")})
+  proposal=AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="kitchen lights")
+  result=await AssistantOrchestrator(Model(proposal),home,frozenset({"light.kitchen","light.table"}),resolver).handle("state")
+  self.assertEqual(result["status"],"success");self.assertIn("2 devices: 2 on",result["message"])
  async def test_action_alias_and_unknown_entity_require_clarification(self):
   home=Home(); resolver=EntityReferenceResolver({"light.kitchen"},{"kitchen":"light.kitchen"})
   proposal=AssistantProposal(AssistantProposalKind.HOME_ASSISTANT_ACTION,action={"domain":"light","service":"turn_on","entity_ids":("kitchen",),"service_data":{},"summary":"Turn on"})

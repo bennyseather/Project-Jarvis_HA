@@ -52,8 +52,12 @@ class AssistantOrchestrator:
         if proposal.kind is AssistantProposalKind.READ_ENTITY_STATE:
             if self._resolver is not None:
                 matches = self._resolver.resolve(proposal.entity_id or "")
-                if len(matches) != 1:
-                    return {"status": "clarification_required" if matches else "not_supported", "message": "Please clarify the entity." if matches else "That entity is not available."}
+                if not matches:
+                    return {"status": "not_supported", "message": "That entity is not available."}
+                if len(matches) > 20:
+                    return {"status": "clarification_required", "message": "Please specify a smaller configured group or area."}
+                if len(matches) > 1:
+                    return await self._read_summary(matches)
                 proposal = type(proposal)(proposal.kind, proposal.message, matches[0])
             if proposal.entity_id not in self._allowed_entity_ids:
                 return {"status": "not_supported", "message": "That entity is not available."}
@@ -64,6 +68,24 @@ class AssistantOrchestrator:
             return {"status": "success", "message": f"{state.entity_id} is {state.state}.", "entity_id": state.entity_id,
                     "state": state.state, "attributes": dict(state.attributes)}
         return {"status": "not_supported", "message": "That request is not supported."}
+
+    async def _read_summary(self, entity_ids):
+        states, unavailable = [], []
+        for entity_id in entity_ids:
+            if entity_id not in self._allowed_entity_ids:
+                continue
+            try:
+                states.append(await self._home_assistant.read_entity_state(entity_id))
+            except Exception:
+                unavailable.append(entity_id)
+        if not states:
+            return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
+        counts = {}
+        for state in states: counts[state.state] = counts.get(state.state, 0) + 1
+        summary = ", ".join(f"{count} {value}" for value, count in sorted(counts.items()))
+        details = ", ".join(f"{state.entity_id} is {state.state}" for state in states[:5])
+        suffix = "" if not unavailable else f"; {len(unavailable)} unavailable"
+        return {"status": "success", "message": f"{len(states)} devices: {summary}. {details}{suffix}", "entity_ids": tuple(state.entity_id for state in states)}
 
     async def confirm_action(self, token: str, action: dict[str, object]) -> dict[str, object]:
         """Execute one exact, previously confirmed action payload."""

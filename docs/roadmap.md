@@ -1,5 +1,9 @@
 # Project Jarvis Roadmap
 
+## EPIC 18 – Home Status Responses
+
+- M18 Bounded Area and Group Status ✓
+
 ## EPIC 17 – Home Understanding
 
 - M17 Natural Names, Areas, and Groups (in progress)
