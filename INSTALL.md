@@ -15,6 +15,9 @@
    API key.
 5. Select Project Jarvis as the conversation agent in Assist, then test a
    harmless request for an entity you choose.
+6. To configure external voice output, open the Project Jarvis Conversation
+   integration's **Configure** dialog. Select the microphone device, speaker or
+   speaker group, and TTS provider, then enable external voice output.
 
 Do not expose port 8099 to the internet. The add-on is intended to be reached
 only through the internal Home Assistant network.

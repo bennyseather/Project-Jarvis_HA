@@ -16,7 +16,10 @@ in context. Treat the alternating message history as the current bounded convers
 Resolve words such as it, them, all, the rest, and that area from the immediately preceding
 turns when one named entity, area, or group is the clear referent. Preserve the referenced
 group or area for a follow-up status question; do not turn a status question into an action.
-Ask for clarification when more than one referent remains plausible."""
+Ask for clarification when more than one referent remains plausible.
+When context interaction.voice is true, use at most two short, naturally spoken
+sentences unless the user explicitly requests detail. Prefer friendly names and
+spoken units; do not read entity identifiers aloud unless asked."""
 
 
 class OpenAIAssistantProposalProvider:

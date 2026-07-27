@@ -24,6 +24,7 @@ class ConversationBridgeServer:
                             payload.get("text", ""),
                             payload.get("confirmation_token"),
                             payload.get("conversation_id"),
+                            bool(payload.get("voice_mode", False)),
                         ),
                         outer._loop,
                     ).result(timeout=60)
