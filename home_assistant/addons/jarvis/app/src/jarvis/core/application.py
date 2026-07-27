@@ -14,7 +14,6 @@ from rich.panel import Panel
 from jarvis.core.assistant import Assistant
 from jarvis.core.container import ServiceContainer
 from jarvis.core.context_builder import ContextBuilder
-from jarvis.core.conversation import Conversation
 from jarvis.homeassistant.client import HomeAssistantClient
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
@@ -42,6 +41,7 @@ from jarvis.timeline.store import InMemoryTimelineStore
 from jarvis.timeline.subscriber import HomeAssistantEventSubscriber
 from jarvis.models.event_timeline import TimelineQuery
 from jarvis.storage.sqlite_stores import SQLiteKnowledgeStore, SQLiteMemoryStore
+from jarvis.storage.conversation_store import SQLiteConversationStore
 from jarvis.memory.writer import PolicyControlledMemoryWriter
 from jarvis.memory.manager import PolicyControlledMemoryManager
 from jarvis.models.memory import MemoryRecordFactory
@@ -53,6 +53,9 @@ from jarvis.homeassistant.enrollment import HomeAccessEnrollment
 from jarvis.homeassistant.access_policy import resolve_device_services, resolve_entities
 from jarvis.homeassistant.action_audit import SQLiteConfirmedActionAuditStore
 from jarvis.homeassistant.home_references import build_home_references
+from jarvis.memory.repeated_context import RepeatedContextExtractor, RepeatedContextLearner
+from jarvis.management.natural_memory import NaturalMemoryController
+from jarvis.persona import JarvisPersona
 
 
 class JarvisApplication:
@@ -69,7 +72,10 @@ class JarvisApplication:
         self.general = None
         self.status = "Stopped"
         self.debug_mode = True
-        self._pending_action_payloads: dict[str, dict[str, object]] = {}
+        self._pending_action_payloads: dict[
+            str, tuple[str, dict[str, object]]
+        ] = {}
+        self._request_lock = asyncio.Lock()
 
     async def run(self):
         """
@@ -134,6 +140,7 @@ class JarvisApplication:
                 await self.container.home_assistant.disconnect()
                 self.container.memory_store.close()
                 self.container.knowledge_store.close()
+                self.container.conversation_store.close()
                 self.container.confirmed_action_audit_store.close()
         else:
             self.console.print("[red]Jarvis is not running.[/red]")
@@ -164,9 +171,30 @@ class JarvisApplication:
             raise ValueError("storage.database_path must be a non-empty string")
         database_file = self.container.config_loader.project_root / database_path
         conversation_config = self.general.get("conversation", {})
-        max_messages = conversation_config.get("max_messages", 12)
-        if not isinstance(max_messages, int) or isinstance(max_messages, bool) or max_messages < 2:
-            raise ValueError("conversation.max_messages must be an integer of at least 2")
+        persona_config = self.general.get("persona", {})
+        if not isinstance(persona_config, dict):
+            raise ValueError("persona must be a mapping")
+        persona_name = persona_config.get("name", "Jarvis")
+        dry_wit = persona_config.get("dry_wit", True)
+        if not isinstance(persona_name, str) or not persona_name.strip():
+            raise ValueError("persona.name must be a non-empty string")
+        if not isinstance(dry_wit, bool):
+            raise ValueError("persona.dry_wit must be a boolean")
+        persona = JarvisPersona(persona_name.strip(), dry_wit)
+        context_messages = conversation_config.get("context_messages", 20)
+        maximum_conversations = conversation_config.get("maximum_conversations", 20)
+        retention_days = conversation_config.get("retention_days", 3)
+        maximum_messages = conversation_config.get("maximum_messages_per_conversation", 100)
+        for name, value, minimum, maximum in (
+            ("context_messages", context_messages, 2, 50),
+            ("maximum_conversations", maximum_conversations, 1, 100),
+            ("retention_days", retention_days, 1, 30),
+            ("maximum_messages_per_conversation", maximum_messages, 2, 500),
+        ):
+            if not isinstance(value, int) or isinstance(value, bool) or not minimum <= value <= maximum:
+                raise ValueError(f"conversation.{name} must be an integer between {minimum} and {maximum}")
+        if context_messages > maximum_messages:
+            raise ValueError("conversation.context_messages cannot exceed maximum_messages_per_conversation")
 
         self.container.home_assistant = HomeAssistantClient(
             url=ha_config["url"],
@@ -180,9 +208,15 @@ class JarvisApplication:
         )
 
         self.container.context_builder = ContextBuilder()
-        self.container.conversation = Conversation(max_messages)
         self.container.memory_store = SQLiteMemoryStore(database_file)
         self.container.knowledge_store = SQLiteKnowledgeStore(database_file)
+        self.container.conversation_store = SQLiteConversationStore(
+            database_file,
+            maximum_conversations=maximum_conversations,
+            retention_days=retention_days,
+            maximum_messages=maximum_messages,
+        )
+        self.container.conversation_context_messages = context_messages
         self.container.confirmed_action_audit_store = SQLiteConfirmedActionAuditStore(database_file)
         self.container.runtime_context_assembler = ContextAssembler((
             MemoryContextProvider(PolicyControlledMemoryRetriever(
@@ -208,6 +242,18 @@ class JarvisApplication:
             self.container.memory_writer, self.container.memory_manager,
             self.container.knowledge_writer, self.container.knowledge_store,
         )
+        self.container.repeated_context_learner = RepeatedContextLearner(
+            self.container.conversation_store,
+            self.container.memory_store,
+            self.container.memory_writer,
+            RepeatedContextExtractor(self.container.openai),
+        )
+        self.container.natural_memory_controller = NaturalMemoryController(
+            self.container.memory_store,
+            self.container.memory_writer,
+            self.container.conversation_store,
+            self.container.repeated_context_learner,
+        )
 
         self.container.assistant = Assistant(
             openai=self.container.openai,
@@ -229,6 +275,7 @@ class JarvisApplication:
             self.container.home_assistant,
             allowed_read_entities,
             resolver,
+            persona,
         )
         timeline_config = self.general.get("event_timeline", {})
         self._validate_timeline_config(timeline_config)
@@ -348,32 +395,62 @@ class JarvisApplication:
 
         self.container.logger.info("Provider startup checks are connectivity-only.")
 
-    async def handle_request(self, text: str) -> dict[str, object]:
+    async def handle_request(
+        self,
+        text: str,
+        conversation_id: str | None = None,
+    ) -> dict[str, object]:
         """Route one user request through the configured safe assistant slice."""
 
+        async with self._request_lock:
+            return await self._handle_request(text, conversation_id)
+
+    async def _handle_request(
+        self,
+        text: str,
+        conversation_id: str | None,
+    ) -> dict[str, object]:
+        conversation_store = self.container.conversation_store
+        identifier = conversation_store.normalize_conversation_id(conversation_id)
+        user_message = conversation_store.add_message(identifier, "user", text)
+        self.container.read_only_assistant.activate_conversation(identifier)
+
+        natural_result = self.container.natural_memory_controller.handle(text, identifier)
+        if natural_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(natural_result))
+            return natural_result
         home_result = self._handle_home_access_command(text)
         if home_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(home_result))
             return home_result
         management_result = self.container.explicit_data_console.handle(text)
         if management_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(management_result))
             return management_result
         if not hasattr(self.container, "read_only_assistant"):
             return {"status": "not_supported", "message": "Assistant runtime is unavailable."}
-        conversation = self.container.conversation
-        conversation.add_user_message(text)
+        promotion_result = self.container.repeated_context_learner.observe(user_message)
+        if promotion_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(promotion_result))
+            return promotion_result
         request_context = RequestContext(Request(text))
         package = self.container.runtime_context_assembler.assemble(request_context)
+        history = conversation_store.history(
+            identifier,
+            self.container.conversation_context_messages,
+        )
         context = {
             "memory": self._context_items(package.memory),
             "knowledge": self._context_items(package.knowledge),
-            "conversation": tuple(message.to_openai() for message in conversation.history()[:-1]),
+            "conversation": tuple(message.to_openai() for message in history[:-1]),
+            "conversation_id": identifier,
             "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
         context["home_assistant"]["references"] = self.container.home_reference_context
         result = await self.container.read_only_assistant.handle(text, context)
         message = self._user_message(result)
         if message:
-            conversation.add_assistant_message(message)
+            conversation_store.add_message(identifier, "assistant", message)
         return result
 
     @staticmethod
@@ -446,14 +523,15 @@ class JarvisApplication:
                 continue
             if text.strip().startswith("confirm "):
                 token = text.strip().split(maxsplit=1)[1]
-                payload = self._pending_action_payloads.pop(token, None)
+                pending = self._pending_action_payloads.pop(token, None)
+                payload = None if pending is None else pending[1]
                 try:
                     result = ({"status": "forbidden", "message": "Confirmation is invalid."}
                               if payload is None else await self.container.read_only_assistant.confirm_action(token, payload))
                 except Exception:
                     result = {"status": "unavailable"}
                 message = self._user_message(result)
-                self.container.conversation.add_assistant_message(message)
+                self.container.conversation_store.add_message("local-default", "assistant", message)
                 self.console.print(f"Jarvis [{result['status']}]: {message}")
                 continue
             result = await self.handle_request(text)
@@ -461,7 +539,7 @@ class JarvisApplication:
                 token = result.get("token")
                 payload = result.pop("action_payload", None)
                 if token and payload:
-                    self._pending_action_payloads[token] = payload
+                    self._pending_action_payloads[token] = ("local-default", payload)
                     self.console.print(f"Confirm action: {result.get('summary', '')}. Type: confirm {token}")
                     continue
             self.console.print(f"Jarvis [{result['status']}]: {self._user_message(result)}")

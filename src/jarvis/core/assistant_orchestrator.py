@@ -17,6 +17,22 @@ class AssistantOrchestrator:
         self._last_read_targets: tuple[str, ...] = ()
         self._pending_read_targets: tuple[str, ...] = ()
         self._pending_narrow_reference: str | None = None
+        self._conversation_id = "local-default"
+        self._conversation_states: dict[str, tuple[tuple[str, ...], tuple[str, ...], str | None]] = {}
+
+    def activate_conversation(self, conversation_id: str) -> None:
+        """Swap deterministic follow-up state without leaking it between sessions."""
+        self._conversation_states[self._conversation_id] = (
+            self._last_read_targets,
+            self._pending_read_targets,
+            self._pending_narrow_reference,
+        )
+        self._conversation_id = conversation_id
+        (
+            self._last_read_targets,
+            self._pending_read_targets,
+            self._pending_narrow_reference,
+        ) = self._conversation_states.get(conversation_id, ((), (), None))
 
     def set_action_gateway(self, action_gateway) -> None:
         """Attach the discovered runtime action gateway after Home Assistant connects."""

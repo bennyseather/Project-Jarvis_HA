@@ -39,6 +39,7 @@ class MemorySource(str, Enum):
     PROJECT_DOCUMENT = "project_document"
     IMPORTED_KNOWLEDGE = "imported_knowledge"
     LEARNED_PREFERENCE = "learned_preference"
+    REPEATED_USER_CONTEXT = "repeated_user_context"
 
 
 class MemoryConsentLevel(str, Enum):

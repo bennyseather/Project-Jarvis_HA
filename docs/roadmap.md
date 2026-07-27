@@ -1,12 +1,21 @@
 # Project Jarvis Roadmap
 
+## EPIC 19 - Persistent Conversation Memory and Character
+
+- M19.1 Durable Conversation Identity and Short-Term Retention complete
+- M19.2 Repeated User Context Promotion complete
+- M19.3 Durable Long-Term Memory Upgrade Safety complete
+- M19.4 Natural Memory Controls complete
+- M19.5 Central Jarvis Character Profile complete
+- M19.6 Acceptance, Packaging, and Release complete
+
 ## EPIC 18 – Home Status Responses
 
 - M18 Bounded Area and Group Status ✓
 
 ## EPIC 17 – Home Understanding
 
-- M17 Natural Names, Areas, and Groups (in progress)
+- M17 Natural Names, Areas, and Groups complete
 
 ## EPIC 16 – Immediate All-Device Control
 

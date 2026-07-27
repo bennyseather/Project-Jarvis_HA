@@ -12,7 +12,15 @@ class JarvisConversationEntity(conversation.ConversationEntity):
     def supported_languages(self): return "*"
     async def _async_handle_message(self, user_input, chat_log):
         session = async_get_clientsession(self.hass)
-        async with session.post(self.entry.data["bridge_url"] + "/v1/conversation", json={"text": user_input.text}, headers={"Authorization": "Bearer " + self.entry.data["api_key"]}, timeout=60) as response:
+        async with session.post(
+            self.entry.data["bridge_url"] + "/v1/conversation",
+            json={
+                "text": user_input.text,
+                "conversation_id": user_input.conversation_id,
+            },
+            headers={"Authorization": "Bearer " + self.entry.data["api_key"]},
+            timeout=60,
+        ) as response:
             payload = await response.json()
         answer = payload.get("message", "Jarvis is unavailable.")
         result = intent.IntentResponse(language=user_input.language)

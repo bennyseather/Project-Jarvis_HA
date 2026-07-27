@@ -19,7 +19,14 @@ class ConversationBridgeServer:
                     self.send_response(401); self.end_headers(); return
                 try:
                     payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
-                    result = asyncio.run_coroutine_threadsafe(outer._bridge.process(payload.get("text", ""), payload.get("confirmation_token")), outer._loop).result(timeout=60)
+                    result = asyncio.run_coroutine_threadsafe(
+                        outer._bridge.process(
+                            payload.get("text", ""),
+                            payload.get("confirmation_token"),
+                            payload.get("conversation_id"),
+                        ),
+                        outer._loop,
+                    ).result(timeout=60)
                     body = json.dumps(result).encode()
                     self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
                 except Exception:

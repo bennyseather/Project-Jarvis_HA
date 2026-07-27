@@ -2,5 +2,7 @@
 from jarvis.core.assistant_orchestrator import AssistantOrchestrator
 from jarvis.homeassistant.read_adapter import HomeAssistantReadAdapter
 from jarvis.providers.assistant_proposal_provider import OpenAIAssistantProposalProvider
-def create_read_only_assistant(openai_provider, home_assistant_client, allowed_entity_ids=frozenset(), resolver=None):
- return AssistantOrchestrator(OpenAIAssistantProposalProvider(openai_provider),HomeAssistantReadAdapter(home_assistant_client),frozenset(allowed_entity_ids),resolver)
+def create_read_only_assistant(openai_provider, home_assistant_client, allowed_entity_ids=frozenset(), resolver=None, persona=None):
+ proposal = (OpenAIAssistantProposalProvider(openai_provider) if persona is None
+             else OpenAIAssistantProposalProvider(openai_provider, persona))
+ return AssistantOrchestrator(proposal,HomeAssistantReadAdapter(home_assistant_client),frozenset(allowed_entity_ids),resolver)
