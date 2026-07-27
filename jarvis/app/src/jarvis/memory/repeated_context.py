@@ -123,6 +123,10 @@ class RepeatedContextLearner:
         self._conversations.mark_promoted(candidate.key, result.record.memory_id)
         return {"status": "success", "message": "Understood. I will remember that private detail."}
 
+    def cancel(self, token: str) -> None:
+        """Discard one unconfirmed sensitive candidate."""
+        self._pending_sensitive.pop(token, None)
+
     def _write(self, candidate: RepeatedContextCandidate, confirmed: bool):
         return self._writer.create_explicit_memory(ExplicitMemoryWriteRequest(
             content=candidate.content,

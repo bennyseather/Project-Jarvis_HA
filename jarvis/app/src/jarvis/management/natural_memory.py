@@ -120,6 +120,11 @@ class NaturalMemoryController:
             return {"status": "success", "message": f"I currently retain {count} recent conversation{'s' if count != 1 else ''}, within the 20-conversation and three-day limits."}
         return None
 
+    def cancel_confirmation(self, token: str) -> None:
+        """Discard pending explicit or repeated sensitive-memory content."""
+        self._pending_sensitive.pop(token, None)
+        self._learner.cancel(token)
+
     def _visible_records(self):
         return [
             record for record in self._memories.list_records()

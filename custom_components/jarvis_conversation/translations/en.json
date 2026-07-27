@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Project Jarvis",
+        "description": "Connect Home Assistant to the local Project Jarvis add-on.",
+        "data": {
+          "bridge_url": "Jarvis bridge URL",
+          "api_key": "Bridge API key"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Jarvis voice output",
+        "description": "Route replies from the selected microphone device to a Home Assistant media player.",
+        "data": {
+          "external_voice_output": "Enable external voice output",
+          "input_device_id": "Microphone device",
+          "output_media_player_entity_id": "Speaker or speaker group",
+          "tts_entity_id": "Text-to-speech provider",
+          "tts_language": "Spoken language",
+          "tts_voice": "Provider voice name (optional)",
+          "suppress_local_audio": "Prevent duplicate audio on the microphone device"
+        }
+      }
+    },
+    "error": {
+      "entity_not_found": "The selected entity is not available.",
+      "tts_speak_unavailable": "Home Assistant's text-to-speech Speak action is unavailable."
+    }
+  }
+}

@@ -13,3 +13,9 @@ restart the add-on to remove a device from Jarvis access.
 Install the companion `jarvis_conversation` custom component, then configure
 its bridge URL as `http://local-jarvis:8099` for a locally installed add-on and
 enter the same bridge API key.
+
+To enable M20 voice output, open **Settings -> Devices & services**, select
+**Project Jarvis Conversation**, and choose **Configure**. Enable external voice
+output, select the microphone device, media player or speaker group, and TTS
+provider. Requests from other devices and typed Assist are not routed to the
+external speaker.
