@@ -18,6 +18,7 @@ class EntityReferenceResolver:
         self._groups = self._collectives(groups or {})
         self._names: dict[str, set[str]] = {}
         self._descriptive_names: set[str] = set()
+        self._labels: dict[str, str] = {}
 
         for entity_id in self._ids:
             self._add_name(entity_id, entity_id)
@@ -25,12 +26,16 @@ class EntityReferenceResolver:
         for name, entity_id in (aliases or {}).items():
             self._add_name(name, entity_id)
             self._descriptive_names.add(self._norm(name))
+            if entity_id in self._ids:
+                self._labels.setdefault(entity_id, str(name))
         for name, targets in (friendly_names or {}).items():
             self._descriptive_names.add(self._norm(name))
             if isinstance(targets, str):
                 targets = (targets,)
             for entity_id in targets:
                 self._add_name(name, entity_id)
+                if entity_id in self._ids:
+                    self._labels[entity_id] = str(name)
 
     def resolve(self, reference, domain: str | None = None):
         normalized = self._norm(reference)
@@ -49,6 +54,10 @@ class EntityReferenceResolver:
 
     def candidates(self, reference, limit: int = 5):
         return self.resolve(reference)[:limit]
+
+    def display_name(self, entity_id):
+        """Return Home Assistant's friendly name, falling back to the entity ID."""
+        return self._labels.get(entity_id, entity_id)
 
     def find_in_text(self, text):
         """Return the longest configured reference explicitly present in text."""

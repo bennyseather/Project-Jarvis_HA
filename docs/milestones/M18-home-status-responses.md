@@ -27,3 +27,9 @@ When an exact reference is absent, a bounded category phrase may match permitted
 friendly names by its remaining descriptive words and requested device domain;
 for example, “porch lights” can offer two porch light entities without including
 a porch camera.
+
+User-facing summaries and clarification choices use Home Assistant friendly
+names while keeping entity identifiers in the internal result contract. Every
+read path, including pending “both” and “all” follow-ups, enforces the 20-entity
+bound before contacting Home Assistant. A failed or oversized new selection
+clears prior read scope so a later follow-up cannot reuse stale candidates.

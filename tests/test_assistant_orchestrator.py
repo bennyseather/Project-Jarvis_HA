@@ -56,7 +56,28 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   clarification=await orchestrator.handle("What is the status of the porch lights?")
   both=await orchestrator.handle("both")
   self.assertEqual(clarification["status"],"clarification_required")
+  self.assertIn("Outside Porch 1",clarification["message"])
   self.assertIn("2 devices: 2 on",both["message"])
+  self.assertIn("Outside Porch 1 is on",both["message"])
+ async def test_oversized_new_reference_clears_prior_and_pending_scopes(self):
+  ids={f"sensor.office_{index}" for index in range(21)}
+  home=Home(); resolver=EntityReferenceResolver(
+   ids|{"light.porch_1","light.porch_2"},{},
+   friendly_names={
+    **{f"Office {index}":f"sensor.office_{index}" for index in range(21)},
+    "Outside Porch 1":"light.porch_1",
+    "Outside Porch 2":"light.porch_2",
+   },
+   areas={"upstairs office":tuple(ids)},
+  )
+  model=Model(AssistantProposal(AssistantProposalKind.CONVERSATION,"No active selection."))
+  orchestrator=AssistantOrchestrator(model,home,frozenset(ids|{"light.porch_1","light.porch_2"}),resolver)
+  await orchestrator.handle("What is the status of the porch lights?")
+  oversized=await orchestrator.handle("What is the status of the upstairs office?")
+  followup=await orchestrator.handle("all of them")
+  self.assertIn("21 permitted entities",oversized["message"])
+  self.assertEqual(followup["message"],"No active selection.")
+  self.assertEqual(home.calls,[])
  async def test_ambiguous_friendly_name_returns_candidates_without_reading(self):
   home=Home(); resolver=EntityReferenceResolver({"light.office","light.office_desk"},{},friendly_names={"Office":("light.office","light.office_desk")})
   proposal=AssistantProposal(AssistantProposalKind.READ_ENTITY_STATE,entity_id="Office")

@@ -46,3 +46,5 @@ class Tests(unittest.TestCase):
   self.assertEqual(reference,"porch")
   self.assertEqual(matches,("light.porch_1","light.porch_2"))
   self.assertFalse(collective)
+  self.assertEqual(r.display_name("light.porch_1"),"Outside Porch 1")
+  self.assertEqual(r.display_name("sensor.missing"),"sensor.missing")
