@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.3
+
+- Enforce the same squared HUD shell on Voice and entity cards.
+- Prevent controls from overflowing undersized Home Assistant section-grid
+  rows.
+- Add larger protected gutters and safe minimum row sizes for interactive
+  cards.
+- Mount the native live camera card before assigning Home Assistant state and
+  request an immediate render, matching the known-working picture-entity
+  configuration.
+
 ## 0.9.2
 
 - Add a consistent four-pixel internal gutter around every Jarvis card so
