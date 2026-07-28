@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.9.3";
+const JARVIS_UI_VERSION = "0.9.4";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -232,6 +232,7 @@ const HUD_STYLE = `
   .hud-corner.tl{left:5px;top:5px;border-left:2px solid var(--j-accent);border-top:2px solid var(--j-accent)}
   .hud-corner.br{right:5px;bottom:5px;border-right:2px solid var(--j-accent);border-bottom:2px solid var(--j-accent)}
   .eyebrow{font:700 10px/1.2 ui-monospace,monospace;letter-spacing:.19em;text-transform:uppercase;color:var(--j-accent)}
+  .copy{min-width:0}
   .name{font-size:16px;font-weight:650;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .state{font:600 12px/1.3 ui-monospace,monospace;color:var(--secondary-text-color,#8bb5c7);text-transform:uppercase}
   .icon-shell{display:grid;place-items:center;color:var(--j-accent);border:1px solid var(--j-line);background:color-mix(in srgb,var(--j-accent) 9%,transparent);box-shadow:inset 0 0 16px color-mix(in srgb,var(--j-accent) 10%,transparent)}
@@ -410,7 +411,7 @@ class JarvisLightCard extends JarvisBaseCard {
     const on = state?.state === "on";
     const brightness = Math.round(((state?.attributes?.brightness || 0) / 255) * 100);
     this.shell(`<div class="light-layout"><div class="top">${this.entityHeader("Lighting array")}<button class="${on ? "primary" : ""}" aria-label="Toggle light">${on ? "ON" : "OFF"}</button></div><div class="meter"><span>OUTPUT</span><b>${brightness}%</b><input aria-label="Brightness" type="range" min="0" max="100" value="${brightness}"></div></div>
-      <style>.light-layout{min-height:160px;padding:18px}.top{display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.meter{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;margin-top:20px;font:700 10px monospace;color:var(--secondary-text-color)}.meter input{grid-column:1/-1}.meter b{grid-column:3;color:var(--j-accent)}</style>`,
+      <style>.light-layout{min-height:160px;padding:18px}.top{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.meter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:20px;font:700 10px monospace;color:var(--secondary-text-color)}.meter input{grid-column:1/-1}.meter b{grid-column:3;color:var(--j-accent)}@media(max-width:900px){.light-layout{padding:14px}.top{grid-template-columns:40px minmax(0,1fr) auto;gap:8px}.icon-shell{width:38px;height:38px}.top button{min-width:38px;min-height:34px;padding:0 6px}.eyebrow{font-size:8px;letter-spacing:.13em}.name{font-size:14px}.meter{margin-top:14px;gap:8px}}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this.shadowRoot.querySelector("button").addEventListener("click", () => this.call("light", "toggle"));
     this.shadowRoot.querySelector("input").addEventListener("change", (event) => {

@@ -131,6 +131,17 @@ class JarvisUIDesignSystemTests(unittest.TestCase):
         self.assertIn("rows: this._config?.compact ? 3 : 4", self.script)
         self.assertIn("min_rows: this._config?.compact ? 3 : 4", self.script)
 
+    def test_light_card_keeps_toggle_visible_on_nspanel_sized_displays(self):
+        self.assertIn(
+            "grid-template-columns:48px minmax(0,1fr) auto", self.script
+        )
+        self.assertIn("@media(max-width:900px)", self.script)
+        self.assertIn(
+            "grid-template-columns:40px minmax(0,1fr) auto", self.script
+        )
+        self.assertIn(".top button{min-width:38px", self.script)
+        self.assertIn(".copy{min-width:0}", self.script)
+
     def test_hacs_distribution_matches_source(self):
         manifest = json.loads((UI_ROOT / "hacs.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "Project Jarvis UI")

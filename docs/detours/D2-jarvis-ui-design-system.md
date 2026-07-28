@@ -26,6 +26,12 @@ Acceptance patch 0.9.3:
   mount it before assigning Home Assistant state, and request an immediate
   render so live video starts without opening the card.
 
+Acceptance patch 0.9.4:
+
+- Light-card entity text can shrink independently of its ON/OFF control.
+- Displays up to 900 pixels wide use reduced padding, gaps, icon size, and
+  button dimensions so the complete light control remains inside its frame.
+
 ## Outcome
 
 Project Jarvis includes a reusable, visually editable Home Assistant interface

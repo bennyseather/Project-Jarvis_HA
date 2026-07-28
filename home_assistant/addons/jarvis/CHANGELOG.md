@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.4
+
+- Add an NSPanel-sized responsive light-card layout.
+- Allow the entity-name column to shrink without pushing the ON/OFF button
+  outside the HUD frame.
+- Reduce light-card spacing and control dimensions on displays up to 900
+  pixels wide while preserving the desktop presentation.
+
 ## 0.9.3
 
 - Enforce the same squared HUD shell on Voice and entity cards.
