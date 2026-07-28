@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.1
+
+- Add the optional Jarvis Command Center Home Assistant UI pack.
+- Add five responsive native dashboard views for command, rooms, environment,
+  media and voice, and Jarvis administration.
+- Add desktop and portrait Jarvis themes with original background artwork.
+- Add a direct preferred-pipeline Assist launcher.
+- Add Home Assistant OS installation, entity-mapping, update, and removal
+  instructions.
+- Keep the add-on isolated from Home Assistant configuration; UI installation
+  remains an explicit user-controlled operation.
+
 ## 0.8.0
 
 - Add durable, inspectable reflection records derived only from approved memories.

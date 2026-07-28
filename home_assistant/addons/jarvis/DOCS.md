@@ -25,3 +25,8 @@ commands include `what have you learned about me`, `what are you uncertain
 about`, `show memory connections`, `do not learn from this conversation`, and
 `forget everything connected to <subject>`. Reflection never changes Home
 Assistant permissions, automations, configuration, or Jarvis code.
+
+Version 0.8.1 adds the optional Jarvis Command Center UI pack. Download the
+`jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
+its `README.md`. Installation remains explicit: the add-on is not granted
+write access to Home Assistant's configuration directory.

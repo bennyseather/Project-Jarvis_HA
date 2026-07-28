@@ -2,6 +2,15 @@
 
 ## Approved Future Direction
 
+### Detour D1 - Jarvis Command Center (complete)
+
+- D1.1 Original visual system and responsive layout complete
+- D1.2 Desktop and portrait Home Assistant themes complete
+- D1.3 Five-view native Sections dashboard complete
+- D1.4 Preferred-pipeline Assist and voice controls complete
+- D1.5 Original visual assets and preview complete
+- D1.6 Installation package, documentation, validation, and release complete
+
 ### M20 - Voice Experience (complete)
 
 - Use Home Assistant's existing Assist speech-to-text and text-to-speech pipeline.
