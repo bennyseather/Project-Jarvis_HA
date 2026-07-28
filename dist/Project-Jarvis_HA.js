@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.9.5";
+const JARVIS_UI_VERSION = "0.9.6";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -410,10 +410,10 @@ class JarvisLightCard extends JarvisBaseCard {
     const state = this.cardState();
     const on = state?.state === "on";
     const brightness = Math.round(((state?.attributes?.brightness || 0) / 255) * 100);
-    this.shell(`<div class="light-layout"><div class="top">${this.entityHeader("Lighting array")}<button class="${on ? "primary" : ""}" aria-label="Toggle light">${on ? "ON" : "OFF"}</button></div><div class="meter"><span>OUTPUT</span><b>${brightness}%</b><input aria-label="Brightness" type="range" min="0" max="100" value="${brightness}"></div></div>
-      <style>.light-layout{min-height:160px;padding:18px}.top{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.meter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:20px;font:700 10px monospace;color:var(--secondary-text-color)}.meter input{grid-column:1/-1}.meter b{grid-column:3;color:var(--j-accent)}@media(max-width:900px){.light-layout{padding:14px}.top{grid-template-columns:40px minmax(0,1fr) auto;gap:8px}.icon-shell{width:38px;height:38px}.top button{min-width:38px;min-height:34px;padding:0 6px}.eyebrow{font-size:8px;letter-spacing:.13em}.name{font-size:14px}.meter{margin-top:14px;gap:8px}}</style>`,
+    this.shell(`<div class="light-layout"><div class="top"><button class="icon-shell light-toggle ${on ? "primary" : ""}" aria-label="Turn ${on ? "off" : "on"} ${escapeHtml(friendlyName(state, this._config))}" aria-pressed="${on}"><ha-icon icon="${escapeHtml(entityIcon(state, this._config))}"></ha-icon></button><div class="copy"><div class="eyebrow">Lighting array</div><div class="name">${escapeHtml(friendlyName(state, this._config))}</div><div class="state">${escapeHtml(formatState(state, this._config))}</div></div></div><div class="meter"><span>OUTPUT</span><b>${brightness}%</b><input aria-label="Brightness" type="range" min="0" max="100" value="${brightness}"></div></div>
+      <style>.light-layout{min-height:160px;padding:18px}.top{display:grid;grid-template-columns:48px minmax(0,1fr);gap:14px;align-items:center}.light-toggle{width:46px;height:46px;min-width:46px;min-height:46px;padding:0}.light-toggle ha-icon{--mdc-icon-size:27px}.meter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:20px;font:700 10px monospace;color:var(--secondary-text-color)}.meter input{grid-column:1/-1}.meter b{grid-column:3;color:var(--j-accent)}@media(max-width:900px){.light-layout{padding:14px}.top{grid-template-columns:40px minmax(0,1fr);gap:8px}.light-toggle{width:38px;height:38px;min-width:38px;min-height:38px}.light-toggle ha-icon{--mdc-icon-size:23px}.eyebrow{font-size:8px;letter-spacing:.13em}.name{font-size:14px}.meter{margin-top:14px;gap:8px}}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
-    this.shadowRoot.querySelector("button").addEventListener("click", () => this.call("light", "toggle"));
+    this.shadowRoot.querySelector(".light-toggle").addEventListener("click", () => this.call("light", "toggle"));
     this.shadowRoot.querySelector("input").addEventListener("change", (event) => {
       const value = Number(event.target.value);
       this.call("light", "turn_on", { brightness_pct: value });

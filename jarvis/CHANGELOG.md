@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.6
+
+- Make the Light card's bulb icon the ON/OFF control.
+- Remove the separate right-side toggle button, eliminating narrow two-column
+  layout clipping on NSPanel.
+- Expose current light state with the icon's active styling and
+  `aria-pressed` value.
+
 ## 0.9.5
 
 - Add an NSPanel-sized responsive Voice card.
