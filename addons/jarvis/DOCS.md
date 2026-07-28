@@ -26,7 +26,9 @@ about`, `show memory connections`, `do not learn from this conversation`, and
 `forget everything connected to <subject>`. Reflection never changes Home
 Assistant permissions, automations, configuration, or Jarvis code.
 
-Version 0.8.1 adds the optional Jarvis Command Center UI pack. Download the
+Version 0.8.2 includes the optional Jarvis Command Center UI pack. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
 its `README.md`. Installation remains explicit: the add-on is not granted
-write access to Home Assistant's configuration directory.
+write access to Home Assistant's configuration directory. Register
+`/local/jarvis/jarvis-voice-card.js?v=0.8.2` as a JavaScript module in
+Home Assistant dashboard resources to enable the interactive voice card.
