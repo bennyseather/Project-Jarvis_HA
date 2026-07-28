@@ -58,6 +58,12 @@ from jarvis.management.natural_memory import NaturalMemoryController
 from jarvis.persona import JarvisPersona
 from jarvis.reflection.manager import ReflectiveLearningManager
 from jarvis.storage.reflection_store import SQLiteReflectionStore
+from jarvis.proactive.controller import NaturalProactiveController
+from jarvis.proactive.delivery import HomeAssistantProactiveDelivery
+from jarvis.proactive.detector import ProactiveOpportunityDetector
+from jarvis.proactive.manager import ProactiveAssistanceManager
+from jarvis.proactive.policy import ProactiveAssistancePolicy
+from jarvis.proactive.store import SQLiteProactiveStore
 
 
 class JarvisApplication:
@@ -137,13 +143,18 @@ class JarvisApplication:
             finally:
                 if self.container.timeline_task is not None:
                     self.container.timeline_task.cancel()
+                if self.container.proactive_task is not None:
+                    self.container.proactive_task.cancel()
                 if self.container.timeline_client is not None:
                     await self.container.timeline_client.disconnect()
+                if self.container.proactive_client is not None:
+                    await self.container.proactive_client.disconnect()
                 await self.container.home_assistant.disconnect()
                 self.container.memory_store.close()
                 self.container.knowledge_store.close()
                 self.container.conversation_store.close()
                 self.container.reflection_store.close()
+                self.container.proactive_store.close()
                 self.container.confirmed_action_audit_store.close()
         else:
             self.console.print("[red]Jarvis is not running.[/red]")
@@ -239,6 +250,31 @@ class JarvisApplication:
             clock,
         )
         self.container.reflection_context_limit = reflection_context_limit
+        self.container.proactive_policy = ProactiveAssistancePolicy.from_config(
+            self.general.get("proactive", {})
+        )
+        self.container.proactive_store = SQLiteProactiveStore(database_file)
+        self.container.proactive_manager = ProactiveAssistanceManager(
+            self.container.proactive_store,
+            self.container.proactive_policy,
+            ProactiveOpportunityDetector(
+                low_battery_threshold=(
+                    self.container.proactive_policy.low_battery_threshold
+                ),
+                routine_repeat_threshold=(
+                    self.container.proactive_policy.routine_repeat_threshold
+                ),
+            ),
+            clock=clock,
+        )
+        self.container.proactive_controller = NaturalProactiveController(
+            self.container.proactive_manager
+        )
+        self.container.proactive_delivery = HomeAssistantProactiveDelivery(
+            self.container.proactive_manager,
+            self.container.proactive_policy,
+            clock,
+        )
         self.container.conversation_context_messages = context_messages
         self.container.confirmed_action_audit_store = SQLiteConfirmedActionAuditStore(database_file)
         self.container.runtime_context_assembler = ContextAssembler((
@@ -382,6 +418,10 @@ class JarvisApplication:
         self.container.read_only_assistant.set_action_gateway(
             self.container.home_assistant_action_gateway
         )
+        self.container.proactive_manager.set_action_gateway(
+            self.container.home_assistant_action_gateway
+        )
+        self.container.proactive_allowed_entities = allowed_reads
         if self.container.timeline_policy.enabled:
             ha_config = self.general["home_assistant"]
             self.container.timeline_client = HomeAssistantClient(
@@ -394,6 +434,13 @@ class JarvisApplication:
             )
             self.container.timeline_task = asyncio.create_task(
                 self.container.timeline_subscriber.run()
+            )
+        if self.container.proactive_policy.enabled:
+            self.container.proactive_client = HomeAssistantClient(
+                ha_config["url"], ha_config["token"], self.container.logger
+            )
+            self.container.proactive_task = asyncio.create_task(
+                self._run_proactive_loop()
             )
 
         self.container.logger.info(
@@ -455,6 +502,15 @@ class JarvisApplication:
         if management_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(management_result))
             return management_result
+        self._refresh_proactive()
+        proactive_result = await self.container.proactive_controller.handle(
+            text, identifier
+        )
+        if proactive_result is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(proactive_result)
+            )
+            return proactive_result
         if not hasattr(self.container, "read_only_assistant"):
             return {"status": "not_supported", "message": "Assistant runtime is unavailable."}
         promotion_result = self.container.repeated_context_learner.observe(user_message)
@@ -477,6 +533,7 @@ class JarvisApplication:
             "reflection": self.container.reflective_learning_manager.context_for(
                 text, self.container.reflection_context_limit
             ),
+            "proactive": self.container.proactive_manager.context_for(text),
             "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
         context["home_assistant"]["references"] = self.container.home_reference_context
@@ -485,6 +542,55 @@ class JarvisApplication:
         if message:
             conversation_store.add_message(identifier, "assistant", message)
         return result
+
+    def _refresh_proactive(self, states=None) -> None:
+        """Refresh bounded suggestions from permitted runtime inputs."""
+        if not self.container.proactive_policy.enabled:
+            return
+        available = (
+            self.container.entity_registry.all()
+            if states is None
+            else states
+        )
+        permitted = tuple(
+            state for state in available
+            if (
+                state.get("entity_id") if isinstance(state, dict)
+                else getattr(state, "entity_id", None)
+            ) in self.container.proactive_allowed_entities
+        )
+        events = self.container.timeline_store.retrieve(
+            TimelineQuery(maximum_results=50)
+        )
+        self.container.proactive_manager.refresh(
+            states=permitted,
+            timeline_events=events,
+            reflections=self.container.reflective_learning_manager.records(),
+        )
+
+    async def _run_proactive_loop(self) -> None:
+        """Periodically evaluate and deliver bounded Home Assistant suggestions."""
+        client = self.container.proactive_client
+        try:
+            states = await client.connect()
+            while True:
+                self._refresh_proactive(states)
+                try:
+                    await self.container.proactive_delivery.deliver(client)
+                except Exception as error:
+                    self.container.logger.warning(
+                        f"Proactive delivery failed safely: {error}"
+                    )
+                await asyncio.sleep(
+                    self.container.proactive_policy.scan_interval_seconds
+                )
+                states = await client.get_states()
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            self.container.logger.error(
+                f"Proactive assistance stopped safely: {error}"
+            )
 
     @staticmethod
     def _user_message(result: dict[str, object]) -> str:

@@ -26,9 +26,18 @@ about`, `show memory connections`, `do not learn from this conversation`, and
 `forget everything connected to <subject>`. Reflection never changes Home
 Assistant permissions, automations, configuration, or Jarvis code.
 
-Version 0.9.6 includes the optional Jarvis UI Design System. Download the
+M22 proactive assistance can surface low batteries, approved reflective
+follow-ups, and temporary repeated-event routine candidates. Useful commands
+include `what needs my attention`, `why are you suggesting that`, `not now`,
+`never suggest this again`, and `clear pending suggestions`. Suggestions never
+execute a device action without an explicit user response. Persistent
+notifications respect quiet hours and cooldowns. Proactive voice is disabled
+by default and must be enabled both in `proactive.voice_enabled` and the
+Project Jarvis Conversation integration options.
+
+Version 0.10.0 includes the optional Jarvis UI Design System. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
 its `README.md`. Installation remains explicit: the add-on is not granted
 write access to Home Assistant's configuration directory. Register
-`/local/jarvis/jarvis-ui.js?v=0.9.6` as a JavaScript module in Home Assistant
+`/local/jarvis/jarvis-ui.js?v=0.10.0` as a JavaScript module in Home Assistant
 dashboard resources. The Jarvis cards then appear in the visual card picker.

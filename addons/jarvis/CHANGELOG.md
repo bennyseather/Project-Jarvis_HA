@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.10.0
+
+- Complete M22 Proactive Assistance and Routine Intelligence.
+- Add deterministic, privacy-bounded low-battery, reflective follow-up, and
+  temporary repeated-event routine suggestions.
+- Add durable suggestion lifecycle, provenance, confidence, expiry, cooldown,
+  quiet hours, snooze, delivery deduplication, and inspectable suppressions.
+- Add Home Assistant persistent-notification delivery and optional proactive
+  speech through the explicitly enabled M20 voice route.
+- Add natural controls for listing, explaining, applying, postponing,
+  suppressing, clearing, and re-enabling suggestions.
+- Route explicitly accepted actionable suggestions through the existing Home
+  Assistant capability and risk gateway; unsolicited actions remain
+  impossible.
+- Migrate durable storage to schema version 4 without losing existing memory,
+  knowledge, conversations, or reflections.
+
 ## 0.9.6
 
 - Make the Light card's bulb icon the ON/OFF control.

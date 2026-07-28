@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.9.6"
+  version: "0.10.0"
 
 system:
   debug: false
@@ -36,6 +36,21 @@ conversation:
 
 reflection:
   context_limit: 5
+
+proactive:
+  enabled: true
+  minimum_confidence: 0.8
+  maximum_pending: 10
+  expiry_hours: 24
+  cooldown_minutes: 60
+  snooze_minutes: 120
+  quiet_start: "22:00"
+  quiet_end: "07:00"
+  notification_enabled: true
+  voice_enabled: false
+  scan_interval_seconds: 300
+  low_battery_threshold: 20
+  routine_repeat_threshold: 3
 
 persona:
   name: "Jarvis"
