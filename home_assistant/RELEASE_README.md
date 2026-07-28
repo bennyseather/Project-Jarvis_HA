@@ -13,13 +13,14 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.10.0
+## Project Jarvis 0.10.1
 
-Version 0.10.0 adds M22 proactive assistance: bounded low-battery,
+Version 0.10.1 adds M22 proactive assistance: bounded low-battery,
 reflection follow-up, and temporary routine suggestions; persistent Home
 Assistant notifications; opt-in voice delivery; explanations, snooze,
 suppression, and explicit action routing. Jarvis never performs an unsolicited
-device action.
+device action. The 0.10.1 patch exposes the voice opt-in in both the add-on and
+conversation integration configuration screens.
 
 The `jarvis_ui` folder contains:
 

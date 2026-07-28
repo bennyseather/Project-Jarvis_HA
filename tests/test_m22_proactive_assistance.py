@@ -82,9 +82,13 @@ class M22ProactiveAssistanceTests(unittest.IsolatedAsyncioTestCase):
         entrypoint = Path(
             "home_assistant/addons/jarvis/addon_entrypoint.py"
         ).read_text(encoding="utf-8")
+        manifest = Path(
+            "home_assistant/custom_components/jarvis_conversation/manifest.json"
+        ).read_text(encoding="utf-8")
         self.assertIn("proactive_voice_enabled: false", addon)
         self.assertIn("proactive_voice_enabled: bool", addon)
         self.assertIn('options.get("proactive_voice_enabled", False)', entrypoint)
+        self.assertIn('"version": "0.10.1"', manifest)
 
     def tearDown(self):
         self.store.close()
