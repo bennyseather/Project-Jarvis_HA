@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.2
+
+- Add a locally bundled animated Jarvis voice card with microphone, interface
+  rings, and responsive signal bars.
+- Launch the preferred Home Assistant Assist pipeline through the supported
+  dashboard action interface.
+- Add matching Jarvis action cards for navigation and administration.
+- Refine card depth, borders, hover states, typography, and panel styling.
+- Preserve native Home Assistant entity tiles for device state and control.
+- Add keyboard activation, reduced-motion support, resource registration, and
+  upgrade instructions.
+
 ## 0.8.1
 
 - Add the optional Jarvis Command Center Home Assistant UI pack.

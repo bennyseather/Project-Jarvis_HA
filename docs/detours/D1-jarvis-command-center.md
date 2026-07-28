@@ -39,3 +39,17 @@ controls, voice routing guidance, and privacy-safe administration links.
 
 The installable files are in `home_assistant/jarvis_ui`. The corresponding
 Home Assistant release repository publishes them under `jarvis_ui`.
+
+## D1.7 Interactive UI
+
+- A locally bundled Jarvis voice card provides an animated microphone,
+  concentric interface rings, and signal bars.
+- The voice card uses Home Assistant's standard `hass-action` Assist action
+  with the preferred pipeline and listening enabled.
+- A matching action card provides consistent navigation and administration
+  controls.
+- Native entity tiles remain responsible for device state and control.
+- Both custom cards support keyboard activation and reduced-motion
+  preferences.
+- The frontend extension does not change Jarvis backend behavior, Home
+  Assistant permissions, or audio access.

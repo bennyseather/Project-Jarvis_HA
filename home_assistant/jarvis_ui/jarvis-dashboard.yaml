@@ -18,15 +18,11 @@ views:
             content: |
               ## Good day, Benny.
               Your home is ready. Select **Ask Jarvis** to begin.
-          - type: shortcut
-            label: Ask Jarvis
+          - type: custom:jarvis-voice-card
+            title: Ask Jarvis
             description: Open Project Jarvis and start listening
-            icon: mdi:microphone-message
-            color: "#36BFFA"
-            tap_action:
-              action: assist
-              pipeline_id: preferred
-              start_listening: true
+            pipeline_id: preferred
+            start_listening: true
       - type: grid
         background:
           color: "#071421"
@@ -215,11 +211,11 @@ views:
           - type: heading
             heading: Energy
             icon: mdi:lightning-bolt
-          - type: shortcut
+          - type: custom:jarvis-action-card
             label: Open Energy
             description: View Home Assistant energy analytics
             icon: mdi:chart-sankey-variant
-            color: "#36BFFA"
+            color: cyan
             tap_action:
               action: navigate
               navigation_path: /energy
@@ -238,16 +234,11 @@ views:
           - type: heading
             heading: Voice
             icon: mdi:microphone-message
-          - type: shortcut
-            label: Speak with Jarvis
+          - type: custom:jarvis-voice-card
+            title: Speak with Jarvis
             description: Use the preferred Assist pipeline
-            icon: mdi:microphone
-            color: "#36BFFA"
-            vertical: true
-            tap_action:
-              action: assist
-              pipeline_id: preferred
-              start_listening: true
+            pipeline_id: preferred
+            start_listening: true
           - type: markdown
             content: |
               Voice requests from **NSPanel Upstairs** are routed through
@@ -304,15 +295,12 @@ views:
               Jarvis provides conversation, contextual understanding, durable
               memory, home knowledge, and orchestration. Home Assistant remains
               responsible for devices, entities, automations, and state.
-          - type: shortcut
-            label: Ask Jarvis
+          - type: custom:jarvis-voice-card
+            title: Ask Jarvis
             description: Start a conversation
-            icon: mdi:message-processing
-            color: "#36BFFA"
-            tap_action:
-              action: assist
-              pipeline_id: preferred
-              start_listening: true
+            pipeline_id: preferred
+            start_listening: true
+            compact: true
       - type: grid
         background:
           color: "#071421"
@@ -321,19 +309,19 @@ views:
           - type: heading
             heading: Administration
             icon: mdi:cog-outline
-          - type: shortcut
+          - type: custom:jarvis-action-card
             label: Project Jarvis add-on
             description: Open add-on status and logs
             icon: mdi:puzzle-outline
-            color: "#F5A340"
+            color: amber
             tap_action:
               action: navigate
               navigation_path: /hassio/addon/85a88fc0_jarvis/info
-          - type: shortcut
+          - type: custom:jarvis-action-card
             label: Conversation integration
             description: Open the Project Jarvis integration
             icon: mdi:account-voice
-            color: "#36BFFA"
+            color: cyan
             tap_action:
               action: navigate
               navigation_path: /config/integrations/integration/jarvis_conversation

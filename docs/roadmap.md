@@ -10,6 +10,7 @@
 - D1.4 Preferred-pipeline Assist and voice controls complete
 - D1.5 Original visual assets and preview complete
 - D1.6 Installation package, documentation, validation, and release complete
+- D1.7 Interactive Jarvis voice and action cards complete
 
 ### M20 - Voice Experience (complete)
 

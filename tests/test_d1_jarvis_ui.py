@@ -22,8 +22,10 @@ class JarvisCommandCenterTests(unittest.TestCase):
         serialized = (UI_ROOT / "jarvis-dashboard.yaml").read_text(
             encoding="utf-8"
         )
-        self.assertNotIn("custom:", serialized)
-        self.assertIn("action: assist", serialized)
+        self.assertEqual(serialized.count("custom:jarvis-voice-card"), 3)
+        self.assertEqual(serialized.count("custom:jarvis-action-card"), 3)
+        self.assertNotIn("http://", serialized)
+        self.assertNotIn("https://", serialized)
         self.assertIn("start_listening: true", serialized)
 
     def test_theme_and_assets_are_complete(self):
@@ -48,6 +50,23 @@ class JarvisCommandCenterTests(unittest.TestCase):
             100_000,
         )
 
+    def test_interactive_cards_are_local_accessible_and_policy_bounded(self):
+        script = (
+            UI_ROOT / "www" / "jarvis" / "jarvis-voice-card.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn('customElements.define("jarvis-voice-card"', script)
+        self.assertIn('customElements.define("jarvis-action-card"', script)
+        self.assertIn('action: "assist"', script)
+        self.assertIn('pipeline_id: this._config.pipeline_id', script)
+        self.assertIn('start_listening:', script)
+        self.assertIn('event.key === "Enter"', script)
+        self.assertIn('event.key === " "', script)
+        self.assertIn("prefers-reduced-motion: reduce", script)
+        self.assertNotIn("callService(", script)
+        self.assertNotIn("callApi(", script)
+        self.assertNotIn("callWS(", script)
+        self.assertNotIn("fetch(", script)
+
     def test_configuration_snippet_registers_sidebar_dashboard(self):
         snippet = (UI_ROOT / "configuration-snippet.yaml").read_text(
             encoding="utf-8"
@@ -55,6 +74,11 @@ class JarvisCommandCenterTests(unittest.TestCase):
         self.assertIn("themes: !include_dir_merge_named themes", snippet)
         self.assertIn("jarvis-command-center:", snippet)
         self.assertIn("show_in_sidebar: true", snippet)
+        readme = (UI_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "/local/jarvis/jarvis-voice-card.js?v=0.8.2",
+            readme,
+        )
 
 
 if __name__ == "__main__":
