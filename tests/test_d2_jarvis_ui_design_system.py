@@ -131,15 +131,18 @@ class JarvisUIDesignSystemTests(unittest.TestCase):
         self.assertIn("rows: this._config?.compact ? 3 : 4", self.script)
         self.assertIn("min_rows: this._config?.compact ? 3 : 4", self.script)
 
-    def test_light_card_keeps_toggle_visible_on_nspanel_sized_displays(self):
+    def test_light_card_uses_bulb_icon_as_toggle(self):
+        self.assertIn('class="icon-shell light-toggle ${on ? "primary" : ""}"', self.script)
+        self.assertIn('aria-pressed="${on}"', self.script)
+        self.assertIn('querySelector(".light-toggle")', self.script)
         self.assertIn(
-            "grid-template-columns:48px minmax(0,1fr) auto", self.script
+            "grid-template-columns:48px minmax(0,1fr)", self.script
         )
         self.assertIn("@media(max-width:900px)", self.script)
         self.assertIn(
-            "grid-template-columns:40px minmax(0,1fr) auto", self.script
+            "grid-template-columns:40px minmax(0,1fr)", self.script
         )
-        self.assertIn(".top button{min-width:38px", self.script)
+        self.assertIn(".light-toggle{width:38px;height:38px", self.script)
         self.assertIn(".copy{min-width:0}", self.script)
 
     def test_voice_card_scales_on_nspanel_sized_displays(self):

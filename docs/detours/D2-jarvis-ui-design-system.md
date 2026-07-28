@@ -38,6 +38,12 @@ Acceptance patch 0.9.5:
   signal bars on NSPanel-sized displays.
 - Desktop Voice card proportions remain unchanged.
 
+Acceptance patch 0.9.6:
+
+- The Light card bulb icon is the ON/OFF control on every display size.
+- The separate right-side toggle is removed so two Light cards can share an
+  NSPanel row without hiding the control.
+
 ## Outcome
 
 Project Jarvis includes a reusable, visually editable Home Assistant interface
