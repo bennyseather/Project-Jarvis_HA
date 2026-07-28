@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0
+
+- Add the complete D2 Jarvis UI Design System.
+- Replace rounded presentation with squared, lightly chamfered HUD panels.
+- Add shared cyan, amber, green, and red interface states with consistent
+  hover, focus, touch, unavailable, and reduced-motion behavior.
+- Add visually editable Button, Entity, Light, Switch, Slider, Climate, Cover,
+  Media, Camera, Sensor, Security, Status, and Voice cards.
+- Add an original `jarvis:` SVG icon set with automatic domain and
+  device-class mapping and safe Home Assistant icon fallback.
+- Add an Icon Catalog, local Entity Coverage audit, and component dashboard.
+- Preserve the D1 card resource as a backward-compatible loader.
+- Add an optional HACS Dashboard publication package without introducing a
+  third-party runtime dependency.
+
 ## 0.8.2
 
 - Add a locally bundled animated Jarvis voice card with microphone, interface
