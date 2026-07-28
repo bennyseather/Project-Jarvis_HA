@@ -22,6 +22,10 @@
 Do not expose port 8099 to the internet. The add-on is intended to be reached
 only through the internal Home Assistant network.
 
-After upgrading to version 0.8.0, existing memory is migrated automatically.
-No reset or reinstallation is required. Test reflective learning through the
-same Project Jarvis Assist conversation agent.
+After upgrading to version 0.8.1, existing memory is preserved automatically.
+No reset or reinstallation is required.
+
+The optional Jarvis Command Center dashboard is published in the release
+repository's `jarvis_ui` folder. Follow its `README.md` to install the theme,
+background assets, and sidebar dashboard. The add-on intentionally does not
+write to Home Assistant's `/config` directory.

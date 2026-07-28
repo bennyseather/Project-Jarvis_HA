@@ -1,0 +1,353 @@
+title: Jarvis Command Center
+views:
+  - title: Command
+    path: command
+    icon: mdi:circle-double
+    type: sections
+    theme: Jarvis Command Center
+    sections:
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Jarvis Command Center
+            icon: mdi:circle-double
+          - type: markdown
+            content: |
+              ## Good day, Benny.
+              Your home is ready. Select **Ask Jarvis** to begin.
+          - type: shortcut
+            label: Ask Jarvis
+            description: Open Project Jarvis and start listening
+            icon: mdi:microphone-message
+            color: "#36BFFA"
+            tap_action:
+              action: assist
+              pipeline_id: preferred
+              start_listening: true
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Home status
+            icon: mdi:home-analytics
+          - type: tile
+            entity: sun.sun
+            name: Daylight
+            color: amber
+          - type: tile
+            entity: light.interior_lights
+            name: Interior lights
+            color: amber
+            features:
+              - type: light-brightness
+          - type: tile
+            entity: light.blocks
+            name: Blocks
+            color: amber
+            features:
+              - type: light-brightness
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Porch
+            icon: mdi:doorbell-video
+          - type: picture-entity
+            entity: camera.porch_camera
+            name: Porch camera
+            camera_view: live
+            show_state: false
+            show_name: true
+          - type: tile
+            entity: light.outside_porch_1
+            name: Outside Porch 1
+            color: amber
+          - type: tile
+            entity: light.outside_porch_2
+            name: Outside Porch 2
+            color: amber
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Media
+            icon: mdi:speaker-multiple
+          - type: tile
+            entity: media_player.loftstue_group
+            name: Loftstue Group
+            color: cyan
+            features:
+              - type: media-player-playback
+              - type: media-player-volume-slider
+
+  - title: Rooms
+    path: rooms
+    icon: mdi:floor-plan
+    type: sections
+    theme: Jarvis Command Center
+    sections:
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Upstairs office
+            icon: mdi:desk
+          - type: tile
+            entity: light.blocks
+            name: Blocks
+            color: amber
+            features:
+              - type: light-brightness
+          - type: tile
+            entity: light.upstairs_office_lights
+            name: Lights Office
+            color: amber
+          - type: tile
+            entity: light.upstairs_office_u7_pro_xg_basement_led
+            name: U7 Pro XG Basement LED
+            color: cyan
+          - type: tile
+            entity: climate.mill_heater_upstairs_office
+            name: Mill Heater Upstairs Office
+            color: orange
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Interior lighting
+            icon: mdi:lightbulb-group
+          - type: tile
+            entity: light.interior_lights
+            name: Interior Lights
+            color: amber
+            features:
+              - type: light-brightness
+          - type: tile
+            entity: light.hue_filament_bulb_1
+            color: amber
+          - type: tile
+            entity: light.light_living_room_namron_light
+            color: amber
+          - type: tile
+            entity: light.spot_liquor_cabinet
+            color: amber
+          - type: tile
+            entity: light.tv_area_wall_1
+            color: amber
+          - type: tile
+            entity: light.tv_area_wall_2
+            color: amber
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Exterior
+            icon: mdi:outdoor-lamp
+          - type: tile
+            entity: light.outside_porch_1
+            color: amber
+          - type: tile
+            entity: light.outside_porch_2
+            color: amber
+          - type: picture-entity
+            entity: camera.porch_camera
+            name: Porch camera
+            camera_view: live
+            show_state: false
+
+  - title: Environment
+    path: environment
+    icon: mdi:home-thermometer-outline
+    type: sections
+    theme: Jarvis Command Center
+    sections:
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Climate
+            icon: mdi:thermostat
+          - type: tile
+            entity: climate.mill_heater_upstairs_office
+            name: Upstairs Office
+            color: orange
+            features:
+              - type: target-temperature
+              - type: climate-hvac-modes
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Weather and daylight
+            icon: mdi:weather-partly-cloudy
+          - type: tile
+            entity: sun.sun
+            name: Daylight
+            color: amber
+          - type: weather-forecast
+            entity: weather.forecast_home
+            show_forecast: true
+            forecast_type: daily
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Energy
+            icon: mdi:lightning-bolt
+          - type: shortcut
+            label: Open Energy
+            description: View Home Assistant energy analytics
+            icon: mdi:chart-sankey-variant
+            color: "#36BFFA"
+            tap_action:
+              action: navigate
+              navigation_path: /energy
+
+  - title: Media & Voice
+    path: media-voice
+    icon: mdi:account-voice
+    type: sections
+    theme: Jarvis Command Center
+    sections:
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Voice
+            icon: mdi:microphone-message
+          - type: shortcut
+            label: Speak with Jarvis
+            description: Use the preferred Assist pipeline
+            icon: mdi:microphone
+            color: "#36BFFA"
+            vertical: true
+            tap_action:
+              action: assist
+              pipeline_id: preferred
+              start_listening: true
+          - type: markdown
+            content: |
+              Voice requests from **NSPanel Upstairs** are routed through
+              Project Jarvis. Spoken replies use **Loftstue Group**.
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Loftstue Group
+            icon: mdi:speaker-multiple
+          - type: tile
+            entity: media_player.loftstue_group
+            name: Loftstue Group
+            color: cyan
+            features:
+              - type: media-player-playback
+              - type: media-player-volume-slider
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Quick checks
+            icon: mdi:message-processing-outline
+          - type: markdown
+            content: |
+              Try:
+
+              - “What is the state of the upstairs office lights?”
+              - “Turn on Blocks.”
+              - “What have you learned about me?”
+
+  - title: Jarvis
+    path: jarvis
+    icon: mdi:brain
+    type: sections
+    theme: Jarvis Command Center
+    sections:
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Project Jarvis
+            icon: mdi:brain
+          - type: markdown
+            content: |
+              ## Your Home Assistant companion
+
+              Jarvis provides conversation, contextual understanding, durable
+              memory, home knowledge, and orchestration. Home Assistant remains
+              responsible for devices, entities, automations, and state.
+          - type: shortcut
+            label: Ask Jarvis
+            description: Start a conversation
+            icon: mdi:message-processing
+            color: "#36BFFA"
+            tap_action:
+              action: assist
+              pipeline_id: preferred
+              start_listening: true
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Administration
+            icon: mdi:cog-outline
+          - type: shortcut
+            label: Project Jarvis add-on
+            description: Open add-on status and logs
+            icon: mdi:puzzle-outline
+            color: "#F5A340"
+            tap_action:
+              action: navigate
+              navigation_path: /hassio/addon/85a88fc0_jarvis/info
+          - type: shortcut
+            label: Conversation integration
+            description: Open the Project Jarvis integration
+            icon: mdi:account-voice
+            color: "#36BFFA"
+            tap_action:
+              action: navigate
+              navigation_path: /config/integrations/integration/jarvis_conversation
+      - type: grid
+        background:
+          color: "#071421"
+          opacity: 72
+        cards:
+          - type: heading
+            heading: Privacy boundaries
+            icon: mdi:shield-check-outline
+          - type: markdown
+            content: |
+              - Long-term memory remains inspectable and permanently deletable.
+              - Sensitive memory requires explicit confirmation.
+              - Jarvis cannot rewrite its code or expand its permissions.
+              - Device state and execution remain owned by Home Assistant.
