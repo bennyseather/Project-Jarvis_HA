@@ -1,68 +1,115 @@
-# Jarvis Command Center
+# Project Jarvis UI 0.9.0
 
-Jarvis Command Center is an optional, native Home Assistant dashboard and
-theme. It uses built-in Sections, heading, tile, shortcut, weather, markdown,
-and picture-entity cards. It does not require HACS or third-party cards.
+Project Jarvis UI is a reusable Home Assistant theme, card library, icon set,
+and dashboard package. Cards use a squared technical HUD style and can be
+added and edited from Home Assistant's visual dashboard editor.
+
+Home Assistant continues to own entity state, permissions, and service calls.
+The UI package does not change Jarvis memory or device authorization.
 
 ## Included files
 
 - `jarvis-dashboard.yaml`: five responsive dashboard views.
+- `jarvis-component-catalog.yaml`: card, icon, and coverage reference.
 - `themes/jarvis-command-center.yaml`: desktop and portrait themes.
 - `www/jarvis/jarvis-command-center-landscape.png`: desktop background.
 - `www/jarvis/jarvis-command-center-portrait.png`: panel/mobile background.
-- `www/jarvis/jarvis-voice-card.js`: local Jarvis voice and action cards.
-- `jarvis-command-center-preview.png`: design preview.
-- `configuration-snippet.yaml`: the configuration entries required by Home
-  Assistant.
-
-The preview communicates the visual direction and contains illustrative
-values. The installed dashboard always displays live Home Assistant entity
-state.
+- `www/jarvis/jarvis-ui.js`: complete Jarvis cards and `jarvis:` icons.
+- `www/jarvis/jarvis-voice-card.js`: compatibility loader for D1 installs.
+- `hacs.json` and `dist/Project-Jarvis_HA.js`: HACS publication package.
+- `jarvis-command-center-preview.png`: original design preview.
+- `configuration-snippet.yaml`: optional YAML dashboard registration.
 
 ## Install on Home Assistant OS
 
 Use Studio Code Server, File editor, or Samba to access `/config`.
 
-1. Copy `jarvis-dashboard.yaml` into `/config/jarvis-dashboard.yaml`.
+1. Copy both dashboard YAML files into `/config`.
 2. Copy `themes/jarvis-command-center.yaml` into
    `/config/themes/jarvis-command-center.yaml`.
 3. Copy the `www/jarvis` folder into `/config/www/jarvis`.
 4. In Home Assistant, open **Settings -> Dashboards**, open the three-dot menu,
-   and select **Resources**. Add `/local/jarvis/jarvis-voice-card.js?v=0.8.2`
+   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.9.0`
    as a **JavaScript module**.
-5. Merge the contents of `configuration-snippet.yaml` into
-   `/config/configuration.yaml`. Do not create a second `frontend:` or
-   `lovelace:` key if one already exists.
+5. If you want the supplied dashboards, merge `configuration-snippet.yaml`
+   into `/config/configuration.yaml`. Do not create a second `frontend:` or
+   `lovelace:` key.
 6. Run **Developer tools -> YAML -> Check configuration**.
-7. Restart Home Assistant and perform a hard refresh in the browser or app.
-8. Open **Jarvis** in the sidebar.
+7. Restart Home Assistant and hard-refresh the browser or app.
 
-The animated voice card dispatches Home Assistant's standard Assist dashboard
-action. It does not access the microphone directly and does not receive raw
-audio. Keyboard activation and reduced-motion preferences are supported.
+## Add and edit cards visually
 
-The dashboard uses the landscape theme. To use the portrait background for a
-wall panel, change each view's `theme` from `Jarvis Command Center` to
-`Jarvis Command Center Panel`.
+1. Open any normal Home Assistant dashboard that you control.
+2. Select **Edit dashboard**, then **Add card**.
+3. Search for `Jarvis`.
+4. Select a Jarvis card and configure its entity, friendly name, icon, accent,
+   layout, and actions in the visual form.
+5. Save the dashboard.
+
+You do not need to use the supplied YAML dashboard. It is an optional
+ready-made example; cards added to a normal storage-mode dashboard remain
+editable through Home Assistant.
+
+## Included cards
+
+- Button and backward-compatible Action
+- Entity, Light, Switch, and Slider
+- Climate, Cover, Media, and Camera
+- Sensor, Security, and multi-entity Status
+- Voice, Icon Catalog, and Entity Coverage
+
+All cards share hover/focus illumination, cyan/amber/green/red accent states,
+keyboard controls, responsive sizing, and reduced-motion support.
+
+The Voice card dispatches Home Assistant's standard Assist action. It does not
+directly access the microphone or receive raw audio.
+
+## Jarvis icons
+
+Use icons such as `jarvis:lightbulb`, `jarvis:spotlight`, `jarvis:plug`,
+`jarvis:thermostat`, `jarvis:cover`, `jarvis:speaker`, `jarvis:camera`,
+`jarvis:battery`, `jarvis:vehicle`, and `jarvis:automation`.
+
+Jarvis cards select an icon from the entity domain and device class
+automatically. A configured icon overrides it. The Icon Catalog card shows
+every bundled name. The Entity Coverage card audits the current Home Assistant
+state registry locally and lists domains using fallback icons; it does not
+transmit or persist the registry.
 
 ## Entity mapping
 
-The package is preconfigured for the accepted Project Jarvis test entities,
-including `light.blocks`, the upstairs-office and interior-light groups,
+The example dashboard uses accepted Project Jarvis test entities including
+`light.blocks`, the upstairs-office and interior-light groups,
 `camera.porch_camera`, and `media_player.loftstue_group`.
 
-If a tile reports that an entity is unavailable or does not exist, edit only
-that card and select the matching entity from Home Assistant. The dashboard
-does not alter entity permissions or device behavior.
+If an entity is unavailable or does not exist, edit that card and select the
+matching entity from Home Assistant. The UI does not alter permissions.
 
-## Update from 0.8.1
+## Optional HACS delivery
 
-Replace `jarvis-dashboard.yaml`, the theme file, and
-`www/jarvis/jarvis-voice-card.js`. Confirm that the JavaScript resource URL
-ends in `?v=0.8.2`, restart Home Assistant, and hard-refresh the client.
+HACS is not required. The package includes a valid HACS Dashboard manifest and
+distributable file for publication from the root of the public Project Jarvis
+Home Assistant release repository. Once published:
+
+1. Open **HACS**, then its three-dot menu and **Custom repositories**.
+2. Add `https://github.com/bennyseather/Project-Jarvis_HA`.
+3. Select **Dashboard** as the repository type.
+4. Download **Project Jarvis UI**.
+5. Confirm that HACS registered the resource, then refresh Home Assistant.
+
+The theme, backgrounds, and example dashboards still require the manual copy
+because HACS Dashboard repositories manage frontend resources rather than the
+complete Home Assistant configuration.
+
+## Update from 0.8.2
+
+Replace both dashboard files, the theme, and the `www/jarvis` folder. Replace
+the old resource with `/local/jarvis/jarvis-ui.js?v=0.9.0`, restart Home
+Assistant, and hard-refresh every client. The old JavaScript resource remains
+a compatibility loader, but the new URL is recommended.
 
 ## Remove
 
-Remove the `jarvis-command-center` entry from the `lovelace.dashboards`
-configuration, remove the Jarvis theme entry or file, and restart Home
-Assistant. Existing dashboards and Project Jarvis memory are unaffected.
+Remove the two Jarvis entries from `lovelace.dashboards`, remove the Jarvis
+theme and frontend resource, and restart Home Assistant. Existing dashboards,
+entities, Project Jarvis memory, and automations are unaffected.
