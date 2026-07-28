@@ -22,10 +22,11 @@
 Do not expose port 8099 to the internet. The add-on is intended to be reached
 only through the internal Home Assistant network.
 
-After upgrading to version 0.8.2, existing memory is preserved automatically.
+After upgrading to version 0.9.0, existing memory is preserved automatically.
 No reset or reinstallation is required.
 
-The optional Jarvis Command Center dashboard is published in the release
-repository's `jarvis_ui` folder. Follow its `README.md` to install the theme,
-background assets, and sidebar dashboard. The add-on intentionally does not
-write to Home Assistant's `/config` directory.
+The optional Jarvis UI Design System is published in the release repository's
+`jarvis_ui` folder. Follow its `README.md` to install the squared HUD theme,
+backgrounds, visually editable cards, `jarvis:` icons, and example dashboards.
+The add-on intentionally does not write to Home Assistant's `/config`
+directory.

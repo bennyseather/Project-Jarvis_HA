@@ -54,18 +54,19 @@ class JarvisCommandCenterTests(unittest.TestCase):
         script = (
             UI_ROOT / "www" / "jarvis" / "jarvis-voice-card.js"
         ).read_text(encoding="utf-8")
-        self.assertIn('customElements.define("jarvis-voice-card"', script)
-        self.assertIn('customElements.define("jarvis-action-card"', script)
-        self.assertIn('action: "assist"', script)
-        self.assertIn('pipeline_id: this._config.pipeline_id', script)
-        self.assertIn('start_listening:', script)
-        self.assertIn('event.key === "Enter"', script)
-        self.assertIn('event.key === " "', script)
-        self.assertIn("prefers-reduced-motion: reduce", script)
-        self.assertNotIn("callService(", script)
-        self.assertNotIn("callApi(", script)
-        self.assertNotIn("callWS(", script)
-        self.assertNotIn("fetch(", script)
+        self.assertIn('import "./jarvis-ui.js"', script)
+        design_system = (
+            UI_ROOT / "www" / "jarvis" / "jarvis-ui.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn('customElements.define(tag, klass)', design_system)
+        self.assertIn('action: "assist"', design_system)
+        self.assertIn('pipeline_id: this._config.pipeline_id', design_system)
+        self.assertIn('event.key === "Enter"', design_system)
+        self.assertIn('event.key === " "', design_system)
+        self.assertIn("prefers-reduced-motion:reduce", design_system)
+        self.assertNotIn("callApi(", design_system)
+        self.assertNotIn("callWS(", design_system)
+        self.assertNotIn("fetch(", design_system)
 
     def test_configuration_snippet_registers_sidebar_dashboard(self):
         snippet = (UI_ROOT / "configuration-snippet.yaml").read_text(
@@ -76,7 +77,7 @@ class JarvisCommandCenterTests(unittest.TestCase):
         self.assertIn("show_in_sidebar: true", snippet)
         readme = (UI_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn(
-            "/local/jarvis/jarvis-voice-card.js?v=0.8.2",
+            "/local/jarvis/jarvis-ui.js?v=0.9.0",
             readme,
         )
 

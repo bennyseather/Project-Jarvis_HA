@@ -10,6 +10,12 @@
 - D1.4 Preferred-pipeline Assist and voice controls complete
 - D1.5 Original visual assets and preview complete
 - D1.6 Installation package, documentation, validation, and release complete
+- D2.1 Squared Jarvis HUD theme and shared design tokens complete
+- D2.2 Visual card-editor framework complete
+- D2.3 Entity control card collection complete
+- D2.4 Original Jarvis icon set and automatic mapping complete
+- D2.5 Component catalog and local coverage audit complete
+- D2.6 Packaging, documentation, compatibility, and release complete
 - D1.7 Interactive Jarvis voice and action cards complete
 
 ### M20 - Voice Experience (complete)
