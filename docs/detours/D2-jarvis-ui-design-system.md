@@ -16,6 +16,16 @@ Acceptance patch 0.9.2:
 - Camera and standard Voice cards reserve four grid rows so their content does
   not overlap neighboring cards.
 
+Acceptance patch 0.9.3:
+
+- Every card uses one forced squared HUD shell, including the Voice card.
+- Card content is constrained to its allocated section-grid cell and every
+  card has a six-pixel protected gutter.
+- Interactive cards declare minimum grid rows that fit their controls.
+- Camera cards use Home Assistant's native live picture-entity configuration,
+  mount it before assigning Home Assistant state, and request an immediate
+  render so live video starts without opening the card.
+
 ## Outcome
 
 Project Jarvis includes a reusable, visually editable Home Assistant interface
