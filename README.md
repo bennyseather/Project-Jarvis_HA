@@ -13,7 +13,7 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Jarvis UI 0.9.1
+## Jarvis UI 0.9.2
 
 The `jarvis_ui` folder contains:
 
