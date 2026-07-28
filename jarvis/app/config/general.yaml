@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.7.1"
+  version: "0.8.0"
 
 system:
   debug: false
@@ -33,6 +33,9 @@ conversation:
   maximum_conversations: 20
   retention_days: 3
   maximum_messages_per_conversation: 100
+
+reflection:
+  context_limit: 5
 
 persona:
   name: "Jarvis"

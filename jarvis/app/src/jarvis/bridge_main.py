@@ -13,7 +13,13 @@ async def main():
     server = ConversationBridgeServer(JarvisConversationBridge(app), key, asyncio.get_running_loop())
     server.start()
     try: await asyncio.Event().wait()
-    finally: server.stop(); await app.container.home_assistant.disconnect(); app.container.memory_store.close(); app.container.knowledge_store.close()
+    finally:
+        server.stop()
+        await app.container.home_assistant.disconnect()
+        app.container.memory_store.close()
+        app.container.knowledge_store.close()
+        app.container.conversation_store.close()
+        app.container.reflection_store.close()
 
 
 if __name__ == "__main__": asyncio.run(main())

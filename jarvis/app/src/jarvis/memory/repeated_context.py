@@ -74,16 +74,40 @@ class RepeatedContextExtractor:
 class RepeatedContextLearner:
     """Promote only the third distinct occurrence of a validated candidate."""
 
-    def __init__(self, conversation_store, memory_store, memory_writer, extractor) -> None:
+    def __init__(
+        self,
+        conversation_store,
+        memory_store,
+        memory_writer,
+        extractor,
+        reflection_manager=None,
+    ) -> None:
         self._conversations = conversation_store
         self._memories = memory_store
         self._writer = memory_writer
         self._extractor = extractor
+        self._reflection_manager = reflection_manager
         self._pending_sensitive: dict[str, RepeatedContextCandidate] = {}
 
     def observe(self, message) -> dict[str, object] | None:
+        if self._conversations.is_learning_disabled(message.conversation_id):
+            return None
         candidate = self._extractor.extract(message.content)
-        if candidate is None or self._conversations.is_promoted(candidate.key):
+        if candidate is None:
+            return None
+        if self._conversations.is_promoted(candidate.key):
+            memory_id = self._conversations.promoted_memory_id(candidate.key)
+            if memory_id and self._memories.exists(memory_id):
+                existing = self._memories.get(memory_id)
+                if self._normalize(existing.content) != self._normalize(candidate.content):
+                    return {
+                        "status": "clarification_required",
+                        "message": (
+                            f"I remember: {existing.content}. Your latest statement may "
+                            "conflict with it. If this is a correction, say: correct "
+                            f"{existing.content} to {candidate.content}"
+                        ),
+                    }
             return None
         count = self._conversations.record_candidate(
             message.message_id,
@@ -111,6 +135,7 @@ class RepeatedContextLearner:
         result = self._write(candidate, confirmed=False)
         if result.record is not None:
             self._conversations.mark_promoted(candidate.key, result.record.memory_id)
+            self._refresh_reflections()
         return None
 
     def confirm(self, token: str) -> dict[str, object]:
@@ -121,6 +146,7 @@ class RepeatedContextLearner:
         if result.record is None:
             return {"status": "unavailable", "message": "I could not save that memory."}
         self._conversations.mark_promoted(candidate.key, result.record.memory_id)
+        self._refresh_reflections()
         return {"status": "success", "message": "Understood. I will remember that private detail."}
 
     def cancel(self, token: str) -> None:
@@ -138,7 +164,14 @@ class RepeatedContextLearner:
             has_sensitive_confirmation=confirmed,
             confidence=1.0,
             tags=("automatically_learned", candidate.category),
-            metadata={"provenance": "repeated_user_context", "occurrence_threshold": 3},
+            metadata={
+                "provenance": "repeated_user_context",
+                "occurrence_threshold": 3,
+                "candidate_key": candidate.key,
+                "source_conversation_ids": list(
+                    self._conversations.candidate_sources(candidate.key)
+                ),
+            },
         ))
 
     def _duplicate(self, content: str) -> bool:
@@ -148,3 +181,11 @@ class RepeatedContextLearner:
             and " ".join(record.content.casefold().split()) == normalized
             for record in self._memories.list_records()
         )
+
+    def _refresh_reflections(self) -> None:
+        if self._reflection_manager is not None:
+            self._reflection_manager.refresh()
+
+    @staticmethod
+    def _normalize(value: str) -> str:
+        return " ".join(value.casefold().split())
