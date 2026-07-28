@@ -25,7 +25,7 @@ class SQLiteReflectionStore:
             version = int(self._connection.execute(
                 "SELECT version FROM schema_version LIMIT 1"
             ).fetchone()[0])
-            if version > 3:
+            if version > 4:
                 raise RuntimeError(f"Unsupported database schema version: {version}")
             self._connection.execute(
                 """CREATE TABLE IF NOT EXISTS reflection_records (
@@ -33,8 +33,8 @@ class SQLiteReflectionStore:
                     payload TEXT NOT NULL
                 )"""
             )
-            if version < 3:
-                self._connection.execute("UPDATE schema_version SET version=3")
+            if version < 4:
+                self._connection.execute("UPDATE schema_version SET version=4")
 
     def list_records(self) -> tuple[ReflectionRecord, ...]:
         rows = self._connection.execute(

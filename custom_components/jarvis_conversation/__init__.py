@@ -12,8 +12,8 @@ async def async_unload_entry(hass, entry):
 
 async def async_migrate_entry(hass, entry):
     """Advance existing bridge-only entries to the voice-capable schema."""
-    if entry.version < 2:
-        hass.config_entries.async_update_entry(entry, version=2)
+    if entry.version < 3:
+        hass.config_entries.async_update_entry(entry, version=3)
     return True
 
 

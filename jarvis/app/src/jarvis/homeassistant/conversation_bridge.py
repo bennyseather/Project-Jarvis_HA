@@ -24,8 +24,14 @@ class JarvisConversationBridge:
         confirmation_token: str | None = None,
         conversation_id: str | None = None,
         voice_mode: bool = False,
+        proactive_voice_route: dict[str, object] | None = None,
     ) -> dict[str, object]:
         identifier = self._conversation_identifier(conversation_id)
+        delivery = getattr(
+            self._application.container, "proactive_delivery", None
+        )
+        if delivery is not None:
+            delivery.set_voice_route(proactive_voice_route)
         normalized = " ".join(text.casefold().split()).strip(" .?!")
         pending = self._pending_by_conversation.get(identifier)
 

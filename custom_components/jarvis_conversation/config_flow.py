@@ -10,6 +10,7 @@ from .const import (
     CONF_EXTERNAL_VOICE_OUTPUT,
     CONF_INPUT_DEVICE_ID,
     CONF_OUTPUT_MEDIA_PLAYER,
+    CONF_PROACTIVE_VOICE_OUTPUT,
     CONF_SUPPRESS_LOCAL_AUDIO,
     CONF_TTS_ENTITY,
     CONF_TTS_LANGUAGE,
@@ -20,7 +21,7 @@ from .const import (
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 2
+    VERSION = 3
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
@@ -92,6 +93,10 @@ class JarvisOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_SUPPRESS_LOCAL_AUDIO,
                     default=current.get(CONF_SUPPRESS_LOCAL_AUDIO, True),
+                ): selector.BooleanSelector(),
+                vol.Required(
+                    CONF_PROACTIVE_VOICE_OUTPUT,
+                    default=current.get(CONF_PROACTIVE_VOICE_OUTPUT, False),
                 ): selector.BooleanSelector(),
             }
         )

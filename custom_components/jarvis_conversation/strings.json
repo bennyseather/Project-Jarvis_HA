@@ -23,7 +23,8 @@
           "tts_entity_id": "Text-to-speech provider",
           "tts_language": "Spoken language",
           "tts_voice": "Provider voice name (optional)",
-          "suppress_local_audio": "Prevent duplicate audio on the microphone device"
+          "suppress_local_audio": "Prevent duplicate audio on the microphone device",
+          "proactive_voice_output": "Allow proactive voice suggestions (off by default)"
         }
       }
     },
