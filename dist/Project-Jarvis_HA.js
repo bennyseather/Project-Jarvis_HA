@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.9.2";
+const JARVIS_UI_VERSION = "0.9.3";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -187,8 +187,9 @@ const HUD_STYLE = `
   :host {
     display:block;
     height:100%;
+    min-height:0;
     box-sizing:border-box;
-    padding:4px;
+    padding:6px;
     --j-cyan:var(--jarvis-cyan,#20d8ff);
     --j-amber:var(--jarvis-amber,#ffc247);
     --j-red:var(--jarvis-red,#ff6572);
@@ -201,6 +202,7 @@ const HUD_STYLE = `
     --ha-card-border-radius:2px;
     position:relative;
     height:100%;
+    min-height:0;
     box-sizing:border-box;
     overflow:hidden;
     color:var(--primary-text-color,#eafaff);
@@ -209,11 +211,12 @@ const HUD_STYLE = `
       linear-gradient(rgba(32,216,255,.025) 1px,transparent 1px) 0 0/24px 24px,
       linear-gradient(145deg,rgba(5,25,39,.97),var(--j-surface));
     border:1px solid var(--j-line);
-    border-radius:2px;
-    clip-path:polygon(0 10px,10px 0,72% 0,calc(72% + 8px) 8px,100% 8px,100% calc(100% - 10px),calc(100% - 10px) 100%,30% 100%,calc(30% - 8px) calc(100% - 8px),0 calc(100% - 8px));
+    border-radius:2px!important;
+    clip-path:polygon(0 10px,10px 0,72% 0,calc(72% + 8px) 8px,100% 8px,100% calc(100% - 10px),calc(100% - 10px) 100%,30% 100%,calc(30% - 8px) calc(100% - 8px),0 calc(100% - 8px))!important;
     box-shadow:inset 0 0 34px color-mix(in srgb,var(--j-accent) 7%,transparent),0 12px 30px rgba(0,0,0,.26);
     transition:transform 160ms ease,border-color 160ms ease,box-shadow 160ms ease,filter 160ms ease;
   }
+  ha-card>div{height:100%;min-height:0!important;box-sizing:border-box}
   ha-card::before,ha-card::after{content:"";position:absolute;pointer-events:none;z-index:3}
   ha-card::before{left:16px;top:0;width:56px;height:2px;background:var(--j-accent);box-shadow:0 0 10px var(--j-accent)}
   ha-card::after{right:16px;bottom:0;width:34px;height:2px;background:var(--j-accent);box-shadow:0 0 10px var(--j-accent)}
@@ -269,10 +272,11 @@ class JarvisBaseCard extends HTMLElement {
     this.render();
   }
 
-  getCardSize() { return this._config?.layout === "compact" ? 2 : 3; }
+  getCardSize() { return this._config?.layout === "compact" ? 2 : (this.constructor.gridRows || 3); }
   getGridOptions() {
     const wide = this._config?.layout === "wide";
-    return { rows: this._config?.layout === "compact" ? 2 : 3, columns: wide ? 12 : 6, min_rows: 2, min_columns: 3 };
+    const rows = this._config?.layout === "compact" ? 2 : (this.constructor.gridRows || 3);
+    return { rows, columns: wide ? 12 : 6, min_rows: rows, min_columns: 3 };
   }
 
   static getConfigForm() { return commonForm(this.requiresEntity !== false); }
@@ -289,7 +293,7 @@ class JarvisBaseCard extends HTMLElement {
     const color = accent(this._config, state);
     this.shadowRoot.innerHTML = `
       <style>${HUD_STYLE}</style>
-      <ha-card class="${interactive ? "interactive" : ""} ${isUnavailable(state) ? "unavailable" : ""}"
+      <ha-card class="jarvis-hud-frame ${interactive ? "interactive" : ""} ${isUnavailable(state) ? "unavailable" : ""}"
         style="--j-accent:${color}" ${interactive ? 'tabindex="0" role="button"' : ""}>
         <i class="hud-corner tl"></i><i class="hud-corner br"></i>${content}
       </ha-card>`;
@@ -359,6 +363,7 @@ class JarvisEntityCard extends JarvisBaseCard {
 class JarvisButtonCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Button";
+  static gridRows = 3;
   static getConfigForm() {
     const form = commonForm(false);
     form.schema.unshift({ name: "label", required: true, selector: { text: {} } });
@@ -398,6 +403,7 @@ class JarvisSwitchCard extends JarvisEntityCard {
 class JarvisLightCard extends JarvisBaseCard {
   static cardName = "Jarvis Light";
   static domains = ["light"];
+  static gridRows = 4;
   render() {
     if (!this._config) return;
     const state = this.cardState();
@@ -474,6 +480,7 @@ class JarvisClimateCard extends JarvisBaseCard {
 class JarvisCoverCard extends JarvisBaseCard {
   static cardName = "Jarvis Cover";
   static domains = ["cover"];
+  static gridRows = 4;
   render() {
     if (!this._config) return;
     const state = this.cardState();
@@ -489,6 +496,7 @@ class JarvisCoverCard extends JarvisBaseCard {
 class JarvisMediaCard extends JarvisBaseCard {
   static cardName = "Jarvis Media";
   static domains = ["media_player"];
+  static gridRows = 4;
   render() {
     if (!this._config) return;
     const state = this.cardState();
@@ -506,7 +514,7 @@ class JarvisCameraCard extends JarvisBaseCard {
   static domains = ["camera"];
   getCardSize() { return 5; }
   getGridOptions() {
-    return { rows: 4, columns: 6, min_rows: 4, min_columns: 3 };
+    return { rows: 5, columns: 6, min_rows: 5, min_columns: 3 };
   }
   constructor() {
     super();
@@ -526,7 +534,7 @@ class JarvisCameraCard extends JarvisBaseCard {
   render() {
     if (!this._config) return;
     const state = this.cardState();
-    this.shell(`<div class="camera-layout"><div class="camera-host" aria-label="Live camera stream"></div><div class="live-badge"><i></i>LIVE</div><div class="overlay">${this.entityHeader("Visual channel")}</div></div>
+    this.shell(`<div class="camera-layout card-layout"><div class="camera-host" aria-label="Live camera stream"></div><div class="live-badge"><i></i>LIVE</div><div class="overlay">${this.entityHeader("Visual channel")}</div></div>
       <style>.camera-layout{min-height:230px;position:relative;background:#01070b}.camera-host{position:absolute;inset:0;overflow:hidden}.camera-host>*{display:block;width:100%;height:100%;--ha-card-border-radius:0;--ha-card-box-shadow:none;--ha-card-background:transparent}.camera-host img{width:100%;height:100%;object-fit:cover;opacity:.78}.live-badge{position:absolute;right:14px;top:13px;display:flex;gap:6px;align-items:center;padding:5px 7px;border:1px solid var(--j-line);background:rgba(2,13,22,.82);font:700 9px monospace;letter-spacing:.14em;color:var(--j-accent)}.live-badge i{width:6px;height:6px;background:var(--j-red);box-shadow:0 0 7px var(--j-red);animation:live-pulse 1.4s ease-in-out infinite}.overlay{position:absolute;left:0;right:0;bottom:0;padding:28px 18px 16px;display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center;background:linear-gradient(transparent,rgba(2,13,22,.96));pointer-events:none}.icon-shell{width:40px;height:40px}.state{color:#b8dce8}@keyframes live-pulse{50%{opacity:.35}}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this._cameraCard = undefined;
@@ -549,16 +557,21 @@ class JarvisCameraCard extends JarvisBaseCard {
       const card = await helpers.createCardElement({
         type: "picture-entity",
         entity: this._config.entity,
-        camera_image: this._config.entity,
         camera_view: "live",
         show_name: false,
         show_state: false,
         tap_action: { action: "none" },
         hold_action: { action: "none" },
       });
-      card.hass = this._hass;
       card.style.height = "100%";
       host.replaceChildren(card);
+      card.hass = this._hass;
+      requestAnimationFrame(() => {
+        if (this.shadowRoot.contains(card)) {
+          card.hass = this._hass;
+          card.requestUpdate?.();
+        }
+      });
       this._cameraCard = card;
       this._cameraEntity = this._config.entity;
     } catch (_error) {
@@ -665,7 +678,7 @@ class JarvisVoiceCard extends JarvisBaseCard {
   render() {
     if (!this._config) return;
     const bars = Array.from({ length: 25 }, (_, i) => `<i style="--i:${i};--h:${16 + ((i * 19) % 62)}%"></i>`).join("");
-    const card = this.shell(`<div class="voice-layout"><div class="copy"><div class="eyebrow">Voice interface</div><div class="voice-title">${escapeHtml(this._config.title)}</div><div class="description">${escapeHtml(this._config.description)}</div></div><div class="voice-node"><i class="node-corner tl"></i><i class="node-corner br"></i><div class="orb"><ha-icon icon="mdi:microphone"></ha-icon></div></div><div class="signal">${bars}</div><div class="hint">TAP TO SPEAK // CHANNEL READY</div></div>
+    const card = this.shell(`<div class="voice-layout card-layout"><div class="copy"><div class="eyebrow">Voice interface</div><div class="voice-title">${escapeHtml(this._config.title)}</div><div class="description">${escapeHtml(this._config.description)}</div></div><div class="voice-node"><i class="node-corner tl"></i><i class="node-corner br"></i><div class="orb"><ha-icon icon="mdi:microphone"></ha-icon></div></div><div class="signal">${bars}</div><div class="hint">TAP TO SPEAK // CHANNEL READY</div></div>
       <style>.voice-layout{min-height:${this._config.compact ? "150px" : "204px"};padding:22px 28px;display:grid;grid-template-columns:1fr auto 1fr;gap:22px;align-items:center}.voice-title{font-size:clamp(22px,2vw,31px);font-weight:650}.description{margin-top:9px;color:var(--secondary-text-color);font-size:12px}.voice-node{width:${this._config.compact ? "98px" : "130px"};height:${this._config.compact ? "98px" : "130px"};display:grid;place-items:center;position:relative;border:1px solid var(--j-line);clip-path:polygon(0 12px,12px 0,78% 0,100% 22%,100% calc(100% - 12px),calc(100% - 12px) 100%,22% 100%,0 78%);background:linear-gradient(145deg,rgba(32,216,255,.07),rgba(3,16,27,.7));box-shadow:inset 0 0 22px rgba(32,216,255,.08)}.node-corner{position:absolute;width:18px;height:18px;z-index:2}.node-corner.tl{left:5px;top:5px;border-left:2px solid var(--j-accent);border-top:2px solid var(--j-accent)}.node-corner.br{right:5px;bottom:5px;border-right:2px solid var(--j-accent);border-bottom:2px solid var(--j-accent)}.orb{width:${this._config.compact ? "60px" : "78px"};height:${this._config.compact ? "60px" : "78px"};display:grid;place-items:center;border:1px solid var(--j-accent);border-radius:50%;background:radial-gradient(circle,rgba(32,216,255,.28),rgba(3,16,27,.95) 62%);box-shadow:inset 0 0 24px rgba(32,216,255,.24),0 0 20px rgba(32,216,255,.22);position:relative}.orb:before,.orb:after{content:"";position:absolute;border-radius:50%;border:1px dashed rgba(32,216,255,.35);inset:-7px;animation:spin 16s linear infinite}.orb:after{inset:-13px;border-color:rgba(32,216,255,.14);border-left-color:var(--j-amber);animation-direction:reverse;animation-duration:24s}.orb ha-icon{--mdc-icon-size:34px;filter:drop-shadow(0 0 8px var(--j-accent))}.signal{height:68px;display:flex;align-items:center;gap:4px}.signal i{width:3px;height:var(--h);background:var(--j-accent);box-shadow:0 0 7px var(--j-accent);opacity:.55;animation:pulse 1.2s ease-in-out infinite alternate;animation-delay:calc(var(--i) * -55ms)}ha-card:hover .signal i,ha-card.engaged .signal i{opacity:1;animation-duration:.55s}.hint{grid-column:1/-1;text-align:right;font:700 9px monospace;letter-spacing:.15em;color:var(--j-accent)}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{from{transform:scaleY(.45)}to{transform:scaleY(1.2)}}@media(max-width:680px){.voice-layout{grid-template-columns:1fr auto;padding:20px}.signal{grid-column:1/-1;height:36px}.hint{display:none}}</style>`,
       { interactive: false, ariaLabel: this._config.title });
     card.classList.add("interactive");
