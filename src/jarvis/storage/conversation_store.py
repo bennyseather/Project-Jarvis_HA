@@ -50,7 +50,7 @@ class SQLiteConversationStore:
             version = int(self._connection.execute(
                 "SELECT version FROM schema_version LIMIT 1"
             ).fetchone()[0])
-            if version > 3:
+            if version > 4:
                 raise RuntimeError(f"Unsupported database schema version: {version}")
             self._connection.execute(
                 """CREATE TABLE IF NOT EXISTS conversations (
@@ -97,8 +97,8 @@ class SQLiteConversationStore:
                     disabled INTEGER NOT NULL DEFAULT 0
                 )"""
             )
-            if version < 3:
-                self._connection.execute("UPDATE schema_version SET version=3")
+            if version < 4:
+                self._connection.execute("UPDATE schema_version SET version=4")
 
     @staticmethod
     def normalize_conversation_id(value: str | None) -> str:

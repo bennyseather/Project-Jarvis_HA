@@ -51,4 +51,12 @@ class ServiceContainer:
         self.home_assistant_capability_context = None
         self.home_access_enrollment = None
         self.confirmed_action_audit_store = None
+        self.proactive_store = None
+        self.proactive_policy = None
+        self.proactive_manager = None
+        self.proactive_controller = None
+        self.proactive_delivery = None
+        self.proactive_client = None
+        self.proactive_task = None
+        self.proactive_allowed_entities = frozenset()
         self.entity_resolver: EntityResolver | None = None

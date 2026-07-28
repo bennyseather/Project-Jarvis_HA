@@ -18,11 +18,15 @@
 6. To configure external voice output, open the Project Jarvis Conversation
    integration's **Configure** dialog. Select the microphone device, speaker or
    speaker group, and TTS provider, then enable external voice output.
+7. Review the add-on's `proactive` configuration. Persistent notifications are
+   enabled by default, quiet hours are 22:00–07:00, and proactive voice is
+   disabled. Enable proactive voice in both the add-on configuration and the
+   conversation integration only if you explicitly want it.
 
 Do not expose port 8099 to the internet. The add-on is intended to be reached
 only through the internal Home Assistant network.
 
-After upgrading to version 0.9.6, existing memory is preserved automatically.
+After upgrading to version 0.10.0, existing memory is preserved automatically.
 No reset or reinstallation is required.
 
 The optional Jarvis UI Design System is published in the release repository's

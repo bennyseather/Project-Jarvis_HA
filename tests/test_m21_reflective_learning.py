@@ -81,7 +81,7 @@ class M21ReflectiveLearningTests(unittest.TestCase):
             connection.execute(
                 "SELECT version FROM schema_version"
             ).fetchone()[0],
-            3,
+            4,
         )
         connection.close()
 

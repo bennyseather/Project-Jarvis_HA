@@ -2,6 +2,15 @@
 
 ## Approved Future Direction
 
+### M22 - Proactive Assistance and Routine Intelligence (complete)
+
+- M22.1 Proactive assistance contracts and deterministic policy complete
+- M22.2 Bounded opportunity detection complete
+- M22.3 Inspectable routine candidates complete
+- M22.4 Home Assistant notification and opt-in voice delivery complete
+- M22.5 Natural controls, explanations, suppression, and action routing complete
+- M22.6 Migration, acceptance, packaging, and release complete
+
 ### Detour D1 - Jarvis Command Center (complete)
 
 - D1.1 Original visual system and responsive layout complete

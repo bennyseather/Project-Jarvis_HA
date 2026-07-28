@@ -57,6 +57,19 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                 satellite_device_id,
             )
         session = async_get_clientsession(self.hass)
+        proactive_voice_route = None
+        if (
+            self.entry.options.get("proactive_voice_output", False)
+            and self.entry.options.get("external_voice_output", False)
+        ):
+            proactive_voice_route = {
+                "tts_entity_id": self.entry.options.get("tts_entity_id"),
+                "media_player_entity_id": self.entry.options.get(
+                    "output_media_player_entity_id"
+                ),
+                "language": self.entry.options.get("tts_language", ""),
+                "voice": self.entry.options.get("tts_voice", ""),
+            }
         async with session.post(
             self.entry.data["bridge_url"] + "/v1/conversation",
             json={
@@ -65,6 +78,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                 "voice_mode": external_voice,
                 "device_id": user_input.device_id,
                 "satellite_id": user_input.satellite_id,
+                "proactive_voice_route": proactive_voice_route,
             },
             headers={"Authorization": "Bearer " + self.entry.data["api_key"]},
             timeout=60,
