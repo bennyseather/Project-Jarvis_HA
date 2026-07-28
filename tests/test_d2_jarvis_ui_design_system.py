@@ -117,6 +117,13 @@ class JarvisUIDesignSystemTests(unittest.TestCase):
         self.assertIn('class="node-corner tl"', self.script)
         self.assertIn('class="node-corner br"', self.script)
 
+    def test_cards_have_gutters_and_tall_cards_reserve_enough_grid_rows(self):
+        self.assertIn("padding:4px", self.script)
+        self.assertIn("height:100%", self.script)
+        self.assertIn("return { rows: 4, columns: 6, min_rows: 4", self.script)
+        self.assertIn("rows: this._config?.compact ? 3 : 4", self.script)
+        self.assertIn("min_rows: this._config?.compact ? 3 : 4", self.script)
+
     def test_hacs_distribution_matches_source(self):
         manifest = json.loads((UI_ROOT / "hacs.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "Project Jarvis UI")

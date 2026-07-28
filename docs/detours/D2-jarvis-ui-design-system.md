@@ -9,6 +9,13 @@ Acceptance patch 0.9.1:
 - Voice cards use the same squared, chamfered and segmented control frame as
   the rest of the Jarvis card system.
 
+Acceptance patch 0.9.2:
+
+- Every card reserves an internal gutter for its border, hover movement, and
+  glow.
+- Camera and standard Voice cards reserve four grid rows so their content does
+  not overlap neighboring cards.
+
 ## Outcome
 
 Project Jarvis includes a reusable, visually editable Home Assistant interface

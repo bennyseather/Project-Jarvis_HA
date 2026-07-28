@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.9.1";
+const JARVIS_UI_VERSION = "0.9.2";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -186,6 +186,9 @@ function commonForm(entityRequired = true) {
 const HUD_STYLE = `
   :host {
     display:block;
+    height:100%;
+    box-sizing:border-box;
+    padding:4px;
     --j-cyan:var(--jarvis-cyan,#20d8ff);
     --j-amber:var(--jarvis-amber,#ffc247);
     --j-red:var(--jarvis-red,#ff6572);
@@ -197,6 +200,7 @@ const HUD_STYLE = `
   ha-card {
     --ha-card-border-radius:2px;
     position:relative;
+    height:100%;
     box-sizing:border-box;
     overflow:hidden;
     color:var(--primary-text-color,#eafaff);
@@ -500,6 +504,10 @@ class JarvisMediaCard extends JarvisBaseCard {
 class JarvisCameraCard extends JarvisBaseCard {
   static cardName = "Jarvis Camera";
   static domains = ["camera"];
+  getCardSize() { return 5; }
+  getGridOptions() {
+    return { rows: 4, columns: 6, min_rows: 4, min_columns: 3 };
+  }
   constructor() {
     super();
     this._cameraCard = undefined;
@@ -642,6 +650,15 @@ class JarvisVoiceCard extends JarvisBaseCard {
     };
   }
   static getStubConfig() { return { title: "Ask Jarvis", description: "Open Assist and start listening", pipeline_id: "preferred", start_listening: true }; }
+  getCardSize() { return this._config?.compact ? 3 : 4; }
+  getGridOptions() {
+    return {
+      rows: this._config?.compact ? 3 : 4,
+      columns: 12,
+      min_rows: this._config?.compact ? 3 : 4,
+      min_columns: 6,
+    };
+  }
   setConfig(config) {
     super.setConfig({ title: "Ask Jarvis", description: "Open Assist and start listening", pipeline_id: "preferred", start_listening: true, ...config });
   }

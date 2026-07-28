@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.2
+
+- Add a consistent four-pixel internal gutter around every Jarvis card so
+  borders, hover movement, and glow effects cannot overlap adjacent cards.
+- Allocate four Home Assistant grid rows to Camera and standard Voice cards,
+  matching their rendered height.
+
 ## 0.9.1
 
 - Render the Jarvis Camera card as an automatic Home Assistant live camera
