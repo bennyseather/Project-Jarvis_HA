@@ -32,6 +32,12 @@ Acceptance patch 0.9.4:
 - Displays up to 900 pixels wide use reduced padding, gaps, icon size, and
   button dimensions so the complete light control remains inside its frame.
 
+Acceptance patch 0.9.5:
+
+- Voice cards use a smaller microphone node, tighter spacing, and bounded
+  signal bars on NSPanel-sized displays.
+- Desktop Voice card proportions remain unchanged.
+
 ## Outcome
 
 Project Jarvis includes a reusable, visually editable Home Assistant interface

@@ -142,6 +142,16 @@ class JarvisUIDesignSystemTests(unittest.TestCase):
         self.assertIn(".top button{min-width:38px", self.script)
         self.assertIn(".copy{min-width:0}", self.script)
 
+    def test_voice_card_scales_on_nspanel_sized_displays(self):
+        self.assertIn(
+            "grid-template-columns:minmax(0,1fr) 88px minmax(72px,.7fr)",
+            self.script,
+        )
+        self.assertIn(".voice-node{width:86px;height:86px}", self.script)
+        self.assertIn(".orb{width:52px;height:52px}", self.script)
+        self.assertIn(".signal{height:44px;gap:2px}", self.script)
+        self.assertIn("min-width:0;overflow:hidden", self.script)
+
     def test_hacs_distribution_matches_source(self):
         manifest = json.loads((UI_ROOT / "hacs.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "Project Jarvis UI")
