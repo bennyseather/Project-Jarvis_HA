@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.10.0"
+version: "0.10.1"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]
@@ -13,6 +13,8 @@ map:
 options:
   openai_api_key: ""
   bridge_api_key: ""
+  proactive_voice_enabled: false
 schema:
   openai_api_key: password
   bridge_api_key: password
+  proactive_voice_enabled: bool

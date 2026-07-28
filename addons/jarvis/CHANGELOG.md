@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.1
+
+- Expose the proactive voice opt-in in the Home Assistant add-on
+  configuration while keeping it disabled by default.
+
 ## 0.10.0
 
 - Complete M22 Proactive Assistance and Routine Intelligence.
