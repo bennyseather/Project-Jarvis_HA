@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.5
+
+- Add an NSPanel-sized responsive Voice card.
+- Reduce the microphone node, typography, padding, and signal-bar spacing on
+  displays up to 900 pixels wide.
+- Bound the signal visualization so it cannot push or hide the voice control.
+
 ## 0.9.4
 
 - Add an NSPanel-sized responsive light-card layout.
