@@ -10,3 +10,10 @@ lovelace:
       icon: mdi:circle-double
       show_in_sidebar: true
       require_admin: false
+    jarvis-component-catalog:
+      mode: yaml
+      filename: jarvis-component-catalog.yaml
+      title: Jarvis UI Catalog
+      icon: mdi:view-dashboard-edit-outline
+      show_in_sidebar: false
+      require_admin: false

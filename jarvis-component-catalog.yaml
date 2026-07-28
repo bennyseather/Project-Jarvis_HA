@@ -1,0 +1,61 @@
+title: Jarvis Component Catalog
+views:
+  - title: Components
+    path: components
+    icon: jarvis:core
+    type: sections
+    theme: Jarvis Command Center
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Jarvis controls
+            icon: jarvis:core
+          - type: custom:jarvis-voice-card
+            title: Ask Jarvis
+            description: Voice interface ready
+            pipeline_id: preferred
+            start_listening: true
+          - type: custom:jarvis-button-card
+            label: Command Button
+            description: Tap, hold and double-tap actions
+            icon: jarvis:button
+            tap_action:
+              action: none
+          - type: custom:jarvis-entity-card
+            entity: sun.sun
+            name: Daylight telemetry
+          - type: custom:jarvis-light-card
+            entity: light.blocks
+            name: Blocks
+          - type: custom:jarvis-switch-card
+            entity: switch.example_switch
+            name: Switch-style example
+          - type: custom:jarvis-slider-card
+            entity: light.blocks
+            name: Variable control
+            min: 0
+            max: 100
+          - type: custom:jarvis-climate-card
+            entity: climate.mill_heater_upstairs_office
+          - type: custom:jarvis-cover-card
+            entity: cover.example_cover
+          - type: custom:jarvis-media-card
+            entity: media_player.loftstue_group
+          - type: custom:jarvis-camera-card
+            entity: camera.porch_camera
+          - type: custom:jarvis-sensor-card
+            entity: sun.sun
+          - type: custom:jarvis-status-card
+            name: Accepted test entities
+            entities:
+              - light.blocks
+              - camera.porch_camera
+              - media_player.loftstue_group
+      - type: grid
+        cards:
+          - type: heading
+            heading: Icon system
+            icon: jarvis:core
+          - type: custom:jarvis-icon-catalog-card
+          - type: custom:jarvis-coverage-card
