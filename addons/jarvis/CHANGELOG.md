@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0
+
+- Add durable, inspectable reflection records derived only from approved memories.
+- Link related people, rooms, routines, preferences, and projects using bounded deterministic context.
+- Detect conflicting repeated context and request an explicit correction instead of silently replacing it.
+- Track low-confidence memories and relevant follow-ups without unsolicited notifications.
+- Learn explicit response-style feedback immediately and keep it subordinate to privacy and safety.
+- Consolidate exact duplicate memories without retaining deleted history.
+- Add natural controls for learning opt-out, uncertainty, connections, provenance, and connected hard deletion.
+- Migrate the durable SQLite schema transactionally while preserving existing memory.
+
 ## 0.7.1
 
 - Match Companion microphone requests through either the direct device identity or an Assist satellite's registered device.

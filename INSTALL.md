@@ -21,3 +21,7 @@
 
 Do not expose port 8099 to the internet. The add-on is intended to be reached
 only through the internal Home Assistant network.
+
+After upgrading to version 0.8.0, existing memory is migrated automatically.
+No reset or reinstallation is required. Test reflective learning through the
+same Project Jarvis Assist conversation agent.

@@ -19,3 +19,9 @@ To enable M20 voice output, open **Settings -> Devices & services**, select
 output, select the microphone device, media player or speaker group, and TTS
 provider. Requests from other devices and typed Assist are not routed to the
 external speaker.
+
+M21 reflective learning operates only on approved durable memories. Useful
+commands include `what have you learned about me`, `what are you uncertain
+about`, `show memory connections`, `do not learn from this conversation`, and
+`forget everything connected to <subject>`. Reflection never changes Home
+Assistant permissions, automations, configuration, or Jarvis code.
