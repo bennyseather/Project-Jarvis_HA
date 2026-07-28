@@ -75,7 +75,7 @@ class M19ConversationMemoryTests(unittest.TestCase):
         conversations = SQLiteConversationStore(self.path, clock=self.clock)
         conversations.close()
         connection = sqlite3.connect(self.path)
-        self.assertEqual(connection.execute("SELECT version FROM schema_version").fetchone()[0], 2)
+        self.assertEqual(connection.execute("SELECT version FROM schema_version").fetchone()[0], 3)
         self.assertIsNotNone(connection.execute(
             "SELECT name FROM sqlite_master WHERE name='memory_records'"
         ).fetchone())

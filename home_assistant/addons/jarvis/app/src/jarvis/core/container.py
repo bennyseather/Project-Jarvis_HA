@@ -38,6 +38,9 @@ class ServiceContainer:
         self.conversation_store = None
         self.repeated_context_learner = None
         self.natural_memory_controller = None
+        self.reflection_store = None
+        self.reflective_learning_manager = None
+        self.reflection_context_limit = 5
         self.read_only_assistant = None
         self.runtime_context_assembler = None
         self.home_assistant_action_gateway = None

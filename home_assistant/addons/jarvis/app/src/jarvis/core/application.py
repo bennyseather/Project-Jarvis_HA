@@ -56,6 +56,8 @@ from jarvis.homeassistant.home_references import build_home_references
 from jarvis.memory.repeated_context import RepeatedContextExtractor, RepeatedContextLearner
 from jarvis.management.natural_memory import NaturalMemoryController
 from jarvis.persona import JarvisPersona
+from jarvis.reflection.manager import ReflectiveLearningManager
+from jarvis.storage.reflection_store import SQLiteReflectionStore
 
 
 class JarvisApplication:
@@ -141,6 +143,7 @@ class JarvisApplication:
                 self.container.memory_store.close()
                 self.container.knowledge_store.close()
                 self.container.conversation_store.close()
+                self.container.reflection_store.close()
                 self.container.confirmed_action_audit_store.close()
         else:
             self.console.print("[red]Jarvis is not running.[/red]")
@@ -171,6 +174,18 @@ class JarvisApplication:
             raise ValueError("storage.database_path must be a non-empty string")
         database_file = self.container.config_loader.project_root / database_path
         conversation_config = self.general.get("conversation", {})
+        reflection_config = self.general.get("reflection", {})
+        if not isinstance(reflection_config, dict):
+            raise ValueError("reflection must be a mapping")
+        reflection_context_limit = reflection_config.get("context_limit", 5)
+        if (
+            not isinstance(reflection_context_limit, int)
+            or isinstance(reflection_context_limit, bool)
+            or not 0 <= reflection_context_limit <= 10
+        ):
+            raise ValueError(
+                "reflection.context_limit must be an integer between 0 and 10"
+            )
         persona_config = self.general.get("persona", {})
         if not isinstance(persona_config, dict):
             raise ValueError("persona must be a mapping")
@@ -208,6 +223,7 @@ class JarvisApplication:
         )
 
         self.container.context_builder = ContextBuilder()
+        clock = lambda: datetime.now(timezone.utc)
         self.container.memory_store = SQLiteMemoryStore(database_file)
         self.container.knowledge_store = SQLiteKnowledgeStore(database_file)
         self.container.conversation_store = SQLiteConversationStore(
@@ -216,6 +232,13 @@ class JarvisApplication:
             retention_days=retention_days,
             maximum_messages=maximum_messages,
         )
+        self.container.reflection_store = SQLiteReflectionStore(database_file)
+        self.container.reflective_learning_manager = ReflectiveLearningManager(
+            self.container.memory_store,
+            self.container.reflection_store,
+            clock,
+        )
+        self.container.reflection_context_limit = reflection_context_limit
         self.container.conversation_context_messages = context_messages
         self.container.confirmed_action_audit_store = SQLiteConfirmedActionAuditStore(database_file)
         self.container.runtime_context_assembler = ContextAssembler((
@@ -228,7 +251,6 @@ class JarvisApplication:
                 DeterministicKnowledgeRanker(),
             )),
         ))
-        clock = lambda: datetime.now(timezone.utc)
         self.container.memory_writer = PolicyControlledMemoryWriter(
             self.container.memory_store, ExplicitMemoryPolicy(), MemoryRecordFactory(timestamp_factory=clock), clock
         )
@@ -247,13 +269,16 @@ class JarvisApplication:
             self.container.memory_store,
             self.container.memory_writer,
             RepeatedContextExtractor(self.container.openai),
+            self.container.reflective_learning_manager,
         )
         self.container.natural_memory_controller = NaturalMemoryController(
             self.container.memory_store,
             self.container.memory_writer,
             self.container.conversation_store,
             self.container.repeated_context_learner,
+            self.container.reflective_learning_manager,
         )
+        self.container.reflective_learning_manager.refresh()
 
         self.container.assistant = Assistant(
             openai=self.container.openai,
@@ -437,6 +462,7 @@ class JarvisApplication:
             conversation_store.add_message(identifier, "assistant", self._user_message(promotion_result))
             return promotion_result
         request_context = RequestContext(Request(text))
+        self.container.reflective_learning_manager.refresh()
         package = self.container.runtime_context_assembler.assemble(request_context)
         history = conversation_store.history(
             identifier,
@@ -448,6 +474,9 @@ class JarvisApplication:
             "conversation": tuple(message.to_openai() for message in history[:-1]),
             "conversation_id": identifier,
             "interaction": {"voice": voice_mode},
+            "reflection": self.container.reflective_learning_manager.context_for(
+                text, self.container.reflection_context_limit
+            ),
             "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
         context["home_assistant"]["references"] = self.container.home_reference_context

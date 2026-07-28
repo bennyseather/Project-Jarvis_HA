@@ -40,7 +40,7 @@ class SQLiteConversationStore:
         self.prune()
 
     def _migrate_schema(self) -> None:
-        """Apply the M19 schema as one transactional, versioned migration."""
+        """Apply conversation and reflective-learning schema migrations."""
         with self._connection:
             self._connection.execute(
                 "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"
@@ -50,7 +50,7 @@ class SQLiteConversationStore:
             version = int(self._connection.execute(
                 "SELECT version FROM schema_version LIMIT 1"
             ).fetchone()[0])
-            if version > 2:
+            if version > 3:
                 raise RuntimeError(f"Unsupported database schema version: {version}")
             self._connection.execute(
                 """CREATE TABLE IF NOT EXISTS conversations (
@@ -91,8 +91,14 @@ class SQLiteConversationStore:
                     promoted_at TEXT NOT NULL
                 )"""
             )
-            if version < 2:
-                self._connection.execute("UPDATE schema_version SET version=2")
+            self._connection.execute(
+                """CREATE TABLE IF NOT EXISTS conversation_learning_preferences (
+                    conversation_id TEXT PRIMARY KEY,
+                    disabled INTEGER NOT NULL DEFAULT 0
+                )"""
+            )
+            if version < 3:
+                self._connection.execute("UPDATE schema_version SET version=3")
 
     @staticmethod
     def normalize_conversation_id(value: str | None) -> str:
@@ -211,6 +217,47 @@ class SQLiteConversationStore:
                 "INSERT OR REPLACE INTO repeated_context_promotions VALUES (?, ?, ?)",
                 (normalized_key, memory_id, self._as_utc(self._clock()).isoformat()),
             )
+
+    def promoted_memory_id(self, key: str) -> str | None:
+        normalized_key = " ".join(key.casefold().split())[:240]
+        row = self._connection.execute(
+            "SELECT memory_id FROM repeated_context_promotions WHERE candidate_key=?",
+            (normalized_key,),
+        ).fetchone()
+        return None if row is None else row[0]
+
+    def candidate_sources(self, key: str) -> tuple[str, ...]:
+        normalized_key = " ".join(key.casefold().split())[:240]
+        rows = self._connection.execute(
+            """SELECT DISTINCT m.conversation_id
+               FROM repeated_context_occurrences AS o
+               JOIN conversation_messages AS m ON m.message_id=o.message_id
+               WHERE o.candidate_key=? ORDER BY m.conversation_id""",
+            (normalized_key,),
+        ).fetchall()
+        return tuple(str(row[0]) for row in rows)
+
+    def set_learning_disabled(
+        self, conversation_id: str | None, disabled: bool
+    ) -> None:
+        identifier = self.normalize_conversation_id(conversation_id)
+        with self._connection:
+            self._connection.execute(
+                """INSERT INTO conversation_learning_preferences
+                   (conversation_id, disabled) VALUES (?, ?)
+                   ON CONFLICT(conversation_id)
+                   DO UPDATE SET disabled=excluded.disabled""",
+                (identifier, int(disabled)),
+            )
+
+    def is_learning_disabled(self, conversation_id: str | None) -> bool:
+        identifier = self.normalize_conversation_id(conversation_id)
+        row = self._connection.execute(
+            "SELECT disabled FROM conversation_learning_preferences "
+            "WHERE conversation_id=?",
+            (identifier,),
+        ).fetchone()
+        return bool(row and row[0])
 
     def prune(self) -> None:
         cutoff = (self._as_utc(self._clock()) - timedelta(days=self._retention_days)).isoformat()

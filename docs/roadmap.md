@@ -30,7 +30,7 @@
 - M20.5 Original voice-character guidance complete
 - M20.6 Automated acceptance, packaging, and release complete
 
-### M21 - Reflective Learning and Companion Continuity
+### M21 - Reflective Learning and Companion Continuity (complete)
 
 - Develop ongoing reflection across conversations using bounded, inspectable
   memories.
@@ -44,6 +44,12 @@
   and safety policy.
 - Present continuity and self-reflection honestly without claiming
   consciousness or subjective awareness.
+- M21.1 Reflection contracts and durable storage complete
+- M21.2 Related-context linking and bounded retrieval complete
+- M21.3 Uncertainty, contradiction, and follow-up tracking complete
+- M21.4 Explicit interaction-style learning complete
+- M21.5 Consolidation and natural user controls complete
+- M21.6 Migration, runtime integration, acceptance tests, and release complete
 
 ## EPIC 19 - Persistent Conversation Memory and Character
 
