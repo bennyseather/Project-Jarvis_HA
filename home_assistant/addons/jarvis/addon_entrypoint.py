@@ -4,6 +4,14 @@ from pathlib import Path
 import yaml
 
 options = json.loads(Path("/data/options.json").read_text())
+general_path = Path("/app/config/general.yaml")
+general = yaml.safe_load(general_path.read_text()) or {}
+general.setdefault("proactive", {})["voice_enabled"] = bool(
+    options.get("proactive_voice_enabled", False)
+)
+general_path.write_text(
+    yaml.safe_dump(general, sort_keys=False, allow_unicode=True)
+)
 policy_path = Path("/config/home_access_policy.yaml")
 if not policy_path.exists():
     policy_path.write_text(Path("/app/config/home_access_policy.defaults.yaml").read_text())

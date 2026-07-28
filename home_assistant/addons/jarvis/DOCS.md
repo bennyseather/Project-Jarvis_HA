@@ -32,8 +32,9 @@ include `what needs my attention`, `why are you suggesting that`, `not now`,
 `never suggest this again`, and `clear pending suggestions`. Suggestions never
 execute a device action without an explicit user response. Persistent
 notifications respect quiet hours and cooldowns. Proactive voice is disabled
-by default and must be enabled both in `proactive.voice_enabled` and the
-Project Jarvis Conversation integration options.
+by default and must be enabled both with **Proactive voice enabled** in the
+add-on configuration and **Proactive voice output** in the Project Jarvis
+Conversation integration options.
 
 Version 0.10.0 includes the optional Jarvis UI Design System. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow

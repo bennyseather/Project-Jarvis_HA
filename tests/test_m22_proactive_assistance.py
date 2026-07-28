@@ -75,6 +75,17 @@ class M22ProactiveAssistanceTests(unittest.IsolatedAsyncioTestCase):
         self.clock = Clock()
         self.store = SQLiteProactiveStore(self.path)
 
+    def test_home_assistant_os_exposes_explicit_proactive_voice_opt_in(self):
+        addon = Path("home_assistant/addons/jarvis/config.yaml").read_text(
+            encoding="utf-8"
+        )
+        entrypoint = Path(
+            "home_assistant/addons/jarvis/addon_entrypoint.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("proactive_voice_enabled: false", addon)
+        self.assertIn("proactive_voice_enabled: bool", addon)
+        self.assertIn('options.get("proactive_voice_enabled", False)', entrypoint)
+
     def tearDown(self):
         self.store.close()
         self.directory.cleanup()
