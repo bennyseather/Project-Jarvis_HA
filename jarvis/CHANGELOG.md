@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1
+
+- Render the Jarvis Camera card as an automatic Home Assistant live camera
+  stream without requiring the user to open More Info.
+- Preserve a local five-second snapshot fallback if the live card helper is
+  unavailable.
+- Add the same squared, chamfered HUD frame and segmented corners to the
+  Jarvis Voice control node used by the rest of the card system.
+
 ## 0.9.0
 
 - Add the complete D2 Jarvis UI Design System.
