@@ -106,6 +106,17 @@ class JarvisUIDesignSystemTests(unittest.TestCase):
         self.assertIn("Object.values(this._hass.states || {})", self.script)
         self.assertIn("slice(0, 12)", self.script)
 
+    def test_camera_starts_live_and_voice_uses_shared_hud_framing(self):
+        self.assertIn("window.loadCardHelpers()", self.script)
+        self.assertIn('camera_view: "live"', self.script)
+        self.assertIn('type: "picture-entity"', self.script)
+        self.assertIn("camera_proxy/${this._config.entity}", self.script)
+        self.assertIn("setInterval(refresh, 5000)", self.script)
+        self.assertIn('class="voice-node"', self.script)
+        self.assertIn("clip-path:polygon", self.script)
+        self.assertIn('class="node-corner tl"', self.script)
+        self.assertIn('class="node-corner br"', self.script)
+
     def test_hacs_distribution_matches_source(self):
         manifest = json.loads((UI_ROOT / "hacs.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "Project Jarvis UI")

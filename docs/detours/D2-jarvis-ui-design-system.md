@@ -2,6 +2,13 @@
 
 Status: complete
 
+Acceptance patch 0.9.1:
+
+- Camera cards start Home Assistant's native live picture-entity stream when
+  displayed, with a local refreshed-snapshot fallback.
+- Voice cards use the same squared, chamfered and segmented control frame as
+  the rest of the Jarvis card system.
+
 ## Outcome
 
 Project Jarvis includes a reusable, visually editable Home Assistant interface
