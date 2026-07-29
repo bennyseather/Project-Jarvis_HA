@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.2
+
+- Exclude area-level aggregate light helpers even when unavailable state data
+  does not expose member entity IDs.
+- Report unavailable action targets using Home Assistant friendly names and
+  retain them for immediate follow-up questions.
+- Support deterministic `turn back on` and `turn back off` follow-ups.
+- Record successful aggregate actions directly in the bounded recent-change
+  timeline and authorize it from the approved read set.
+
 ## 0.11.1
 
 - Exclude aggregate light-group helpers from area-wide device actions.
