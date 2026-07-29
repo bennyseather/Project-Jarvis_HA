@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 from jarvis.models.home_assistant_gateway import HomeAssistantRisk
 class ConfirmedHomeAssistantActionGateway:
- def __init__(self,capability_gateway,risk_policy,pending,client,audit_store=None):self._cap,self._risk,self._pending,self._client,self._audit=capability_gateway,risk_policy,pending,client,audit_store
+ def __init__(self,capability_gateway,risk_policy,pending,client,audit_store=None):
+  self._cap,self._risk,self._pending,self._client,self._audit=capability_gateway,risk_policy,pending,client,audit_store
+  self._background=set()
  def request(self,p):
   if len(p.entity_ids)>20:return {"status":"forbidden","reason_code":"too_many_entities"}
   valid,reason=self._cap.validate(p)
@@ -19,12 +21,32 @@ class ConfirmedHomeAssistantActionGateway:
   if decision.risk is not HomeAssistantRisk.IMMEDIATE:return {"status":"forbidden","reason_code":"immediate_action_not_authorized"}
   succeeded,failed=[],[]
   target=self._entity_target(p)
-  try:
-   await self._client.call_service(p.domain,p.service,{"entity_id":target,**p.service_data})
-  except Exception:
-   succeeded,failed=await self._reconcile(p)
+  if hasattr(self._client,"dispatch_service"):
+   task=await self._client.dispatch_service(
+    p.domain,p.service,{"entity_id":target,**p.service_data}
+   )
+   done,_=await asyncio.wait({task},timeout=1.0)
+   if not done:
+    completion=asyncio.create_task(self._complete_deferred(task,p))
+    self._background.add(completion)
+    completion.add_done_callback(self._background.discard)
+    return {
+     "status":"success",
+     "message":f"Action sent to {self._device_count(len(p.entity_ids))}.",
+     "succeeded":tuple(p.entity_ids),
+     "failed":(),
+     "completion_pending":True,
+    }
+   try:task.result()
+   except Exception:succeeded,failed=await self._reconcile(p)
+   else:succeeded=list(p.entity_ids)
   else:
-   succeeded=list(p.entity_ids)
+   try:
+    await self._client.call_service(p.domain,p.service,{"entity_id":target,**p.service_data})
+   except Exception:
+    succeeded,failed=await self._reconcile(p)
+   else:
+    succeeded=list(p.entity_ids)
   for entity_id in succeeded:self._record_one(p,entity_id,"success")
   for entity_id in failed:self._record_one(p,entity_id,"unavailable","home_assistant_service_failed")
   if not succeeded:return {"status":"unavailable","message":f"Action failed for {self._device_count(len(failed))}.","succeeded":(),"failed":tuple(failed)}
@@ -46,6 +68,12 @@ class ConfirmedHomeAssistantActionGateway:
   if self._audit is not None:self._audit.record(p.domain,p.service,p.entity_ids,outcome,reason_code)
  def _record_one(self,p,entity_id,outcome,reason_code=None):
   if self._audit is not None:self._audit.record(p.domain,p.service,(entity_id,),outcome,reason_code)
+ async def _complete_deferred(self,task,p):
+  try:await task
+  except Exception:succeeded,failed=await self._reconcile(p)
+  else:succeeded,failed=list(p.entity_ids),[]
+  for entity_id in succeeded:self._record_one(p,entity_id,"success")
+  for entity_id in failed:self._record_one(p,entity_id,"unavailable","home_assistant_service_failed")
  async def _reconcile(self,p):
   expected=self._expected_state(p.service)
   if expected is None or not hasattr(self._client,"get_states"):

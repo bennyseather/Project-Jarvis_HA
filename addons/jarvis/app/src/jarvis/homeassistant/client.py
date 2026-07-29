@@ -2,6 +2,7 @@
 Home Assistant client for Project Jarvis.
 """
 
+import asyncio
 import json
 
 import websockets
@@ -19,6 +20,7 @@ class HomeAssistantClient:
 
         self.websocket = None
         self.next_message_id = 1
+        self._background_tasks = set()
 
     async def send_json(self, data: dict):
         """
@@ -205,6 +207,44 @@ class HomeAssistantClient:
 
         return True
 
+    async def dispatch_service(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict,
+    ):
+        """Send a service call on an isolated socket and return its result task."""
+
+        dispatcher = HomeAssistantClient(self.url, self.token, self.logger)
+        await dispatcher._connect_socket()
+        request = {
+            "id": dispatcher.get_next_message_id(),
+            "type": "call_service",
+            "domain": domain,
+            "service": service,
+            "service_data": service_data,
+        }
+        await dispatcher.send_json(request)
+        task = asyncio.create_task(
+            dispatcher._receive_dispatched_service_result()
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
+
+    async def _receive_dispatched_service_result(self):
+        try:
+            response = await self.receive_json()
+            if response.get("type") != "result" or not response.get(
+                "success", False
+            ):
+                raise RuntimeError(
+                    f"Home Assistant reported a failed service call: {response}"
+                )
+            return True
+        finally:
+            await self.disconnect()
+
     async def authenticate(self):
         """
         Reserved for future authentication refactoring.
@@ -217,3 +257,8 @@ class HomeAssistantClient:
         """
         if self.websocket:
             await self.websocket.close()
+        tasks = tuple(self._background_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
