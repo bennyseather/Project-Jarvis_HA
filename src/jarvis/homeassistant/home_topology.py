@@ -18,6 +18,7 @@ class HomeTopologyAssembler:
         devices,
         permitted_read_entities,
         permitted_action_entities,
+        known_groups=None,
         *,
         maximum_entities: int = 500,
     ) -> None:
@@ -30,6 +31,13 @@ class HomeTopologyAssembler:
         self.maximum_entities = maximum_entities
         self._reads = frozenset(permitted_read_entities)
         self._actions = frozenset(permitted_action_entities)
+        self._known_groups = {
+            str(name).casefold(): tuple(
+                str(member) for member in members if member in self._reads
+            )
+            for name, members in (known_groups or {}).items()
+            if isinstance(members, (list, tuple))
+        }
         self._area_names = {
             str(item.get("area_id")): str(item.get("name"))
             for item in areas
@@ -66,7 +74,7 @@ class HomeTopologyAssembler:
         entities: list[HomeTopologyEntity] = []
         areas: dict[str, list[str]] = {}
         floors: dict[str, list[str]] = {}
-        groups: dict[str, tuple[str, ...]] = {}
+        groups: dict[str, tuple[str, ...]] = dict(self._known_groups)
         permitted_states = sorted(
             (
                 item for item in states

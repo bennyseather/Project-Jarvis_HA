@@ -116,11 +116,25 @@ class WholeHomeSituationalIntelligence:
         self.policy = policy
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._scopes: dict[str, _ConversationScope] = {}
+        self._failed_actions: dict[str, tuple[str, ...]] = {}
 
     async def handle(
         self, text: str, conversation_id: str, *, voice_mode: bool = False
     ):
         normalized = self._norm(text)
+        if self._asks_failed_device(normalized):
+            failed = self._failed_actions.get(conversation_id, ())
+            if failed:
+                return {
+                    "status": "success",
+                    "message": "Unavailable: " + ", ".join(failed) + ".",
+                    "entity_ids": (),
+                }
+            return {
+                "status": "success",
+                "message": "No device failed in the most recent action.",
+                "entity_ids": (),
+            }
         if not self.policy.enabled or not self._looks_relevant(
             normalized, conversation_id
         ):
@@ -145,7 +159,12 @@ class WholeHomeSituationalIntelligence:
             entities[entity_id] for entity_id in base_ids if entity_id in entities
         ]
         category = self._category(normalized)
-        selected = self._filter_category(selected, category)
+        group_entity_ids = frozenset(
+            name for name in snapshot.groups if "." in name
+        )
+        selected = self._filter_category(
+            selected, category, group_entity_ids
+        )
         category_ids = tuple(item.entity_id for item in selected)
         noun = self._noun(normalized, len(selected))
         previous = self._scopes.get(conversation_id)
@@ -177,7 +196,9 @@ class WholeHomeSituationalIntelligence:
             self._remember(
                 conversation_id, label, base_ids, matching_ids, noun
             )
-            return await self._perform_action(normalized, label, matching)
+            return await self._perform_action(
+                normalized, label, matching, conversation_id
+            )
         self._remember(
             conversation_id,
             label,
@@ -247,7 +268,7 @@ class WholeHomeSituationalIntelligence:
             return reference, ids
         previous = self._scopes.get(conversation_id)
         if previous is not None and set(text.split()) & {
-            "there", "them", "those", "rest", "all", "both",
+            "there", "them", "those", "rest", "all", "both", "back",
         }:
             if "rest" in text:
                 remaining = tuple(
@@ -288,18 +309,24 @@ class WholeHomeSituationalIntelligence:
         return None
 
     @staticmethod
-    def _filter_category(entities, category):
+    def _filter_category(entities, category, group_entity_ids=()):
         if category is None:
             return list(entities)
         kind, values = category
         if kind == "domain":
-            return [
+            candidates = [
                 item for item in entities
                 if item.domain in values
+            ]
+            concrete = [
+                item for item in candidates
+                if item.entity_id.casefold() not in group_entity_ids
                 and not isinstance(
                     item.attributes.get("entity_id"), (list, tuple)
                 )
+                and not WholeHomeSituationalIntelligence._area_aggregate(item)
             ]
+            return concrete or candidates
         if kind == "device_class":
             return [
                 item for item in entities
@@ -315,6 +342,14 @@ class WholeHomeSituationalIntelligence:
                 ).casefold()
             )
         ]
+
+    @staticmethod
+    def _area_aggregate(item):
+        if not item.area_name:
+            return False
+        area = WholeHomeSituationalIntelligence._norm(item.area_name)
+        name = WholeHomeSituationalIntelligence._norm(item.friendly_name)
+        return name in {f"{area} lights", f"lights {area}"}
 
     def _filter_state(self, entities, text, desired_state):
         if "low" in text and set(text.split()) & {"battery", "batteries"}:
@@ -507,9 +542,19 @@ class WholeHomeSituationalIntelligence:
         events = self._timeline.retrieve(TimelineQuery(
             maximum_results=50
         ))
-        relevant = [
+        candidates = [
             event for event in events if event.entity_id in target_ids
-        ][: self.policy.maximum_timeline_results]
+        ]
+        relevant = []
+        seen = set()
+        for event in candidates:
+            identity = (event.entity_id, event.state)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            relevant.append(event)
+            if len(relevant) >= self.policy.maximum_timeline_results:
+                break
         if not relevant:
             return {
                 "status": "success",
@@ -535,7 +580,7 @@ class WholeHomeSituationalIntelligence:
             "entity_ids": tuple(event.entity_id for event in relevant),
         }
 
-    async def _perform_action(self, text, label, entities):
+    async def _perform_action(self, text, label, entities, conversation_id):
         action = self._action_definition(text, entities)
         if action is None:
             return {
@@ -569,7 +614,28 @@ class WholeHomeSituationalIntelligence:
         )
         result = self._gateway.request(proposal)
         if result.get("status") == "immediate_action":
-            return await self._gateway.execute_immediate(proposal)
+            outcome = await self._gateway.execute_immediate(proposal)
+            names = {item.entity_id: item.friendly_name for item in entities}
+            failed_names = tuple(
+                names.get(entity_id, entity_id)
+                for entity_id in outcome.get("failed", ())
+            )
+            self._failed_actions[conversation_id] = failed_names
+            if failed_names:
+                outcome["message"] = (
+                    outcome.get("message", "Action partially completed.").rstrip()
+                    + " Unavailable: "
+                    + ", ".join(failed_names)
+                    + "."
+                )
+            resulting_state = self._resulting_state(service)
+            if outcome.get("status") == "success" and resulting_state is not None:
+                now = self._clock()
+                for entity_id in outcome.get("succeeded", targets):
+                    self._timeline.append(
+                        "state_changed", entity_id, now, resulting_state
+                    )
+            return outcome
         if result.get("status") == "requires_confirmation":
             result["action_payload"] = {
                 "domain": domain,
@@ -583,10 +649,10 @@ class WholeHomeSituationalIntelligence:
     @staticmethod
     def _action_definition(text, entities):
         domains = {item.domain for item in entities}
-        if text.startswith(("turn off ", "switch off ")):
+        if text.startswith(("turn off ", "switch off ", "turn back off")):
             candidates = domains & {"light", "switch", "fan", "media_player"}
             return (next(iter(candidates)), "turn_off") if len(candidates) == 1 else None
-        if text.startswith(("turn on ", "switch on ")):
+        if text.startswith(("turn on ", "switch on ", "turn back on")):
             candidates = domains & {"light", "switch", "fan", "media_player"}
             return (next(iter(candidates)), "turn_on") if len(candidates) == 1 else None
         if text.startswith(("open ", "raise ")):
@@ -606,7 +672,27 @@ class WholeHomeSituationalIntelligence:
         return text.startswith((
             "turn on ", "turn off ", "switch on ", "switch off ", "open ",
             "close ", "shut ", "raise ", "lower ", "lock ", "unlock ", "press ",
+            "turn back on", "turn back off",
         ))
+
+    @staticmethod
+    def _asks_failed_device(text):
+        return (
+            "which device was unavailable" in text
+            or "which devices were unavailable" in text
+            or "what device was unavailable" in text
+        )
+
+    @staticmethod
+    def _resulting_state(service):
+        return {
+            "turn_on": "on",
+            "turn_off": "off",
+            "open_cover": "open",
+            "close_cover": "closed",
+            "lock": "locked",
+            "unlock": "unlocked",
+        }.get(service)
 
     @staticmethod
     def _is_temporal(text):

@@ -83,8 +83,9 @@ class Client:
 
 
 class Gateway:
-    def __init__(self, result="immediate_action"):
+    def __init__(self, result="immediate_action", failed=()):
         self.result = result
+        self.failed = tuple(failed)
         self.proposals = []
         self.executed = []
 
@@ -100,9 +101,15 @@ class Gateway:
 
     async def execute_immediate(self, proposal):
         self.executed.append(proposal)
+        succeeded = tuple(
+            entity_id for entity_id in proposal.entity_ids
+            if entity_id not in self.failed
+        )
         return {
             "status": "success",
-            "message": f"Action completed for {len(proposal.entity_ids)} devices.",
+            "message": f"Action completed for {len(succeeded)} devices.",
+            "succeeded": succeeded,
+            "failed": self.failed,
         }
 
 
@@ -268,7 +275,6 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
                 "state": "unavailable",
                 "attributes": {
                     "friendly_name": "Upstairs Office Lights",
-                    "entity_id": ["light.blocks", "light.office"],
                 },
             },
         ]
@@ -299,6 +305,41 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result["status"], "success")
         self.assertEqual(gateway.executed[0].entity_ids, ("light.blocks",))
+
+    async def test_action_records_timeline_and_back_followup_scope(self):
+        first = await self.engine.handle(
+            "Turn off all lights that are still on in the upstairs office",
+            "one",
+        )
+        self.assertEqual(first["status"], "success")
+        second = await self.engine.handle("Turn back on", "one")
+        self.assertEqual(second["status"], "success")
+        self.assertEqual(self.gateway.executed[-1].entity_ids, ("light.blocks",))
+        self.assertEqual(self.gateway.executed[-1].service, "turn_on")
+        recent = await self.engine.handle(
+            "What changed in the upstairs office recently?", "one"
+        )
+        self.assertIn("Blocks changed to off", recent["message"])
+        self.assertIn("Blocks changed to on", recent["message"])
+
+    async def test_failed_action_names_are_reported_and_remembered(self):
+        gateway = Gateway(failed=("light.blocks",))
+        engine = WholeHomeSituationalIntelligence(
+            Client(),
+            self.assembler,
+            self.timeline,
+            gateway,
+            SituationalIntelligencePolicy(maximum_entities=50),
+        )
+        result = await engine.handle(
+            "Turn off all lights that are still on in the upstairs office",
+            "one",
+        )
+        self.assertIn("Unavailable: Blocks.", result["message"])
+        followup = await engine.handle(
+            "Which device was unavailable?", "one"
+        )
+        self.assertEqual(followup["message"], "Unavailable: Blocks.")
 
     async def test_confirmation_keeps_exact_action_payload(self):
         gateway = Gateway("requires_confirmation")
