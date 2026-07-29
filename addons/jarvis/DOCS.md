@@ -36,6 +36,13 @@ by default and must be enabled both with **Proactive voice enabled** in the
 add-on configuration and **Proactive voice output** in the Project Jarvis
 Conversation integration options.
 
+M23 adds whole-home situational questions across Home Assistant floors, areas,
+groups, device types, and states. Examples include `are any windows upstairs
+open`, `which devices in the upstairs office are unavailable`, `what changed
+there recently`, and `turn off all lights that are still on upstairs`.
+Selections contain only permitted entities, large reads are summarized, and
+explicit actions continue through the existing action gateway.
+
 Version 0.10.0 includes the optional Jarvis UI Design System. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
 its `README.md`. Installation remains explicit: the add-on is not granted

@@ -64,6 +64,11 @@ from jarvis.proactive.detector import ProactiveOpportunityDetector
 from jarvis.proactive.manager import ProactiveAssistanceManager
 from jarvis.proactive.policy import ProactiveAssistancePolicy
 from jarvis.proactive.store import SQLiteProactiveStore
+from jarvis.homeassistant.home_topology import HomeTopologyAssembler
+from jarvis.homeassistant.situational_intelligence import (
+    SituationalIntelligencePolicy,
+    WholeHomeSituationalIntelligence,
+)
 
 
 class JarvisApplication:
@@ -275,6 +280,11 @@ class JarvisApplication:
             self.container.proactive_policy,
             clock,
         )
+        self.container.situational_policy = (
+            SituationalIntelligencePolicy.from_config(
+                self.general.get("situational_intelligence", {})
+            )
+        )
         self.container.conversation_context_messages = context_messages
         self.container.confirmed_action_audit_store = SQLiteConfirmedActionAuditStore(database_file)
         self.container.runtime_context_assembler = ContextAssembler((
@@ -367,6 +377,12 @@ class JarvisApplication:
             devices = await self.container.home_assistant.get_registry("config/device_registry/list")
         except Exception:
             areas, registry, devices = [], [], []
+        try:
+            floors = await self.container.home_assistant.get_registry(
+                "config/floor_registry/list"
+            )
+        except Exception:
+            floors = []
         action_config = self.general.get("home_assistant", {}).get("action_policy", {})
         ha_config = self.general["home_assistant"]
         allowed_reads = resolve_entities(
@@ -386,8 +402,27 @@ class JarvisApplication:
         names, area_members, groups = build_home_references(
             entities, areas, registry, devices, permitted
         )
+        self.container.home_topology_assembler = HomeTopologyAssembler(
+            areas,
+            floors,
+            registry,
+            devices,
+            allowed_reads,
+            allowed_actions,
+            maximum_entities=(
+                self.container.situational_policy.maximum_entities
+            ),
+        )
+        floor_members = self.container.home_topology_assembler.floor_references
         self.container.read_only_assistant._allowed_entity_ids = allowed_reads
-        self.container.read_only_assistant._resolver = EntityReferenceResolver(permitted, ha_config.get("entity_aliases", {}), names, area_members, groups)
+        self.container.read_only_assistant._resolver = EntityReferenceResolver(
+            permitted,
+            ha_config.get("entity_aliases", {}),
+            names,
+            area_members,
+            groups,
+            floor_members,
+        )
         self.container.home_assistant_capability_context = HomeAssistantCapabilityContext(
             catalog,
             allowed_reads,
@@ -399,6 +434,7 @@ class JarvisApplication:
             "friendly_names": tuple(sorted(names)[:500]),
             "areas": tuple(sorted(area_members)[:100]),
             "groups": tuple(sorted(groups)[:100]),
+            "floors": tuple(sorted(floor_members)[:50]),
         }
         self.container.home_access_enrollment = HomeAccessEnrollment(
             os.environ.get("JARVIS_HOME_POLICY_PATH", str(self.container.config_loader.config_folder / "general.yaml")), catalog
@@ -421,7 +457,25 @@ class JarvisApplication:
         self.container.proactive_manager.set_action_gateway(
             self.container.home_assistant_action_gateway
         )
+        self.container.situational_intelligence = (
+            WholeHomeSituationalIntelligence(
+                self.container.home_assistant,
+                self.container.home_topology_assembler,
+                self.container.timeline_store,
+                self.container.home_assistant_action_gateway,
+                self.container.situational_policy,
+            )
+        )
         self.container.proactive_allowed_entities = allowed_reads
+        timeline_config = self.general.get("event_timeline", {})
+        if (
+            self.container.timeline_policy.enabled
+            and not timeline_config.get("allowed_entities")
+            and ha_config.get("all_entities", False)
+        ):
+            self.container.timeline_policy.authorize_permitted_entities(
+                allowed_reads
+            )
         if self.container.timeline_policy.enabled:
             ha_config = self.general["home_assistant"]
             self.container.timeline_client = HomeAssistantClient(
@@ -511,6 +565,18 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(proactive_result)
             )
             return proactive_result
+        situational_result = await self.container.situational_intelligence.handle(
+            text,
+            identifier,
+            voice_mode=voice_mode,
+        )
+        if situational_result is not None:
+            conversation_store.add_message(
+                identifier,
+                "assistant",
+                self._user_message(situational_result),
+            )
+            return situational_result
         if not hasattr(self.container, "read_only_assistant"):
             return {"status": "not_supported", "message": "Assistant runtime is unavailable."}
         promotion_result = self.container.repeated_context_learner.observe(user_message)
@@ -537,6 +603,9 @@ class JarvisApplication:
             "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
         context["home_assistant"]["references"] = self.container.home_reference_context
+        context["home_assistant"]["situational"] = (
+            self.container.situational_intelligence.context(identifier)
+        )
         result = await self.container.read_only_assistant.handle(text, context)
         message = self._user_message(result)
         if message:

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.0
+
+- Complete M23 Whole-Home Situational Intelligence.
+- Add bounded ephemeral floor, area, group, device, entity, and capability
+  topology assembled from Home Assistant.
+- Add deterministic compound state, health, exception, and low-battery
+  questions with friendly-name responses.
+- Add conversation-isolated spatial continuity for `there`, `them`, `all`,
+  and `the rest`.
+- Add recent-change answers through the permitted M8 in-memory timeline.
+- Route explicit aggregate actions through the existing exact authorization
+  gateway without granting new permissions.
+
 ## 0.10.1
 
 - Expose the proactive voice opt-in in the Home Assistant add-on

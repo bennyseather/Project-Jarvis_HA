@@ -13,14 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.10.1
+## Project Jarvis 0.11.0
 
-Version 0.10.1 adds M22 proactive assistance: bounded low-battery,
-reflection follow-up, and temporary routine suggestions; persistent Home
-Assistant notifications; opt-in voice delivery; explanations, snooze,
-suppression, and explicit action routing. Jarvis never performs an unsolicited
-device action. The 0.10.1 patch exposes the voice opt-in in both the add-on and
-conversation integration configuration screens.
+Version 0.11.0 adds M23 whole-home situational intelligence. Jarvis can answer
+compound questions across permitted floors, areas, groups, device types,
+current states, and recent bounded changes. Large selections receive useful
+summaries, follow-ups retain exact spatial context, and explicit aggregate
+actions continue through the existing authorization gateway.
 
 The `jarvis_ui` folder contains:
 
