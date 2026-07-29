@@ -293,7 +293,13 @@ class WholeHomeSituationalIntelligence:
             return list(entities)
         kind, values = category
         if kind == "domain":
-            return [item for item in entities if item.domain in values]
+            return [
+                item for item in entities
+                if item.domain in values
+                and not isinstance(
+                    item.attributes.get("entity_id"), (list, tuple)
+                )
+            ]
         if kind == "device_class":
             return [
                 item for item in entities
@@ -499,9 +505,11 @@ class WholeHomeSituationalIntelligence:
 
     def _temporal_response(self, text, label, target_ids, entities):
         events = self._timeline.retrieve(TimelineQuery(
-            maximum_results=self.policy.maximum_timeline_results
+            maximum_results=50
         ))
-        relevant = [event for event in events if event.entity_id in target_ids]
+        relevant = [
+            event for event in events if event.entity_id in target_ids
+        ][: self.policy.maximum_timeline_results]
         if not relevant:
             return {
                 "status": "success",
