@@ -25,6 +25,7 @@ class JarvisConversationBridge:
         conversation_id: str | None = None,
         voice_mode: bool = False,
         proactive_voice_route: dict[str, object] | None = None,
+        source_id: str | None = None,
     ) -> dict[str, object]:
         identifier = self._conversation_identifier(conversation_id)
         delivery = getattr(
@@ -69,6 +70,7 @@ class JarvisConversationBridge:
             text,
             conversation_id,
             voice_mode=voice_mode,
+            source_id=source_id,
         )
         if result.get("status") == "requires_confirmation":
             action_token = result.get("token")

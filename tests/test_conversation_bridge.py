@@ -42,8 +42,12 @@ class App:
         self.container = Container()
         self._pending_action_payloads = {}
         self.mode = "action"
+        self.last_source_id = None
 
-    async def handle_request(self, text, conversation_id=None, *, voice_mode=False):
+    async def handle_request(
+        self, text, conversation_id=None, *, voice_mode=False, source_id=None
+    ):
+        self.last_source_id = source_id
         if self.mode == "memory":
             return {
                 "status": "requires_confirmation",
@@ -63,6 +67,16 @@ class App:
 
 
 class ConversationBridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_source_identity_reaches_the_application(self):
+        app = App()
+        bridge = JarvisConversationBridge(app)
+        await bridge.process(
+            "turn on blocks",
+            conversation_id="one",
+            source_id="panel",
+        )
+        self.assertEqual(app.last_source_id, "panel")
+
     async def test_confirmation_stays_in_existing_lifecycle(self):
         bridge = JarvisConversationBridge(App())
         pending = await bridge.process("turn on blocks", conversation_id="one")

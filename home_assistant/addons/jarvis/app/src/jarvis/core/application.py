@@ -527,17 +527,21 @@ class JarvisApplication:
         conversation_id: str | None = None,
         *,
         voice_mode: bool = False,
+        source_id: str | None = None,
     ) -> dict[str, object]:
         """Route one user request through the configured safe assistant slice."""
 
         async with self._request_lock:
-            return await self._handle_request(text, conversation_id, voice_mode)
+            return await self._handle_request(
+                text, conversation_id, voice_mode, source_id
+            )
 
     async def _handle_request(
         self,
         text: str,
         conversation_id: str | None,
         voice_mode: bool,
+        source_id: str | None,
     ) -> dict[str, object]:
         conversation_store = self.container.conversation_store
         identifier = conversation_store.normalize_conversation_id(conversation_id)
@@ -569,6 +573,7 @@ class JarvisApplication:
             text,
             identifier,
             voice_mode=voice_mode,
+            source_id=source_id,
         )
         if situational_result is not None:
             conversation_store.add_message(

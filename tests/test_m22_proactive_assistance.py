@@ -88,7 +88,7 @@ class M22ProactiveAssistanceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("proactive_voice_enabled: false", addon)
         self.assertIn("proactive_voice_enabled: bool", addon)
         self.assertIn('options.get("proactive_voice_enabled", False)', entrypoint)
-        self.assertIn('"version": "0.11.2"', manifest)
+        self.assertIn('"version": "0.11.3"', manifest)
 
     def tearDown(self):
         self.store.close()

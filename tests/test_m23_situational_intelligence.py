@@ -125,7 +125,7 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
             {"light.blocks", "light.office", "switch.heater"},
             maximum_entities=50,
         )
-        self.timeline = InMemoryTimelineStore(50)
+        self.timeline = InMemoryTimelineStore(500)
         self.gateway = Gateway()
         self.engine = WholeHomeSituationalIntelligence(
             Client(),
@@ -242,7 +242,7 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
         now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
         self.timeline.append("state_changed", "light.blocks", now, "off")
         self.timeline.append("state_changed", "light.private", now, "off")
-        for index in range(25):
+        for index in range(60):
             self.timeline.append(
                 "state_changed", "sensor.panel_battery", now, str(index)
             )
@@ -310,14 +310,25 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
         first = await self.engine.handle(
             "Turn off all lights that are still on in the upstairs office",
             "one",
+            source_id="panel",
         )
         self.assertEqual(first["status"], "success")
-        second = await self.engine.handle("Turn back on", "one")
+        second = await self.engine.handle(
+            "Turn back on", "two", source_id="panel"
+        )
         self.assertEqual(second["status"], "success")
         self.assertEqual(self.gateway.executed[-1].entity_ids, ("light.blocks",))
         self.assertEqual(self.gateway.executed[-1].service, "turn_on")
+        third = await self.engine.handle(
+            "Turn them off", "three", source_id="panel"
+        )
+        self.assertEqual(third["status"], "success")
+        self.assertEqual(self.gateway.executed[-1].entity_ids, ("light.blocks",))
+        self.assertEqual(self.gateway.executed[-1].service, "turn_off")
         recent = await self.engine.handle(
-            "What changed in the upstairs office recently?", "one"
+            "What changed in the upstairs office recently?",
+            "four",
+            source_id="panel",
         )
         self.assertIn("Blocks changed to off", recent["message"])
         self.assertIn("Blocks changed to on", recent["message"])
@@ -334,10 +345,11 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
         result = await engine.handle(
             "Turn off all lights that are still on in the upstairs office",
             "one",
+            source_id="panel",
         )
         self.assertIn("Unavailable: Blocks.", result["message"])
         followup = await engine.handle(
-            "Which device was unavailable?", "one"
+            "Which device was unavailable?", "two", source_id="panel"
         )
         self.assertEqual(followup["message"], "Unavailable: Blocks.")
 
