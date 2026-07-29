@@ -75,6 +75,13 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             json={
                 "text": user_input.text,
                 "conversation_id": conversation_id,
+                "source_id": (
+                    user_input.device_id
+                    or satellite_device_id
+                    or user_input.satellite_id
+                    or getattr(user_input.context, "user_id", None)
+                    or f"entry:{self.entry.entry_id}"
+                ),
                 "voice_mode": external_voice,
                 "device_id": user_input.device_id,
                 "satellite_id": user_input.satellite_id,

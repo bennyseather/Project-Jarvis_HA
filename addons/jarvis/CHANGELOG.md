@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.3
+
+- Keep M23 follow-up scope stable per Home Assistant device, satellite, or user
+  even when Home Assistant rotates conversation identifiers.
+- Handle `turn back on`, `turn back off`, `turn them on`, and `turn them off`
+  deterministically without an OpenAI fallback.
+- Expand the bounded in-memory event buffer and retrieve recent changes per
+  selected entity so unrelated home activity cannot hide relevant events.
+- Reduce response latency for these follow-up actions by keeping them in the
+  local deterministic path.
+
 ## 0.11.2
 
 - Exclude area-level aggregate light helpers even when unavailable state data
