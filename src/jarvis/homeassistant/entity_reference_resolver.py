@@ -23,10 +23,12 @@ class EntityReferenceResolver:
         friendly_names=None,
         areas=None,
         groups=None,
+        floors=None,
     ):
         self._ids = frozenset(allowed_entity_ids)
         self._areas = self._collectives(areas or {})
         self._groups = self._collectives(groups or {})
+        self._floors = self._collectives(floors or {})
         self._group_entity_ids = frozenset(
             name for name in self._groups if name in self._ids and "." in name
         )
@@ -53,20 +55,32 @@ class EntityReferenceResolver:
 
     def resolve(self, reference, domain: str | None = None):
         normalized = self._norm(reference)
-        area_reference = normalized in self._areas
-        matches = self._areas.get(normalized) or self._groups.get(normalized)
+        spatial_reference = normalized in self._areas or normalized in self._floors
+        matches = (
+            self._areas.get(normalized)
+            or self._groups.get(normalized)
+            or self._floors.get(normalized)
+        )
         if matches is None:
             matches = self._names.get(normalized, ())
         return tuple(sorted(
             entity_id for entity_id in matches
             if entity_id in self._ids
             and (domain is None or entity_id.partition(".")[0] == domain)
-            and not (area_reference and domain is not None and entity_id in self._group_entity_ids)
+            and not (
+                spatial_reference
+                and domain is not None
+                and entity_id in self._group_entity_ids
+            )
         ))
 
     def is_collective(self, reference) -> bool:
         normalized = self._norm(reference)
-        return normalized in self._areas or normalized in self._groups
+        return (
+            normalized in self._areas
+            or normalized in self._groups
+            or normalized in self._floors
+        )
 
     def candidates(self, reference, limit: int = 5):
         return self.resolve(reference)[:limit]
@@ -86,7 +100,12 @@ class EntityReferenceResolver:
     def find_in_text(self, text):
         """Return the longest configured reference explicitly present in text."""
         normalized_text = self._norm(text)
-        references = set(self._areas) | set(self._groups) | set(self._names)
+        references = (
+            set(self._areas)
+            | set(self._groups)
+            | set(self._floors)
+            | set(self._names)
+        )
         matches = [
             reference for reference in references
             if self._contains_reference(normalized_text, reference)
@@ -119,7 +138,7 @@ class EntityReferenceResolver:
         if not topic:
             return None
         collective_matches = []
-        for name in set(self._areas) | set(self._groups):
+        for name in set(self._areas) | set(self._groups) | set(self._floors):
             targets = self.resolve(name, domain)
             if topic <= set(name.split()) and targets:
                 collective_matches.append((name, targets))

@@ -59,4 +59,7 @@ class ServiceContainer:
         self.proactive_client = None
         self.proactive_task = None
         self.proactive_allowed_entities = frozenset()
+        self.home_topology_assembler = None
+        self.situational_policy = None
+        self.situational_intelligence = None
         self.entity_resolver: EntityResolver | None = None

@@ -26,7 +26,7 @@
 Do not expose port 8099 to the internet. The add-on is intended to be reached
 only through the internal Home Assistant network.
 
-After upgrading to version 0.10.0, existing memory is preserved automatically.
+After upgrading to version 0.11.0, existing memory is preserved automatically.
 No reset or reinstallation is required.
 
 The optional Jarvis UI Design System is published in the release repository's

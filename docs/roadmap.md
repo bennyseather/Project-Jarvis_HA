@@ -2,6 +2,15 @@
 
 ## Approved Future Direction
 
+### M23 - Whole-Home Situational Intelligence (complete)
+
+- M23.1 Home topology contracts complete
+- M23.2 Bounded topology assembly complete
+- M23.3 Compound status reasoning complete
+- M23.4 Spatial and conversational continuity complete
+- M23.5 Temporal situational reasoning complete
+- M23.6 Runtime integration, acceptance, packaging, and release complete
+
 ### M22 - Proactive Assistance and Routine Intelligence (complete)
 
 - M22.1 Proactive assistance contracts and deterministic policy complete
