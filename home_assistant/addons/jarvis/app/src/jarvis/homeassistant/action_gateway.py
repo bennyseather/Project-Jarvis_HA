@@ -1,5 +1,6 @@
 """Confirmed, policy-controlled Home Assistant service gateway."""
 from __future__ import annotations
+import asyncio
 from jarvis.models.home_assistant_gateway import HomeAssistantRisk
 class ConfirmedHomeAssistantActionGateway:
  def __init__(self,capability_gateway,risk_policy,pending,client,audit_store=None):self._cap,self._risk,self._pending,self._client,self._audit=capability_gateway,risk_policy,pending,client,audit_store
@@ -17,13 +18,15 @@ class ConfirmedHomeAssistantActionGateway:
   decision=self._risk.evaluate(p)
   if decision.risk is not HomeAssistantRisk.IMMEDIATE:return {"status":"forbidden","reason_code":"immediate_action_not_authorized"}
   succeeded,failed=[],[]
-  for entity_id in p.entity_ids:
-   try:
-    await self._client.call_service(p.domain,p.service,{"entity_id":entity_id,**p.service_data})
-   except Exception:
-    failed.append(entity_id);self._record_one(p,entity_id,"unavailable","home_assistant_service_failed")
-   else:
-    succeeded.append(entity_id);self._record_one(p,entity_id,"success")
+  target=self._entity_target(p)
+  try:
+   await self._client.call_service(p.domain,p.service,{"entity_id":target,**p.service_data})
+  except Exception:
+   succeeded,failed=await self._reconcile(p)
+  else:
+   succeeded=list(p.entity_ids)
+  for entity_id in succeeded:self._record_one(p,entity_id,"success")
+  for entity_id in failed:self._record_one(p,entity_id,"unavailable","home_assistant_service_failed")
   if not succeeded:return {"status":"unavailable","message":f"Action failed for {self._device_count(len(failed))}.","succeeded":(),"failed":tuple(failed)}
   message=f"Action completed for {self._device_count(len(succeeded))}."
   if failed:message+=f" {self._device_count(len(failed))} {'was' if len(failed)==1 else 'were'} unavailable."
@@ -43,6 +46,42 @@ class ConfirmedHomeAssistantActionGateway:
   if self._audit is not None:self._audit.record(p.domain,p.service,p.entity_ids,outcome,reason_code)
  def _record_one(self,p,entity_id,outcome,reason_code=None):
   if self._audit is not None:self._audit.record(p.domain,p.service,(entity_id,),outcome,reason_code)
+ async def _reconcile(self,p):
+  expected=self._expected_state(p.service)
+  if expected is None or not hasattr(self._client,"get_states"):
+   return [],list(p.entity_ids)
+  try:
+   states=await self._client.get_states()
+   current=self._states(states)
+   unresolved=[
+    entity_id for entity_id in p.entity_ids
+    if current.get(entity_id) not in expected
+   ]
+   if unresolved:
+    await asyncio.sleep(0.2)
+    current=self._states(await self._client.get_states())
+  except Exception:return [],list(p.entity_ids)
+  succeeded=[
+   entity_id for entity_id in p.entity_ids
+   if current.get(entity_id) in expected
+  ]
+  return succeeded,[entity_id for entity_id in p.entity_ids if entity_id not in succeeded]
+ @staticmethod
+ def _states(states):
+  return {
+   item.get("entity_id"):str(item.get("state","unknown"))
+   for item in states if isinstance(item,dict)
+  }
+ @staticmethod
+ def _expected_state(service):
+  return {
+   "turn_on":frozenset({"on"}),
+   "turn_off":frozenset({"off"}),
+   "open_cover":frozenset({"open","opening"}),
+   "close_cover":frozenset({"closed","closing"}),
+   "lock":frozenset({"locked"}),
+   "unlock":frozenset({"unlocked"}),
+  }.get(service)
  @staticmethod
  def _device_count(count):return f"{count} {'device' if count==1 else 'devices'}"
  @staticmethod

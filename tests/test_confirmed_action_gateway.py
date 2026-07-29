@@ -11,7 +11,18 @@ class C:
 class PartialC(C):
  async def call_service(self,*a):
   self.calls.append(a)
-  if a[2]["entity_id"]=="light.failed":raise RuntimeError("unavailable")
+  if "light.failed" in a[2]["entity_id"]:raise RuntimeError("unavailable")
+ async def get_states(self):
+  return [
+   {"entity_id":"light.kitchen","state":"on"},
+   {"entity_id":"light.failed","state":"unavailable"},
+  ]
+class AppliedDespiteErrorC(PartialC):
+ async def get_states(self):
+  return [
+   {"entity_id":"light.kitchen","state":"on"},
+   {"entity_id":"light.failed","state":"on"},
+  ]
 class Tests(unittest.IsolatedAsyncioTestCase):
  async def test_confirmed_once(self):
   c=C();p=HomeAssistantActionProposal("light","turn_on",("light.kitchen",),summary="Turn on kitchen")
@@ -29,4 +40,9 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   c=PartialC();entities=frozenset({"light.kitchen","light.failed"});p=HomeAssistantActionProposal("light","turn_on",tuple(sorted(entities)))
   g=ConfirmedHomeAssistantActionGateway(HomeAssistantCapabilityGateway(HomeAssistantCapabilityCatalog((HomeAssistantServiceDefinition("light","turn_on"),),entities)),HomeAssistantRiskPolicy(allowed_entities=entities,immediate_services={"light.turn_on"}),PendingActionStore(),c)
   result=await g.execute_immediate(p)
-  self.assertEqual(result["status"],"success");self.assertEqual(result["message"],"Action completed for 1 device. 1 device was unavailable.");self.assertEqual(result["succeeded"],("light.kitchen",));self.assertEqual(result["failed"],("light.failed",));self.assertEqual(len(c.calls),2)
+  self.assertEqual(result["status"],"success");self.assertEqual(result["message"],"Action completed for 1 device. 1 device was unavailable.");self.assertEqual(result["succeeded"],("light.kitchen",));self.assertEqual(result["failed"],("light.failed",));self.assertEqual(len(c.calls),1)
+ async def test_multi_device_error_is_reconciled_from_resulting_states(self):
+  c=AppliedDespiteErrorC();entities=frozenset({"light.kitchen","light.failed"});p=HomeAssistantActionProposal("light","turn_on",tuple(sorted(entities)))
+  g=ConfirmedHomeAssistantActionGateway(HomeAssistantCapabilityGateway(HomeAssistantCapabilityCatalog((HomeAssistantServiceDefinition("light","turn_on"),),entities)),HomeAssistantRiskPolicy(allowed_entities=entities,immediate_services={"light.turn_on"}),PendingActionStore(),c)
+  result=await g.execute_immediate(p)
+  self.assertEqual(result["status"],"success");self.assertEqual(result["succeeded"],("light.failed","light.kitchen"));self.assertEqual(result["failed"],());self.assertEqual(result["message"],"Action completed for 2 devices.");self.assertEqual(len(c.calls),1)

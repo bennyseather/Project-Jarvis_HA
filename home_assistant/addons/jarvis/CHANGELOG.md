@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.4
+
+- Send bounded multi-device actions to Home Assistant in one service call.
+- Reconcile Home Assistant service errors against the resulting entity states
+  before reporting a device unavailable.
+- Retry state reconciliation once after a short bounded settling interval.
+- Reduce written-response latency for aggregate actions.
+
 ## 0.11.3
 
 - Keep M23 follow-up scope stable per Home Assistant device, satellite, or user
