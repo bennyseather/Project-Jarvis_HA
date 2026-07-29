@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.5
+
+- Dispatch immediate actions through an isolated Home Assistant connection.
+- Wait no more than one second for foreground service completion.
+- Return an accurate `Action sent` acknowledgement when Home Assistant
+  continues processing after the response deadline.
+- Finish state reconciliation and action auditing asynchronously without
+  blocking the conversation reply.
+
 ## 0.11.4
 
 - Send bounded multi-device actions to Home Assistant in one service call.
