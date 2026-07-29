@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.12.1";
+const JARVIS_UI_VERSION = "0.12.2";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -815,12 +815,20 @@ class JarvisWeatherCard extends JarvisEntityCard {
     this._forecastCard = undefined;
     this._forecastEntity = undefined;
     this._forecastMounting = false;
+    this._weatherState = undefined;
   }
   set hass(value) {
+    const nextState = stateObject(value, this._config?.entity);
+    const stateChanged = nextState !== this._weatherState;
     this._hass = value;
-    if (!this.shadowRoot.querySelector(".forecast-host")) this.render();
-    if (this._forecastCard) this._forecastCard.hass = value;
-    else this._mountForecast();
+    this._weatherState = nextState;
+    if (!this.shadowRoot.querySelector(".forecast-host") || stateChanged) {
+      this.render();
+    } else if (this._forecastCard) {
+      this._forecastCard.hass = value;
+    } else {
+      this._mountForecast();
+    }
   }
   render() {
     if (!this._config) return;

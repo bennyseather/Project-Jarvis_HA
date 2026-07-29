@@ -13,10 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.12.1
+## Project Jarvis 0.12.2
 
-Version 0.12.1 completes the D3 acceptance update for the Complete Jarvis
-Dashboard System. It expands
+Version 0.12.2 corrects current-condition state synchronization in the D3
+Weather card while retaining its native three-to-five-day forecast. It builds
+on the Complete Jarvis Dashboard System, which expands
 the visual editor-compatible library, adds room-based views and reusable design
 tokens, and improves responsive desktop and NSPanel behavior. Jarvis backend
 behavior and Home Assistant authorization are unchanged.

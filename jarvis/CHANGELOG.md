@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.2
+
+- Refresh the Weather card's current-condition header when Home Assistant
+  supplies or updates the configured weather entity.
+- Keep the embedded three-to-five-day native forecast synchronized without
+  rebuilding it for unrelated Home Assistant state changes.
+
 ## 0.12.1
 
 - Add a visual-editor-compatible Car telemetry card.
