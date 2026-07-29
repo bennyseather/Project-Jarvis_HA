@@ -23,9 +23,10 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   c=C();p=HomeAssistantActionProposal("light","turn_on",("light.kitchen",),summary="Turn on kitchen")
   g=ConfirmedHomeAssistantActionGateway(HomeAssistantCapabilityGateway(HomeAssistantCapabilityCatalog((HomeAssistantServiceDefinition("light","turn_on"),),frozenset({"light.kitchen"}))),HomeAssistantRiskPolicy(allowed_entities={"light.kitchen"},immediate_services={"light.turn_on"}),PendingActionStore(),c)
   self.assertEqual(g.request(p)["status"],"immediate_action")
-  self.assertEqual((await g.execute_immediate(p))["status"],"success");self.assertEqual(len(c.calls),1)
+  result=await g.execute_immediate(p)
+  self.assertEqual(result["status"],"success");self.assertEqual(result["message"],"Action completed for 1 device.");self.assertEqual(len(c.calls),1)
  async def test_immediate_multi_device_action_reports_partial_outcomes(self):
   c=PartialC();entities=frozenset({"light.kitchen","light.failed"});p=HomeAssistantActionProposal("light","turn_on",tuple(sorted(entities)))
   g=ConfirmedHomeAssistantActionGateway(HomeAssistantCapabilityGateway(HomeAssistantCapabilityCatalog((HomeAssistantServiceDefinition("light","turn_on"),),entities)),HomeAssistantRiskPolicy(allowed_entities=entities,immediate_services={"light.turn_on"}),PendingActionStore(),c)
   result=await g.execute_immediate(p)
-  self.assertEqual(result["status"],"success");self.assertEqual(result["succeeded"],("light.kitchen",));self.assertEqual(result["failed"],("light.failed",));self.assertEqual(len(c.calls),2)
+  self.assertEqual(result["status"],"success");self.assertEqual(result["message"],"Action completed for 1 device. 1 device was unavailable.");self.assertEqual(result["succeeded"],("light.kitchen",));self.assertEqual(result["failed"],("light.failed",));self.assertEqual(len(c.calls),2)

@@ -13,13 +13,16 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.11.0
+## Project Jarvis 0.11.1
 
-Version 0.11.0 adds M23 whole-home situational intelligence. Jarvis can answer
+Version 0.11.1 adds M23 whole-home situational intelligence. Jarvis can answer
 compound questions across permitted floors, areas, groups, device types,
 current states, and recent bounded changes. Large selections receive useful
 summaries, follow-ups retain exact spatial context, and explicit aggregate
 actions continue through the existing authorization gateway.
+
+This patch excludes aggregate light helpers from room-wide actions and finds
+relevant room changes before applying the bounded timeline result limit.
 
 The `jarvis_ui` folder contains:
 

@@ -24,9 +24,9 @@ class ConfirmedHomeAssistantActionGateway:
     failed.append(entity_id);self._record_one(p,entity_id,"unavailable","home_assistant_service_failed")
    else:
     succeeded.append(entity_id);self._record_one(p,entity_id,"success")
-  if not succeeded:return {"status":"unavailable","message":f"Action failed for {len(failed)} devices.","succeeded":(),"failed":tuple(failed)}
-  message=f"Action completed for {len(succeeded)} devices."
-  if failed:message+=f" {len(failed)} devices were unavailable."
+  if not succeeded:return {"status":"unavailable","message":f"Action failed for {self._device_count(len(failed))}.","succeeded":(),"failed":tuple(failed)}
+  message=f"Action completed for {self._device_count(len(succeeded))}."
+  if failed:message+=f" {self._device_count(len(failed))} {'was' if len(failed)==1 else 'were'} unavailable."
   return {"status":"success","message":message,"succeeded":tuple(succeeded),"failed":tuple(failed)}
  async def confirm(self,token,p):
   decision=self._risk.evaluate(p)
@@ -43,5 +43,7 @@ class ConfirmedHomeAssistantActionGateway:
   if self._audit is not None:self._audit.record(p.domain,p.service,p.entity_ids,outcome,reason_code)
  def _record_one(self,p,entity_id,outcome,reason_code=None):
   if self._audit is not None:self._audit.record(p.domain,p.service,(entity_id,),outcome,reason_code)
+ @staticmethod
+ def _device_count(count):return f"{count} {'device' if count==1 else 'devices'}"
  @staticmethod
  def _entity_target(p):return p.entity_ids[0] if len(p.entity_ids)==1 else list(p.entity_ids)

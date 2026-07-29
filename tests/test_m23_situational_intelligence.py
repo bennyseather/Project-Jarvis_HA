@@ -235,6 +235,10 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
         now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
         self.timeline.append("state_changed", "light.blocks", now, "off")
         self.timeline.append("state_changed", "light.private", now, "off")
+        for index in range(25):
+            self.timeline.append(
+                "state_changed", "sensor.panel_battery", now, str(index)
+            )
         await self.engine.handle(
             "What is the state of the upstairs office lights?", "one"
         )
@@ -255,6 +259,46 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
             self.gateway.executed[0].entity_ids, ("light.blocks",)
         )
         self.assertEqual(self.gateway.executed[0].service, "turn_off")
+
+    async def test_domain_actions_exclude_aggregate_group_helpers(self):
+        states = [
+            *STATES,
+            {
+                "entity_id": "light.upstairs_office_lights",
+                "state": "unavailable",
+                "attributes": {
+                    "friendly_name": "Upstairs Office Lights",
+                    "entity_id": ["light.blocks", "light.office"],
+                },
+            },
+        ]
+        assembler = HomeTopologyAssembler(
+            AREAS,
+            FLOORS,
+            [*REGISTRY, {"ei": "light.upstairs_office_lights", "ai": "office"}],
+            [],
+            {item["entity_id"] for item in states} - {"light.private"},
+            {
+                "light.blocks",
+                "light.office",
+                "light.upstairs_office_lights",
+            },
+            maximum_entities=50,
+        )
+        gateway = Gateway()
+        engine = WholeHomeSituationalIntelligence(
+            Client(states),
+            assembler,
+            self.timeline,
+            gateway,
+            SituationalIntelligencePolicy(maximum_entities=50),
+        )
+        result = await engine.handle(
+            "Turn off all lights that are still on in the upstairs office",
+            "one",
+        )
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(gateway.executed[0].entity_ids, ("light.blocks",))
 
     async def test_confirmation_keeps_exact_action_payload(self):
         gateway = Gateway("requires_confirmation")
