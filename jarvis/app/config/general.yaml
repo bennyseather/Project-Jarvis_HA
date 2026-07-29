@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.11.2"
+  version: "0.11.3"
 
 system:
   debug: false
@@ -68,4 +68,4 @@ event_timeline:
   allowed_event_types:
     - state_changed
   allowed_entities: []
-  max_events: 50
+  max_events: 500

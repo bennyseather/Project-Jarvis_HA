@@ -119,11 +119,17 @@ class WholeHomeSituationalIntelligence:
         self._failed_actions: dict[str, tuple[str, ...]] = {}
 
     async def handle(
-        self, text: str, conversation_id: str, *, voice_mode: bool = False
+        self,
+        text: str,
+        conversation_id: str,
+        *,
+        voice_mode: bool = False,
+        source_id: str | None = None,
     ):
         normalized = self._norm(text)
+        scope_key = self._scope_key(conversation_id, source_id)
         if self._asks_failed_device(normalized):
-            failed = self._failed_actions.get(conversation_id, ())
+            failed = self._failed_actions.get(scope_key, ())
             if failed:
                 return {
                     "status": "success",
@@ -136,7 +142,7 @@ class WholeHomeSituationalIntelligence:
                 "entity_ids": (),
             }
         if not self.policy.enabled or not self._looks_relevant(
-            normalized, conversation_id
+            normalized, scope_key
         ):
             return None
         try:
@@ -149,7 +155,7 @@ class WholeHomeSituationalIntelligence:
         snapshot = self._assembler.assemble(states, captured_at=self._clock())
         references = self._references(snapshot)
         scope = self._select_scope(
-            normalized, snapshot, references, conversation_id
+            normalized, snapshot, references, scope_key
         )
         if scope is None:
             return None
@@ -167,7 +173,7 @@ class WholeHomeSituationalIntelligence:
         )
         category_ids = tuple(item.entity_id for item in selected)
         noun = self._noun(normalized, len(selected))
-        previous = self._scopes.get(conversation_id)
+        previous = self._scopes.get(scope_key)
         if (
             noun in {"device", "devices"}
             and previous is not None
@@ -178,7 +184,7 @@ class WholeHomeSituationalIntelligence:
 
         if self._is_temporal(normalized):
             self._remember(
-                conversation_id, label, base_ids, category_ids, noun
+                scope_key, label, base_ids, category_ids, noun
             )
             return self._temporal_response(
                 normalized, label, frozenset(category_ids), entities
@@ -194,13 +200,13 @@ class WholeHomeSituationalIntelligence:
         matching_ids = tuple(item.entity_id for item in matching)
         if self._is_action(normalized):
             self._remember(
-                conversation_id, label, base_ids, matching_ids, noun
+                scope_key, label, base_ids, matching_ids, noun
             )
             return await self._perform_action(
-                normalized, label, matching, conversation_id
+                normalized, label, matching, scope_key
             )
         self._remember(
-            conversation_id,
+            scope_key,
             label,
             base_ids,
             matching_ids or category_ids,
@@ -539,12 +545,16 @@ class WholeHomeSituationalIntelligence:
         return ", ".join(values) + ("." if values else "")
 
     def _temporal_response(self, text, label, target_ids, entities):
-        events = self._timeline.retrieve(TimelineQuery(
-            maximum_results=50
-        ))
-        candidates = [
-            event for event in events if event.entity_id in target_ids
-        ]
+        candidates = []
+        for entity_id in sorted(target_ids):
+            candidates.extend(self._timeline.retrieve(TimelineQuery(
+                entity_id=entity_id,
+                maximum_results=self.policy.maximum_timeline_results,
+            )))
+        candidates.sort(
+            key=lambda event: (event.occurred_at, event.event_id),
+            reverse=True,
+        )
         relevant = []
         seen = set()
         for event in candidates:
@@ -649,10 +659,16 @@ class WholeHomeSituationalIntelligence:
     @staticmethod
     def _action_definition(text, entities):
         domains = {item.domain for item in entities}
-        if text.startswith(("turn off ", "switch off ", "turn back off")):
+        if (
+            text.startswith(("turn off ", "switch off ", "turn back off"))
+            or (text.startswith("turn ") and text.endswith(" off"))
+        ):
             candidates = domains & {"light", "switch", "fan", "media_player"}
             return (next(iter(candidates)), "turn_off") if len(candidates) == 1 else None
-        if text.startswith(("turn on ", "switch on ", "turn back on")):
+        if (
+            text.startswith(("turn on ", "switch on ", "turn back on"))
+            or (text.startswith("turn ") and text.endswith(" on"))
+        ):
             candidates = domains & {"light", "switch", "fan", "media_player"}
             return (next(iter(candidates)), "turn_on") if len(candidates) == 1 else None
         if text.startswith(("open ", "raise ")):
@@ -669,11 +685,23 @@ class WholeHomeSituationalIntelligence:
 
     @staticmethod
     def _is_action(text):
-        return text.startswith((
+        return (
+            text.startswith((
             "turn on ", "turn off ", "switch on ", "switch off ", "open ",
             "close ", "shut ", "raise ", "lower ", "lock ", "unlock ", "press ",
             "turn back on", "turn back off",
-        ))
+            ))
+            or (
+                text.startswith("turn ")
+                and text.endswith((" on", " off"))
+            )
+        )
+
+    @staticmethod
+    def _scope_key(conversation_id, source_id):
+        if isinstance(source_id, str) and source_id.strip():
+            return "source:" + source_id.strip()[:200]
+        return conversation_id
 
     @staticmethod
     def _asks_failed_device(text):
