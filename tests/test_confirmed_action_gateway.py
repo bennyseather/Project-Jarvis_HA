@@ -23,6 +23,13 @@ class AppliedDespiteErrorC(PartialC):
    {"entity_id":"light.kitchen","state":"on"},
    {"entity_id":"light.failed","state":"on"},
   ]
+class DeferredC(C):
+ def __init__(self):
+  super().__init__();self.release=None
+ async def dispatch_service(self,*a):
+  self.calls.append(a);self.release=__import__("asyncio").Event()
+  async def finish():await self.release.wait();return True
+  return __import__("asyncio").create_task(finish())
 class Tests(unittest.IsolatedAsyncioTestCase):
  async def test_confirmed_once(self):
   c=C();p=HomeAssistantActionProposal("light","turn_on",("light.kitchen",),summary="Turn on kitchen")
@@ -46,3 +53,9 @@ class Tests(unittest.IsolatedAsyncioTestCase):
   g=ConfirmedHomeAssistantActionGateway(HomeAssistantCapabilityGateway(HomeAssistantCapabilityCatalog((HomeAssistantServiceDefinition("light","turn_on"),),entities)),HomeAssistantRiskPolicy(allowed_entities=entities,immediate_services={"light.turn_on"}),PendingActionStore(),c)
   result=await g.execute_immediate(p)
   self.assertEqual(result["status"],"success");self.assertEqual(result["succeeded"],("light.failed","light.kitchen"));self.assertEqual(result["failed"],());self.assertEqual(result["message"],"Action completed for 2 devices.");self.assertEqual(len(c.calls),1)
+ async def test_slow_service_completion_returns_bounded_acknowledgement(self):
+  c=DeferredC();entities=frozenset({"light.kitchen","light.office"});p=HomeAssistantActionProposal("light","turn_on",tuple(sorted(entities)))
+  g=ConfirmedHomeAssistantActionGateway(HomeAssistantCapabilityGateway(HomeAssistantCapabilityCatalog((HomeAssistantServiceDefinition("light","turn_on"),),entities)),HomeAssistantRiskPolicy(allowed_entities=entities,immediate_services={"light.turn_on"}),PendingActionStore(),c)
+  loop=__import__("asyncio").get_running_loop();started=loop.time();result=await g.execute_immediate(p)
+  self.assertLess(loop.time()-started,1.2);self.assertEqual(result["message"],"Action sent to 2 devices.");self.assertTrue(result["completion_pending"])
+  c.release.set();await __import__("asyncio").sleep(0)

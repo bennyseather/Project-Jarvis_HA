@@ -13,17 +13,17 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.11.4
+## Project Jarvis 0.11.5
 
-Version 0.11.4 adds M23 whole-home situational intelligence. Jarvis can answer
+Version 0.11.5 adds M23 whole-home situational intelligence. Jarvis can answer
 compound questions across permitted floors, areas, groups, device types,
 current states, and recent bounded changes. Large selections receive useful
 summaries, follow-ups retain exact spatial context, and explicit aggregate
 actions continue through the existing authorization gateway.
 
-This patch batches bounded multi-device actions into one Home Assistant service
-call and reconciles reported errors against the resulting entity states,
-reducing response latency and eliminating false unavailable reports.
+This patch dispatches immediate actions through an isolated Home Assistant
+connection, bounds foreground completion waiting to one second, and finishes
+slow reconciliation and auditing in the background.
 
 The `jarvis_ui` folder contains:
 

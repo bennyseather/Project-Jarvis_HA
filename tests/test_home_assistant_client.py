@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest.mock import patch
 
 from jarvis.homeassistant.client import HomeAssistantClient
 
@@ -39,6 +40,9 @@ class _FreshSocket:
             }
         )
 
+    async def close(self):
+        pass
+
 
 class HomeAssistantClientTests(unittest.IsolatedAsyncioTestCase):
     async def test_state_read_reconnects_once_after_stale_socket(self):
@@ -60,6 +64,23 @@ class HomeAssistantClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(states[0]["entity_id"], "light.blocks")
         self.assertEqual(fresh.request["type"], "get_states")
         self.assertEqual(len(logger.warnings), 1)
+
+    async def test_service_dispatch_uses_an_isolated_result_task(self):
+        logger = _Logger()
+        client = HomeAssistantClient("http://supervisor/core", "token", logger)
+        fresh = _FreshSocket()
+
+        async def connect(dispatcher):
+            dispatcher.websocket = fresh
+
+        with patch.object(HomeAssistantClient, "_connect_socket", connect):
+            result_task = await client.dispatch_service(
+                "light", "turn_on", {"entity_id": ["light.blocks"]}
+            )
+            self.assertTrue(await result_task)
+
+        self.assertEqual(fresh.request["type"], "call_service")
+        self.assertEqual(fresh.request["service"], "turn_on")
 
 
 if __name__ == "__main__":
