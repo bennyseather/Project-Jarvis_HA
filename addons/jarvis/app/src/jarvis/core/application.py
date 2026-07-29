@@ -409,6 +409,7 @@ class JarvisApplication:
             devices,
             allowed_reads,
             allowed_actions,
+            groups,
             maximum_entities=(
                 self.container.situational_policy.maximum_entities
             ),
@@ -471,7 +472,6 @@ class JarvisApplication:
         if (
             self.container.timeline_policy.enabled
             and not timeline_config.get("allowed_entities")
-            and ha_config.get("all_entities", False)
         ):
             self.container.timeline_policy.authorize_permitted_entities(
                 allowed_reads
