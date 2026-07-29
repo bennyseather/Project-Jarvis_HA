@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.1
+
+- Exclude aggregate light-group helpers from area-wide device actions.
+- Find relevant area changes before applying the bounded timeline result limit.
+- Correct singular device wording in action results.
+
 ## 0.11.0
 
 - Complete M23 Whole-Home Situational Intelligence.
