@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.10.0";
+const JARVIS_UI_VERSION = "0.12.1";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -56,7 +56,10 @@ const ICON_ALIASES = {
   dishwasher: "appliance", appliance: "appliance",
   vehicle: "vehicle", ev: "vehicle", charger: "energy", polestar: "vehicle",
   scene: "automation", script: "automation", automation: "automation",
-  update: "automation",
+  update: "automation", timer: "automation", mower: "vacuum",
+  "robot-mower": "vacuum", washer: "appliance", "washing-machine": "appliance",
+  spotify: "media", "ev-charger": "energy", tile: "button",
+  markup: "core", alarm: "lock", security: "lock",
 };
 
 window.customIconsets = window.customIconsets || {};
@@ -74,6 +77,9 @@ const DOMAIN_ICONS = {
   sun: "jarvis:sun", vacuum: "jarvis:vacuum", scene: "jarvis:scene",
   script: "jarvis:script", automation: "jarvis:automation", update: "jarvis:update",
   number: "jarvis:sensor", input_number: "jarvis:sensor",
+  device_tracker: "jarvis:presence", fan: "jarvis:fan", vacuum: "jarvis:vacuum",
+  lawn_mower: "jarvis:robot-mower", alarm_control_panel: "jarvis:alarm",
+  timer: "jarvis:timer",
 };
 
 const DEVICE_CLASS_ICONS = {
@@ -132,7 +138,16 @@ function formatState(state, config) {
   if (!state) return "Entity unavailable";
   const raw = config.attribute ? state.attributes?.[config.attribute] : state.state;
   const unit = config.unit ?? state.attributes?.unit_of_measurement ?? "";
-  return `${raw ?? "unknown"}${unit ? ` ${unit}` : ""}`;
+  return `${formatValue(raw)}${unit ? ` ${unit}` : ""}`;
+}
+
+// Numeric telemetry is deliberately normalized throughout the library. This
+// keeps dense room and panel layouts stable while retaining meaningful detail.
+function formatValue(value) {
+  if (value === null || value === undefined || value === "") return "unknown";
+  const numeric = typeof value === "number" ? value :
+    (typeof value === "string" && value.trim() !== "" ? Number(value) : NaN);
+  return Number.isFinite(numeric) ? numeric.toFixed(1) : String(value);
 }
 
 function accent(config, state) {
@@ -190,11 +205,17 @@ const HUD_STYLE = `
     min-height:0;
     box-sizing:border-box;
     padding:6px;
+    container-type:inline-size;
     --j-cyan:var(--jarvis-cyan,#20d8ff);
     --j-amber:var(--jarvis-amber,#ffc247);
     --j-red:var(--jarvis-red,#ff6572);
     --j-green:var(--jarvis-green,#55e6a5);
     --j-surface:var(--jarvis-surface,rgba(3,16,27,.92));
+    --j-space-1:var(--jarvis-space-1,6px);
+    --j-space-2:var(--jarvis-space-2,10px);
+    --j-space-3:var(--jarvis-space-3,14px);
+    --j-space-4:var(--jarvis-space-4,18px);
+    --j-control-size:var(--jarvis-control-size,42px);
     --j-line:color-mix(in srgb,var(--j-accent,var(--j-cyan)) 52%,transparent);
     font-family:var(--jarvis-font,var(--primary-font-family,sans-serif));
   }
@@ -242,6 +263,18 @@ const HUD_STYLE = `
   button.primary{color:#00131a;background:var(--j-accent);border-color:var(--j-accent)}
   input[type=range]{width:100%;height:5px;accent-color:var(--j-accent);cursor:pointer}
   .unavailable{opacity:.68}
+  .j-layout{padding:var(--j-space-4);display:grid;gap:var(--j-space-3);min-height:126px;box-sizing:border-box}
+  .j-header{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:var(--j-space-3);align-items:center}
+  .j-header .icon-shell{width:46px;height:46px}
+  .j-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:var(--j-space-2)}
+  .j-value{font:700 20px ui-monospace,monospace;color:var(--j-accent);white-space:nowrap}
+  @container(max-width:430px){
+    .j-layout{padding:var(--j-space-3);gap:var(--j-space-2)}
+    .j-header{grid-template-columns:40px minmax(0,1fr) auto;gap:var(--j-space-2)}
+    .j-header .icon-shell{width:38px;height:38px}
+    .name{font-size:14px}.eyebrow{font-size:8px;letter-spacing:.13em}
+    button{min-height:36px;min-width:36px;font-size:9px}
+  }
   @media(max-width:680px){ha-card{clip-path:polygon(0 8px,8px 0,70% 0,calc(70% + 6px) 6px,100% 6px,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)}}
   @media(prefers-reduced-motion:reduce){ha-card,*{animation:none!important;transition:none!important}}
 `;
@@ -290,11 +323,11 @@ class JarvisBaseCard extends HTMLElement {
   cardState() { return stateObject(this._hass, this._config?.entity); }
 
   shell(content, { interactive = true, ariaLabel } = {}) {
-    const state = this.cardState();
+    const state = this.constructor.requiresEntity === false ? {} : this.cardState();
     const color = accent(this._config, state);
     this.shadowRoot.innerHTML = `
       <style>${HUD_STYLE}</style>
-      <ha-card class="jarvis-hud-frame ${interactive ? "interactive" : ""} ${isUnavailable(state) ? "unavailable" : ""}"
+      <ha-card class="jarvis-hud-frame ${interactive ? "interactive" : ""} ${this.constructor.requiresEntity !== false && isUnavailable(state) ? "unavailable" : ""}"
         style="--j-accent:${color}" ${interactive ? 'tabindex="0" role="button"' : ""}>
         <i class="hud-corner tl"></i><i class="hud-corner br"></i>${content}
       </ha-card>`;
@@ -442,7 +475,7 @@ class JarvisSliderCard extends JarvisBaseCard {
     const min = this._config.min ?? attrs.min ?? 0;
     const max = this._config.max ?? attrs.max ?? 100;
     const step = this._config.step ?? attrs.step ?? 1;
-    this.shell(`<div class="slider-layout">${this.entityHeader("Variable control")}<div class="readout">${escapeHtml(value)}</div><input aria-label="Value" type="range" min="${min}" max="${max}" step="${step}" value="${value}"></div>
+    this.shell(`<div class="slider-layout">${this.entityHeader("Variable control")}<div class="readout">${escapeHtml(formatValue(value))}</div><input aria-label="Value" type="range" min="${min}" max="${max}" step="${step}" value="${value}"></div>
       <style>.slider-layout{min-height:140px;padding:18px;display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.readout{font:700 18px monospace;color:var(--j-accent)}input{grid-column:1/-1}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this.shadowRoot.querySelector("input").addEventListener("change", (event) => {
@@ -471,7 +504,7 @@ class JarvisClimateCard extends JarvisBaseCard {
     const state = this.cardState();
     const attrs = state?.attributes || {};
     const temp = attrs.temperature ?? attrs.current_temperature ?? 20;
-    this.shell(`<div class="climate-layout">${this.entityHeader("Climate regulation")}<div class="temp">${escapeHtml(attrs.current_temperature ?? "—")}°<small>CURRENT</small></div><div class="target"><span>TARGET ${escapeHtml(temp)}°</span><input aria-label="Target temperature" type="range" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 35}" step="${attrs.target_temp_step ?? .5}" value="${temp}"></div></div>
+    this.shell(`<div class="climate-layout">${this.entityHeader("Climate regulation")}<div class="temp">${escapeHtml(formatValue(attrs.current_temperature))}°<small>CURRENT</small></div><div class="target"><span>TARGET ${escapeHtml(formatValue(temp))}°</span><input aria-label="Target temperature" type="range" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 35}" step="${attrs.target_temp_step ?? .5}" value="${temp}"></div></div>
       <style>.climate-layout{min-height:168px;padding:18px;display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.temp{font:700 28px monospace;color:var(--j-accent);text-align:right}.temp small{display:block;font-size:8px;letter-spacing:.16em}.target{grid-column:1/-1;display:grid;gap:9px;font:700 10px monospace;color:var(--secondary-text-color)}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this.shadowRoot.querySelector("input").addEventListener("change", (event) => this.call("climate", "set_temperature", { temperature: Number(event.target.value) }));
@@ -641,7 +674,7 @@ class JarvisStatusCard extends JarvisBaseCard {
     const entities = this._config.entities || [];
     const rows = entities.slice(0, 12).map((id) => {
       const state = stateObject(this._hass, id);
-      return `<div class="row"><ha-icon icon="${escapeHtml(entityIcon(state, { entity: id }))}"></ha-icon><span>${escapeHtml(state?.attributes?.friendly_name || id)}</span><b class="${isUnavailable(state) ? "bad" : ""}">${escapeHtml(state?.state || "missing")}</b></div>`;
+      return `<div class="row"><ha-icon icon="${escapeHtml(entityIcon(state, { entity: id }))}"></ha-icon><span>${escapeHtml(state?.attributes?.friendly_name || id)}</span><b class="${isUnavailable(state) ? "bad" : ""}">${escapeHtml(state ? formatState(state, { entity: id }) : "missing")}</b></div>`;
     }).join("");
     this.shell(`<div class="status-layout"><div class="eyebrow">System summary</div><div class="title">${escapeHtml(this._config.name || "Jarvis Status")}</div><div class="rows">${rows || '<div class="empty">Select entities in the visual editor.</div>'}</div></div>
       <style>.status-layout{min-height:150px;padding:20px}.title{font-size:20px;font-weight:650;margin:5px 0 14px}.rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:7px 16px}.row{display:grid;grid-template-columns:24px 1fr auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(32,216,255,.1)}.row ha-icon{--mdc-icon-size:18px;color:var(--j-accent)}.row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row b{font:700 10px monospace;color:var(--j-green);text-transform:uppercase}.row b.bad{color:var(--j-red)}.empty{color:var(--secondary-text-color)}</style>`,
@@ -680,7 +713,7 @@ class JarvisVoiceCard extends JarvisBaseCard {
     if (!this._config) return;
     const bars = Array.from({ length: 25 }, (_, i) => `<i style="--i:${i};--h:${16 + ((i * 19) % 62)}%"></i>`).join("");
     const card = this.shell(`<div class="voice-layout card-layout"><div class="copy"><div class="eyebrow">Voice interface</div><div class="voice-title">${escapeHtml(this._config.title)}</div><div class="description">${escapeHtml(this._config.description)}</div></div><div class="voice-node"><i class="node-corner tl"></i><i class="node-corner br"></i><div class="orb"><ha-icon icon="mdi:microphone"></ha-icon></div></div><div class="signal">${bars}</div><div class="hint">TAP TO SPEAK // CHANNEL READY</div></div>
-      <style>.voice-layout{min-height:${this._config.compact ? "150px" : "204px"};padding:22px 28px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:22px;align-items:center}.voice-title{font-size:clamp(22px,2vw,31px);font-weight:650}.description{margin-top:9px;color:var(--secondary-text-color);font-size:12px}.voice-node{width:${this._config.compact ? "98px" : "130px"};height:${this._config.compact ? "98px" : "130px"};display:grid;place-items:center;position:relative;border:1px solid var(--j-line);clip-path:polygon(0 12px,12px 0,78% 0,100% 22%,100% calc(100% - 12px),calc(100% - 12px) 100%,22% 100%,0 78%);background:linear-gradient(145deg,rgba(32,216,255,.07),rgba(3,16,27,.7));box-shadow:inset 0 0 22px rgba(32,216,255,.08)}.node-corner{position:absolute;width:18px;height:18px;z-index:2}.node-corner.tl{left:5px;top:5px;border-left:2px solid var(--j-accent);border-top:2px solid var(--j-accent)}.node-corner.br{right:5px;bottom:5px;border-right:2px solid var(--j-accent);border-bottom:2px solid var(--j-accent)}.orb{width:${this._config.compact ? "60px" : "78px"};height:${this._config.compact ? "60px" : "78px"};display:grid;place-items:center;border:1px solid var(--j-accent);border-radius:50%;background:radial-gradient(circle,rgba(32,216,255,.28),rgba(3,16,27,.95) 62%);box-shadow:inset 0 0 24px rgba(32,216,255,.24),0 0 20px rgba(32,216,255,.22);position:relative}.orb:before,.orb:after{content:"";position:absolute;border-radius:50%;border:1px dashed rgba(32,216,255,.35);inset:-7px;animation:spin 16s linear infinite}.orb:after{inset:-13px;border-color:rgba(32,216,255,.14);border-left-color:var(--j-amber);animation-direction:reverse;animation-duration:24s}.orb ha-icon{--mdc-icon-size:34px;filter:drop-shadow(0 0 8px var(--j-accent))}.signal{height:68px;display:flex;align-items:center;gap:4px;min-width:0;overflow:hidden}.signal i{width:3px;flex:0 1 3px;height:var(--h);background:var(--j-accent);box-shadow:0 0 7px var(--j-accent);opacity:.55;animation:pulse 1.2s ease-in-out infinite alternate;animation-delay:calc(var(--i) * -55ms)}ha-card:hover .signal i,ha-card.engaged .signal i{opacity:1;animation-duration:.55s}.hint{grid-column:1/-1;text-align:right;font:700 9px monospace;letter-spacing:.15em;color:var(--j-accent)}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{from{transform:scaleY(.45)}to{transform:scaleY(1.2)}}@media(max-width:900px){.voice-layout{grid-template-columns:minmax(0,1fr) 88px minmax(72px,.7fr);padding:14px 16px;gap:10px}.voice-title{font-size:23px}.description{font-size:10px;margin-top:6px}.voice-node{width:86px;height:86px}.orb{width:52px;height:52px}.orb ha-icon{--mdc-icon-size:27px}.signal{height:44px;gap:2px}.signal i{width:2px;flex-basis:2px}.hint{display:none}}@media(max-width:680px){.voice-layout{grid-template-columns:minmax(0,1fr) 82px;padding:14px}.voice-node{width:80px;height:80px}.signal{grid-column:1/-1;height:30px}.hint{display:none}}</style>`,
+      <style>.voice-layout{min-height:${this._config.compact ? "150px" : "204px"};padding:22px 28px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:22px;align-items:center}.voice-layout>.copy{min-width:0;overflow:hidden}.voice-title{font-size:clamp(22px,2vw,31px);font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.description{margin-top:9px;color:var(--secondary-text-color);font-size:12px;overflow:hidden;text-overflow:ellipsis}.voice-node{width:${this._config.compact ? "98px" : "130px"};height:${this._config.compact ? "98px" : "130px"};display:grid;place-items:center;position:relative;border:1px solid var(--j-line);clip-path:polygon(0 12px,12px 0,78% 0,100% 22%,100% calc(100% - 12px),calc(100% - 12px) 100%,22% 100%,0 78%);background:linear-gradient(145deg,rgba(32,216,255,.07),rgba(3,16,27,.7));box-shadow:inset 0 0 22px rgba(32,216,255,.08)}.node-corner{position:absolute;width:18px;height:18px;z-index:2}.node-corner.tl{left:5px;top:5px;border-left:2px solid var(--j-accent);border-top:2px solid var(--j-accent)}.node-corner.br{right:5px;bottom:5px;border-right:2px solid var(--j-accent);border-bottom:2px solid var(--j-accent)}.orb{width:${this._config.compact ? "60px" : "78px"};height:${this._config.compact ? "60px" : "78px"};display:grid;place-items:center;border:1px solid var(--j-accent);border-radius:50%;background:radial-gradient(circle,rgba(32,216,255,.28),rgba(3,16,27,.95) 62%);box-shadow:inset 0 0 24px rgba(32,216,255,.24),0 0 20px rgba(32,216,255,.22);position:relative}.orb:before,.orb:after{content:"";position:absolute;border-radius:50%;border:1px dashed rgba(32,216,255,.35);inset:-7px;animation:spin 16s linear infinite}.orb:after{inset:-13px;border-color:rgba(32,216,255,.14);border-left-color:var(--j-amber);animation-direction:reverse;animation-duration:24s}.orb ha-icon{--mdc-icon-size:34px;filter:drop-shadow(0 0 8px var(--j-accent))}.signal{height:68px;display:flex;align-items:center;gap:4px;min-width:0;overflow:hidden}.signal i{width:3px;flex:0 1 3px;height:var(--h);background:var(--j-accent);box-shadow:0 0 7px var(--j-accent);opacity:.55;animation:pulse 1.2s ease-in-out infinite alternate;animation-delay:calc(var(--i) * -55ms)}ha-card:hover .signal i,ha-card.engaged .signal i{opacity:1;animation-duration:.55s}.hint{grid-column:1/-1;text-align:right;font:700 9px monospace;letter-spacing:.15em;color:var(--j-accent)}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{from{transform:scaleY(.45)}to{transform:scaleY(1.2)}}@media(max-width:900px){.voice-layout{grid-template-columns:minmax(0,1fr) 88px minmax(72px,.7fr);padding:14px 16px;gap:10px}.voice-title{font-size:23px}.description{font-size:10px;margin-top:6px}.voice-node{width:86px;height:86px}.orb{width:52px;height:52px}.orb ha-icon{--mdc-icon-size:27px}.signal{height:44px;gap:2px}.signal i{width:2px;flex-basis:2px}.hint{display:none}}@container(max-width:520px){.voice-layout{grid-template-columns:minmax(0,1fr) 76px;padding:12px;gap:8px}.voice-title{font-size:18px}.description{font-size:9px;white-space:normal}.voice-node{width:72px;height:72px}.orb{width:46px;height:46px}.signal{grid-column:1/-1;height:24px}.hint{display:none}}@media(max-width:680px){.voice-layout{grid-template-columns:minmax(0,1fr) 82px;padding:14px}.voice-node{width:80px;height:80px}.signal{grid-column:1/-1;height:30px}.hint{display:none}}</style>`,
       { interactive: false, ariaLabel: this._config.title });
     card.classList.add("interactive");
     card.setAttribute("role", "button");
@@ -699,6 +732,376 @@ class JarvisVoiceCard extends JarvisBaseCard {
         activate();
       }
     });
+  }
+}
+
+function multiEntityForm(extra = []) {
+  return {
+    schema: [
+      { name: "name", selector: { text: {} } },
+      { name: "icon", selector: { icon: {} } },
+      { name: "entities", selector: { entity: { multiple: true } } },
+      ...extra,
+      { name: "accent", selector: { select: { options: ["auto", "cyan", "amber", "green", "red"] } } },
+      { name: "layout", selector: { select: { options: ["compact", "standard", "wide"] } } },
+      { type: "expandable", name: "actions", flatten: true, title: "Actions", schema: [
+        { name: "tap_action", selector: { ui_action: {} } },
+        { name: "hold_action", selector: { ui_action: {} } },
+      ] },
+    ],
+  };
+}
+
+class JarvisRoomCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static cardName = "Jarvis Room Summary";
+  static gridRows = 4;
+  static getConfigForm() {
+    return multiEntityForm([
+      { name: "navigation_path", selector: { text: {} } },
+      { name: "temperature_entity", selector: { entity: { domain: "sensor" } } },
+    ]);
+  }
+  static getStubConfig(hass) {
+    return { name: "Room", icon: "jarvis:room", entities: Object.keys(hass?.states || {}).slice(0, 4) };
+  }
+  render() {
+    if (!this._config) return;
+    const entities = (this._config.entities || []).slice(0, 8);
+    const active = entities.filter((id) => isActive(stateObject(this._hass, id))).length;
+    const unavailable = entities.filter((id) => isUnavailable(stateObject(this._hass, id))).length;
+    const temperature = stateObject(this._hass, this._config.temperature_entity);
+    const rows = entities.slice(0, 4).map((id) => {
+      const state = stateObject(this._hass, id);
+      return `<span><ha-icon icon="${escapeHtml(entityIcon(state, { entity: id }))}"></ha-icon>${escapeHtml(state?.attributes?.friendly_name || id)}</span>`;
+    }).join("");
+    this.shell(`<div class="j-layout room"><div class="j-header"><div class="icon-shell"><ha-icon icon="${escapeHtml(this._config.icon || "jarvis:room")}"></ha-icon></div><div class="copy"><div class="eyebrow">Room node</div><div class="name">${escapeHtml(this._config.name || "Room")}</div><div class="state">${active} active // ${unavailable} unavailable</div></div>${temperature ? `<div class="j-value">${escapeHtml(formatState(temperature, {}))}</div>` : ""}</div><div class="room-entities">${rows || "<span>Select room entities</span>"}</div></div>
+      <style>.room{min-height:170px}.room-entities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.room-entities span{display:flex;align-items:center;gap:7px;padding:7px;border:1px solid rgba(32,216,255,.12);font:600 9px monospace;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.room-entities ha-icon{--mdc-icon-size:17px;color:var(--j-accent)}@container(max-width:360px){.room-entities{grid-template-columns:1fr}.room-entities span:nth-child(n+4){display:none}}</style>`,
+      { ariaLabel: this._config.name || "Room" });
+    if (this._config.navigation_path) {
+      this._config.tap_action = { action: "navigate", navigation_path: this._config.navigation_path };
+    }
+  }
+}
+
+class JarvisPresenceCard extends JarvisEntityCard {
+  static cardName = "Jarvis Presence";
+  static domains = ["person", "device_tracker", "binary_sensor"];
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const home = ["home", "on"].includes(state?.state);
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Presence channel")}<div class="j-value">${home ? "HOME" : "AWAY"}</div></div><div class="state">${escapeHtml(state?.attributes?.source_type || state?.attributes?.device_class || "Location status")}</div></div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+  }
+}
+
+class JarvisWeatherCard extends JarvisEntityCard {
+  static cardName = "Jarvis Weather";
+  static domains = ["weather"];
+  static gridRows = 6;
+  static getConfigForm() {
+    const form = commonForm(true);
+    form.schema.splice(1, 0, {
+      name: "forecast_days",
+      selector: { number: { min: 3, max: 5, step: 1, mode: "slider" } },
+    });
+    return form;
+  }
+  getCardSize() { return 6; }
+  getGridOptions() { return { rows: 6, columns: 6, min_rows: 6, min_columns: 3 }; }
+  constructor() {
+    super();
+    this._forecastCard = undefined;
+    this._forecastEntity = undefined;
+    this._forecastMounting = false;
+  }
+  set hass(value) {
+    this._hass = value;
+    if (!this.shadowRoot.querySelector(".forecast-host")) this.render();
+    if (this._forecastCard) this._forecastCard.hass = value;
+    else this._mountForecast();
+  }
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const attrs = state?.attributes || {};
+    const facts = [["TEMP", attrs.temperature, attrs.temperature_unit], ["HUM", attrs.humidity, "%"], ["WIND", attrs.wind_speed, attrs.wind_speed_unit]];
+    this.shell(`<div class="j-layout weather"><div class="j-header">${this.entityHeader("Weather channel")}<div class="j-value">${escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div><div class="facts">${facts.map(([label,value,unit]) => `<span><b>${label}</b>${escapeHtml(formatValue(value))}${unit ? ` ${escapeHtml(unit)}` : ""}</span>`).join("")}</div><div class="forecast-host" aria-label="Daily weather forecast"></div></div>
+      <style>.weather{min-height:270px}.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.facts span{padding:9px;border:1px solid rgba(32,216,255,.13);font:700 11px monospace}.facts b{display:block;color:var(--secondary-text-color);font-size:8px;margin-bottom:4px}.forecast-host{min-height:118px;overflow:hidden;border-top:1px solid var(--j-line)}.forecast-host>*{display:block;--ha-card-border-width:0;--ha-card-border-radius:0;--ha-card-box-shadow:none;--ha-card-background:transparent}</style>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    this._forecastCard = undefined;
+    this._mountForecast();
+  }
+  async _mountForecast() {
+    const host = this.shadowRoot.querySelector(".forecast-host");
+    if (!host || !this._hass || this._forecastMounting) return;
+    this._forecastMounting = true;
+    try {
+      const helpers = await window.loadCardHelpers();
+      if (!this.shadowRoot.contains(host)) return;
+      const card = await helpers.createCardElement({
+        type: "weather-forecast",
+        entity: this._config.entity,
+        show_current: false,
+        show_forecast: true,
+        forecast_type: "daily",
+        forecast_slots: Math.min(5, Math.max(3, Number(this._config.forecast_days) || 5)),
+      });
+      host.replaceChildren(card);
+      card.hass = this._hass;
+      this._forecastCard = card;
+      this._forecastEntity = this._config.entity;
+    } finally {
+      this._forecastMounting = false;
+    }
+  }
+}
+
+class JarvisEnergyCard extends JarvisSensorCard {
+  static cardName = "Jarvis Energy";
+  static domains = ["sensor"];
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Energy telemetry")}<div class="j-value">${escapeHtml(formatState(state, this._config))}</div></div><div class="energy-bar"><i style="width:${Math.min(100, Math.max(4, Number(state?.state) || 0))}%"></i></div></div>
+      <style>.energy-bar{height:9px;border:1px solid var(--j-line);padding:2px}.energy-bar i{display:block;height:100%;background:var(--j-accent);box-shadow:0 0 12px var(--j-accent)}</style>`,
+      { ariaLabel: friendlyName(state, this._config) });
+  }
+}
+
+class JarvisFanCard extends JarvisEntityCard {
+  static cardName = "Jarvis Fan";
+  static domains = ["fan"];
+  static gridRows = 4;
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const percentage = state?.attributes?.percentage ?? 0;
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Airflow control")}<button class="${state?.state === "on" ? "primary" : ""}">POWER</button></div><div class="j-controls"><button data-pct="33">LOW</button><button data-pct="66">MED</button><button data-pct="100">HIGH</button></div><input aria-label="Fan percentage" type="range" min="0" max="100" value="${percentage}"></div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    const buttons = this.shadowRoot.querySelectorAll("button");
+    buttons[0].addEventListener("click", () => this.call("fan", "toggle"));
+    buttons.forEach((button) => button.dataset.pct && button.addEventListener("click", () => this.call("fan", "set_percentage", { percentage: Number(button.dataset.pct) })));
+    this.shadowRoot.querySelector("input").addEventListener("change", (event) => this.call("fan", "set_percentage", { percentage: Number(event.target.value) }));
+  }
+}
+
+class JarvisVacuumCard extends JarvisEntityCard {
+  static cardName = "Jarvis Vacuum";
+  static domains = ["vacuum"];
+  static gridRows = 4;
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Cleaning unit")}<div class="j-value">${escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div><div class="j-controls"><button data-service="start">START</button><button data-service="pause">PAUSE</button><button data-service="return_to_base">DOCK</button></div></div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    this.shadowRoot.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => this.call("vacuum", button.dataset.service)));
+  }
+}
+
+class JarvisLockCard extends JarvisEntityCard {
+  static cardName = "Jarvis Lock";
+  static domains = ["lock"];
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const locked = state?.state === "locked";
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Access control")}<button class="${locked ? "primary" : ""}">${locked ? "UNLOCK" : "LOCK"}</button></div></div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    this.shadowRoot.querySelector("button").addEventListener("click", () => this.call("lock", locked ? "unlock" : "lock"));
+  }
+}
+
+class JarvisAlarmCard extends JarvisEntityCard {
+  static cardName = "Jarvis Alarm Panel";
+  static domains = ["alarm_control_panel"];
+  static getConfigForm() {
+    const form = commonForm(true);
+    form.schema.splice(1, 0, { name: "code", selector: { text: { type: "password" } } });
+    return form;
+  }
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Alarm control")}<div class="j-value">${escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div><div class="j-controls"><button data-service="alarm_disarm">DISARM</button><button data-service="alarm_arm_home">HOME</button><button data-service="alarm_arm_away">AWAY</button></div></div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    this.shadowRoot.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => this.call("alarm_control_panel", button.dataset.service, this._config.code ? { code: this._config.code } : {})));
+  }
+}
+
+class JarvisSceneCard extends JarvisEntityCard {
+  static cardName = "Jarvis Scene / Script";
+  static domains = ["scene", "script"];
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const domain = entityDomain(this._config.entity);
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Routine command")}<button class="primary">RUN</button></div></div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    this.shadowRoot.querySelector("button").addEventListener("click", () => this.call(domain, "turn_on"));
+  }
+}
+
+class JarvisTimerCard extends JarvisEntityCard {
+  static cardName = "Jarvis Timer";
+  static domains = ["timer"];
+  static gridRows = 4;
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const remaining = state?.attributes?.remaining || state?.attributes?.duration || "00:00:00";
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Timer channel")}<div class="j-value">${escapeHtml(remaining)}</div></div><div class="j-controls"><button data-service="start">START</button><button data-service="pause">PAUSE</button><button data-service="cancel">CANCEL</button></div></div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    this.shadowRoot.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => this.call("timer", button.dataset.service)));
+  }
+}
+
+class JarvisMowerCard extends JarvisEntityCard {
+  static cardName = "Jarvis Robot Mower";
+  static domains = ["lawn_mower", "vacuum"];
+  static gridRows = 4;
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const domain = entityDomain(this._config.entity);
+    const services = domain === "lawn_mower" ? ["start_mowing", "pause", "dock"] : ["start", "pause", "return_to_base"];
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Robotic Mower")}<div class="j-value">${escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div><div class="j-controls">${services.map((service) => `<button data-service="${service}">${service.replaceAll("_", " ")}</button>`).join("")}</div></div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    this.shadowRoot.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => this.call(domain, button.dataset.service)));
+  }
+}
+
+class JarvisWasherCard extends JarvisEntityCard {
+  static cardName = "Jarvis Washing Machine";
+  static domains = ["sensor", "switch"];
+  static getConfigForm() {
+    const form = commonForm(true);
+    form.schema.splice(1, 0, { name: "progress_entity", selector: { entity: { domain: "sensor" } } });
+    return form;
+  }
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const progress = stateObject(this._hass, this._config.progress_entity);
+    const value = Math.min(100, Math.max(0, Number(progress?.state) || 0));
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Laundry unit")}<div class="j-value">${progress ? `${formatValue(value)}%` : escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div><div class="energy-bar"><i style="width:${value}%"></i></div></div>
+      <style>.energy-bar{height:9px;border:1px solid var(--j-line);padding:2px}.energy-bar i{display:block;height:100%;background:var(--j-accent)}</style>`,
+      { ariaLabel: friendlyName(state, this._config) });
+  }
+}
+
+class JarvisSpotifyCard extends JarvisMediaCard {
+  static cardName = "Jarvis Spotify";
+  static domains = ["media_player"];
+  static gridRows = 6;
+  getCardSize() { return 6; }
+  getGridOptions() { return { rows: 6, columns: 6, min_rows: 6, min_columns: 3 }; }
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const attrs = state?.attributes || {};
+    const volume = Math.round((attrs.volume_level || 0) * 100);
+    const picture = attrs.entity_picture ?
+      (attrs.entity_picture.startsWith("http") ? attrs.entity_picture : this._hass?.hassUrl?.(attrs.entity_picture) || attrs.entity_picture) : "";
+    const sources = attrs.source_list || [];
+    this.shell(`<div class="spotify"><div class="art">${picture ? `<img src="${escapeHtml(picture)}" alt="">` : '<ha-icon icon="jarvis:spotify"></ha-icon>'}</div><div class="track"><div class="eyebrow">Spotify channel</div><div class="song">${escapeHtml(attrs.media_title || "Nothing playing")}</div><div class="artist">${escapeHtml(attrs.media_artist || attrs.media_album_name || friendlyName(state, this._config))}</div></div><div class="j-controls"><button data-service="media_previous_track">PREV</button><button class="primary" data-service="media_play_pause">${state?.state === "playing" ? "PAUSE" : "PLAY"}</button><button data-service="media_next_track">NEXT</button></div><label class="output"><span>SPEAKER OUTPUT</span><select aria-label="Speaker output">${sources.map((source) => `<option ${source === attrs.source ? "selected" : ""}>${escapeHtml(source)}</option>`).join("")}</select></label><label class="volume"><span>VOLUME</span><b>${volume}%</b><input aria-label="Volume" type="range" min="0" max="100" value="${volume}"></label></div>
+      <style>.spotify{min-height:270px;padding:18px;display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px}.art{width:92px;height:92px;display:grid;place-items:center;border:1px solid var(--j-line);background:rgba(32,216,255,.05);overflow:hidden}.art img{width:100%;height:100%;object-fit:cover}.art ha-icon{--mdc-icon-size:42px;color:var(--j-accent)}.track{min-width:0;align-self:center}.song{font-size:19px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.artist{margin-top:6px;color:var(--secondary-text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j-controls,.output,.volume{grid-column:1/-1}.output,.volume{display:grid;grid-template-columns:1fr auto;gap:8px;font:700 9px monospace;color:var(--secondary-text-color)}select{grid-column:1/-1;min-height:36px;color:var(--primary-text-color);background:#061a28;border:1px solid var(--j-line);padding:0 8px}.volume b{color:var(--j-accent)}.volume input{grid-column:1/-1}@container(max-width:390px){.spotify{grid-template-columns:64px minmax(0,1fr);padding:14px}.art{width:64px;height:64px}.song{font-size:15px}}</style>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    this.shadowRoot.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => this.call("media_player", button.dataset.service)));
+    this.shadowRoot.querySelector("input").addEventListener("change", (event) => this.call("media_player", "volume_set", { volume_level: Number(event.target.value) / 100 }));
+    this.shadowRoot.querySelector("select")?.addEventListener("change", (event) => this.call("media_player", "select_source", { source: event.target.value }));
+  }
+}
+
+class JarvisEvChargerCard extends JarvisEntityCard {
+  static cardName = "Jarvis EV Charger";
+  static domains = ["switch", "sensor"];
+  static getConfigForm() {
+    const form = commonForm(true);
+    form.schema.splice(1, 0, { name: "power_entity", selector: { entity: { domain: "sensor" } } });
+    return form;
+  }
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    const power = stateObject(this._hass, this._config.power_entity);
+    const controllable = entityDomain(this._config.entity) === "switch";
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Vehicle charging")}<div class="j-value">${power ? escapeHtml(formatState(power, {})) : escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div>${controllable ? '<div class="j-controls"><button class="primary">TOGGLE CHARGE</button></div>' : ""}</div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+    this.shadowRoot.querySelector("button")?.addEventListener("click", () => this.call("switch", "toggle"));
+  }
+}
+
+class JarvisTileCard extends JarvisEntityCard {
+  static cardName = "Jarvis Tile";
+  render() {
+    if (!this._config) return;
+    const state = this.cardState();
+    this.shell(`<div class="j-layout"><div class="j-header"><div class="icon-shell"><ha-icon icon="${escapeHtml(entityIcon(state, this._config))}"></ha-icon></div><div class="copy"><div class="eyebrow">Quick tile</div><div class="name">${escapeHtml(friendlyName(state, this._config))}</div></div><div class="j-value">${escapeHtml(formatState(state, this._config))}</div></div></div>`,
+      { ariaLabel: friendlyName(state, this._config) });
+  }
+}
+
+class JarvisCarCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static cardName = "Jarvis Car";
+  static gridRows = 5;
+  static getConfigForm() {
+    return {
+      schema: [
+        { name: "name", selector: { text: {} } },
+        { name: "icon", selector: { icon: {} } },
+        { name: "location_entity", selector: { entity: {} } },
+        { name: "battery_entity", selector: { entity: { domain: "sensor" } } },
+        { name: "range_entity", selector: { entity: { domain: "sensor" } } },
+        { name: "odometer_entity", selector: { entity: { domain: "sensor" } } },
+        { name: "charging_entity", selector: { entity: {} } },
+        { name: "lock_entity", selector: { entity: { domain: "lock" } } },
+        { name: "accent", selector: { select: { options: ["cyan", "amber", "green", "red"] } } },
+      ],
+    };
+  }
+  static getStubConfig() { return { name: "Vehicle", icon: "jarvis:vehicle" }; }
+  getCardSize() { return 5; }
+  getGridOptions() { return { rows: 5, columns: 6, min_rows: 5, min_columns: 3 }; }
+  render() {
+    if (!this._config) return;
+    const read = (key) => stateObject(this._hass, this._config[key]);
+    const location = read("location_entity");
+    const battery = read("battery_entity");
+    const range = read("range_entity");
+    const odometer = read("odometer_entity");
+    const charging = read("charging_entity");
+    const lock = read("lock_entity");
+    const facts = [
+      ["BATTERY", battery], ["RANGE", range], ["ODOMETER", odometer],
+      ["CHARGING", charging], ["LOCK", lock],
+    ].filter(([, state]) => state);
+    this.shell(`<div class="j-layout car"><div class="j-header"><div class="icon-shell"><ha-icon icon="${escapeHtml(this._config.icon || "jarvis:vehicle")}"></ha-icon></div><div class="copy"><div class="eyebrow">Vehicle telemetry</div><div class="name">${escapeHtml(this._config.name || "Vehicle")}</div><div class="state">${escapeHtml(location?.state || "Location unavailable")}</div></div></div><div class="car-facts">${facts.map(([label,state]) => `<span><b>${label}</b>${escapeHtml(formatState(state, {}))}</span>`).join("") || "<span><b>SETUP</b>Select vehicle entities in the visual editor</span>"}</div></div>
+      <style>.car{min-height:220px}.car-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px}.car-facts span{padding:10px;border:1px solid rgba(32,216,255,.13);font:700 11px monospace;overflow:hidden;text-overflow:ellipsis}.car-facts b{display:block;color:var(--secondary-text-color);font-size:8px;margin-bottom:5px}</style>`,
+      { interactive: false, ariaLabel: this._config.name || "Vehicle" });
+  }
+}
+
+class JarvisMarkupCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static cardName = "Jarvis Markup";
+  static getConfigForm() {
+    return { schema: [
+      { name: "title", selector: { text: {} } },
+      { name: "content", required: true, selector: { text: { multiline: true } } },
+      { name: "icon", selector: { icon: {} } },
+      { name: "accent", selector: { select: { options: ["cyan", "amber", "green", "red"] } } },
+    ] };
+  }
+  static getStubConfig() { return { title: "Jarvis briefing", content: "Home systems ready.", icon: "jarvis:core" }; }
+  render() {
+    if (!this._config) return;
+    const content = escapeHtml(this._config.content || "").replaceAll("\n", "<br>");
+    this.shell(`<div class="j-layout markup"><div class="j-header"><div class="icon-shell"><ha-icon icon="${escapeHtml(this._config.icon || "jarvis:core")}"></ha-icon></div><div class="copy"><div class="eyebrow">Information panel</div><div class="name">${escapeHtml(this._config.title || "Jarvis")}</div></div></div><div class="markup-body">${content}</div></div>
+      <style>.markup{min-height:126px}.markup-body{color:var(--secondary-text-color);line-height:1.55;font-size:13px}</style>`,
+      { interactive: false });
   }
 }
 
@@ -758,6 +1161,23 @@ const CARD_DEFINITIONS = [
   ["jarvis-security-card", JarvisSecurityCard, "Jarvis Security", "Lock and safety entity display"],
   ["jarvis-status-card", JarvisStatusCard, "Jarvis Status", "Multi-entity system summary"],
   ["jarvis-voice-card", JarvisVoiceCard, "Jarvis Voice", "Animated Project Jarvis Assist launcher"],
+  ["jarvis-room-card", JarvisRoomCard, "Jarvis Room Summary", "Room state, telemetry and navigation"],
+  ["jarvis-presence-card", JarvisPresenceCard, "Jarvis Presence", "Person and presence status"],
+  ["jarvis-weather-card", JarvisWeatherCard, "Jarvis Weather", "Current weather telemetry"],
+  ["jarvis-energy-card", JarvisEnergyCard, "Jarvis Energy", "Power and energy telemetry"],
+  ["jarvis-fan-card", JarvisFanCard, "Jarvis Fan", "Fan power and airflow control"],
+  ["jarvis-vacuum-card", JarvisVacuumCard, "Jarvis Vacuum", "Robot vacuum controls"],
+  ["jarvis-lock-card", JarvisLockCard, "Jarvis Lock", "Lock state and access control"],
+  ["jarvis-alarm-card", JarvisAlarmCard, "Jarvis Alarm Panel", "Alarm arming controls"],
+  ["jarvis-scene-card", JarvisSceneCard, "Jarvis Scene / Script", "Run a Home Assistant scene or script"],
+  ["jarvis-timer-card", JarvisTimerCard, "Jarvis Timer", "Timer state and controls"],
+  ["jarvis-mower-card", JarvisMowerCard, "Jarvis Robot Mower", "Robot mower state and controls"],
+  ["jarvis-washer-card", JarvisWasherCard, "Jarvis Washing Machine", "Laundry state and progress"],
+  ["jarvis-spotify-card", JarvisSpotifyCard, "Jarvis Spotify", "Spotify media playback controls"],
+  ["jarvis-ev-charger-card", JarvisEvChargerCard, "Jarvis EV Charger", "EV charging state and power"],
+  ["jarvis-tile-card", JarvisTileCard, "Jarvis Tile", "Compact universal entity tile"],
+  ["jarvis-markup-card", JarvisMarkupCard, "Jarvis Markup", "Editable Jarvis information panel"],
+  ["jarvis-car-card", JarvisCarCard, "Jarvis Car", "Vehicle location, battery, range and status"],
   ["jarvis-icon-catalog-card", JarvisIconCatalogCard, "Jarvis Icon Catalog", "Browse every bundled Jarvis icon"],
   ["jarvis-coverage-card", JarvisCoverageCard, "Jarvis Entity Coverage", "Audit automatic icon coverage locally"],
 ];
@@ -768,6 +1188,15 @@ const CARD_DOMAINS = new Map([
   [JarvisMediaCard, ["media_player"]], [JarvisCameraCard, ["camera"]],
   [JarvisSensorCard, ["sensor", "binary_sensor", "sun", "weather"]],
   [JarvisSecurityCard, ["lock", "alarm_control_panel"]],
+  [JarvisPresenceCard, ["person", "device_tracker", "binary_sensor"]],
+  [JarvisWeatherCard, ["weather"]], [JarvisEnergyCard, ["sensor"]],
+  [JarvisFanCard, ["fan"]], [JarvisVacuumCard, ["vacuum"]],
+  [JarvisLockCard, ["lock"]], [JarvisAlarmCard, ["alarm_control_panel"]],
+  [JarvisSceneCard, ["scene", "script"]], [JarvisTimerCard, ["timer"]],
+  [JarvisMowerCard, ["lawn_mower", "vacuum"]],
+  [JarvisWasherCard, ["sensor", "switch"]],
+  [JarvisSpotifyCard, ["media_player"]],
+  [JarvisEvChargerCard, ["switch", "sensor"]],
 ]);
 
 window.customCards = window.customCards || [];

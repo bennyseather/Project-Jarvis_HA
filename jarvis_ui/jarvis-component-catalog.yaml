@@ -52,6 +52,52 @@ views:
               - light.blocks
               - camera.porch_camera
               - media_player.loftstue_group
+          - type: custom:jarvis-room-card
+            name: Example room
+            entities:
+              - light.blocks
+              - media_player.loftstue_group
+          - type: custom:jarvis-presence-card
+            entity: person.benny
+          - type: custom:jarvis-weather-card
+            entity: weather.forecast_home
+          - type: custom:jarvis-energy-card
+            entity: sensor.home_energy
+          - type: custom:jarvis-fan-card
+            entity: fan.example_fan
+          - type: custom:jarvis-vacuum-card
+            entity: vacuum.example_vacuum
+          - type: custom:jarvis-lock-card
+            entity: lock.front_door
+          - type: custom:jarvis-alarm-card
+            entity: alarm_control_panel.home
+          - type: custom:jarvis-scene-card
+            entity: scene.example_scene
+          - type: custom:jarvis-timer-card
+            entity: timer.example_timer
+          - type: custom:jarvis-mower-card
+            entity: lawn_mower.example_mower
+          - type: custom:jarvis-washer-card
+            entity: sensor.washing_machine
+            progress_entity: sensor.washing_machine_progress
+          - type: custom:jarvis-spotify-card
+            entity: media_player.loftstue_group
+          - type: custom:jarvis-ev-charger-card
+            entity: switch.ev_charger
+            power_entity: sensor.ev_charger_power
+          - type: custom:jarvis-tile-card
+            entity: sun.sun
+          - type: custom:jarvis-markup-card
+            title: Information panel
+            content: Editable Jarvis markup content.
+          - type: custom:jarvis-car-card
+            name: Vehicle
+            location_entity: device_tracker.car
+            battery_entity: sensor.car_battery
+            range_entity: sensor.car_range
+            odometer_entity: sensor.car_odometer
+            charging_entity: binary_sensor.car_charging
+            lock_entity: lock.car
       - type: grid
         cards:
           - type: heading

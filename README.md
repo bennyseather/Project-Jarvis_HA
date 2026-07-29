@@ -13,23 +13,19 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.11.5
+## Project Jarvis 0.12.1
 
-Version 0.11.5 adds M23 whole-home situational intelligence. Jarvis can answer
-compound questions across permitted floors, areas, groups, device types,
-current states, and recent bounded changes. Large selections receive useful
-summaries, follow-ups retain exact spatial context, and explicit aggregate
-actions continue through the existing authorization gateway.
-
-This patch dispatches immediate actions through an isolated Home Assistant
-connection, bounds foreground completion waiting to one second, and finishes
-slow reconciliation and auditing in the background.
+Version 0.12.1 completes the D3 acceptance update for the Complete Jarvis
+Dashboard System. It expands
+the visual editor-compatible library, adds room-based views and reusable design
+tokens, and improves responsive desktop and NSPanel behavior. Jarvis backend
+behavior and Home Assistant authorization are unchanged.
 
 The `jarvis_ui` folder contains:
 
 - Squared Project Jarvis desktop and panel themes.
 - Responsive original background artwork.
-- Sixteen visually editable Jarvis dashboard cards.
+- Thirty-three visually editable Jarvis dashboard cards.
 - More than fifty `jarvis:` entity icons.
 - Automatic icon mapping and a local entity-coverage audit.
 - An optional component-catalog dashboard.

@@ -1,4 +1,4 @@
-# Project Jarvis UI 0.10.0
+# Project Jarvis UI 0.12.1
 
 Project Jarvis UI is a reusable Home Assistant theme, card library, icon set,
 and dashboard package. Cards use a squared technical HUD style and can be
@@ -29,7 +29,7 @@ Use Studio Code Server, File editor, or Samba to access `/config`.
    `/config/themes/jarvis-command-center.yaml`.
 3. Copy the `www/jarvis` folder into `/config/www/jarvis`.
 4. In Home Assistant, open **Settings -> Dashboards**, open the three-dot menu,
-   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.10.0`
+   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.12.1`
    as a **JavaScript module**.
 5. If you want the supplied dashboards, merge `configuration-snippet.yaml`
    into `/config/configuration.yaml`. Do not create a second `frontend:` or
@@ -57,9 +57,14 @@ editable through Home Assistant.
 - Climate, Cover, Media, and Camera
 - Sensor, Security, and multi-entity Status
 - Voice, Icon Catalog, and Entity Coverage
+- Room Summary, Presence, Weather, Energy, Fan, Vacuum, Lock, and Alarm Panel
+- Scene / Script, Timer, Robot Mower, Washing Machine, and Spotify
+- EV Charger, universal Tile, and Markup
+- Car telemetry
 
 All cards share hover/focus illumination, cyan/amber/green/red accent states,
 keyboard controls, responsive sizing, and reduced-motion support.
+Numeric sensor values displayed on Jarvis cards are limited to one decimal.
 
 The Voice card dispatches Home Assistant's standard Assist action. It does not
 directly access the microphone or receive raw audio.
@@ -101,10 +106,10 @@ The theme, backgrounds, and example dashboards still require the manual copy
 because HACS Dashboard repositories manage frontend resources rather than the
 complete Home Assistant configuration.
 
-## Update from 0.8.2
+## Update from an earlier UI release
 
 Replace both dashboard files, the theme, and the `www/jarvis` folder. Replace
-the old resource with `/local/jarvis/jarvis-ui.js?v=0.10.0`, restart Home
+the old resource with `/local/jarvis/jarvis-ui.js?v=0.12.1`, restart Home
 Assistant, and hard-refresh every client. The old JavaScript resource remains
 a compatibility loader, but the new URL is recommended.
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.12.1
+
+- Add a visual-editor-compatible Car telemetry card.
+- Add a three-to-five-day native Home Assistant forecast to the Weather card.
+- Prevent Voice card text from overlapping its microphone control.
+- Remove the duplicated state value from the Tile card.
+- Label the mower interface as `Robotic Mower`.
+- Expand Spotify with artwork, track, artist, playback, volume, and speaker
+  output selection.
+- Publish the frontend distribution for HACS-managed updates.
+
+## 0.12.0
+
+- Complete D3 Complete Jarvis Dashboard System.
+- Expand the visual editor-compatible library from 16 to 32 cards.
+- Add room, presence, weather, energy, fan, vacuum, lock, alarm, scene/script,
+  timer, mower, washer, Spotify, EV charger, tile, and markup cards.
+- Add shared design tokens, container-aware responsive layouts, room-detail
+  views, and one-decimal numeric telemetry formatting.
+- Preserve all D1 and D2 card types and Home Assistant ownership boundaries.
+
 ## 0.11.5
 
 - Dispatch immediate actions through an isolated Home Assistant connection.
