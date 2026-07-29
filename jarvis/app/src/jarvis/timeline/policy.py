@@ -10,3 +10,7 @@ class EventTimelinePolicy:
 
     def permits(self, event_type: str, entity_id: str) -> bool:
         return self.enabled and event_type in self._types and entity_id in self._entities
+
+    def authorize_permitted_entities(self, entity_ids) -> None:
+        """Use the already-approved read set without expanding authorization."""
+        self._entities = frozenset(entity_ids)
