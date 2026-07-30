@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.3
+
+- Prevent unrelated Home Assistant state deliveries from replacing the
+  Weather card's forecast host while the native forecast is mounting.
+- Compare stable current-weather fields rather than transient state-object
+  identity and retry a forecast mount if its host changes mid-render.
+
 ## 0.12.2
 
 - Refresh the Weather card's current-condition header when Home Assistant
