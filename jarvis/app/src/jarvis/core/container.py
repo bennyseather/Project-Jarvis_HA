@@ -62,4 +62,6 @@ class ServiceContainer:
         self.home_topology_assembler = None
         self.situational_policy = None
         self.situational_intelligence = None
+        self.compound_orchestration_policy = None
+        self.compound_orchestration = None
         self.entity_resolver: EntityResolver | None = None

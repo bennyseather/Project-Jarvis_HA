@@ -69,6 +69,10 @@ from jarvis.homeassistant.situational_intelligence import (
     SituationalIntelligencePolicy,
     WholeHomeSituationalIntelligence,
 )
+from jarvis.homeassistant.compound_orchestration import (
+    CompoundHomeOrchestrator,
+    CompoundOrchestrationPolicy,
+)
 
 
 class JarvisApplication:
@@ -285,6 +289,11 @@ class JarvisApplication:
                 self.general.get("situational_intelligence", {})
             )
         )
+        self.container.compound_orchestration_policy = (
+            CompoundOrchestrationPolicy.from_config(
+                self.general.get("compound_orchestration", {})
+            )
+        )
         self.container.conversation_context_messages = context_messages
         self.container.confirmed_action_audit_store = SQLiteConfirmedActionAuditStore(database_file)
         self.container.runtime_context_assembler = ContextAssembler((
@@ -467,6 +476,12 @@ class JarvisApplication:
                 self.container.situational_policy,
             )
         )
+        self.container.compound_orchestration = CompoundHomeOrchestrator(
+            self.container.home_assistant,
+            self.container.home_topology_assembler,
+            self.container.home_assistant_action_gateway,
+            self.container.compound_orchestration_policy,
+        )
         self.container.proactive_allowed_entities = allowed_reads
         timeline_config = self.general.get("event_timeline", {})
         if (
@@ -569,6 +584,16 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(proactive_result)
             )
             return proactive_result
+        compound_result = await self.container.compound_orchestration.handle(
+            text, identifier
+        )
+        if compound_result is not None:
+            conversation_store.add_message(
+                identifier,
+                "assistant",
+                self._user_message(compound_result),
+            )
+            return compound_result
         situational_result = await self.container.situational_intelligence.handle(
             text,
             identifier,
@@ -739,8 +764,19 @@ class JarvisApplication:
                 pending = self._pending_action_payloads.pop(token, None)
                 payload = None if pending is None else pending[1]
                 try:
-                    result = ({"status": "forbidden", "message": "Confirmation is invalid."}
-                              if payload is None else await self.container.read_only_assistant.confirm_action(token, payload))
+                    if payload is None:
+                        result = {
+                            "status": "forbidden",
+                            "message": "Confirmation is invalid.",
+                        }
+                    elif payload.get("kind") == "compound_plan":
+                        result = await self.container.compound_orchestration.confirm(
+                            token, payload
+                        )
+                    else:
+                        result = await self.container.read_only_assistant.confirm_action(
+                            token, payload
+                        )
                 except Exception:
                     result = {"status": "unavailable"}
                 message = self._user_message(result)

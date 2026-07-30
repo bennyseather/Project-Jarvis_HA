@@ -1,9 +1,19 @@
 # Changelog
 
+## 0.14.0
+
+- Keep badge editor forms mounted while Friendly name and other configuration
+  fields emit changes, preventing focus loss after each typed character.
+- Add bounded compound Home Assistant plans with parallel actions, explicit
+  sequencing, current-state conditions, and exclusions.
+- Validate every compound step through the existing capability, access, and
+  risk gateways, with a maximum of ten resolved entity actions.
+- Add one combined, conversation-bound confirmation, pre-confirmation
+  correction, and explicit succeeded, skipped, failed, and partial outcomes.
+
 ## 0.13.2
 
-- Keep the badge editor's Home Assistant data snapshot stable while it is open,
-  so friendly-name searches accept uninterrupted multi-character input.
+- Keep the badge editor's Home Assistant data snapshot stable while it is open.
 
 ## 0.13.1
 

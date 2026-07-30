@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.13.2"
+  version: "0.14.0"
 
 system:
   debug: false
@@ -58,6 +58,11 @@ situational_intelligence:
   maximum_details: 10
   maximum_timeline_results: 20
   low_battery_threshold: 20
+
+compound_orchestration:
+  enabled: true
+  maximum_actions: 10
+  confirmation_ttl_seconds: 60
 
 persona:
   name: "Jarvis"
