@@ -43,4 +43,3 @@ class CompoundStepOutcome:
     status: CompoundStepStatus
     message: str
     entity_ids: tuple[str, ...] = ()
-
