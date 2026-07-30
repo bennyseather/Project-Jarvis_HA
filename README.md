@@ -13,9 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.15.0
+## Project Jarvis 0.15.1
 
-Version 0.15.0 adds M25 Contextual Goal-Based Orchestration. Explicitly taught
+Version 0.15.1 makes M25 goal deletion reliably take precedence over general
+memory commands and adds natural named/contextual delete forms. M25 introduces
+Contextual Goal-Based Orchestration: explicitly taught
 household goals are durable, inspectable, correctable, and deletable. Jarvis
 explains each matched meaning, checks current permitted Home Assistant state,
 omits unnecessary actions, and delegates execution to M24. It does not create

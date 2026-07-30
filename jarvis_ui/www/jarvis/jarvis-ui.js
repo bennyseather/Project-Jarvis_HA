@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.15.0";
+const JARVIS_UI_VERSION = "0.15.1";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -408,7 +408,7 @@ class JarvisButtonCard extends JarvisBaseCard {
   render() {
     if (!this._config) return;
     const label = this._config.label || this._config.name || "Jarvis Command";
-    this.shell(`<div class="button-layout"><div class="icon-shell"><ha-icon icon="${escapeHtml(this._config.icon || "jarvis:button")}"></ha-icon></div><div><div class="eyebrow">Command node</div><div class="name">${escapeHtml(label)}</div><div class="state">${escapeHtml(this._config.description || "Ready")}</div></div><div class="chev">Ã¢â‚¬Âº</div></div>
+    this.shell(`<div class="button-layout"><div class="icon-shell"><ha-icon icon="${escapeHtml(this._config.icon || "jarvis:button")}"></ha-icon></div><div><div class="eyebrow">Command node</div><div class="name">${escapeHtml(label)}</div><div class="state">${escapeHtml(this._config.description || "Ready")}</div></div><div class="chev">ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âº</div></div>
       <style>.button-layout{min-height:112px;padding:18px;display:grid;grid-template-columns:48px 1fr 20px;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.chev{font:300 30px monospace;color:var(--j-accent)}</style>`,
       { ariaLabel: label });
   }
@@ -505,7 +505,7 @@ class JarvisClimateCard extends JarvisBaseCard {
     const state = this.cardState();
     const attrs = state?.attributes || {};
     const temp = attrs.temperature ?? attrs.current_temperature ?? 20;
-    this.shell(`<div class="climate-layout">${this.entityHeader("Climate regulation")}<div class="temp">${escapeHtml(formatValue(attrs.current_temperature))}Ã‚Â°<small>CURRENT</small></div><div class="target"><span>TARGET ${escapeHtml(formatValue(temp))}Ã‚Â°</span><input aria-label="Target temperature" type="range" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 35}" step="${attrs.target_temp_step ?? .5}" value="${temp}"></div></div>
+    this.shell(`<div class="climate-layout">${this.entityHeader("Climate regulation")}<div class="temp">${escapeHtml(formatValue(attrs.current_temperature))}Ãƒâ€šÃ‚Â°<small>CURRENT</small></div><div class="target"><span>TARGET ${escapeHtml(formatValue(temp))}Ãƒâ€šÃ‚Â°</span><input aria-label="Target temperature" type="range" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 35}" step="${attrs.target_temp_step ?? .5}" value="${temp}"></div></div>
       <style>.climate-layout{min-height:168px;padding:18px;display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.temp{font:700 28px monospace;color:var(--j-accent);text-align:right}.temp small{display:block;font-size:8px;letter-spacing:.16em}.target{grid-column:1/-1;display:grid;gap:9px;font:700 10px monospace;color:var(--secondary-text-color)}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this.shadowRoot.querySelector("input").addEventListener("change", (event) => this.call("climate", "set_temperature", { temperature: Number(event.target.value) }));

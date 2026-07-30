@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.1
+
+- Route goal management before general memory commands so goal deletion reaches
+  the M25 store.
+- Add `show goal`, `delete <name>`, `delete goal <name>`, and contextual
+  `delete this goal` / `forget this goal` controls.
+
 ## 0.15.0
 
 - Add explicit, durable, inspectable contextual household goals backed by

@@ -19,11 +19,14 @@ class ContextualGoalManager:
         self._store = knowledge_store
         self._compound = compound_orchestration
         self._factory = factory or KnowledgeRecordFactory()
+        self._last_goal_by_conversation: dict[str, str] = {}
 
-    def manage(self, text):
+    def manage(self, text, conversation_id="local-default"):
         normalized = self._norm(text)
-        if normalized == "show goals":
+        if normalized in {"show goal", "show goals"}:
             goals = self.goals()
+            if len(goals) == 1:
+                self._last_goal_by_conversation[conversation_id] = goals[0].goal_id
             return {
                 "status": "success",
                 "message": (
@@ -61,12 +64,39 @@ class ContextualGoalManager:
                 metadata={"goal_name": name, "goal_command": command},
             ))
             return {"status": "success", "message": f"I corrected the goal '{name}'."}
-        if normalized.startswith("forget goal "):
-            name = self._norm(text[len("forget goal "):])
+        deletion_prefix = next(
+            (
+                prefix for prefix in (
+                    "forget goal ", "delete goal ", "forget ", "delete "
+                )
+                if normalized.startswith(prefix)
+            ),
+            None,
+        )
+        if normalized in {"forget this goal", "delete this goal"}:
+            goal_id = self._last_goal_by_conversation.get(conversation_id)
+            record = next(
+                (item for item in self._records() if item.knowledge_id == goal_id),
+                None,
+            )
+            if record is None:
+                return {
+                    "status": "clarification_required",
+                    "message": "Please name the goal to delete.",
+                }
+            name = self._goal_name(record)
+        elif deletion_prefix is not None:
+            name = self._norm(normalized[len(deletion_prefix):])
             record = self._find(name)
             if record is None:
-                return {"status": "no_match", "message": "Goal not found."}
+                return None if deletion_prefix in {"forget ", "delete "} else {
+                    "status": "no_match", "message": "Goal not found."
+                }
+        else:
+            record = None
+        if record is not None:
             self._store.delete(record.knowledge_id)
+            self._last_goal_by_conversation.pop(conversation_id, None)
             return {"status": "success", "message": f"I deleted the goal '{name}'."}
         if normalized.startswith("explain goal "):
             name = self._norm(text[len("explain goal "):])
@@ -98,6 +128,7 @@ class ContextualGoalManager:
                 "message": "That request matches multiple configured goals. Please name one.",
             }
         record = matches[0]
+        self._last_goal_by_conversation[conversation_id] = record.knowledge_id
         goal = ContextualGoal(
             record.knowledge_id,
             self._goal_name(record),

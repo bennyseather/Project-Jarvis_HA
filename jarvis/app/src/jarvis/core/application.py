@@ -568,16 +568,16 @@ class JarvisApplication:
         user_message = conversation_store.add_message(identifier, "user", text)
         self.container.read_only_assistant.activate_conversation(identifier)
 
-        natural_result = self.container.natural_memory_controller.handle(text, identifier)
-        if natural_result is not None:
-            conversation_store.add_message(identifier, "assistant", self._user_message(natural_result))
-            return natural_result
-        goal_management = self.container.contextual_goals.manage(text)
+        goal_management = self.container.contextual_goals.manage(text, identifier)
         if goal_management is not None:
             conversation_store.add_message(
                 identifier, "assistant", self._user_message(goal_management)
             )
             return goal_management
+        natural_result = self.container.natural_memory_controller.handle(text, identifier)
+        if natural_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(natural_result))
+            return natural_result
         home_result = self._handle_home_access_command(text)
         if home_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(home_result))
