@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.0
+
+- Add M27 general OpenAI reasoning and automatic native web research.
+- Route current, niche, uncertain, externally verifiable, and explicitly
+  researched questions to a source-aware research provider.
+- Add bounded URL citations, conversation-level enable/disable controls, and
+  source follow-ups.
+- Store research-derived information only after an explicit `remember this`;
+  support permanent deletion with `forget this`.
+- Preserve all existing Home Assistant authorization and confirmation rules.
+
 ## 0.16.0
 
 - Add M26's typed, central, safety-subordinate Jarvis personality profile.

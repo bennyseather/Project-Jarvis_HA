@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.16.0"
+  version: "0.17.0"
 
 system:
   debug: false
@@ -33,6 +33,14 @@ conversation:
   maximum_conversations: 20
   retention_days: 3
   maximum_messages_per_conversation: 100
+
+research:
+  enabled: true
+  automatic: true
+  search_context_size: "medium"
+  maximum_sources: 5
+  timeout_seconds: 45
+  allowed_domains: []
 
 reflection:
   context_limit: 5

@@ -8,9 +8,16 @@ from jarvis.persona import DEFAULT_PERSONA
 
 
 _INSTRUCTIONS = """You are the language and planning layer for Project Jarvis.
-Return JSON only with kind conversation, read_entity_state, or home_assistant_action.
+Return JSON only with kind conversation, research, read_entity_state, or home_assistant_action.
 For read_entity_state include entity_id. For home_assistant_action include action with
 domain, service, entity_ids, service_data, and summary. For conversation include message.
+For research include research_query and force_research. Choose research whenever current,
+niche, uncertain, externally verifiable, or explicitly requested information would materially
+improve the answer. Set force_research true for explicit research requests or time-sensitive
+facts; otherwise false so the research provider may answer directly if live search is unnecessary.
+When context research.enabled is false, never choose research.
+When context research.automatic is false, choose research only when the user
+explicitly asks to search, browse, research, verify, or look something up.
 Use only the Home Assistant entities, services, friendly names, floors, areas, and groups supplied
 in context. Treat the alternating message history as the current bounded conversation.
 Treat situational context as the current deterministic scope selected by Jarvis. It is
@@ -59,6 +66,19 @@ class OpenAIAssistantProposalProvider:
         try: kind=AssistantProposalKind(payload["kind"])
         except (KeyError, ValueError, TypeError): return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unsupported model proposal.")
         if kind is AssistantProposalKind.READ_ENTITY_STATE and not isinstance(payload.get("entity_id"),str): return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Invalid entity proposal.")
+        if kind is AssistantProposalKind.RESEARCH:
+            query = payload.get("research_query")
+            if not isinstance(query, str) or not query.strip():
+                return AssistantProposal(
+                    AssistantProposalKind.UNSUPPORTED,
+                    "Invalid research proposal.",
+                )
+            return AssistantProposal(
+                kind,
+                str(payload.get("message", "")),
+                research_query=query.strip(),
+                force_research=bool(payload.get("force_research", False)),
+            )
         if kind is AssistantProposalKind.HOME_ASSISTANT_ACTION:
             action = payload.get("action")
             if (not isinstance(action, dict) or not isinstance(action.get("domain"), str)

@@ -75,6 +75,7 @@ from jarvis.homeassistant.compound_orchestration import (
     CompoundOrchestrationPolicy,
 )
 from jarvis.homeassistant.contextual_goals import ContextualGoalManager
+from jarvis.research import GeneralResearchProvider, ResearchController, ResearchPolicy
 
 
 class JarvisApplication:
@@ -264,6 +265,9 @@ class JarvisApplication:
         self.container.proactive_policy = ProactiveAssistancePolicy.from_config(
             self.general.get("proactive", {})
         )
+        self.container.research_policy = ResearchPolicy.from_config(
+            self.general.get("research", {})
+        )
         self.container.proactive_store = SQLiteProactiveStore(database_file)
         self.container.proactive_manager = ProactiveAssistanceManager(
             self.container.proactive_store,
@@ -335,6 +339,15 @@ class JarvisApplication:
             self.container.repeated_context_learner,
             self.container.reflective_learning_manager,
         )
+        self.container.research_provider = GeneralResearchProvider(
+            self.container.openai,
+            self.container.research_policy,
+        )
+        self.container.research_controller = ResearchController(
+            self.container.research_policy,
+            self.container.memory_store,
+            self.container.memory_writer,
+        )
         self.container.reflective_learning_manager.refresh()
 
         self.container.assistant = Assistant(
@@ -358,6 +371,7 @@ class JarvisApplication:
             allowed_read_entities,
             resolver,
             persona,
+            self.container.research_provider,
         )
         timeline_config = self.general.get("event_timeline", {})
         self._validate_timeline_config(timeline_config)
@@ -578,6 +592,12 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(personality_result)
             )
             return personality_result
+        research_control = self.container.research_controller.handle(text, identifier)
+        if research_control is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(research_control)
+            )
+            return research_control
         goal_management = self.container.contextual_goals.manage(text, identifier)
         if goal_management is not None:
             conversation_store.add_message(
@@ -656,6 +676,9 @@ class JarvisApplication:
             "conversation_id": identifier,
             "interaction": {"voice": voice_mode},
             "personality": self.container.personality_manager.profile().context(),
+            "research": self.container.research_policy.context(
+                self.container.research_controller.enabled(identifier)
+            ),
             "reflection": self.container.reflective_learning_manager.context_for(
                 text, self.container.reflection_context_limit
             ),
@@ -667,6 +690,17 @@ class JarvisApplication:
             self.container.situational_intelligence.context(identifier)
         )
         result = await self.container.read_only_assistant.handle(text, context)
+        if result.get("sources") and not voice_mode:
+            result = dict(result)
+            result["message"] = (
+                str(result.get("message", "")).rstrip()
+                + "\n\nSources:\n"
+                + "\n".join(
+                    f"- {source['title']} — {source['url']}"
+                    for source in result["sources"]
+                )
+            )
+        self.container.research_controller.record(identifier, result)
         message = self._user_message(result)
         if message:
             conversation_store.add_message(identifier, "assistant", message)

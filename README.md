@@ -13,13 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.16.0
+## Project Jarvis 0.17.0
 
-Version 0.16.0 adds M26 Jarvis Personality and Social Continuity: consistent
-British-English expression, an original refined synthetic voice identity, and
-durable user-controlled address, humour, formality, and verbosity preferences.
-Personality remains subordinate to facts, permissions, confirmations, privacy,
-and safety and does not imitate Marvel, a fictional performance, or an actor.
+Version 0.17.0 adds M27 Open Knowledge and Live Research. Jarvis now uses
+OpenAI reasoning for general questions and can automatically invoke native web
+search for current, niche, uncertain, or explicitly researched topics. Answers
+retain bounded sources and conversational follow-ups. Research is never stored
+without an explicit request and does not expand Home Assistant action authority.
 
 The `jarvis_ui` folder contains:
 

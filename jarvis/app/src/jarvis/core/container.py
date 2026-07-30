@@ -66,4 +66,7 @@ class ServiceContainer:
         self.compound_orchestration = None
         self.contextual_goals = None
         self.personality_manager = None
+        self.research_policy = None
+        self.research_provider = None
+        self.research_controller = None
         self.entity_resolver: EntityResolver | None = None

@@ -9,6 +9,7 @@ from typing import Mapping, Protocol
 
 class AssistantProposalKind(str, Enum):
     CONVERSATION = "conversation"
+    RESEARCH = "research"
     READ_ENTITY_STATE = "read_entity_state"
     UNSUPPORTED = "unsupported"
     HOME_ASSISTANT_ACTION = "home_assistant_action"
@@ -26,6 +27,8 @@ class AssistantProposal:
     message: str = ""
     entity_id: str | None = None
     action: Mapping[str, object] | None = None
+    research_query: str | None = None
+    force_research: bool = False
 
 
 @dataclass(frozen=True, slots=True)
