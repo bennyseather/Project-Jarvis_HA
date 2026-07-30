@@ -13,15 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.14.0
+## Project Jarvis 0.15.0
 
-Version 0.14.0 adds M24 Compound Home Orchestration. Jarvis can now validate
-and execute bounded parallel actions, explicit `then` sequences, current-state
-conditions, and exclusions across permitted Home Assistant entities. Every
-step continues through the existing authorization and risk gateways, plans are
-limited to ten resolved entity actions, and partial outcomes are explicit.
-This release also fixes uninterrupted typing in Jarvis badge Friendly name
-fields.
+Version 0.15.0 adds M25 Contextual Goal-Based Orchestration. Explicitly taught
+household goals are durable, inspectable, correctable, and deletable. Jarvis
+explains each matched meaning, checks current permitted Home Assistant state,
+omits unnecessary actions, and delegates execution to M24. It does not create
+Home Assistant automations, scripts, scenes, schedules, loops, or permissions.
 
 The `jarvis_ui` folder contains:
 

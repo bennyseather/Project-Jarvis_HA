@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.0
+
+- Add explicit, durable, inspectable contextual household goals backed by
+  Jarvis knowledge records.
+- Build state-aware M24 plans that omit actions whose desired state is already
+  satisfied.
+- Add goal confidence, evidence, assumptions, explanations, and deterministic
+  ambiguity handling.
+- Add teach, list, explain, correct, and permanently delete controls.
+- Prefer explicitly configured Home Assistant scenes and scripts, preserve the
+  ten-action bound, and force confirmation for security-related goals.
+
 ## 0.14.0
 
 - Keep badge editor forms mounted while Friendly name and other configuration

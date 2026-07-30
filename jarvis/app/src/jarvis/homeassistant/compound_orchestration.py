@@ -78,15 +78,25 @@ class CompoundHomeOrchestrator:
         self._pending: dict[str, _PendingPlan] = {}
         self._latest_by_conversation: dict[str, str] = {}
 
-    async def handle(self, text: str, conversation_id: str):
-        if not self.policy.enabled or not self._looks_compound(text):
+    async def handle(
+        self, text: str, conversation_id: str, *,
+        allow_single: bool = False, state_aware: bool = False,
+        force_confirmation: bool = False,
+    ):
+        if not self.policy.enabled or not (
+            self._looks_compound(text)
+            or (allow_single and self._ACTION_START.match(self._norm(text)))
+        ):
             return None
         try:
             states = await self._client.get_states()
         except Exception:
             return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
         snapshot = self._assembler.assemble(states, captured_at=self._clock())
-        built = self._build_plan(text, conversation_id, snapshot)
+        built = self._build_plan(
+            text, conversation_id, snapshot,
+            allow_single=allow_single, state_aware=state_aware,
+        )
         if isinstance(built, dict):
             return built
         plan = built
@@ -117,7 +127,7 @@ class CompoundHomeOrchestrator:
                 candidate = str(decision.get("risk", "confirm_required"))
                 if risk_rank.get(candidate, 1) > risk_rank.get(highest_risk, 1):
                     highest_risk = candidate
-        if confirmation_tokens:
+        if confirmation_tokens or force_confirmation:
             token = token_urlsafe(24)
             self._pending[token] = _PendingPlan(
                 plan,
@@ -129,7 +139,10 @@ class CompoundHomeOrchestrator:
                 "status": "requires_confirmation",
                 "token": token,
                 "summary": plan.summary,
-                "risk": highest_risk,
+                "risk": (
+                    highest_risk if confirmation_tokens
+                    else "goal_confirmation_required"
+                ),
                 "action_payload": {"kind": "compound_plan", "conversation_id": conversation_id},
             }
         return await self._execute(plan, decisions)
@@ -159,7 +172,10 @@ class CompoundHomeOrchestrator:
         if pending is not None:
             self._latest_by_conversation.pop(pending.plan.conversation_id, None)
 
-    def _build_plan(self, text, conversation_id, snapshot):
+    def _build_plan(
+        self, text, conversation_id, snapshot, *,
+        allow_single=False, state_aware=False,
+    ):
         normalized = self._norm(text)
         condition_text = None
         if normalized.startswith("if "):
@@ -171,7 +187,7 @@ class CompoundHomeOrchestrator:
                 }
             condition_text, normalized = pieces[0][3:].strip(), pieces[1].strip()
         clauses = self._split_actions(normalized)
-        if len(clauses) < (1 if condition_text is not None else 2):
+        if len(clauses) < (1 if condition_text is not None or allow_single else 2):
             return None
         references = self._references(snapshot)
         entities = snapshot.entity_map()
@@ -184,9 +200,13 @@ class CompoundHomeOrchestrator:
         steps = []
         total_targets = 0
         for index, (clause, sequence) in enumerate(clauses, 1):
-            resolved = self._resolve_action(clause, references, entities)
+            resolved = self._resolve_action(
+                clause, references, entities, state_aware=state_aware
+            )
             if isinstance(resolved, dict):
                 return resolved
+            if resolved is None:
+                continue
             proposal, names = resolved
             total_targets += len(proposal.entity_ids)
             if total_targets > self.policy.maximum_actions:
@@ -204,6 +224,14 @@ class CompoundHomeOrchestrator:
                 friendly_names=names,
                 condition=condition,
             ))
+        if not steps:
+            return {
+                "status": "success",
+                "message": "That goal is already satisfied by the current Home Assistant state.",
+                "succeeded_steps": (),
+                "skipped_steps": (),
+                "failed_steps": (),
+            }
         summary = "; then ".join(
             self._step_label(step)
             for step in steps
@@ -213,7 +241,9 @@ class CompoundHomeOrchestrator:
             summary = f"If {condition.friendly_name} is {expected}: {summary}"
         return CompoundPlan(conversation_id, tuple(steps), summary)
 
-    def _resolve_action(self, clause, references, entities):
+    def _resolve_action(
+        self, clause, references, entities, *, state_aware=False
+    ):
         exclusion_text = None
         if " except " in clause:
             clause, exclusion_text = clause.split(" except ", 1)
@@ -244,6 +274,19 @@ class CompoundHomeOrchestrator:
         if exclusion_text:
             excluded = set(self._match_reference(exclusion_text, references) or ())
             targets = [item for item in targets if item.entity_id not in excluded]
+        if state_aware:
+            desired = {
+                "turn_on": {"on"},
+                "turn_off": {"off"},
+                "open_cover": {"open", "opening"},
+                "close_cover": {"closed", "closing"},
+                "lock": {"locked"},
+                "unlock": {"unlocked"},
+            }.get(service)
+            if desired is not None:
+                targets = [item for item in targets if item.state not in desired]
+                if not targets:
+                    return None
         if not targets:
             return {
                 "status": "clarification_required",

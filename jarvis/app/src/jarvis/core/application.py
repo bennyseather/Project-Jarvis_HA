@@ -73,6 +73,7 @@ from jarvis.homeassistant.compound_orchestration import (
     CompoundHomeOrchestrator,
     CompoundOrchestrationPolicy,
 )
+from jarvis.homeassistant.contextual_goals import ContextualGoalManager
 
 
 class JarvisApplication:
@@ -482,6 +483,10 @@ class JarvisApplication:
             self.container.home_assistant_action_gateway,
             self.container.compound_orchestration_policy,
         )
+        self.container.contextual_goals = ContextualGoalManager(
+            self.container.knowledge_store,
+            self.container.compound_orchestration,
+        )
         self.container.proactive_allowed_entities = allowed_reads
         timeline_config = self.general.get("event_timeline", {})
         if (
@@ -567,6 +572,12 @@ class JarvisApplication:
         if natural_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(natural_result))
             return natural_result
+        goal_management = self.container.contextual_goals.manage(text)
+        if goal_management is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(goal_management)
+            )
+            return goal_management
         home_result = self._handle_home_access_command(text)
         if home_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(home_result))
@@ -584,6 +595,14 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(proactive_result)
             )
             return proactive_result
+        goal_result = await self.container.contextual_goals.handle(
+            text, identifier
+        )
+        if goal_result is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(goal_result)
+            )
+            return goal_result
         compound_result = await self.container.compound_orchestration.handle(
             text, identifier
         )

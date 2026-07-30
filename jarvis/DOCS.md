@@ -50,9 +50,15 @@ permitted entity and existing Home Assistant service. Plans are limited to ten
 resolved entity actions, use one combined confirmation when required, and
 report succeeded, skipped, and failed steps without claiming rollback.
 
-Version 0.14.0 includes the optional complete Jarvis Dashboard System. Download the
+M25 adds explicit household goals. Use `teach goal <name> | <actions>`, then
+invoke the goal naturally by name. Use `show goals`, `explain goal <name>`,
+`correct goal <name> | <actions>`, and `forget goal <name>` to retain complete
+control. Jarvis checks current state and delegates only necessary actions to
+M24. Security-related goals always require confirmation.
+
+Version 0.15.0 includes the optional complete Jarvis Dashboard System. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
 its `README.md`. Installation remains explicit: the add-on is not granted
 write access to Home Assistant's configuration directory. Register
-`/local/jarvis/jarvis-ui.js?v=0.14.0` as a JavaScript module in Home Assistant
+`/local/jarvis/jarvis-ui.js?v=0.15.0` as a JavaScript module in Home Assistant
 dashboard resources. The Jarvis cards then appear in the visual card picker.

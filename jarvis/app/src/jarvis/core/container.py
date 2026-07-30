@@ -64,4 +64,5 @@ class ServiceContainer:
         self.situational_intelligence = None
         self.compound_orchestration_policy = None
         self.compound_orchestration = None
+        self.contextual_goals = None
         self.entity_resolver: EntityResolver | None = None
