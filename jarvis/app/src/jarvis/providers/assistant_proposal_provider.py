@@ -62,9 +62,9 @@ class OpenAIAssistantProposalProvider:
         })
         model_request = {"instructions": self._instructions, "input": messages}
         try: payload=json.loads(self._provider.ask(model_request))
-        except Exception: return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unable to interpret the request.")
+        except Exception: return self._fallback(request)
         try: kind=AssistantProposalKind(payload["kind"])
-        except (KeyError, ValueError, TypeError): return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unsupported model proposal.")
+        except (KeyError, ValueError, TypeError): return self._fallback(request)
         if kind is AssistantProposalKind.READ_ENTITY_STATE and not isinstance(payload.get("entity_id"),str): return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Invalid entity proposal.")
         if kind is AssistantProposalKind.RESEARCH:
             query = payload.get("research_query")
@@ -92,3 +92,37 @@ class OpenAIAssistantProposalProvider:
             return AssistantProposal(kind, str(payload.get("message", "")), action=action)
         if kind not in {AssistantProposalKind.CONVERSATION,AssistantProposalKind.READ_ENTITY_STATE}: return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unsupported model proposal.")
         return AssistantProposal(kind,str(payload.get("message","")),payload.get("entity_id"))
+
+    @staticmethod
+    def _fallback(request: AssistantInput) -> AssistantProposal:
+        """Fail safely into research for unmistakably open-knowledge requests."""
+        normalized = " ".join(request.request_text.casefold().strip(" .?!").split())
+        research = request.context.get("research", {})
+        enabled = bool(research.get("enabled", True))
+        automatic = bool(research.get("automatic", True))
+        current_markers = (
+            "latest", "current", "today", "news", "release", "version",
+            "search", "research", "look up", "web",
+        )
+        identity_queries = {
+            "who am i", "who is this person", "who is he", "who is she",
+            "who are they",
+        }
+        explicit = any(
+            marker in normalized
+            for marker in ("search", "research", "look up", "web")
+        )
+        should_research = (
+            normalized in identity_queries
+            or any(marker in normalized for marker in current_markers)
+        )
+        if enabled and should_research and (automatic or explicit):
+            return AssistantProposal(
+                AssistantProposalKind.RESEARCH,
+                research_query=request.request_text.strip(),
+                force_research=True,
+            )
+        return AssistantProposal(
+            AssistantProposalKind.UNSUPPORTED,
+            "Unable to interpret the request.",
+        )

@@ -98,6 +98,10 @@ class WholeHomeSituationalIntelligence:
         "unknown", "open", "closed", "on", "off", "low", "changed", "changes",
         "recently", "rest",
     })
+    _EXTERNAL_TOPIC_WORDS = frozenset({
+        "latest", "release", "version", "update", "news", "website", "web",
+        "internet",
+    })
 
     def __init__(
         self,
@@ -233,10 +237,12 @@ class WholeHomeSituationalIntelligence:
 
     def _looks_relevant(self, text: str, conversation_id: str) -> bool:
         words = set(text.replace(".", " ").split())
+        if words & self._EXTERNAL_TOPIC_WORDS:
+            return False
         if self._is_action(text):
             return bool(words & self._HOME_WORDS) or conversation_id in self._scopes
         if "what changed" in text or "everything okay" in text:
-            return True
+            return bool(words & self._HOME_WORDS) or conversation_id in self._scopes
         if not (words & self._READ_WORDS):
             return False
         return (

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.17.1
+
+- Prevented external “what changed” questions from being intercepted by the
+  bounded Home Assistant state timeline.
+- Added a safe research fallback for clearly current and identity questions
+  when the language router returns malformed or unsupported output.
+
 ## 0.17.0
 
 - Add M27 general OpenAI reasoning and automatic native web research.
