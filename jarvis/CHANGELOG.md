@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.1
+
+- Keep Jarvis badge editor forms mounted during frequent Home Assistant state
+  updates so entity-selector menus remain open and usable.
+
 ## 0.13.0
 
 - Add Jarvis Entity, Shortcut, Entity Progress, and Home / Away dashboard

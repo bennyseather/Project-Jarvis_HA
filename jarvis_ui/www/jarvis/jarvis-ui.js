@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.13.0";
+const JARVIS_UI_VERSION = "0.13.1";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -1213,7 +1213,12 @@ class JarvisBadgeEditor extends HTMLElement {
     this.attachShadow({ mode: "open" });
   }
   setConfig(config) { this._config = config; this.render(); }
-  set hass(value) { this._hass = value; this.render(); }
+  set hass(value) {
+    this._hass = value;
+    const form = this.shadowRoot.querySelector("ha-form");
+    if (form) form.hass = value;
+    else this.render();
+  }
   render() {
     if (!this._config) return;
     this.shadowRoot.innerHTML = "<ha-form></ha-form>";
