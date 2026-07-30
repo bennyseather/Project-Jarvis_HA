@@ -56,6 +56,7 @@ from jarvis.homeassistant.home_references import build_home_references
 from jarvis.memory.repeated_context import RepeatedContextExtractor, RepeatedContextLearner
 from jarvis.management.natural_memory import NaturalMemoryController
 from jarvis.persona import JarvisPersona
+from jarvis.personality import PersonalityManager
 from jarvis.reflection.manager import ReflectiveLearningManager
 from jarvis.storage.reflection_store import SQLiteReflectionStore
 from jarvis.proactive.controller import NaturalProactiveController
@@ -487,6 +488,9 @@ class JarvisApplication:
             self.container.knowledge_store,
             self.container.compound_orchestration,
         )
+        self.container.personality_manager = PersonalityManager(
+            self.container.knowledge_store
+        )
         self.container.proactive_allowed_entities = allowed_reads
         timeline_config = self.general.get("event_timeline", {})
         if (
@@ -568,6 +572,12 @@ class JarvisApplication:
         user_message = conversation_store.add_message(identifier, "user", text)
         self.container.read_only_assistant.activate_conversation(identifier)
 
+        personality_result = self.container.personality_manager.handle(text)
+        if personality_result is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(personality_result)
+            )
+            return personality_result
         goal_management = self.container.contextual_goals.manage(text, identifier)
         if goal_management is not None:
             conversation_store.add_message(
@@ -645,6 +655,7 @@ class JarvisApplication:
             "conversation": tuple(message.to_openai() for message in history[:-1]),
             "conversation_id": identifier,
             "interaction": {"voice": voice_mode},
+            "personality": self.container.personality_manager.profile().context(),
             "reflection": self.container.reflective_learning_manager.context_for(
                 text, self.container.reflection_context_limit
             ),

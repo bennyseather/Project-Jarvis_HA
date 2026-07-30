@@ -57,9 +57,15 @@ control. `delete <name>` and `delete this goal` are also supported after a goal
 has been shown or invoked. Jarvis checks current state and delegates only necessary actions to
 M24. Security-related goals always require confirmation.
 
-Version 0.15.1 includes the optional complete Jarvis Dashboard System. Download the
+M26 adds explicit personality controls: `show personality`, `address me as
+<name>`, `set personality humour off|subtle`, `set personality formality
+relaxed|refined`, `set personality verbosity concise|balanced`, and `reset
+personality`. British-English expression and an original subtly synthetic
+voice identity never override facts, permissions, confirmations, or safety.
+
+Version 0.16.0 includes the optional complete Jarvis Dashboard System. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
 its `README.md`. Installation remains explicit: the add-on is not granted
 write access to Home Assistant's configuration directory. Register
-`/local/jarvis/jarvis-ui.js?v=0.15.1` as a JavaScript module in Home Assistant
+`/local/jarvis/jarvis-ui.js?v=0.16.0` as a JavaScript module in Home Assistant
 dashboard resources. The Jarvis cards then appear in the visual card picker.

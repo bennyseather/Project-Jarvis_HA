@@ -13,15 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.15.1
+## Project Jarvis 0.16.0
 
-Version 0.15.1 makes M25 goal deletion reliably take precedence over general
-memory commands and adds natural named/contextual delete forms. M25 introduces
-Contextual Goal-Based Orchestration: explicitly taught
-household goals are durable, inspectable, correctable, and deletable. Jarvis
-explains each matched meaning, checks current permitted Home Assistant state,
-omits unnecessary actions, and delegates execution to M24. It does not create
-Home Assistant automations, scripts, scenes, schedules, loops, or permissions.
+Version 0.16.0 adds M26 Jarvis Personality and Social Continuity: consistent
+British-English expression, an original refined synthetic voice identity, and
+durable user-controlled address, humour, formality, and verbosity preferences.
+Personality remains subordinate to facts, permissions, confirmations, privacy,
+and safety and does not imitate Marvel, a fictional performance, or an actor.
 
 The `jarvis_ui` folder contains:
 

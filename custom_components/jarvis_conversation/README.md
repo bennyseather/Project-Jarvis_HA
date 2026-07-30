@@ -15,6 +15,13 @@ For external voice output, open the integration's **Configure** dialog and:
 6. Leave proactive voice suggestions disabled unless you explicitly want
    pending M22 suggestions spoken through the same selected output.
 
+For the original Jarvis voice identity, select a provider voice described as
+British English with crisp, measured delivery. A subtly synthetic or metallic
+voice may be selected when the provider offers one. Project Jarvis does not
+clone, imitate, or tune towards a recognisable actor or copyrighted fictional
+performance; voice timbre remains entirely owned by the selected Home Assistant
+TTS provider.
+
 External TTS is used only when the request's Home Assistant device ID matches
 the selected microphone device. Typed requests from other devices remain
 silent; Home Assistant does not expose input modality, so typed requests from

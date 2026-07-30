@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.0
+
+- Add M26's typed, central, safety-subordinate Jarvis personality profile.
+- Add British-English presentation and original refined synthetic voice
+  guidance without actor or copyrighted-character imitation.
+- Add durable address, humour, formality, and verbosity preferences with
+  inspect, adjust, reset, and permanent-delete controls.
+- Prohibit humour for failures, safety, emergencies, confirmations, and
+  sensitive topics; personality never changes facts or action policy.
+
 ## 0.15.1
 
 - Route goal management before general memory commands so goal deletion reaches

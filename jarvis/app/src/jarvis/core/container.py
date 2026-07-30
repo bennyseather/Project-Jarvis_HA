@@ -65,4 +65,5 @@ class ServiceContainer:
         self.compound_orchestration_policy = None
         self.compound_orchestration = None
         self.contextual_goals = None
+        self.personality_manager = None
         self.entity_resolver: EntityResolver | None = None
