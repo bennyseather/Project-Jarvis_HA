@@ -13,11 +13,10 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.12.3
+## Project Jarvis 0.13.0
 
-Version 0.12.3 corrects a forecast mounting race in the D3 Weather card while
-retaining synchronized current conditions and its native three-to-five-day
-forecast. It builds
+Version 0.13.0 adds four visually editable Jarvis dashboard badges and removes
+the duplicated condition text from the D3 Weather card. It builds
 on the Complete Jarvis Dashboard System, which expands
 the visual editor-compatible library, adds room-based views and reusable design
 tokens, and improves responsive desktop and NSPanel behavior. Jarvis backend
@@ -28,6 +27,7 @@ The `jarvis_ui` folder contains:
 - Squared Project Jarvis desktop and panel themes.
 - Responsive original background artwork.
 - Thirty-three visually editable Jarvis dashboard cards.
+- Four visually editable Jarvis dashboard badges.
 - More than fifty `jarvis:` entity icons.
 - Automatic icon mapping and a local entity-coverage audit.
 - An optional component-catalog dashboard.

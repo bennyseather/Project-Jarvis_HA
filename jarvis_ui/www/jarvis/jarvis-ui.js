@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.12.3";
+const JARVIS_UI_VERSION = "0.13.0";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -51,6 +51,7 @@ const ICON_ALIASES = {
   motion: "motion", occupancy: "motion", smoke: "sensor", leak: "sensor",
   sensor: "sensor", battery: "battery", energy: "energy", power: "energy",
   network: "network", "air-quality": "sensor", room: "room", floor: "room",
+  home: "room", house: "room",
   person: "person", presence: "person", weather: "weather", sun: "weather",
   vacuum: "vacuum", washer: "appliance", dryer: "appliance",
   dishwasher: "appliance", appliance: "appliance",
@@ -841,7 +842,7 @@ class JarvisWeatherCard extends JarvisEntityCard {
     const state = this.cardState();
     const attrs = state?.attributes || {};
     const facts = [["TEMP", attrs.temperature, attrs.temperature_unit], ["HUM", attrs.humidity, "%"], ["WIND", attrs.wind_speed, attrs.wind_speed_unit]];
-    this.shell(`<div class="j-layout weather"><div class="j-header">${this.entityHeader("Weather channel")}<div class="j-value">${escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div><div class="facts">${facts.map(([label,value,unit]) => `<span><b>${label}</b>${escapeHtml(formatValue(value))}${unit ? ` ${escapeHtml(unit)}` : ""}</span>`).join("")}</div><div class="forecast-host" aria-label="Daily weather forecast"></div></div>
+    this.shell(`<div class="j-layout weather"><div class="j-header"><div class="icon-shell"><ha-icon icon="${escapeHtml(entityIcon(state, this._config))}"></ha-icon></div><div class="copy"><div class="eyebrow">Weather channel</div><div class="name">${escapeHtml(friendlyName(state, this._config))}</div></div><div class="j-value">${escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div><div class="facts">${facts.map(([label,value,unit]) => `<span><b>${label}</b>${escapeHtml(formatValue(value))}${unit ? ` ${escapeHtml(unit)}` : ""}</span>`).join("")}</div><div class="forecast-host" aria-label="Daily weather forecast"></div></div>
       <style>.weather{min-height:270px}.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.facts span{padding:9px;border:1px solid rgba(32,216,255,.13);font:700 11px monospace}.facts b{display:block;color:var(--secondary-text-color);font-size:8px;margin-bottom:4px}.forecast-host{min-height:118px;overflow:hidden;border-top:1px solid var(--j-line)}.forecast-host>*{display:block;--ha-card-border-width:0;--ha-card-border-radius:0;--ha-card-box-shadow:none;--ha-card-background:transparent}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this._forecastCard = undefined;
@@ -1122,6 +1123,191 @@ class JarvisMarkupCard extends JarvisBaseCard {
   }
 }
 
+const BADGE_STYLE = `
+  :host{display:inline-block;--jb-cyan:var(--jarvis-cyan,#20d8ff);--jb-amber:var(--jarvis-amber,#ffc247);--jb-red:var(--jarvis-red,#ff6572);--jb-green:var(--jarvis-green,#55e6a5);font-family:var(--jarvis-font,var(--primary-font-family,sans-serif))}
+  .badge{--jb-accent:var(--jb-cyan);height:42px;max-width:230px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:5px 11px 5px 7px;color:var(--primary-text-color,#eafaff);background:linear-gradient(145deg,rgba(5,25,39,.96),rgba(3,16,27,.92));border:1px solid color-mix(in srgb,var(--jb-accent) 50%,transparent);clip-path:polygon(0 7px,7px 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px));box-shadow:inset 0 0 18px color-mix(in srgb,var(--jb-accent) 8%,transparent),0 0 12px rgba(0,0,0,.22);cursor:pointer;transition:border-color 160ms ease,box-shadow 160ms ease,transform 160ms ease}
+  .badge:hover,.badge:focus-visible{border-color:var(--jb-accent);box-shadow:inset 0 0 20px color-mix(in srgb,var(--jb-accent) 13%,transparent),0 0 14px color-mix(in srgb,var(--jb-accent) 22%,transparent);outline:none;transform:translateY(-1px)}
+  .badge.static{cursor:default}.badge.static:hover{transform:none}
+  .icon{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;color:var(--jb-accent);border:1px solid color-mix(in srgb,var(--jb-accent) 42%,transparent);background:color-mix(in srgb,var(--jb-accent) 8%,transparent)}
+  ha-icon{--mdc-icon-size:18px;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--jb-accent) 65%,transparent))}
+  .copy{min-width:0}.label{font:700 8px/1.1 ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase;color:var(--secondary-text-color,#8bb5c7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.value{margin-top:3px;font:700 11px/1.1 ui-monospace,monospace;color:var(--primary-text-color,#eafaff);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .metric{font:700 11px ui-monospace,monospace;color:var(--jb-accent);white-space:nowrap}
+  .progress{width:62px;height:5px;padding:1px;border:1px solid color-mix(in srgb,var(--jb-accent) 45%,transparent)}.progress i{display:block;height:100%;background:var(--jb-accent);box-shadow:0 0 7px var(--jb-accent)}
+  .unavailable{opacity:.62}.home{--jb-accent:var(--jb-green)}.away{--jb-accent:var(--jb-amber)}
+  @media(prefers-reduced-motion:reduce){.badge{transition:none}}
+`;
+
+function badgeAccent(config, state) {
+  if (isUnavailable(state)) return "#667986";
+  if (config.accent === "amber") return "#ffc247";
+  if (config.accent === "red") return "#ff6572";
+  if (config.accent === "green") return "#55e6a5";
+  if (config.accent === "auto" && isActive(state)) return "#ffc247";
+  return "#20d8ff";
+}
+
+class JarvisBaseBadge extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+  }
+  setConfig(config) {
+    this._config = {
+      accent: "auto",
+      tap_action: { action: "more-info" },
+      hold_action: { action: "none" },
+      ...config,
+    };
+    this.render();
+  }
+  set hass(value) { this._hass = value; this.render(); }
+  state() { return stateObject(this._hass, this._config?.entity); }
+  shell(content, { interactive = true, extraClass = "" } = {}) {
+    const state = this.state();
+    this.shadowRoot.innerHTML = `<style>${BADGE_STYLE}</style><div class="badge ${interactive ? "" : "static"} ${isUnavailable(state) && this._config?.entity ? "unavailable" : ""} ${extraClass}" style="--jb-accent:${badgeAccent(this._config || {}, state)}" ${interactive ? 'role="button" tabindex="0"' : ""}>${content}</div>`;
+    const badge = this.shadowRoot.querySelector(".badge");
+    if (interactive) {
+      badge.addEventListener("click", () => dispatchHassAction(this, this._config, "tap"));
+      badge.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          dispatchHassAction(this, this._config, "tap");
+        }
+      });
+    }
+    return badge;
+  }
+}
+
+function badgeFormSchema(kind) {
+  const common = [
+    { name: "name", selector: { text: {} } },
+    { name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } },
+    { name: "accent", selector: { select: { options: ["auto", "cyan", "amber", "green", "red"] } } },
+    { name: "tap_action", selector: { ui_action: {} } },
+  ];
+  if (kind === "shortcut") {
+    return [{ name: "label", required: true, selector: { text: {} } }, ...common.slice(1)];
+  }
+  if (kind === "progress") {
+    return [
+      { name: "entity", required: true, selector: { entity: {} } },
+      ...common,
+      { name: "min", selector: { number: { mode: "box" } } },
+      { name: "max", selector: { number: { mode: "box" } } },
+    ];
+  }
+  if (kind === "presence") {
+    return [
+      { name: "entity", required: true, selector: { entity: { domain: ["person", "device_tracker", "binary_sensor"] } } },
+      ...common,
+      { name: "home_state", selector: { text: {} } },
+    ];
+  }
+  return [{ name: "entity", required: true, selector: { entity: {} } }, ...common];
+}
+
+class JarvisBadgeEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+  }
+  setConfig(config) { this._config = config; this.render(); }
+  set hass(value) { this._hass = value; this.render(); }
+  render() {
+    if (!this._config) return;
+    this.shadowRoot.innerHTML = "<ha-form></ha-form>";
+    const form = this.shadowRoot.querySelector("ha-form");
+    form.hass = this._hass;
+    form.data = this._config;
+    form.schema = badgeFormSchema(this.constructor.kind);
+    form.computeLabel = (schema) => ({
+      name: "Friendly name", icon: "Icon", accent: "Accent colour",
+      tap_action: "Tap action", entity: "Entity", label: "Label",
+      min: "Minimum", max: "Maximum", home_state: "Home state",
+    }[schema.name] || schema.name);
+    form.addEventListener("value-changed", (event) => {
+      fireEvent(this, "config-changed", { config: event.detail.value });
+    });
+  }
+}
+
+class JarvisEntityBadgeEditor extends JarvisBadgeEditor { static kind = "entity"; }
+class JarvisShortcutBadgeEditor extends JarvisBadgeEditor { static kind = "shortcut"; }
+class JarvisProgressBadgeEditor extends JarvisBadgeEditor { static kind = "progress"; }
+class JarvisPresenceBadgeEditor extends JarvisBadgeEditor { static kind = "presence"; }
+
+class JarvisEntityBadge extends JarvisBaseBadge {
+  static getConfigElement() { return document.createElement("jarvis-entity-badge-editor"); }
+  static getStubConfig(hass) {
+    const entity = Object.keys(hass?.states || {})[0];
+    return entity ? { entity } : {};
+  }
+  setConfig(config) {
+    if (!config.entity) throw new Error("Jarvis Entity Badge requires an entity");
+    super.setConfig(config);
+  }
+  render() {
+    if (!this._config) return;
+    const state = this.state();
+    this.shell(`<div class="icon"><ha-icon icon="${escapeHtml(entityIcon(state, this._config))}"></ha-icon></div><div class="copy"><div class="label">${escapeHtml(friendlyName(state, this._config))}</div><div class="value">${escapeHtml(formatState(state, this._config))}</div></div>`);
+  }
+}
+
+class JarvisShortcutBadge extends JarvisBaseBadge {
+  static getConfigElement() { return document.createElement("jarvis-shortcut-badge-editor"); }
+  static getStubConfig() { return { label: "Jarvis shortcut", icon: "jarvis:button", tap_action: { action: "none" } }; }
+  setConfig(config) {
+    if (!config.label && !config.name) throw new Error("Jarvis Shortcut Badge requires a label");
+    super.setConfig({ tap_action: { action: "none" }, ...config });
+  }
+  render() {
+    if (!this._config) return;
+    const label = this._config.label || this._config.name;
+    this.shell(`<div class="icon"><ha-icon icon="${escapeHtml(this._config.icon || "jarvis:button")}"></ha-icon></div><div class="copy"><div class="label">Shortcut</div><div class="value">${escapeHtml(label)}</div></div>`);
+  }
+}
+
+class JarvisProgressBadge extends JarvisBaseBadge {
+  static getConfigElement() { return document.createElement("jarvis-progress-badge-editor"); }
+  static getStubConfig(hass) {
+    const entity = Object.keys(hass?.states || {}).find((id) => ["sensor", "number", "input_number"].includes(entityDomain(id)));
+    return entity ? { entity, min: 0, max: 100 } : {};
+  }
+  setConfig(config) {
+    if (!config.entity) throw new Error("Jarvis Progress Badge requires an entity");
+    super.setConfig(config);
+  }
+  render() {
+    if (!this._config) return;
+    const state = this.state();
+    const min = Number(this._config.min ?? state?.attributes?.min ?? 0);
+    const max = Number(this._config.max ?? state?.attributes?.max ?? 100);
+    const value = Number(state?.state);
+    const pct = Number.isFinite(value) && max > min ? Math.min(100, Math.max(0, (value - min) / (max - min) * 100)) : 0;
+    this.shell(`<div class="icon"><ha-icon icon="${escapeHtml(entityIcon(state, this._config))}"></ha-icon></div><div class="copy"><div class="label">${escapeHtml(friendlyName(state, this._config))}</div><div class="progress"><i style="width:${pct}%"></i></div></div><div class="metric">${escapeHtml(formatState(state, this._config))}</div>`);
+  }
+}
+
+class JarvisPresenceBadge extends JarvisBaseBadge {
+  static getConfigElement() { return document.createElement("jarvis-presence-badge-editor"); }
+  static getStubConfig(hass) {
+    const entity = Object.keys(hass?.states || {}).find((id) => ["person", "device_tracker", "binary_sensor"].includes(entityDomain(id)));
+    return entity ? { entity, home_state: "home" } : {};
+  }
+  setConfig(config) {
+    if (!config.entity) throw new Error("Jarvis Home / Away Badge requires an entity");
+    super.setConfig(config);
+  }
+  render() {
+    if (!this._config) return;
+    const state = this.state();
+    const homeStates = [this._config.home_state || "home", "on"];
+    const home = homeStates.includes(state?.state);
+    this.shell(`<div class="icon"><ha-icon icon="${escapeHtml(this._config.icon || (home ? "jarvis:home" : "jarvis:person"))}"></ha-icon></div><div class="copy"><div class="label">${escapeHtml(friendlyName(state, this._config))}</div><div class="value">${home ? "HOME" : "AWAY"}</div></div>`, { extraClass: home ? "home" : "away" });
+  }
+}
+
 class JarvisIconCatalogCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Icon Catalog";
@@ -1230,6 +1416,36 @@ for (const [tag, klass, name, description] of CARD_DEFINITIONS) {
             ? { config: { type: `custom:${tag}`, entity: entityId } }
             : null,
       } : {}),
+    });
+  }
+}
+
+const BADGE_EDITORS = [
+  ["jarvis-entity-badge-editor", JarvisEntityBadgeEditor],
+  ["jarvis-shortcut-badge-editor", JarvisShortcutBadgeEditor],
+  ["jarvis-progress-badge-editor", JarvisProgressBadgeEditor],
+  ["jarvis-presence-badge-editor", JarvisPresenceBadgeEditor],
+];
+for (const [tag, klass] of BADGE_EDITORS) {
+  if (!customElements.get(tag)) customElements.define(tag, klass);
+}
+
+const BADGE_DEFINITIONS = [
+  ["jarvis-entity-badge", JarvisEntityBadge, "Jarvis Entity", "Entity state in the Jarvis HUD"],
+  ["jarvis-shortcut-badge", JarvisShortcutBadge, "Jarvis Shortcut", "Action or navigation shortcut"],
+  ["jarvis-progress-badge", JarvisProgressBadge, "Jarvis Entity Progress", "Numeric entity progress indicator"],
+  ["jarvis-presence-badge", JarvisPresenceBadge, "Jarvis Home / Away", "Home and away presence status"],
+];
+window.customBadges = window.customBadges || [];
+for (const [tag, klass, name, description] of BADGE_DEFINITIONS) {
+  if (!customElements.get(tag)) customElements.define(tag, klass);
+  if (!window.customBadges.some((badge) => badge.type === tag)) {
+    window.customBadges.push({
+      type: tag,
+      name,
+      description,
+      preview: false,
+      documentationURL: "https://github.com/bennyseather/Project-Jarvis_HA",
     });
   }
 }

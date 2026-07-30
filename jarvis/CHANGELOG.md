@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.13.0
+
+- Add Jarvis Entity, Shortcut, Entity Progress, and Home / Away dashboard
+  badges with graphical Home Assistant editors.
+- Register all four badges in Home Assistant's badge picker.
+- Apply shared Jarvis colours, icons, HUD framing, focus states, actions,
+  numeric formatting, and reduced-motion behavior to badges.
+- Remove the duplicated current-condition status from the Weather card.
+
 ## 0.12.3
 
 - Prevent unrelated Home Assistant state deliveries from replacing the

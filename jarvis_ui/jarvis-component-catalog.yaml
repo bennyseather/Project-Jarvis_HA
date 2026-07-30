@@ -5,6 +5,25 @@ views:
     icon: jarvis:core
     type: sections
     theme: Jarvis Command Center
+    badges:
+      - type: custom:jarvis-entity-badge
+        entity: sun.sun
+        name: Daylight
+      - type: custom:jarvis-shortcut-badge
+        label: Ask Jarvis
+        icon: jarvis:core
+        tap_action:
+          action: assist
+          pipeline_id: preferred
+          start_listening: true
+      - type: custom:jarvis-progress-badge
+        entity: sensor.example_progress
+        name: Progress
+        min: 0
+        max: 100
+      - type: custom:jarvis-presence-badge
+        entity: person.benny
+        name: Benny
     sections:
       - type: grid
         cards:

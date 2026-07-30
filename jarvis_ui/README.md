@@ -1,4 +1,4 @@
-# Project Jarvis UI 0.12.3
+# Project Jarvis UI 0.13.0
 
 Project Jarvis UI is a reusable Home Assistant theme, card library, icon set,
 and dashboard package. Cards use a squared technical HUD style and can be
@@ -29,7 +29,7 @@ Use Studio Code Server, File editor, or Samba to access `/config`.
    `/config/themes/jarvis-command-center.yaml`.
 3. Copy the `www/jarvis` folder into `/config/www/jarvis`.
 4. In Home Assistant, open **Settings -> Dashboards**, open the three-dot menu,
-   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.12.3`
+   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.13.0`
    as a **JavaScript module**.
 5. If you want the supplied dashboards, merge `configuration-snippet.yaml`
    into `/config/configuration.yaml`. Do not create a second `frontend:` or
@@ -61,6 +61,16 @@ editable through Home Assistant.
 - Scene / Script, Timer, Robot Mower, Washing Machine, and Spotify
 - EV Charger, universal Tile, and Markup
 - Car telemetry
+
+## Included badges
+
+- Entity
+- Shortcut
+- Entity Progress
+- Home / Away
+
+All four badges appear in Home Assistant's badge picker and include graphical
+configuration editors.
 
 All cards share hover/focus illumination, cyan/amber/green/red accent states,
 keyboard controls, responsive sizing, and reduced-motion support.
@@ -109,7 +119,7 @@ complete Home Assistant configuration.
 ## Update from an earlier UI release
 
 Replace both dashboard files, the theme, and the `www/jarvis` folder. Replace
-the old resource with `/local/jarvis/jarvis-ui.js?v=0.12.3`, restart Home
+the old resource with `/local/jarvis/jarvis-ui.js?v=0.13.0`, restart Home
 Assistant, and hard-refresh every client. The old JavaScript resource remains
 a compatibility loader, but the new URL is recommended.
 
