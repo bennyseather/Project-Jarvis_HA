@@ -13,10 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.13.1
+## Project Jarvis 0.13.2
 
-Version 0.13.1 keeps badge entity selectors stable during Home Assistant state
-updates. It builds on 0.13.0, which adds four visually editable Jarvis
+Version 0.13.2 keeps friendly-name searches in badge entity selectors stable
+while typing. It builds on 0.13.1, which keeps badge entity-selector menus open
+during Home Assistant state updates, and 0.13.0, which adds four visually editable Jarvis
 dashboard badges and removes
 the duplicated condition text from the D3 Weather card. It builds
 on the Complete Jarvis Dashboard System, which expands

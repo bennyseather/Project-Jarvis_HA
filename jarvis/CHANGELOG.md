@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.2
+
+- Keep the badge editor's Home Assistant data snapshot stable while it is open,
+  so friendly-name searches accept uninterrupted multi-character input.
+
 ## 0.13.1
 
 - Keep Jarvis badge editor forms mounted during frequent Home Assistant state
