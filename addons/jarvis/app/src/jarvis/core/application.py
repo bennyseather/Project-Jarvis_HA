@@ -83,6 +83,7 @@ from jarvis.hybrid_research import (
     HybridResearchProvider,
     SearXNGResearchClient,
 )
+from jarvis.episodic_memory import EpisodicMemoryManager, EpisodicPolicy
 
 
 class JarvisApplication:
@@ -283,6 +284,16 @@ class JarvisApplication:
         self.container.proactive_policy = ProactiveAssistancePolicy.from_config(
             self.general.get("proactive", {})
         )
+        self.container.episodic_policy = EpisodicPolicy.from_config(
+            self.general.get("episodic_memory", {})
+        )
+        self.container.episodic_manager = EpisodicMemoryManager(
+            self.container.memory_store,
+            self.container.conversation_store,
+            self.container.episodic_policy,
+            reasoning=self.container.openai,
+            clock=clock,
+        )
         self.container.research_policy = ResearchPolicy.from_config(
             self.general.get("research", {})
         )
@@ -356,6 +367,7 @@ class JarvisApplication:
             self.container.conversation_store,
             self.container.repeated_context_learner,
             self.container.reflective_learning_manager,
+            self.container.episodic_manager,
         )
         self.container.searxng_research = SearXNGResearchClient(
             self.container.hybrid_research_policy,
@@ -604,6 +616,10 @@ class JarvisApplication:
             identifier = self.container.conversation_store.normalize_conversation_id(
                 conversation_id
             )
+            if " ".join(text.casefold().strip(" .?!").split()) == "clear conversation history":
+                self.container.conversation_store.clear()
+            if not self.container.episodic_manager.is_command(text):
+                self.container.episodic_manager.observe(identifier)
             return self.container.personality_presenter.present(
                 result,
                 text,
@@ -709,7 +725,10 @@ class JarvisApplication:
             self.container.conversation_context_messages,
         )
         context = {
-            "memory": self._context_items(package.memory),
+            "memory": self._context_items(
+                package.memory,
+                episode_limit=self.container.episodic_policy.context_limit,
+            ),
             "knowledge": self._context_items(package.knowledge),
             "conversation": tuple(message.to_openai() for message in history[:-1]),
             "conversation_id": identifier,
@@ -810,19 +829,28 @@ class JarvisApplication:
         return messages.get(str(result.get("status")), str(result.get("message", "Request could not be completed.")))
 
     @staticmethod
-    def _context_items(section) -> tuple[dict[str, object], ...]:
+    def _context_items(section, *, episode_limit=None) -> tuple[dict[str, object], ...]:
         if section is None:
             return ()
-        return tuple(
-            {
+        items = []
+        episode_count = 0
+        for match in section.matches:
+            typed_value = getattr(
+                match, "memory_type", getattr(match, "knowledge_type", "")
+            )
+            memory_type = str(getattr(typed_value, "value", typed_value))
+            if memory_type in {"episodic", "conversation_summary"}:
+                if episode_limit is not None and episode_count >= episode_limit:
+                    continue
+                episode_count += 1
+            items.append({
                 "content": match.content,
                 "title": getattr(match, "title", None),
-                "type": str(getattr(match, "memory_type", getattr(match, "knowledge_type", ""))),
+                "type": memory_type,
                 "tags": match.tags,
                 "score": match.retrieval_score,
-            }
-            for match in section.matches
-        )
+            })
+        return tuple(items)
 
     async def keep_running(self):
         """Run the first minimal interactive request loop."""

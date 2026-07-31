@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.19.0"
+version: "0.20.0"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]
@@ -16,9 +16,15 @@ options:
   proactive_voice_enabled: false
   searxng_url: "http://homeassistant.local:8088/search"
   monthly_ai_budget_usd: 10.0
+  episodic_memory_enabled: true
+  episodic_retention_days: 30
+  maximum_episodes: 50
 schema:
   openai_api_key: password
   bridge_api_key: password
   proactive_voice_enabled: bool
   searxng_url: str
   monthly_ai_budget_usd: float
+  episodic_memory_enabled: bool
+  episodic_retention_days: int(1,365)
+  maximum_episodes: int(1,200)

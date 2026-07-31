@@ -25,8 +25,8 @@ Do not expose ports 8099 or 8088 to the internet. They are intended for the
 trusted Home Assistant network only.
 
 Upgrading through the add-on repository preserves existing memory. Version
-0.19.0 adds adaptive personality presentation and relationship-preference
-controls. No reset or reinstallation is required.
+0.20.0 adds bounded episodic conversation summaries. No reset or reinstallation
+is required.
 
 The optional Jarvis UI Design System is published in the release repository's
 `jarvis_ui` folder. Follow its `README.md` for manual theme, background, card,

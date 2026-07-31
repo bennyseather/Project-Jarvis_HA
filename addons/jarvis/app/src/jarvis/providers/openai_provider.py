@@ -64,6 +64,14 @@ class OpenAIProvider:
         timeout_seconds: int,
     ) -> dict[str, object]:
         """Implement the provider-neutral reasoning contract."""
+        if self.usage_ledger is not None and not self.usage_ledger.permitted(0.01):
+            self.logger.warning("OpenAI reasoning blocked by the monthly AI budget.")
+            return {
+                "status": "unavailable",
+                "message": "The monthly external AI budget has been reached.",
+                "provider": "openai",
+                "model": model,
+            }
         try:
             self.logger.info(f"Sending bounded reasoning request using {model}.")
             response = self.client.responses.create(
