@@ -63,6 +63,14 @@ relaxed|refined`, `set personality verbosity concise|balanced`, and `reset
 personality`. British-English expression and an original subtly synthetic
 voice identity never override facts, permissions, confirmations, or safety.
 
+M29 extends that foundation with `set personality warmth
+reserved|balanced|warm`, `set personality humour off|subtle|moderate`,
+`set personality verbosity concise|balanced|detailed`, `show relationship
+preferences`, `forget relationship preferences`, and `explain last response
+style`. Voice responses are shorter, preferred names are used sparingly, and
+confirmations, failures, safety matters, and sensitive contexts remain
+humour-free and structurally unchanged.
+
 M27 adds general OpenAI reasoning and live web research. Jarvis automatically
 researches current, niche, uncertain, or explicitly requested topics and
 returns bounded source metadata. Use `what sources did you use`, `do not use
@@ -71,11 +79,11 @@ conversation` for control. Search findings remain temporary unless you say
 `remember this`; `forget this` permanently deletes that approved research
 memory. Research never grants Home Assistant or external-action authority.
 
-Version 0.18.0 includes the optional complete Jarvis Dashboard System. Download the
+Version 0.19.0 includes the optional complete Jarvis Dashboard System. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
 its `README.md`. Installation remains explicit: the add-on is not granted
 write access to Home Assistant's configuration directory. Register
-`/local/jarvis/jarvis-ui.js?v=0.18.0` as a JavaScript module in Home Assistant
+`/local/jarvis/jarvis-ui.js?v=0.19.0` as a JavaScript module in Home Assistant
 
 ## Hybrid research and AI budget
 
