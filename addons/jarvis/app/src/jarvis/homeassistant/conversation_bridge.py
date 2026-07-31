@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections import deque
 
 
 class JarvisConversationBridge:
@@ -19,6 +20,8 @@ class JarvisConversationBridge:
     def __init__(self, application) -> None:
         self._application = application
         self._pending_by_conversation: dict[str, tuple[str, str]] = {}
+        self._recent_activations: deque[str] = deque(maxlen=128)
+        self._activation_results: dict[str, dict[str, object]] = {}
 
     async def process(
         self,
@@ -28,8 +31,15 @@ class JarvisConversationBridge:
         voice_mode: bool = False,
         proactive_voice_route: dict[str, object] | None = None,
         source_id: str | None = None,
+        activation_id: str | None = None,
     ) -> dict[str, object]:
         identifier = self._conversation_identifier(conversation_id)
+        activation_key = (
+            f"{identifier}:{source_id or 'unknown'}:{activation_id}"
+            if activation_id else None
+        )
+        if activation_key and activation_key in self._activation_results:
+            return dict(self._activation_results[activation_key])
         delivery = getattr(
             self._application.container, "proactive_delivery", None
         )
@@ -114,11 +124,13 @@ class JarvisConversationBridge:
                     if voice_mode
                     else f"Confirm action: {summary}. Reply: confirm {action_token}"
                 )
-                return {
+                response = {
                     "status": "requires_confirmation",
                     "message": message,
                     "confirmation_token": action_token,
                 }
+                self._remember_activation(activation_key, response)
+                return response
 
             memory_token = result.get("confirmation_token") or result.get("token")
             if memory_token:
@@ -131,15 +143,31 @@ class JarvisConversationBridge:
                     if voice_mode
                     else str(result.get("message", "Confirmation is required."))
                 )
-                return {
+                response = {
                     "status": "requires_confirmation",
                     "message": message,
                     "confirmation_token": memory_token,
                 }
-        return {
+                self._remember_activation(activation_key, response)
+                return response
+        response = {
             "status": result.get("status", "unavailable"),
             "message": self._application._user_message(result),
         }
+        self._remember_activation(activation_key, response)
+        return response
+
+    def _remember_activation(
+        self, activation_id: str | None, response: dict[str, object]
+    ) -> None:
+        """Cache one bounded result so a repeated wake run cannot execute twice."""
+        if not activation_id:
+            return
+        if len(self._recent_activations) == self._recent_activations.maxlen:
+            expired = self._recent_activations[0]
+            self._activation_results.pop(expired, None)
+        self._recent_activations.append(activation_id)
+        self._activation_results[activation_id] = dict(response)
 
     async def _confirm_action(
         self, token: str, identifier: str, user_text: str
