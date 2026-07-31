@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.20.0
+
+- Added bounded episodic conversation summaries without raw transcript storage.
+- Added local automatic low-sensitivity summaries and explicit Luna summaries.
+- Added confirmation protection for sensitive conversation summaries.
+- Added expiry, pinning, capacity controls, relevant retrieval, and hard deletion.
+- Added natural commands to inspect, remember, pin, forget, and clear episodes.
+
 ## 0.19.0
 
 - Added a safety-subordinate adaptive personality presentation layer.

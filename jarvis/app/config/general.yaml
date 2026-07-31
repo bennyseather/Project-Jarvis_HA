@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.19.0"
+  version: "0.20.0"
 
 system:
   debug: false
@@ -33,6 +33,13 @@ conversation:
   maximum_conversations: 20
   retention_days: 3
   maximum_messages_per_conversation: 100
+
+episodic_memory:
+  enabled: true
+  retention_days: 30
+  maximum_episodes: 50
+  minimum_messages: 6
+  context_limit: 3
 
 research:
   enabled: true

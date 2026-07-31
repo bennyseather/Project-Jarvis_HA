@@ -70,6 +70,10 @@ class ExplicitMemoryPolicy:
         MemoryType.INSTRUCTION,
         MemoryType.PROJECT,
     }
+    _RETRIEVAL_TYPES = _ELIGIBLE_TYPES | {
+        MemoryType.EPISODIC,
+        MemoryType.CONVERSATION_SUMMARY,
+    }
 
     def evaluate_creation(
         self,
@@ -118,7 +122,7 @@ class ExplicitMemoryPolicy:
 
         if record.status is not MemoryStatus.ACTIVE:
             return self._ineligible("memory_not_active")
-        if record.memory_type not in self._ELIGIBLE_TYPES:
+        if record.memory_type not in self._RETRIEVAL_TYPES:
             return self._ineligible("reserved_memory_type")
         if record.expires_at is not None and query.evaluation_time is not None:
             if record.expires_at <= query.evaluation_time:

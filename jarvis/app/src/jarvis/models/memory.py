@@ -47,6 +47,7 @@ class MemoryConsentLevel(str, Enum):
 
     EXPLICIT = "explicit"
     SENSITIVE_CONFIRMED = "sensitive_confirmed"
+    AUTOMATIC_LOW_SENSITIVITY = "automatic_low_sensitivity"
 
 
 @dataclass(frozen=True, slots=True)

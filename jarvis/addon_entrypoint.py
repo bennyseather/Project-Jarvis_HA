@@ -15,6 +15,10 @@ general.setdefault("hybrid_research", {})["searxng_url"] = str(
 general.setdefault("ai_budget", {})["monthly_limit_usd"] = float(
     options.get("monthly_ai_budget_usd", 10.0)
 )
+episodic = general.setdefault("episodic_memory", {})
+episodic["enabled"] = bool(options.get("episodic_memory_enabled", True))
+episodic["retention_days"] = int(options.get("episodic_retention_days", 30))
+episodic["maximum_episodes"] = int(options.get("maximum_episodes", 50))
 general_path.write_text(
     yaml.safe_dump(general, sort_keys=False, allow_unicode=True)
 )

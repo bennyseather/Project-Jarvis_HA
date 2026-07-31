@@ -17,17 +17,23 @@ class NaturalMemoryController:
         conversation_store,
         learner,
         reflection_manager=None,
+        episodic_manager=None,
     ) -> None:
         self._memories = memory_store
         self._writer = memory_writer
         self._conversations = conversation_store
         self._learner = learner
         self._reflections = reflection_manager
+        self._episodic = episodic_manager
         self._pending_sensitive: dict[str, str] = {}
 
     def handle(self, text: str, conversation_id: str | None) -> dict[str, object] | None:
         raw = text.strip()
         lower = " ".join(raw.casefold().split()).strip(" .?!")
+        if self._episodic is not None:
+            episodic_result = self._episodic.handle(raw, conversation_id)
+            if episodic_result is not None:
+                return episodic_result
         token = self._match(r"confirm memory (.+)", raw)
         if token:
             content = self._pending_sensitive.pop(token, None)
@@ -45,6 +51,10 @@ class NaturalMemoryController:
                     "status": "success" if result.record else result.status.value,
                     "message": "Understood. I will remember that private detail." if result.record else "I could not save that memory.",
                 }
+            if self._episodic is not None:
+                episodic_result = self._episodic.confirm(token)
+                if episodic_result is not None:
+                    return episodic_result
             return self._learner.confirm(token)
         if lower in {
             "do not learn from this conversation",
@@ -261,6 +271,8 @@ class NaturalMemoryController:
     def cancel_confirmation(self, token: str) -> None:
         """Discard pending explicit or repeated sensitive-memory content."""
         self._pending_sensitive.pop(token, None)
+        if self._episodic is not None:
+            self._episodic.cancel(token)
         self._learner.cancel(token)
 
     def _visible_records(self):
