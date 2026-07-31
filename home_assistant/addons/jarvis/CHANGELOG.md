@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.0
+
+- Added a safety-subordinate adaptive personality presentation layer.
+- Added explicit warmth, moderate humour, and detailed verbosity options.
+- Added relationship-preference inspection and selective deletion controls.
+- Added explainable response styling and shorter voice-mode presentation.
+- Added repetition, initiative, emotional-claim, and humour safety boundaries.
+
 ## 0.18.0
 
 - Added optional local SearXNG search and bounded public-page evidence retrieval.

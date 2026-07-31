@@ -2,6 +2,16 @@
 
 ## Approved Future Direction
 
+### M29 - Adaptive Jarvis Personality (complete)
+
+- M29.1 Context-sensitive character and presentation layer complete
+- M29.2 Explicit relationship continuity controls complete
+- M29.3 Adaptive text and bounded voice response styles complete
+- M29.4 Bounded initiative and social-intelligence guidance complete
+- M29.5 Restrained original wit and repetition controls complete
+- M29.6 British synthetic voice presentation guidance complete
+- M29.7 Inspectability, safety regression, packaging, and release complete
+
 ### M27 - Open Knowledge and Live Research (complete)
 
 - M27.1 Typed research policy and provider-neutral routing complete

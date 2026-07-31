@@ -57,6 +57,7 @@ from jarvis.memory.repeated_context import RepeatedContextExtractor, RepeatedCon
 from jarvis.management.natural_memory import NaturalMemoryController
 from jarvis.persona import JarvisPersona
 from jarvis.personality import PersonalityManager
+from jarvis.personality_presentation import PersonalityPresenter
 from jarvis.reflection.manager import ReflectiveLearningManager
 from jarvis.storage.reflection_store import SQLiteReflectionStore
 from jarvis.proactive.controller import NaturalProactiveController
@@ -529,6 +530,9 @@ class JarvisApplication:
         self.container.personality_manager = PersonalityManager(
             self.container.knowledge_store
         )
+        self.container.personality_presenter = PersonalityPresenter(
+            self.container.personality_manager
+        )
         self.container.proactive_allowed_entities = allowed_reads
         timeline_config = self.general.get("event_timeline", {})
         if (
@@ -594,8 +598,17 @@ class JarvisApplication:
         """Route one user request through the configured safe assistant slice."""
 
         async with self._request_lock:
-            return await self._handle_request(
+            result = await self._handle_request(
                 text, conversation_id, voice_mode, source_id
+            )
+            identifier = self.container.conversation_store.normalize_conversation_id(
+                conversation_id
+            )
+            return self.container.personality_presenter.present(
+                result,
+                text,
+                identifier,
+                voice_mode=voice_mode,
             )
 
     async def _handle_request(
@@ -610,7 +623,9 @@ class JarvisApplication:
         user_message = conversation_store.add_message(identifier, "user", text)
         self.container.read_only_assistant.activate_conversation(identifier)
 
-        personality_result = self.container.personality_manager.handle(text)
+        personality_result = self.container.personality_manager.handle(
+            text, identifier
+        )
         if personality_result is not None:
             conversation_store.add_message(
                 identifier, "assistant", self._user_message(personality_result)
