@@ -13,10 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.17.1
+## Project Jarvis 0.18.0
 
-Version 0.17.1 fixes M27 routing for current external information and identity
-questions. Version 0.17.0 added Open Knowledge and Live Research. Jarvis uses
+Version 0.18.0 adds M28 Hybrid Research and Cost-Aware Intelligence. Jarvis can
+search through the optional local Project Jarvis Search add-on, retrieve bounded
+public evidence, preserve citations, and use tiered OpenAI reasoning only when
+needed. A persistent monthly budget prevents unexpected API spending. Jarvis uses
 OpenAI reasoning for general questions and can automatically invoke native web
 search for current, niche, uncertain, or explicitly researched topics. Answers
 retain bounded sources and conversational follow-ups. Research is never stored

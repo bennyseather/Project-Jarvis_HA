@@ -76,6 +76,12 @@ from jarvis.homeassistant.compound_orchestration import (
 )
 from jarvis.homeassistant.contextual_goals import ContextualGoalManager
 from jarvis.research import GeneralResearchProvider, ResearchController, ResearchPolicy
+from jarvis.ai_budget import AIBudgetPolicy, SQLiteAIUsageLedger
+from jarvis.hybrid_research import (
+    HybridResearchPolicy,
+    HybridResearchProvider,
+    SearXNGResearchClient,
+)
 
 
 class JarvisApplication:
@@ -168,6 +174,7 @@ class JarvisApplication:
                 self.container.reflection_store.close()
                 self.container.proactive_store.close()
                 self.container.confirmed_action_audit_store.close()
+                self.container.ai_usage_ledger.close()
         else:
             self.console.print("[red]Jarvis is not running.[/red]")
 
@@ -240,13 +247,23 @@ class JarvisApplication:
             logger=self.container.logger,
         )
 
+        self.container.context_builder = ContextBuilder()
+        clock = lambda: datetime.now(timezone.utc)
+        self.container.ai_budget_policy = AIBudgetPolicy.from_config(
+            self.general.get("ai_budget", {})
+        )
+        self.container.ai_usage_ledger = SQLiteAIUsageLedger(
+            database_file, self.container.ai_budget_policy, clock=clock
+        )
+        self.container.hybrid_research_policy = HybridResearchPolicy.from_config(
+            self.general.get("hybrid_research", {})
+        )
         self.container.openai = OpenAIProvider(
             api_key=self.general["openai"]["api_key"],
             logger=self.container.logger,
+            default_model=self.container.hybrid_research_policy.normal_model,
+            usage_ledger=self.container.ai_usage_ledger,
         )
-
-        self.container.context_builder = ContextBuilder()
-        clock = lambda: datetime.now(timezone.utc)
         self.container.memory_store = SQLiteMemoryStore(database_file)
         self.container.knowledge_store = SQLiteKnowledgeStore(database_file)
         self.container.conversation_store = SQLiteConversationStore(
@@ -339,14 +356,21 @@ class JarvisApplication:
             self.container.repeated_context_learner,
             self.container.reflective_learning_manager,
         )
-        self.container.research_provider = GeneralResearchProvider(
+        self.container.searxng_research = SearXNGResearchClient(
+            self.container.hybrid_research_policy,
+            self.container.logger,
+        )
+        self.container.research_provider = HybridResearchProvider(
             self.container.openai,
-            self.container.research_policy,
+            self.container.searxng_research,
+            self.container.hybrid_research_policy,
+            self.container.ai_usage_ledger,
         )
         self.container.research_controller = ResearchController(
             self.container.research_policy,
             self.container.memory_store,
             self.container.memory_writer,
+            self.container.ai_usage_ledger,
         )
         self.container.reflective_learning_manager.refresh()
 

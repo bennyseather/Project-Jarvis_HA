@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.17.1"
+version: "0.18.0"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]
@@ -14,7 +14,11 @@ options:
   openai_api_key: ""
   bridge_api_key: ""
   proactive_voice_enabled: false
+  searxng_url: "http://homeassistant.local:8088/search"
+  monthly_ai_budget_usd: 10.0
 schema:
   openai_api_key: password
   bridge_api_key: password
   proactive_voice_enabled: bool
+  searxng_url: str
+  monthly_ai_budget_usd: float

@@ -124,10 +124,13 @@ is returned separately, so do not read URLs aloud."""
 class ResearchController:
     """Conversation controls and explicit consent for research-derived memory."""
 
-    def __init__(self, policy: ResearchPolicy, memory_store, memory_writer) -> None:
+    def __init__(
+        self, policy: ResearchPolicy, memory_store, memory_writer, usage_ledger=None
+    ) -> None:
         self._policy = policy
         self._memory_store = memory_store
         self._memory_writer = memory_writer
+        self._usage_ledger = usage_ledger
         self._disabled: set[str] = set()
         self._last: dict[str, dict[str, object]] = {}
         self._saved: dict[str, str] = {}
@@ -144,6 +147,19 @@ class ResearchController:
 
     def handle(self, text: str, conversation_id: str) -> dict[str, object] | None:
         command = " ".join(text.casefold().split()).strip(" .?!")
+        if command in {"show ai usage", "show ai budget", "show openai usage"}:
+            if self._usage_ledger is None:
+                return {"status": "unavailable", "message": "AI usage accounting is unavailable."}
+            status = self._usage_ledger.status()
+            return {
+                "status": "success",
+                "message": (
+                    f"External AI usage this month is ${status['used_usd']:.2f} "
+                    f"of the ${status['limit_usd']:.2f} budget; "
+                    f"${status['remaining_usd']:.2f} remains."
+                ),
+                "ai_budget": status,
+            }
         if command in {
             "do not use web research for this conversation",
             "disable web research for this conversation",

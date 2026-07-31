@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.18.0
+
+- Added optional local SearXNG search and bounded public-page evidence retrieval.
+- Added Luna-to-Terra reasoning escalation and explicit-only Sol reasoning.
+- Added persistent token/cost accounting, 70%/90% warnings, and a hard monthly
+  budget limit without storing prompts or answers.
+- Added an Ollama-ready provider-neutral reasoning contract.
+
 ## 0.17.1
 
 - Prevented external “what changed” questions from being intercepted by the

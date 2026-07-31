@@ -69,4 +69,8 @@ class ServiceContainer:
         self.research_policy = None
         self.research_provider = None
         self.research_controller = None
+        self.ai_budget_policy = None
+        self.ai_usage_ledger = None
+        self.hybrid_research_policy = None
+        self.searxng_research = None
         self.entity_resolver: EntityResolver | None = None
