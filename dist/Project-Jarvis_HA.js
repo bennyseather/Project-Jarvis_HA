@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.20.0";
+const JARVIS_UI_VERSION = "0.21.0";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -736,6 +736,195 @@ class JarvisVoiceCard extends JarvisBaseCard {
   }
 }
 
+class JarvisVoiceSatelliteCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static cardName = "Jarvis Voice Satellite";
+  static gridRows = 4;
+  static getConfigForm() {
+    return { schema: [
+      { name: "title", selector: { text: {} } },
+      { name: "pipeline_id", selector: { text: {} } },
+      { name: "device_id", selector: { device: {} } },
+      { name: "satellite_entity", selector: { entity: { domain: "assist_satellite" } } },
+      { name: "wake_word_phrase", selector: { text: {} } },
+      { name: "wake_timeout", selector: { number: { min: 3, max: 60, step: 1, mode: "slider" } } },
+    ] };
+  }
+  static getStubConfig() {
+    return { title: "Windows Voice Satellite", wake_word_phrase: "Hey Jarvis", wake_timeout: 15 };
+  }
+  constructor() {
+    super();
+    this._mode = "idle";
+    this._status = "Muted // microphone offline";
+    this._conversationId = undefined;
+    this._restartTimer = undefined;
+  }
+  setConfig(config) {
+    super.setConfig({ title: "Jarvis Voice Satellite", wake_timeout: 15, ...config });
+  }
+  set hass(value) {
+    this._hass = value;
+    if (this._mode === "idle") this.render();
+    else this._paintStatus();
+  }
+  disconnectedCallback() { this._stop(false); }
+  render() {
+    if (!this._config) return;
+    const entity = stateObject(this._hass, this._config.satellite_entity);
+    const entityState = entity ? formatState(entity, {}) : "Browser satellite";
+    this.shell(`<div class="satellite-layout"><div class="satellite-head"><div class="icon-shell"><ha-icon icon="mdi:microphone-message"></ha-icon></div><div class="copy"><div class="eyebrow">Voice activation node</div><div class="name">${escapeHtml(this._config.title)}</div><div class="state entity-state">${escapeHtml(entityState)}</div></div><div class="live-dot"></div></div><div class="satellite-status">${escapeHtml(this._status)}</div><div class="satellite-controls"><button class="wake primary">Enable wake word</button><button class="ptt">Push to talk</button><button class="mute">Mute</button></div><div class="privacy">AUDIO STREAMS TO HOME ASSISTANT ONLY // NO RECORDING</div></div>
+      <style>.satellite-layout{min-height:170px;padding:20px;display:grid;gap:13px}.satellite-head{display:grid;grid-template-columns:48px 1fr 12px;gap:12px;align-items:center}.icon-shell{width:46px;height:46px}.live-dot{width:9px;height:9px;border:1px solid var(--j-line);border-radius:50%}.live-dot.active{background:var(--j-green);box-shadow:0 0 12px var(--j-green)}.satellite-status{font:700 11px monospace;letter-spacing:.08em;color:var(--j-accent);text-transform:uppercase}.satellite-controls{display:grid;grid-template-columns:1.35fr 1fr .7fr;gap:8px}.privacy{font:600 8px monospace;letter-spacing:.1em;color:var(--secondary-text-color)}@container(max-width:430px){.satellite-layout{padding:14px}.satellite-controls{grid-template-columns:1fr 1fr}.mute{grid-column:1/-1}}</style>`, { interactive: false });
+    this.shadowRoot.querySelector(".wake").addEventListener("click", () =>
+      this._mode === "wake" ? this._stop() : this._start("wake"));
+    this.shadowRoot.querySelector(".ptt").addEventListener("click", () =>
+      this._mode === "ptt" ? this._finishAudio() : this._start("ptt"));
+    this.shadowRoot.querySelector(".mute").addEventListener("click", () => this._stop());
+    this._paintStatus();
+  }
+  _paintStatus() {
+    const root = this.shadowRoot;
+    if (!root) return;
+    const status = root.querySelector(".satellite-status");
+    if (status) status.textContent = this._status;
+    const dot = root.querySelector(".live-dot");
+    if (dot) dot.classList.toggle("active", this._mode !== "idle");
+    const wake = root.querySelector(".wake");
+    if (wake) wake.textContent = this._mode === "wake" ? "Wake word active" : "Enable wake word";
+    const ptt = root.querySelector(".ptt");
+    if (ptt) ptt.textContent = this._mode === "ptt" ? "Send command" : "Push to talk";
+  }
+  async _start(mode) {
+    if (!this._hass?.connection?.subscribeMessage || !navigator.mediaDevices?.getUserMedia) {
+      this._status = "Unavailable // HTTPS and microphone permission required";
+      this._paintStatus();
+      return;
+    }
+    await this._stop(false);
+    this._mode = mode;
+    this._status = "Requesting microphone permission";
+    this._paintStatus();
+    try {
+      this._stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+      } });
+      this._audioContext = new AudioContext();
+      await this._audioContext.resume();
+      const source = this._audioContext.createMediaStreamSource(this._stream);
+      this._processor = this._audioContext.createScriptProcessor(4096, 1, 1);
+      source.connect(this._processor);
+      this._processor.connect(this._audioContext.destination);
+      this._processor.onaudioprocess = (event) => this._sendSamples(event.inputBuffer.getChannelData(0));
+      await this._runPipeline();
+    } catch (error) {
+      this._status = `Microphone error // ${error?.message || "permission denied"}`;
+      await this._stop(false, true);
+    }
+  }
+  async _runPipeline() {
+    const startStage = this._mode === "wake" ? "wake_word" : "stt";
+    this._handlerId = undefined;
+    this._preRoll = [];
+    this._voiceGate = 0;
+    this._status = startStage === "wake_word"
+      ? `Listening for ${this._config.wake_word_phrase || "wake word"}`
+      : "Listening // tap send when finished";
+    this._paintStatus();
+    const message = {
+      type: "assist_pipeline/run", start_stage: startStage, end_stage: "tts",
+      input: { sample_rate: 16000 }, timeout: 300,
+    };
+    if (startStage === "wake_word") {
+      Object.assign(message.input, {
+        timeout: Number(this._config.wake_timeout || 15), noise_suppression_level: 2,
+        auto_gain_dbfs: 31, volume_multiplier: 1.0,
+      });
+    }
+    if (this._config.pipeline_id && this._config.pipeline_id !== "preferred") message.pipeline = this._config.pipeline_id;
+    if (this._config.device_id) message.device_id = this._config.device_id;
+    if (this._conversationId) message.conversation_id = this._conversationId;
+    this._unsubscribe = await this._hass.connection.subscribeMessage(
+      (payload) => this._pipelineEvent(payload?.event || payload), message);
+  }
+  _pipelineEvent(event) {
+    const type = event?.type;
+    const data = event?.data || {};
+    if (type === "run-start") this._handlerId = data.runner_data?.stt_binary_handler_id;
+    else if (type === "wake_word-end") this._status = "Wake word accepted // listening";
+    else if (type === "stt-vad-start") this._status = "Command detected // listening";
+    else if (type === "stt-end") this._status = `Heard // ${data.stt_output?.text || "processing"}`;
+    else if (type === "intent-end") {
+      this._conversationId = data.intent_output?.conversation_id || this._conversationId;
+      this._status = "Response ready";
+    } else if (type === "tts-end") this._playTts(data.url);
+    else if (type === "error") this._status = `Pipeline error // ${data.message || data.code}`;
+    else if (type === "run-end") this._pipelineEnded();
+    this._paintStatus();
+  }
+  _sendSamples(samples) {
+    if (this._handlerId === undefined || this._handlerId === null) return;
+    const sourceRate = this._audioContext.sampleRate;
+    const ratio = sourceRate / 16000;
+    const count = Math.floor(samples.length / ratio);
+    const packet = new Uint8Array(1 + count * 2);
+    packet[0] = this._handlerId;
+    const view = new DataView(packet.buffer);
+    for (let index = 0; index < count; index += 1) {
+      const sample = Math.max(-1, Math.min(1, samples[Math.floor(index * ratio)]));
+      view.setInt16(1 + index * 2, sample < 0 ? sample * 32768 : sample * 32767, true);
+    }
+    if (this._mode !== "wake") {
+      this._hass.connection.socket.send(packet);
+      return;
+    }
+    let energy = 0;
+    for (let index = 0; index < samples.length; index += 1) energy += samples[index] * samples[index];
+    const speech = Math.sqrt(energy / samples.length) > 0.012;
+    if (speech) this._voiceGate = 12;
+    else if (this._voiceGate > 0) this._voiceGate -= 1;
+    if (this._voiceGate > 0) {
+      for (const buffered of this._preRoll) this._hass.connection.socket.send(buffered);
+      this._preRoll = [];
+      this._hass.connection.socket.send(packet);
+    } else {
+      this._preRoll.push(packet);
+      if (this._preRoll.length > 4) this._preRoll.shift();
+    }
+  }
+  _finishAudio() {
+    if (this._handlerId !== undefined) this._hass.connection.socket.send(new Uint8Array([this._handlerId]));
+    this._handlerId = undefined;
+    this._status = "Processing command";
+    this._paintStatus();
+  }
+  _pipelineEnded() {
+    if (this._mode === "wake") {
+      this._status = "Rearming wake word";
+      clearTimeout(this._restartTimer);
+      this._restartTimer = setTimeout(() => this._runPipeline().catch((error) => {
+        this._status = `Pipeline error // ${error.message}`; this._paintStatus();
+      }), 600);
+    } else this._stop(false);
+  }
+  _playTts(url) {
+    if (!url) return;
+    const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
+    new Audio(target).play().catch(() => { this._status = "Response ready // browser blocked playback"; this._paintStatus(); });
+  }
+  async _stop(render = true, keepStatus = false) {
+    clearTimeout(this._restartTimer);
+    if (this._handlerId !== undefined && this._hass?.connection?.socket) this._finishAudio();
+    this._handlerId = undefined;
+    if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = undefined; }
+    if (this._processor) { this._processor.disconnect(); this._processor = undefined; }
+    if (this._audioContext) { await this._audioContext.close(); this._audioContext = undefined; }
+    if (this._stream) { this._stream.getTracks().forEach((track) => track.stop()); this._stream = undefined; }
+    this._mode = "idle";
+    if (!keepStatus) this._status = "Muted // microphone offline";
+    if (render) this.render(); else this._paintStatus();
+  }
+}
+
 function multiEntityForm(extra = []) {
   return {
     schema: [
@@ -1372,6 +1561,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-security-card", JarvisSecurityCard, "Jarvis Security", "Lock and safety entity display"],
   ["jarvis-status-card", JarvisStatusCard, "Jarvis Status", "Multi-entity system summary"],
   ["jarvis-voice-card", JarvisVoiceCard, "Jarvis Voice", "Animated Project Jarvis Assist launcher"],
+  ["jarvis-voice-satellite-card", JarvisVoiceSatelliteCard, "Jarvis Voice Satellite", "Wake word and push-to-talk browser satellite"],
   ["jarvis-room-card", JarvisRoomCard, "Jarvis Room Summary", "Room state, telemetry and navigation"],
   ["jarvis-presence-card", JarvisPresenceCard, "Jarvis Presence", "Person and presence status"],
   ["jarvis-weather-card", JarvisWeatherCard, "Jarvis Weather", "Current weather telemetry"],

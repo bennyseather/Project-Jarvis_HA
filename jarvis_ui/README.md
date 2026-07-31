@@ -1,4 +1,4 @@
-# Project Jarvis UI 0.20.0
+# Project Jarvis UI 0.21.0
 
 Project Jarvis UI is a reusable Home Assistant theme, card library, icon set,
 and dashboard package. Cards use a squared technical HUD style and can be
@@ -29,7 +29,7 @@ Use Studio Code Server, File editor, or Samba to access `/config`.
    `/config/themes/jarvis-command-center.yaml`.
 3. Copy the `www/jarvis` folder into `/config/www/jarvis`.
 4. In Home Assistant, open **Settings -> Dashboards**, open the three-dot menu,
-   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.20.0`
+   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.21.0`
    as a **JavaScript module**.
 5. If you want the supplied dashboards, merge `configuration-snippet.yaml`
    into `/config/configuration.yaml`. Do not create a second `frontend:` or
@@ -56,7 +56,7 @@ editable through Home Assistant.
 - Entity, Light, Switch, and Slider
 - Climate, Cover, Media, and Camera
 - Sensor, Security, and multi-entity Status
-- Voice, Icon Catalog, and Entity Coverage
+- Voice, browser Voice Satellite, Icon Catalog, and Entity Coverage
 - Room Summary, Presence, Weather, Energy, Fan, Vacuum, Lock, and Alarm Panel
 - Scene / Script, Timer, Robot Mower, Washing Machine, and Spotify
 - EV Charger, universal Tile, and Markup
@@ -76,8 +76,11 @@ All cards share hover/focus illumination, cyan/amber/green/red accent states,
 keyboard controls, responsive sizing, and reduced-motion support.
 Numeric sensor values displayed on Jarvis cards are limited to one decimal.
 
-The Voice card dispatches Home Assistant's standard Assist action. It does not
-directly access the microphone or receive raw audio.
+The Voice card dispatches Home Assistant's standard Assist action. The separate
+Voice Satellite card can use a browser microphone over HTTPS for wake-word or
+push-to-talk testing. Audio streams directly to Home Assistant's authenticated
+Assist pipeline and is never stored by Jarvis. Muting the card closes its audio
+track and releases the microphone.
 
 ## Jarvis icons
 
@@ -119,7 +122,7 @@ complete Home Assistant configuration.
 ## Update from an earlier UI release
 
 Replace both dashboard files, the theme, and the `www/jarvis` folder. Replace
-the old resource with `/local/jarvis/jarvis-ui.js?v=0.20.0`, restart Home
+the old resource with `/local/jarvis/jarvis-ui.js?v=0.21.0`, restart Home
 Assistant, and hard-refresh every client. The old JavaScript resource remains
 a compatibility loader, but the new URL is recommended.
 

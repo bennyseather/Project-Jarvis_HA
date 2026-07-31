@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.21.0
+
+- Added an optional HTTPS browser voice satellite for Windows development.
+- Added Home Assistant Assist pipeline wake-word and push-to-talk streaming.
+- Added local mute, listening state, conversation continuity, and browser TTS.
+- Added bounded duplicate-activation protection without storing audio.
+
 ## 0.20.0
 
 - Added bounded episodic conversation summaries without raw transcript storage.

@@ -85,6 +85,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                 "voice_mode": external_voice,
                 "device_id": user_input.device_id,
                 "satellite_id": user_input.satellite_id,
+                "activation_id": getattr(user_input.context, "id", None),
                 "proactive_voice_route": proactive_voice_route,
             },
             headers={"Authorization": "Bearer " + self.entry.data["api_key"]},

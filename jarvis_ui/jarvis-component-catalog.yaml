@@ -35,6 +35,11 @@ views:
             description: Voice interface ready
             pipeline_id: preferred
             start_listening: true
+          - type: custom:jarvis-voice-satellite-card
+            title: Windows Voice Satellite
+            pipeline_id: preferred
+            wake_word_phrase: Hey Jarvis
+            wake_timeout: 15
           - type: custom:jarvis-button-card
             label: Command Button
             description: Tap, hold and double-tap actions
