@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 
 class JarvisConversationBridge:
     """Expose Jarvis request, confirmation, and voice-friendly continuity."""
@@ -41,6 +43,11 @@ class JarvisConversationBridge:
             kind, token = pending
             if kind == "action":
                 self._application._pending_action_payloads.pop(token, None)
+                compound = getattr(
+                    self._application.container, "compound_orchestration", None
+                )
+                if compound is not None:
+                    compound.cancel(token)
             else:
                 self._application.container.natural_memory_controller.cancel_confirmation(
                     token
@@ -66,8 +73,25 @@ class JarvisConversationBridge:
                 confirmation_token, identifier, text
             )
 
+        request_text = text
+        if pending is not None and pending[0] == "action":
+            self._pending_by_conversation.pop(identifier, None)
+            token = pending[1]
+            self._application._pending_action_payloads.pop(token, None)
+            compound = getattr(
+                self._application.container, "compound_orchestration", None
+            )
+            if compound is not None:
+                compound.cancel(token)
+            request_text = re.sub(
+                r"^\s*(?:(?:actually|instead|change that to|rather|just)\b[\s,:-]*)+",
+                "",
+                text,
+                flags=re.IGNORECASE,
+            ) or text
+
         result = await self._application.handle_request(
-            text,
+            request_text,
             conversation_id,
             voice_mode=voice_mode,
             source_id=source_id,
@@ -135,9 +159,14 @@ class JarvisConversationBridge:
         self._application._pending_action_payloads.pop(token, None)
         if self._pending_by_conversation.get(identifier) == ("action", token):
             self._pending_by_conversation.pop(identifier, None)
-        result = await self._application.container.read_only_assistant.confirm_action(
-            token, payload
-        )
+        if payload.get("kind") == "compound_plan":
+            result = await self._application.container.compound_orchestration.confirm(
+                token, payload
+            )
+        else:
+            result = await self._application.container.read_only_assistant.confirm_action(
+                token, payload
+            )
         message = self._application._user_message(result)
         if store is not None:
             store.add_message(identifier, "assistant", message)

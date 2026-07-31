@@ -43,9 +43,46 @@ there recently`, and `turn off all lights that are still on upstairs`.
 Selections contain only permitted entities, large reads are summarized, and
 explicit actions continue through the existing action gateway.
 
-Version 0.10.0 includes the optional Jarvis UI Design System. Download the
+M24 adds bounded compound commands such as `turn off the kitchen light and
+close the lounge blinds`, `close the blinds, then turn on movie mode`, and
+`if the patio door is closed, start the vacuum`. Each step must resolve to a
+permitted entity and existing Home Assistant service. Plans are limited to ten
+resolved entity actions, use one combined confirmation when required, and
+report succeeded, skipped, and failed steps without claiming rollback.
+
+M25 adds explicit household goals. Use `teach goal <name> | <actions>`, then
+invoke the goal naturally by name. Use `show goals`, `explain goal <name>`,
+`correct goal <name> | <actions>`, and `forget goal <name>` to retain complete
+control. `delete <name>` and `delete this goal` are also supported after a goal
+has been shown or invoked. Jarvis checks current state and delegates only necessary actions to
+M24. Security-related goals always require confirmation.
+
+M26 adds explicit personality controls: `show personality`, `address me as
+<name>`, `set personality humour off|subtle`, `set personality formality
+relaxed|refined`, `set personality verbosity concise|balanced`, and `reset
+personality`. British-English expression and an original subtly synthetic
+voice identity never override facts, permissions, confirmations, or safety.
+
+M27 adds general OpenAI reasoning and live web research. Jarvis automatically
+researches current, niche, uncertain, or explicitly requested topics and
+returns bounded source metadata. Use `what sources did you use`, `do not use
+web research for this conversation`, and `enable web research for this
+conversation` for control. Search findings remain temporary unless you say
+`remember this`; `forget this` permanently deletes that approved research
+memory. Research never grants Home Assistant or external-action authority.
+
+Version 0.18.0 includes the optional complete Jarvis Dashboard System. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
 its `README.md`. Installation remains explicit: the add-on is not granted
 write access to Home Assistant's configuration directory. Register
-`/local/jarvis/jarvis-ui.js?v=0.10.0` as a JavaScript module in Home Assistant
+`/local/jarvis/jarvis-ui.js?v=0.18.0` as a JavaScript module in Home Assistant
+
+## Hybrid research and AI budget
+
+Install and start **Project Jarvis Search**, then keep the default SearXNG URL
+or provide another trusted SearXNG JSON endpoint in the Project Jarvis add-on
+configuration. The default monthly external-AI budget is USD 10. Ask Jarvis
+`show AI usage` or `show AI budget` to inspect the current month. Luna is the
+normal reasoning model, Terra is attempted once after a provider failure, and
+Sol requires an explicit request for premium reasoning.
 dashboard resources. The Jarvis cards then appear in the visual card picker.

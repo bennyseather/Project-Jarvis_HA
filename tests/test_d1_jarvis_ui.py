@@ -9,14 +9,15 @@ UI_ROOT = ROOT / "home_assistant" / "jarvis_ui"
 
 
 class JarvisCommandCenterTests(unittest.TestCase):
-    def test_dashboard_has_five_native_sections_views(self):
+    def test_dashboard_has_primary_and_room_detail_sections_views(self):
         dashboard = yaml.safe_load(
             (UI_ROOT / "jarvis-dashboard.yaml").read_text(encoding="utf-8")
         )
         views = dashboard["views"]
         self.assertEqual(
             [view["path"] for view in views],
-            ["command", "rooms", "environment", "media-voice", "jarvis"],
+            ["command", "rooms", "upstairs-office", "living-room", "exterior",
+             "environment", "media-voice", "jarvis"],
         )
         self.assertTrue(all(view["type"] == "sections" for view in views))
         serialized = (UI_ROOT / "jarvis-dashboard.yaml").read_text(
@@ -24,6 +25,7 @@ class JarvisCommandCenterTests(unittest.TestCase):
         )
         self.assertEqual(serialized.count("custom:jarvis-voice-card"), 3)
         self.assertEqual(serialized.count("custom:jarvis-action-card"), 3)
+        self.assertIn("custom:jarvis-room-card", serialized)
         self.assertNotIn("http://", serialized)
         self.assertNotIn("https://", serialized)
         self.assertIn("start_listening: true", serialized)
@@ -77,7 +79,7 @@ class JarvisCommandCenterTests(unittest.TestCase):
         self.assertIn("show_in_sidebar: true", snippet)
         readme = (UI_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn(
-            "/local/jarvis/jarvis-ui.js?v=0.10.0",
+            "/local/jarvis/jarvis-ui.js?v=0.18.0",
             readme,
         )
 

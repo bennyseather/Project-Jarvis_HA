@@ -24,7 +24,7 @@ class OpenAIProviderTests(unittest.TestCase):
 
         self.assertEqual(result, "{}")
         request = openai_class.return_value.responses.create.call_args.kwargs
-        self.assertEqual(request["model"], "gpt-5.5")
+        self.assertEqual(request["model"], "gpt-5.6-luna")
         self.assertEqual(json.loads(request["input"]), {"request": "What is the state?"})
 
     @patch("jarvis.providers.openai_provider.OpenAI")

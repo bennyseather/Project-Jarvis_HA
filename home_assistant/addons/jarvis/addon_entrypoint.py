@@ -9,6 +9,12 @@ general = yaml.safe_load(general_path.read_text()) or {}
 general.setdefault("proactive", {})["voice_enabled"] = bool(
     options.get("proactive_voice_enabled", False)
 )
+general.setdefault("hybrid_research", {})["searxng_url"] = str(
+    options.get("searxng_url", "http://homeassistant.local:8088/search")
+)
+general.setdefault("ai_budget", {})["monthly_limit_usd"] = float(
+    options.get("monthly_ai_budget_usd", 10.0)
+)
 general_path.write_text(
     yaml.safe_dump(general, sort_keys=False, allow_unicode=True)
 )

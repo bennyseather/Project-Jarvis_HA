@@ -43,11 +43,13 @@ class App:
         self._pending_action_payloads = {}
         self.mode = "action"
         self.last_source_id = None
+        self.last_text = None
 
     async def handle_request(
         self, text, conversation_id=None, *, voice_mode=False, source_id=None
     ):
         self.last_source_id = source_id
+        self.last_text = text
         if self.mode == "memory":
             return {
                 "status": "requires_confirmation",
@@ -117,6 +119,16 @@ class ConversationBridgeTests(unittest.IsolatedAsyncioTestCase):
         cancelled = await bridge.process("no", conversation_id="one", voice_mode=True)
         self.assertEqual(cancelled["message"], "Cancelled. I will not proceed.")
         self.assertNotIn("once-one", app._pending_action_payloads)
+
+    async def test_new_instruction_replaces_pending_action_and_removes_correction_prefix(self):
+        app = App()
+        bridge = JarvisConversationBridge(app)
+        await bridge.process("turn off lights and lock door", conversation_id="one")
+        await bridge.process(
+            "Actually, just turn off the kitchen light",
+            conversation_id="one",
+        )
+        self.assertEqual(app.last_text, "turn off the kitchen light")
 
     async def test_sensitive_memory_accepts_natural_yes(self):
         app = App()

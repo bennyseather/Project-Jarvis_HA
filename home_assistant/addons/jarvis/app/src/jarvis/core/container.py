@@ -62,4 +62,15 @@ class ServiceContainer:
         self.home_topology_assembler = None
         self.situational_policy = None
         self.situational_intelligence = None
+        self.compound_orchestration_policy = None
+        self.compound_orchestration = None
+        self.contextual_goals = None
+        self.personality_manager = None
+        self.research_policy = None
+        self.research_provider = None
+        self.research_controller = None
+        self.ai_budget_policy = None
+        self.ai_usage_ledger = None
+        self.hybrid_research_policy = None
+        self.searxng_research = None
         self.entity_resolver: EntityResolver | None = None

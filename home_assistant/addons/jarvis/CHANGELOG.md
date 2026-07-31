@@ -1,5 +1,124 @@
 # Changelog
 
+## 0.18.0
+
+- Added optional local SearXNG search and bounded public-page evidence retrieval.
+- Added Luna-to-Terra reasoning escalation and explicit-only Sol reasoning.
+- Added persistent token/cost accounting, 70%/90% warnings, and a hard monthly
+  budget limit without storing prompts or answers.
+- Added an Ollama-ready provider-neutral reasoning contract.
+
+## 0.17.1
+
+- Prevented external “what changed” questions from being intercepted by the
+  bounded Home Assistant state timeline.
+- Added a safe research fallback for clearly current and identity questions
+  when the language router returns malformed or unsupported output.
+
+## 0.17.0
+
+- Add M27 general OpenAI reasoning and automatic native web research.
+- Route current, niche, uncertain, externally verifiable, and explicitly
+  researched questions to a source-aware research provider.
+- Add bounded URL citations, conversation-level enable/disable controls, and
+  source follow-ups.
+- Store research-derived information only after an explicit `remember this`;
+  support permanent deletion with `forget this`.
+- Preserve all existing Home Assistant authorization and confirmation rules.
+
+## 0.16.0
+
+- Add M26's typed, central, safety-subordinate Jarvis personality profile.
+- Add British-English presentation and original refined synthetic voice
+  guidance without actor or copyrighted-character imitation.
+- Add durable address, humour, formality, and verbosity preferences with
+  inspect, adjust, reset, and permanent-delete controls.
+- Prohibit humour for failures, safety, emergencies, confirmations, and
+  sensitive topics; personality never changes facts or action policy.
+
+## 0.15.1
+
+- Route goal management before general memory commands so goal deletion reaches
+  the M25 store.
+- Add `show goal`, `delete <name>`, `delete goal <name>`, and contextual
+  `delete this goal` / `forget this goal` controls.
+
+## 0.15.0
+
+- Add explicit, durable, inspectable contextual household goals backed by
+  Jarvis knowledge records.
+- Build state-aware M24 plans that omit actions whose desired state is already
+  satisfied.
+- Add goal confidence, evidence, assumptions, explanations, and deterministic
+  ambiguity handling.
+- Add teach, list, explain, correct, and permanently delete controls.
+- Prefer explicitly configured Home Assistant scenes and scripts, preserve the
+  ten-action bound, and force confirmation for security-related goals.
+
+## 0.14.0
+
+- Keep badge editor forms mounted while Friendly name and other configuration
+  fields emit changes, preventing focus loss after each typed character.
+- Add bounded compound Home Assistant plans with parallel actions, explicit
+  sequencing, current-state conditions, and exclusions.
+- Validate every compound step through the existing capability, access, and
+  risk gateways, with a maximum of ten resolved entity actions.
+- Add one combined, conversation-bound confirmation, pre-confirmation
+  correction, and explicit succeeded, skipped, failed, and partial outcomes.
+
+## 0.13.2
+
+- Keep the badge editor's Home Assistant data snapshot stable while it is open.
+
+## 0.13.1
+
+- Keep Jarvis badge editor forms mounted during frequent Home Assistant state
+  updates so entity-selector menus remain open and usable.
+
+## 0.13.0
+
+- Add Jarvis Entity, Shortcut, Entity Progress, and Home / Away dashboard
+  badges with graphical Home Assistant editors.
+- Register all four badges in Home Assistant's badge picker.
+- Apply shared Jarvis colours, icons, HUD framing, focus states, actions,
+  numeric formatting, and reduced-motion behavior to badges.
+- Remove the duplicated current-condition status from the Weather card.
+
+## 0.12.3
+
+- Prevent unrelated Home Assistant state deliveries from replacing the
+  Weather card's forecast host while the native forecast is mounting.
+- Compare stable current-weather fields rather than transient state-object
+  identity and retry a forecast mount if its host changes mid-render.
+
+## 0.12.2
+
+- Refresh the Weather card's current-condition header when Home Assistant
+  supplies or updates the configured weather entity.
+- Keep the embedded three-to-five-day native forecast synchronized without
+  rebuilding it for unrelated Home Assistant state changes.
+
+## 0.12.1
+
+- Add a visual-editor-compatible Car telemetry card.
+- Add a three-to-five-day native Home Assistant forecast to the Weather card.
+- Prevent Voice card text from overlapping its microphone control.
+- Remove the duplicated state value from the Tile card.
+- Label the mower interface as `Robotic Mower`.
+- Expand Spotify with artwork, track, artist, playback, volume, and speaker
+  output selection.
+- Publish the frontend distribution for HACS-managed updates.
+
+## 0.12.0
+
+- Complete D3 Complete Jarvis Dashboard System.
+- Expand the visual editor-compatible library from 16 to 32 cards.
+- Add room, presence, weather, energy, fan, vacuum, lock, alarm, scene/script,
+  timer, mower, washer, Spotify, EV charger, tile, and markup cards.
+- Add shared design tokens, container-aware responsive layouts, room-detail
+  views, and one-decimal numeric telemetry formatting.
+- Preserve all D1 and D2 card types and Home Assistant ownership boundaries.
+
 ## 0.11.5
 
 - Dispatch immediate actions through an isolated Home Assistant connection.

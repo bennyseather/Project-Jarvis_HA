@@ -2,6 +2,42 @@
 
 ## Approved Future Direction
 
+### M27 - Open Knowledge and Live Research (complete)
+
+- M27.1 Typed research policy and provider-neutral routing complete
+- M27.2 OpenAI native web-search integration complete
+- M27.3 Bounded source extraction and conversational continuity complete
+- M27.4 Automatic and explicit research controls complete
+- M27.5 Explicit research-memory consent and deletion complete
+- M27.6 Home Assistant packaging, acceptance, and release complete
+
+### M26 - Jarvis Personality and Social Continuity (complete)
+
+- M26.1 Typed personality profile and safety boundaries complete
+- M26.2 Context-sensitive British-English expression complete
+- M26.3 Durable explicit social preferences complete
+- M26.4 Natural interaction guidance and restrained variation complete
+- M26.5 Inspect, adjust, reset, and delete controls complete
+- M26.6 Voice guidance, acceptance, documentation, and release complete
+
+### M25 - Contextual Goal-Based Orchestration (complete)
+
+- M25.1 Goal and outcome contracts complete
+- M25.2 Durable, user-controlled home goal vocabulary complete
+- M25.3 Current-state-aware plan construction complete
+- M25.4 Ambiguity, confidence, evidence, and explanation complete
+- M25.5 M24 execution and confirmation integration complete
+- M25.6 Acceptance, documentation, packaging, and release complete
+
+### M24 - Compound Home Orchestration (complete)
+
+- M24.1 Compound plan contracts and bounded policy complete
+- M24.2 Deterministic multi-action decomposition complete
+- M24.3 Topology resolution and existing authorization integration complete
+- M24.4 Parallel, sequential, conditional, and exclusion execution complete
+- M24.5 Combined confirmation, correction, and partial recovery complete
+- M24.6 Runtime acceptance, packaging, and release complete
+
 ### M23 - Whole-Home Situational Intelligence (complete)
 
 - M23.1 Home topology contracts complete
@@ -35,6 +71,16 @@
 - D2.5 Component catalog and local coverage audit complete
 - D2.6 Packaging, documentation, compatibility, and release complete
 - D1.7 Interactive Jarvis voice and action cards complete
+
+### Detour D3 - Complete Jarvis Dashboard System (complete)
+
+- D3.1 Shared Jarvis design tokens and responsive foundation complete
+- D3.2 Thirty-three visual-editor-compatible cards complete
+- D3.3 Container-aware desktop and NSPanel behavior complete
+- D3.4 Room summaries and polished room-detail views complete
+- D3.5 Expanded reusable icon and component catalog complete
+- D3.6 Compatibility, performance, documentation, and release complete
+- D3.7 Jarvis Entity, Shortcut, Progress, and Home/Away badges complete
 
 ### M20 - Voice Experience (complete)
 
@@ -221,3 +267,7 @@ Learning & Adaptation
 - M12.3 Alias Management ✅
 - M12.4 Risk Classification Validation ✅
 - M12.5 Operational Documentation and Tests ✅
+## M28 - Hybrid Research and Cost-Aware Intelligence (complete)
+
+- Local SearXNG search, bounded public-page retrieval, citations, tiered OpenAI
+  synthesis, persistent budget controls, and an Ollama-ready provider boundary.

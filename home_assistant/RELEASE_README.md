@@ -13,23 +13,23 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.11.5
+## Project Jarvis 0.18.0
 
-Version 0.11.5 adds M23 whole-home situational intelligence. Jarvis can answer
-compound questions across permitted floors, areas, groups, device types,
-current states, and recent bounded changes. Large selections receive useful
-summaries, follow-ups retain exact spatial context, and explicit aggregate
-actions continue through the existing authorization gateway.
-
-This patch dispatches immediate actions through an isolated Home Assistant
-connection, bounds foreground completion waiting to one second, and finishes
-slow reconciliation and auditing in the background.
+Version 0.18.0 adds M28 Hybrid Research and Cost-Aware Intelligence. Jarvis can
+search through the optional local Project Jarvis Search add-on, retrieve bounded
+public evidence, preserve citations, and use tiered OpenAI reasoning only when
+needed. A persistent monthly budget prevents unexpected API spending. Jarvis uses
+OpenAI reasoning for general questions and can automatically invoke native web
+search for current, niche, uncertain, or explicitly researched topics. Answers
+retain bounded sources and conversational follow-ups. Research is never stored
+without an explicit request and does not expand Home Assistant action authority.
 
 The `jarvis_ui` folder contains:
 
 - Squared Project Jarvis desktop and panel themes.
 - Responsive original background artwork.
-- Sixteen visually editable Jarvis dashboard cards.
+- Thirty-three visually editable Jarvis dashboard cards.
+- Four visually editable Jarvis dashboard badges.
 - More than fifty `jarvis:` entity icons.
 - Automatic icon mapping and a local entity-coverage audit.
 - An optional component-catalog dashboard.

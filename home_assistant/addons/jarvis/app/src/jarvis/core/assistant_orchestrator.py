@@ -9,11 +9,13 @@ class AssistantOrchestrator:
     """Accept only conversational and allow-listed read-only proposals."""
 
     def __init__(self, language_model: LanguageModelProvider, home_assistant: HomeAssistantReadProvider,
-                 allowed_entity_ids: frozenset[str] = frozenset(), resolver=None, action_gateway=None) -> None:
+                 allowed_entity_ids: frozenset[str] = frozenset(), resolver=None, action_gateway=None,
+                 research_provider=None) -> None:
         self._language_model, self._home_assistant = language_model, home_assistant
         self._allowed_entity_ids = allowed_entity_ids
         self._resolver = resolver
         self._action_gateway = action_gateway
+        self._research_provider = research_provider
         self._last_read_targets: tuple[str, ...] = ()
         self._pending_read_targets: tuple[str, ...] = ()
         self._pending_narrow_reference: str | None = None
@@ -45,6 +47,23 @@ class AssistantOrchestrator:
         proposal = self._language_model.propose(AssistantInput(request_text, {} if context is None else context))
         if proposal.kind is AssistantProposalKind.CONVERSATION:
             return {"status": "success", "message": proposal.message}
+        if proposal.kind is AssistantProposalKind.RESEARCH:
+            if self._research_provider is None:
+                return {
+                    "status": "not_supported",
+                    "message": "Live research is unavailable.",
+                }
+            research_context = {} if context is None else context
+            if not research_context.get("research", {}).get("enabled", True):
+                return {
+                    "status": "not_supported",
+                    "message": "Web research is disabled for this conversation.",
+                }
+            return self._research_provider.answer(
+                proposal.research_query or request_text,
+                research_context,
+                force_search=proposal.force_research,
+            )
         if proposal.kind is AssistantProposalKind.HOME_ASSISTANT_ACTION:
             if self._action_gateway is None or not proposal.action:
                 return {"status": "not_supported", "message": "Actions are unavailable."}

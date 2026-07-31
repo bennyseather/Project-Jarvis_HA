@@ -149,6 +149,16 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             SituationalIntelligencePolicy.from_config({"enabled": "yes"})
 
+    def test_external_release_question_is_not_claimed_as_home_timeline(self):
+        self.assertFalse(self.engine._looks_relevant(
+            "what is the latest stable home assistant release and what changed",
+            "conversation",
+        ))
+        self.assertTrue(self.engine._looks_relevant(
+            "what changed with the upstairs lights",
+            "conversation",
+        ))
+
     def test_topology_is_permitted_bounded_and_spatial(self):
         snapshot = self.assembler.assemble(STATES)
         ids = {item.entity_id for item in snapshot.entities}
