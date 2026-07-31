@@ -44,6 +44,11 @@ Jarvis Command Center:
       jarvis-green: "#55E6A5"
       jarvis-surface: "rgba(3, 16, 27, 0.92)"
       jarvis-font: "Inter, Roboto, sans-serif"
+      jarvis-space-1: "6px"
+      jarvis-space-2: "10px"
+      jarvis-space-3: "14px"
+      jarvis-space-4: "18px"
+      jarvis-control-size: "42px"
       lovelace-background: >-
         linear-gradient(rgba(1, 8, 14, 0.28), rgba(1, 8, 14, 0.28)),
         center / cover no-repeat url("/local/jarvis/jarvis-command-center-landscape.png") fixed
@@ -101,6 +106,11 @@ Jarvis Command Center Panel:
       jarvis-green: "#55E6A5"
       jarvis-surface: "rgba(3, 16, 27, 0.94)"
       jarvis-font: "Inter, Roboto, sans-serif"
+      jarvis-space-1: "5px"
+      jarvis-space-2: "8px"
+      jarvis-space-3: "11px"
+      jarvis-space-4: "14px"
+      jarvis-control-size: "38px"
       lovelace-background: >-
         linear-gradient(rgba(1, 8, 14, 0.22), rgba(1, 8, 14, 0.22)),
         center / cover no-repeat url("/local/jarvis/jarvis-command-center-portrait.png") fixed
