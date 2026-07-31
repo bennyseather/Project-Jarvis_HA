@@ -1,5 +1,5 @@
 name: "Project Jarvis Search"
-version: "0.19.0"
+version: "0.20.0"
 slug: "jarvis_search"
 description: "Private metasearch service for Project Jarvis"
 arch: [amd64, aarch64]

@@ -2,6 +2,20 @@
 
 ## Approved Future Direction
 
+Future candidate: voice activation and wake-word routing for Jarvis, subject to
+a separate privacy, microphone ownership, false-activation, and Home Assistant
+voice-pipeline architecture review.
+
+### M30 - Episodic Conversation Continuity (complete)
+
+- M30.1 Typed episodic policy and lifecycle complete
+- M30.2 Local low-sensitivity summary generation complete
+- M30.3 Explicit and sensitive-confirmed summary flow complete
+- M30.4 Bounded retrieval and conversational continuity complete
+- M30.5 Expiry, pinning, capacity, and hard deletion complete
+- M30.6 Inspectable natural-language management controls complete
+- M30.7 Privacy regression, packaging, and release complete
+
 ### M29 - Adaptive Jarvis Personality (complete)
 
 - M29.1 Context-sensitive character and presentation layer complete

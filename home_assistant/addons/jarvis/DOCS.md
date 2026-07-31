@@ -71,6 +71,16 @@ style`. Voice responses are shorter, preferred names are used sparingly, and
 confirmations, failures, safety matters, and sensitive contexts remain
 humour-free and structurally unchanged.
 
+M30 adds bounded episodic continuity without retaining raw transcripts.
+Automatic low-sensitivity summaries are generated locally and expire after 30
+days. Use `remember this conversation`, `pin this conversation`, `what were we
+discussing`, `what did we decide about <topic>`, `show recent conversations`,
+`forget this conversation`, `forget conversations about <topic>`, and `clear
+conversation history`. Sensitive summaries require confirmation. Explicit rich
+summaries use Luna and remain subject to the configured monthly AI budget.
+The add-on options expose episodic enablement, routine retention days, and the
+maximum stored episode count.
+
 M27 adds general OpenAI reasoning and live web research. Jarvis automatically
 researches current, niche, uncertain, or explicitly requested topics and
 returns bounded source metadata. Use `what sources did you use`, `do not use
@@ -79,11 +89,11 @@ conversation` for control. Search findings remain temporary unless you say
 `remember this`; `forget this` permanently deletes that approved research
 memory. Research never grants Home Assistant or external-action authority.
 
-Version 0.19.0 includes the optional complete Jarvis Dashboard System. Download the
+Version 0.20.0 includes the optional complete Jarvis Dashboard System. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
 its `README.md`. Installation remains explicit: the add-on is not granted
 write access to Home Assistant's configuration directory. Register
-`/local/jarvis/jarvis-ui.js?v=0.19.0` as a JavaScript module in Home Assistant
+`/local/jarvis/jarvis-ui.js?v=0.20.0` as a JavaScript module in Home Assistant
 
 ## Hybrid research and AI budget
 
