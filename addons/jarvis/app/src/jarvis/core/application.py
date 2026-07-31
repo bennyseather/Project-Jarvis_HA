@@ -56,6 +56,7 @@ from jarvis.homeassistant.home_references import build_home_references
 from jarvis.memory.repeated_context import RepeatedContextExtractor, RepeatedContextLearner
 from jarvis.management.natural_memory import NaturalMemoryController
 from jarvis.persona import JarvisPersona
+from jarvis.personality import PersonalityManager
 from jarvis.reflection.manager import ReflectiveLearningManager
 from jarvis.storage.reflection_store import SQLiteReflectionStore
 from jarvis.proactive.controller import NaturalProactiveController
@@ -68,6 +69,18 @@ from jarvis.homeassistant.home_topology import HomeTopologyAssembler
 from jarvis.homeassistant.situational_intelligence import (
     SituationalIntelligencePolicy,
     WholeHomeSituationalIntelligence,
+)
+from jarvis.homeassistant.compound_orchestration import (
+    CompoundHomeOrchestrator,
+    CompoundOrchestrationPolicy,
+)
+from jarvis.homeassistant.contextual_goals import ContextualGoalManager
+from jarvis.research import GeneralResearchProvider, ResearchController, ResearchPolicy
+from jarvis.ai_budget import AIBudgetPolicy, SQLiteAIUsageLedger
+from jarvis.hybrid_research import (
+    HybridResearchPolicy,
+    HybridResearchProvider,
+    SearXNGResearchClient,
 )
 
 
@@ -161,6 +174,7 @@ class JarvisApplication:
                 self.container.reflection_store.close()
                 self.container.proactive_store.close()
                 self.container.confirmed_action_audit_store.close()
+                self.container.ai_usage_ledger.close()
         else:
             self.console.print("[red]Jarvis is not running.[/red]")
 
@@ -233,13 +247,23 @@ class JarvisApplication:
             logger=self.container.logger,
         )
 
+        self.container.context_builder = ContextBuilder()
+        clock = lambda: datetime.now(timezone.utc)
+        self.container.ai_budget_policy = AIBudgetPolicy.from_config(
+            self.general.get("ai_budget", {})
+        )
+        self.container.ai_usage_ledger = SQLiteAIUsageLedger(
+            database_file, self.container.ai_budget_policy, clock=clock
+        )
+        self.container.hybrid_research_policy = HybridResearchPolicy.from_config(
+            self.general.get("hybrid_research", {})
+        )
         self.container.openai = OpenAIProvider(
             api_key=self.general["openai"]["api_key"],
             logger=self.container.logger,
+            default_model=self.container.hybrid_research_policy.normal_model,
+            usage_ledger=self.container.ai_usage_ledger,
         )
-
-        self.container.context_builder = ContextBuilder()
-        clock = lambda: datetime.now(timezone.utc)
         self.container.memory_store = SQLiteMemoryStore(database_file)
         self.container.knowledge_store = SQLiteKnowledgeStore(database_file)
         self.container.conversation_store = SQLiteConversationStore(
@@ -257,6 +281,9 @@ class JarvisApplication:
         self.container.reflection_context_limit = reflection_context_limit
         self.container.proactive_policy = ProactiveAssistancePolicy.from_config(
             self.general.get("proactive", {})
+        )
+        self.container.research_policy = ResearchPolicy.from_config(
+            self.general.get("research", {})
         )
         self.container.proactive_store = SQLiteProactiveStore(database_file)
         self.container.proactive_manager = ProactiveAssistanceManager(
@@ -283,6 +310,11 @@ class JarvisApplication:
         self.container.situational_policy = (
             SituationalIntelligencePolicy.from_config(
                 self.general.get("situational_intelligence", {})
+            )
+        )
+        self.container.compound_orchestration_policy = (
+            CompoundOrchestrationPolicy.from_config(
+                self.general.get("compound_orchestration", {})
             )
         )
         self.container.conversation_context_messages = context_messages
@@ -324,6 +356,22 @@ class JarvisApplication:
             self.container.repeated_context_learner,
             self.container.reflective_learning_manager,
         )
+        self.container.searxng_research = SearXNGResearchClient(
+            self.container.hybrid_research_policy,
+            self.container.logger,
+        )
+        self.container.research_provider = HybridResearchProvider(
+            self.container.openai,
+            self.container.searxng_research,
+            self.container.hybrid_research_policy,
+            self.container.ai_usage_ledger,
+        )
+        self.container.research_controller = ResearchController(
+            self.container.research_policy,
+            self.container.memory_store,
+            self.container.memory_writer,
+            self.container.ai_usage_ledger,
+        )
         self.container.reflective_learning_manager.refresh()
 
         self.container.assistant = Assistant(
@@ -347,6 +395,7 @@ class JarvisApplication:
             allowed_read_entities,
             resolver,
             persona,
+            self.container.research_provider,
         )
         timeline_config = self.general.get("event_timeline", {})
         self._validate_timeline_config(timeline_config)
@@ -467,6 +516,19 @@ class JarvisApplication:
                 self.container.situational_policy,
             )
         )
+        self.container.compound_orchestration = CompoundHomeOrchestrator(
+            self.container.home_assistant,
+            self.container.home_topology_assembler,
+            self.container.home_assistant_action_gateway,
+            self.container.compound_orchestration_policy,
+        )
+        self.container.contextual_goals = ContextualGoalManager(
+            self.container.knowledge_store,
+            self.container.compound_orchestration,
+        )
+        self.container.personality_manager = PersonalityManager(
+            self.container.knowledge_store
+        )
         self.container.proactive_allowed_entities = allowed_reads
         timeline_config = self.general.get("event_timeline", {})
         if (
@@ -548,6 +610,24 @@ class JarvisApplication:
         user_message = conversation_store.add_message(identifier, "user", text)
         self.container.read_only_assistant.activate_conversation(identifier)
 
+        personality_result = self.container.personality_manager.handle(text)
+        if personality_result is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(personality_result)
+            )
+            return personality_result
+        research_control = self.container.research_controller.handle(text, identifier)
+        if research_control is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(research_control)
+            )
+            return research_control
+        goal_management = self.container.contextual_goals.manage(text, identifier)
+        if goal_management is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(goal_management)
+            )
+            return goal_management
         natural_result = self.container.natural_memory_controller.handle(text, identifier)
         if natural_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(natural_result))
@@ -569,6 +649,24 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(proactive_result)
             )
             return proactive_result
+        goal_result = await self.container.contextual_goals.handle(
+            text, identifier
+        )
+        if goal_result is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(goal_result)
+            )
+            return goal_result
+        compound_result = await self.container.compound_orchestration.handle(
+            text, identifier
+        )
+        if compound_result is not None:
+            conversation_store.add_message(
+                identifier,
+                "assistant",
+                self._user_message(compound_result),
+            )
+            return compound_result
         situational_result = await self.container.situational_intelligence.handle(
             text,
             identifier,
@@ -601,6 +699,10 @@ class JarvisApplication:
             "conversation": tuple(message.to_openai() for message in history[:-1]),
             "conversation_id": identifier,
             "interaction": {"voice": voice_mode},
+            "personality": self.container.personality_manager.profile().context(),
+            "research": self.container.research_policy.context(
+                self.container.research_controller.enabled(identifier)
+            ),
             "reflection": self.container.reflective_learning_manager.context_for(
                 text, self.container.reflection_context_limit
             ),
@@ -612,6 +714,17 @@ class JarvisApplication:
             self.container.situational_intelligence.context(identifier)
         )
         result = await self.container.read_only_assistant.handle(text, context)
+        if result.get("sources") and not voice_mode:
+            result = dict(result)
+            result["message"] = (
+                str(result.get("message", "")).rstrip()
+                + "\n\nSources:\n"
+                + "\n".join(
+                    f"- {source['title']} — {source['url']}"
+                    for source in result["sources"]
+                )
+            )
+        self.container.research_controller.record(identifier, result)
         message = self._user_message(result)
         if message:
             conversation_store.add_message(identifier, "assistant", message)
@@ -739,8 +852,19 @@ class JarvisApplication:
                 pending = self._pending_action_payloads.pop(token, None)
                 payload = None if pending is None else pending[1]
                 try:
-                    result = ({"status": "forbidden", "message": "Confirmation is invalid."}
-                              if payload is None else await self.container.read_only_assistant.confirm_action(token, payload))
+                    if payload is None:
+                        result = {
+                            "status": "forbidden",
+                            "message": "Confirmation is invalid.",
+                        }
+                    elif payload.get("kind") == "compound_plan":
+                        result = await self.container.compound_orchestration.confirm(
+                            token, payload
+                        )
+                    else:
+                        result = await self.container.read_only_assistant.confirm_action(
+                            token, payload
+                        )
                 except Exception:
                     result = {"status": "unavailable"}
                 message = self._user_message(result)
