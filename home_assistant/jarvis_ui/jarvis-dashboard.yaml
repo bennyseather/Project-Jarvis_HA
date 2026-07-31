@@ -18,6 +18,11 @@ views:
             description: Open Project Jarvis and start listening
             pipeline_id: preferred
             start_listening: true
+          - type: custom:jarvis-voice-satellite-card
+            title: Windows Voice Satellite
+            pipeline_id: preferred
+            wake_word_phrase: Hey Jarvis
+            wake_timeout: 15
       - type: grid
         cards:
           - type: custom:jarvis-status-card

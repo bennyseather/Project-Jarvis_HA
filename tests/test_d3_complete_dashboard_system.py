@@ -13,11 +13,11 @@ class CompleteJarvisDashboardSystemTests(unittest.TestCase):
     def setUp(self):
         self.script = SCRIPT.read_text(encoding="utf-8")
 
-    def test_registers_all_thirty_three_cards(self):
+    def test_registers_all_thirty_four_cards(self):
         definitions = self.script.split("const CARD_DEFINITIONS = [", 1)[1].split(
             "];", 1
         )[0]
-        self.assertEqual(definitions.count('["jarvis-'), 33)
+        self.assertEqual(definitions.count('["jarvis-'), 34)
         for card in (
             "room", "presence", "weather", "energy", "fan", "vacuum", "lock",
             "alarm", "scene", "timer", "mower", "washer", "spotify",

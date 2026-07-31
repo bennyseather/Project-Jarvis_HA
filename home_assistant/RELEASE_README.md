@@ -13,20 +13,20 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.20.0
+## Project Jarvis 0.21.0
 
-Version 0.20.0 adds M30 Episodic Conversation Continuity. Jarvis can retain
-bounded summaries of meaningful conversations without storing raw transcripts.
-Routine low-sensitivity summaries are local and expire automatically; explicit
-summaries can preserve decisions and pinned summaries remain until deleted.
-Sensitive summaries require confirmation. Episodes never change Home Assistant
-state, permissions, risk decisions, or confirmation requirements.
+Version 0.21.0 adds M31 Voice Activation and Wake-Word Routing. Home Assistant
+continues to own wake-word detection, speech-to-text, text-to-speech, devices,
+and audio routing. The optional browser Voice Satellite provides authenticated
+wake-word and push-to-talk testing from a Windows PC, returns speech to that
+browser, exposes immediate mute controls, and stores no audio. Duplicate voice
+activations are idempotent and confirmations remain bound to their conversation.
 
 The `jarvis_ui` folder contains:
 
 - Squared Project Jarvis desktop and panel themes.
 - Responsive original background artwork.
-- Thirty-three visually editable Jarvis dashboard cards.
+- Thirty-four visually editable Jarvis dashboard cards.
 - Four visually editable Jarvis dashboard badges.
 - More than fifty `jarvis:` entity icons.
 - Automatic icon mapping and a local entity-coverage audit.

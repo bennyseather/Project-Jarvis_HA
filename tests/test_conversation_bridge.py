@@ -79,6 +79,19 @@ class ConversationBridgeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(app.last_source_id, "panel")
 
+    async def test_duplicate_voice_activation_returns_cached_result(self):
+        app = App()
+        bridge = JarvisConversationBridge(app)
+        first = await bridge.process(
+            "turn on blocks", conversation_id="one", activation_id="wake-1"
+        )
+        app.last_text = None
+        repeated = await bridge.process(
+            "turn on blocks", conversation_id="one", activation_id="wake-1"
+        )
+        self.assertEqual(repeated, first)
+        self.assertIsNone(app.last_text)
+
     async def test_confirmation_stays_in_existing_lifecycle(self):
         bridge = JarvisConversationBridge(App())
         pending = await bridge.process("turn on blocks", conversation_id="one")
