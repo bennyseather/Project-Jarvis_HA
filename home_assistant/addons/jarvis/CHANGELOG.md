@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22.0
+
+- Added the optional local Wyoming Piper voice processor.
+- Added Refined, Synthetic, and Clean original British voice profiles.
+- Added bounded strength and output-gain controls with direct Piper fallback.
+- Kept generated PCM in memory only and preserved Home Assistant audio routing.
+
 ## 0.21.3
 
 - Added authenticated Web Audio playback for browser-satellite TTS responses.

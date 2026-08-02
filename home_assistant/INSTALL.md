@@ -25,8 +25,12 @@ Do not expose ports 8099 or 8088 to the internet. They are intended for the
 trusted Home Assistant network only.
 
 Upgrading through the add-on repository preserves existing memory. Version
-0.21.3 adds optional voice activation and browser-satellite controls. No reset
+0.22.0 adds local Piper voice refinement. No reset
 or reinstallation is required.
+
+For the optional local British synthetic voice, install the official Piper app
+first and then install **Project Jarvis Voice**. Its instructions are in
+`jarvis_voice/DOCS.md`.
 
 The optional Jarvis UI Design System is published in the release repository's
 `jarvis_ui` folder. Follow its `README.md` for manual theme, background, card,
