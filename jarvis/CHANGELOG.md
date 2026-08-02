@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.1
+
+- Fixed wake-pipeline validation by allowing Home Assistant to apply its
+  default floating-point volume multiplier.
+
 ## 0.21.0
 
 - Added an optional HTTPS browser voice satellite for Windows development.
