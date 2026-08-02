@@ -21,6 +21,7 @@ class M31VoiceActivationTests(unittest.TestCase):
         self.assertIn("this._hass.connection.subscribeMessage", self.script)
         self.assertIn("this._hass.connection.socket.send(packet)", self.script)
         self.assertNotIn("long_lived_access_token", self.script)
+        self.assertNotIn("volume_multiplier:", self.script)
 
     def test_privacy_and_output_controls_are_present(self):
         self.assertIn("getUserMedia", self.script)
@@ -30,9 +31,9 @@ class M31VoiceActivationTests(unittest.TestCase):
         self.assertIn("new Audio(target).play()", self.script)
 
     def test_release_is_versioned(self):
-        self.assertIn('const JARVIS_UI_VERSION = "0.21.0"', self.script)
+        self.assertIn('const JARVIS_UI_VERSION = "0.21.1"', self.script)
         manifest = (ROOT / "home_assistant" / "custom_components" / "jarvis_conversation" / "manifest.json").read_text(encoding="utf-8")
-        self.assertIn('"version": "0.21.0"', manifest)
+        self.assertIn('"version": "0.21.1"', manifest)
 
 
 if __name__ == "__main__":
