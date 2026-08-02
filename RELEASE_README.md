@@ -13,17 +13,14 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.21.3
+## Project Jarvis 0.22.0
 
-Version 0.21.3 adds M31 Voice Activation and Wake-Word Routing, including the
-Home Assistant-compatible wake-pipeline input correction and uninterrupted
-command audio after wake detection and authenticated browser TTS playback.
-Home Assistant
-continues to own wake-word detection, speech-to-text, text-to-speech, devices,
-and audio routing. The optional browser Voice Satellite provides authenticated
-wake-word and push-to-talk testing from a Windows PC, returns speech to that
-browser, exposes immediate mute controls, and stores no audio. Duplicate voice
-activations are idempotent and confirmations remain bound to their conversation.
+Version 0.22.0 adds M32 Local Jarvis Voice Refinement. The optional Project
+Jarvis Voice app transparently processes local Piper PCM through bounded
+British technical voice profiles and returns it through the Wyoming protocol.
+It includes Refined, Synthetic, and Clean profiles, explicit strength and gain
+controls, an immediate direct-Piper fallback, and no stored audio or cloud TTS.
+Home Assistant continues to own pipelines, devices, permissions, and routing.
 
 The `jarvis_ui` folder contains:
 
@@ -36,6 +33,9 @@ The `jarvis_ui` folder contains:
 - An optional component-catalog dashboard.
 
 See `jarvis_ui/README.md` for manual installation and visual-editor usage.
+
+The `jarvis_voice` folder contains the optional local Piper voice processor.
+Install Piper first, then follow `jarvis_voice/DOCS.md`.
 
 ## Optional HACS installation
 
