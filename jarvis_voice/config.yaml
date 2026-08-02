@@ -1,0 +1,24 @@
+name: "Project Jarvis Voice"
+version: "0.22.0"
+slug: "jarvis_voice"
+description: "Local British synthetic voice refinement for Piper"
+arch: [amd64, aarch64]
+startup: services
+boot: auto
+init: false
+ports:
+  10350/tcp: 10350
+ports_description:
+  10350/tcp: "Jarvis Wyoming TTS (normally internal only)"
+options:
+  upstream_host: "core-piper"
+  upstream_port: 10200
+  profile: "refined"
+  strength: 0.65
+  output_gain: 0.92
+schema:
+  upstream_host: str
+  upstream_port: port
+  profile: list(refined|synthetic|clean)
+  strength: float(0.0,1.0)
+  output_gain: float(0.25,1.5)
