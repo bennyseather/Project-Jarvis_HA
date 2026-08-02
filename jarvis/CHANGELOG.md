@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.3
+
+- Added authenticated Web Audio playback for browser-satellite TTS responses.
+- Delayed wake-word rearming until spoken responses finish.
+
 ## 0.21.2
 
 - Kept command audio streaming after wake-word detection so Home Assistant STT
