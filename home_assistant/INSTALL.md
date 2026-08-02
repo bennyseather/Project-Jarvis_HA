@@ -25,7 +25,7 @@ Do not expose ports 8099 or 8088 to the internet. They are intended for the
 trusted Home Assistant network only.
 
 Upgrading through the add-on repository preserves existing memory. Version
-0.21.2 adds optional voice activation and browser-satellite controls. No reset
+0.21.3 adds optional voice activation and browser-satellite controls. No reset
 or reinstallation is required.
 
 The optional Jarvis UI Design System is published in the release repository's

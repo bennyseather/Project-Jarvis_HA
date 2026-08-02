@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.21.2";
+const JARVIS_UI_VERSION = "0.21.3";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -860,7 +860,9 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     else if (type === "intent-end") {
       this._conversationId = data.intent_output?.conversation_id || this._conversationId;
       this._status = "Response ready";
-    } else if (type === "tts-end") this._playTts(data.url);
+    } else if (type === "tts-end") {
+      this._ttsPromise = this._playTts(data.url || data.tts_output?.url);
+    }
     else if (type === "error") this._status = `Pipeline error // ${data.message || data.code}`;
     else if (type === "run-end") this._pipelineEnded();
     this._paintStatus();
@@ -903,17 +905,39 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
   _pipelineEnded() {
     if (this._mode === "wake") {
-      this._status = "Rearming wake word";
-      clearTimeout(this._restartTimer);
-      this._restartTimer = setTimeout(() => this._runPipeline().catch((error) => {
-        this._status = `Pipeline error // ${error.message}`; this._paintStatus();
-      }), 600);
+      this._status = this._ttsPromise ? "Speaking response" : "Rearming wake word";
+      this._paintStatus();
+      Promise.resolve(this._ttsPromise).finally(() => {
+        this._ttsPromise = undefined;
+        if (this._mode !== "wake") return;
+        this._status = "Rearming wake word";
+        this._paintStatus();
+        clearTimeout(this._restartTimer);
+        this._restartTimer = setTimeout(() => this._runPipeline().catch((error) => {
+          this._status = `Pipeline error // ${error.message}`; this._paintStatus();
+        }), 600);
+      });
     } else this._stop(false);
   }
-  _playTts(url) {
-    if (!url) return;
+  async _playTts(url) {
+    if (!url) {
+      this._status = "Response audio unavailable";
+      this._paintStatus();
+      return;
+    }
     const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
-    new Audio(target).play().catch(() => { this._status = "Response ready // browser blocked playback"; this._paintStatus(); });
+    try {
+      const response = await window.fetch.call(window, target, { credentials: "same-origin" });
+      if (!response.ok) throw new Error(`audio request ${response.status}`);
+      const buffer = await this._audioContext.decodeAudioData(await response.arrayBuffer());
+      const source = this._audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this._audioContext.destination);
+      await new Promise((resolve) => { source.onended = resolve; source.start(); });
+    } catch (error) {
+      this._status = `Playback error // ${error?.message || "audio blocked"}`;
+      this._paintStatus();
+    }
   }
   async _stop(render = true, keepStatus = false) {
     clearTimeout(this._restartTimer);

@@ -1,6 +1,6 @@
 # M31 - Voice Activation and Wake-Word Routing
 
-Release: 0.21.2
+Release: 0.21.3
 
 ## Architecture
 
