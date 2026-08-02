@@ -13,10 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.21.1
+## Project Jarvis 0.21.2
 
-Version 0.21.1 adds M31 Voice Activation and Wake-Word Routing, including the
-Home Assistant-compatible wake-pipeline input correction. Home Assistant
+Version 0.21.2 adds M31 Voice Activation and Wake-Word Routing, including the
+Home Assistant-compatible wake-pipeline input correction and uninterrupted
+command audio after wake detection. Home Assistant
 continues to own wake-word detection, speech-to-text, text-to-speech, devices,
 and audio routing. The optional browser Voice Satellite provides authenticated
 wake-word and push-to-talk testing from a Windows PC, returns speech to that
