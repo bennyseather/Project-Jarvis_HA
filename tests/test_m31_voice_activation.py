@@ -30,10 +30,14 @@ class M31VoiceActivationTests(unittest.TestCase):
         self.assertIn("Enable wake word", self.script)
         self.assertIn("new Audio(target).play()", self.script)
 
+    def test_command_audio_bypasses_gate_after_wake_detection(self):
+        self.assertIn("this._wakeDetected = true", self.script)
+        self.assertIn('this._mode !== "wake" || this._wakeDetected', self.script)
+
     def test_release_is_versioned(self):
-        self.assertIn('const JARVIS_UI_VERSION = "0.21.1"', self.script)
+        self.assertIn('const JARVIS_UI_VERSION = "0.21.2"', self.script)
         manifest = (ROOT / "home_assistant" / "custom_components" / "jarvis_conversation" / "manifest.json").read_text(encoding="utf-8")
-        self.assertIn('"version": "0.21.1"', manifest)
+        self.assertIn('"version": "0.21.2"', manifest)
 
 
 if __name__ == "__main__":

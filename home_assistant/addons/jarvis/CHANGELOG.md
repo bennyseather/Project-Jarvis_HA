@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.2
+
+- Kept command audio streaming after wake-word detection so Home Assistant STT
+  receives the complete spoken instruction.
+
 ## 0.21.1
 
 - Fixed wake-pipeline validation by allowing Home Assistant to apply its

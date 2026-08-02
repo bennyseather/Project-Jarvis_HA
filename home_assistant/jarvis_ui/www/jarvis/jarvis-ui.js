@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.21.1";
+const JARVIS_UI_VERSION = "0.21.2";
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -826,6 +826,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._handlerId = undefined;
     this._preRoll = [];
     this._voiceGate = 0;
+    this._wakeDetected = false;
     this._status = startStage === "wake_word"
       ? `Listening for ${this._config.wake_word_phrase || "wake word"}`
       : "Listening // tap send when finished";
@@ -850,7 +851,10 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     const type = event?.type;
     const data = event?.data || {};
     if (type === "run-start") this._handlerId = data.runner_data?.stt_binary_handler_id;
-    else if (type === "wake_word-end") this._status = "Wake word accepted // listening";
+    else if (type === "wake_word-end") {
+      this._wakeDetected = true;
+      this._status = "Wake word accepted // listening";
+    }
     else if (type === "stt-vad-start") this._status = "Command detected // listening";
     else if (type === "stt-end") this._status = `Heard // ${data.stt_output?.text || "processing"}`;
     else if (type === "intent-end") {
@@ -873,7 +877,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       const sample = Math.max(-1, Math.min(1, samples[Math.floor(index * ratio)]));
       view.setInt16(1 + index * 2, sample < 0 ? sample * 32768 : sample * 32767, true);
     }
-    if (this._mode !== "wake") {
+    if (this._mode !== "wake" || this._wakeDetected) {
       this._hass.connection.socket.send(packet);
       return;
     }
