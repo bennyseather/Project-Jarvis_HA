@@ -85,9 +85,12 @@ class M35HighQualityLocalVoiceTests(unittest.IsolatedAsyncioTestCase):
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
         server = (ADDON / "app/server.py").read_text(encoding="utf-8")
         docs = (ADDON / "DOCS.md").read_text(encoding="utf-8")
-        self.assertIn("chatterbox-tts==0.1.7", dockerfile)
+        self.assertIn(
+            "chatterbox.git@5de7a54aa4e5e2baadb0182dde554908b48b85c2",
+            dockerfile,
+        )
         self.assertIn("FROM python:3.13-slim", dockerfile)
-        self.assertIn("kokoro-onnx==0.5.0 chatterbox-tts==0.1.7", dockerfile)
+        self.assertIn("kokoro-onnx==0.5.0", dockerfile)
         self.assertIn('engine: list(chatterbox_nano|kokoro)', config)
         self.assertIn("generation_timeout", config)
         self.assertIn("OMP_NUM_THREADS=4", dockerfile)

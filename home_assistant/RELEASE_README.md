@@ -13,10 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.26.1
+## Project Jarvis 0.26.2
 
-Version 0.26.1 fixes the M35 voice image dependency boundary by using Python
-3.13, where Kokoro and Chatterbox share NumPy 2 compatibility. M35 adds a warm,
+Version 0.26.2 pins the official Chatterbox source revision containing the
+documented Nano CPU API. Python 3.13 keeps Kokoro and Chatterbox on a shared
+NumPy 2 compatibility boundary. M35 adds a warm,
 CPU-bounded Chatterbox Nano engine, sentence streaming, and ordered Kokoro/Piper
 fallbacks. All spoken reply paths now remove source sections and URL addresses,
 while typed answers retain citations. M34 Natural Jarvis Dialogue provides follow-ups, clear corrections,
