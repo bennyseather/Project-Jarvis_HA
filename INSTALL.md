@@ -25,7 +25,7 @@ Do not expose ports 8099 or 8088 to the internet. They are intended for the
 trusted Home Assistant network only.
 
 Upgrading through the add-on repository preserves existing memory. Version
-0.25.1 fixes native voice detection and bounded floor light listings. No reset
+0.26.0 adds the streaming Chatterbox Nano voice and universal spoken-link removal. No reset
 or reinstallation is required.
 
 For the optional local British synthetic voice, install the official Piper app

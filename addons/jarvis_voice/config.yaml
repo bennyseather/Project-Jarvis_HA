@@ -1,8 +1,8 @@
 name: "Project Jarvis Voice"
-version: "0.25.1"
+version: "0.26.0"
 slug: "jarvis_voice"
-description: "Local British synthetic voice refinement for Piper"
-arch: [amd64, aarch64]
+description: "High-quality local streaming Jarvis neural voice"
+arch: [amd64]
 startup: services
 boot: auto
 init: false
@@ -11,6 +11,7 @@ ports:
 ports_description:
   10350/tcp: "Jarvis Wyoming TTS (normally internal only)"
 options:
+  engine: "chatterbox_nano"
   upstream_host: "core-piper"
   upstream_port: 10200
   profile: "metallic"
@@ -21,7 +22,11 @@ options:
   shorten_comma_pauses: true
   pitch_factor: 1.10
   piper_fallback: true
+  reference_path: "/app/jarvis-reference.wav"
+  generation_timeout: 30.0
+  warm_model: true
 schema:
+  engine: list(chatterbox_nano|kokoro)
   upstream_host: str
   upstream_port: port
   profile: list(refined|synthetic|metallic|clean)
@@ -32,3 +37,6 @@ schema:
   shorten_comma_pauses: bool
   pitch_factor: float(1.0,1.2)
   piper_fallback: bool
+  reference_path: str
+  generation_timeout: float(5.0,120.0)
+  warm_model: bool
