@@ -13,9 +13,9 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.23.2
+## Project Jarvis 0.24.0
 
-Version 0.23.2 adds raised-pitch metallic processing to M32.2 Neural Jarvis Voice. The optional Project
+Version 0.24.0 adds M33 Conversational Voice Sessions to the browser satellite. The optional Project
 Jarvis Voice app transparently processes local Piper PCM through bounded
 British technical voice profiles and returns it through the Wyoming protocol.
 It includes Refined, Synthetic, and Clean profiles, explicit strength and gain
