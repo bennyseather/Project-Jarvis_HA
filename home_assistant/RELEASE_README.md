@@ -13,10 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.24.0
+## Project Jarvis 0.25.0
 
-Version 0.24.0 adds M33 Conversational Voice Sessions to the browser satellite. The optional Project
-Jarvis Voice app transparently processes local Piper PCM through bounded
+Version 0.25.0 adds M34 Natural Jarvis Dialogue. Follow-ups, clear corrections,
+British-English personality presentation, and voice-optimised answers now form
+a more coherent bounded conversation. Researched voice answers omit source URLs
+while text responses retain citations. The optional Project Jarvis Voice app transparently processes local Piper PCM through bounded
 British technical voice profiles and returns it through the Wyoming protocol.
 It includes Refined, Synthetic, and Clean profiles, explicit strength and gain
 controls, an immediate direct-Piper fallback, and no stored audio or cloud TTS.
