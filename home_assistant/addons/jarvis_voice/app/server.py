@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import logging
 
 from dsp import process_pcm16
+from kokoro_engine import KokoroConfig, KokoroEngine, SUPPORTED_VOICES
 from protocol import Event, read_event, write_event
 
 
@@ -22,11 +23,15 @@ class VoiceProxyConfig:
     output_gain: float = 0.92
     listen_host: str = "0.0.0.0"
     listen_port: int = 10350
+    voice: str = "bm_george"
+    speed: float = 0.94
+    piper_fallback: bool = True
 
 
 class VoiceProxy:
     def __init__(self, config: VoiceProxyConfig) -> None:
         self.config = config
+        self.kokoro = KokoroEngine(KokoroConfig(voice=config.voice, speed=config.speed))
 
     async def handle(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -43,16 +48,22 @@ class VoiceProxy:
             await writer.wait_closed()
 
     async def _handle_event(self, event: Event, client: asyncio.StreamWriter) -> None:
+        if event.type == "describe":
+            await write_event(client, _kokoro_info())
+            return
+        if event.type == "synthesize":
+            try:
+                await self._synthesize_kokoro(event, client)
+                return
+            except Exception:
+                LOGGER.exception("Local Kokoro synthesis failed")
+                if not self.config.piper_fallback:
+                    raise
         upstream_reader, upstream_writer = await asyncio.open_connection(
             self.config.upstream_host, self.config.upstream_port
         )
         try:
             await write_event(upstream_writer, event)
-            if event.type == "describe":
-                response = await read_event(upstream_reader)
-                if response is not None:
-                    await write_event(client, _refine_info(response))
-                return
             if event.type != "synthesize":
                 response = await read_event(upstream_reader)
                 if response is not None:
@@ -62,6 +73,26 @@ class VoiceProxy:
         finally:
             upstream_writer.close()
             await upstream_writer.wait_closed()
+
+    async def _synthesize_kokoro(self, event: Event, client: asyncio.StreamWriter) -> None:
+        text = str(event.data.get("text", "")).strip()
+        if not text:
+            raise ValueError("Synthesize request did not contain text")
+        requested_voice = event.data.get("voice") or {}
+        voice = requested_voice.get("name") if isinstance(requested_voice, dict) else None
+        pcm, rate = await self.kokoro.synthesize(text, voice)
+        pcm = process_pcm16(
+            pcm, rate, 1, self.config.profile,
+            self.config.strength, self.config.output_gain,
+        )
+        audio_data = {"rate": rate, "width": 2, "channels": 1}
+        await write_event(client, Event({"type": "audio-start"}, audio_data))
+        for offset in range(0, len(pcm), 8192):
+            await write_event(client, Event(
+                {"type": "audio-chunk"}, audio_data, pcm[offset:offset + 8192]
+            ))
+        await write_event(client, Event({"type": "audio-stop"}, {}))
+        LOGGER.info("Synthesized %.2fs with Kokoro voice=%s", len(pcm) / (rate * 2), voice or self.config.voice)
 
     async def _relay_synthesis(
         self, upstream: asyncio.StreamReader, client: asyncio.StreamWriter
@@ -114,6 +145,28 @@ def _refine_info(event: Event) -> Event:
             service["name"] = "Project Jarvis Voice"
             service["description"] = "Locally refined British synthetic Piper voice"
     return Event(dict(event.header), data, event.payload)
+
+
+def _kokoro_info() -> Event:
+    attribution = {"name": "Kokoro-82M", "url": "https://huggingface.co/hexgrad/Kokoro-82M"}
+    voices = [{
+        "name": voice,
+        "description": voice.replace("bm_", "").title(),
+        "version": "1.0",
+        "attribution": attribution,
+        "installed": True,
+        "languages": ["en-GB"],
+        "speakers": None,
+    } for voice in SUPPORTED_VOICES]
+    return Event({"type": "info"}, {"tts": [{
+        "name": "Project Jarvis Neural Voice",
+        "description": "Local British neural voice with restrained synthetic character",
+        "version": "0.23.0",
+        "attribution": attribution,
+        "installed": True,
+        "voices": voices,
+        "supports_synthesize_streaming": False,
+    }]})
 
 
 async def run_server(config: VoiceProxyConfig) -> None:

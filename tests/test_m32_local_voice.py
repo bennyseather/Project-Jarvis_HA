@@ -11,7 +11,7 @@ sys.path.insert(0, str(ADDON / "app"))
 
 from dsp import PROFILES, process_pcm16  # noqa: E402
 from protocol import Event, read_event, write_event  # noqa: E402
-from server import VoiceProxy, VoiceProxyConfig, _refine_info  # noqa: E402
+from server import VoiceProxy, VoiceProxyConfig, _kokoro_info, _refine_info  # noqa: E402
 
 
 class MemoryWriter:
@@ -106,17 +106,30 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.data["tts"][0]["supports_synthesize_streaming"])
         self.assertEqual(result.data["tts"][0]["name"], "Project Jarvis Voice")
 
+    def test_neural_provider_advertises_installed_british_voices(self):
+        service = _kokoro_info().data["tts"][0]
+        self.assertEqual(service["name"], "Project Jarvis Neural Voice")
+        self.assertFalse(service["supports_synthesize_streaming"])
+        self.assertEqual(
+            {voice["name"] for voice in service["voices"]},
+            {"bm_george", "bm_fable", "bm_daniel", "bm_lewis"},
+        )
+
     def test_addon_is_local_configurable_and_documents_fallback(self):
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
         docs = (ADDON / "DOCS.md").read_text(encoding="utf-8")
         server = (ADDON / "app" / "server.py").read_text(encoding="utf-8")
-        self.assertIn('version: "0.22.1"', config)
+        dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
+        engine = (ADDON / "app" / "kokoro_engine.py").read_text(encoding="utf-8")
+        self.assertIn('version: "0.23.0"', config)
         self.assertIn('profile: list(refined|synthetic|clean)', config)
         self.assertIn("core-piper", config)
-        self.assertIn("Normal Piper remains", docs)
+        self.assertIn("request is sent to Piper", docs)
         self.assertIn("never written to disk", docs)
         self.assertNotIn("openai", server.casefold())
         self.assertNotIn("elevenlabs", server.casefold())
+        self.assertIn("kokoro-onnx==0.5.0", dockerfile)
+        self.assertIn("asyncio.to_thread", engine)
 
 
 if __name__ == "__main__":
