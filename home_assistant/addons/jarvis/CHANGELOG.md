@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.1
+
+- Correct Wyoming JSON data-frame handling for Project Jarvis Voice discovery.
+- Advertise the refined provider explicitly as Project Jarvis Voice.
+- Preserve Piper audio format metadata through local refinement.
+
 ## 0.22.0
 
 - Added the optional local Wyoming Piper voice processor.

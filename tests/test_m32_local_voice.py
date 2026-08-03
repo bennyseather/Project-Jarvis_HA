@@ -11,7 +11,7 @@ sys.path.insert(0, str(ADDON / "app"))
 
 from dsp import PROFILES, process_pcm16  # noqa: E402
 from protocol import Event, read_event, write_event  # noqa: E402
-from server import VoiceProxy, VoiceProxyConfig, _disable_streaming  # noqa: E402
+from server import VoiceProxy, VoiceProxyConfig, _refine_info  # noqa: E402
 
 
 class MemoryWriter:
@@ -49,8 +49,8 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_wyoming_framing_round_trip(self):
         writer = MemoryWriter()
         original = Event(
-            {"type": "audio-chunk", "data": {"rate": 16000}},
-            data=b'{"channels":1}', payload=b"\x01\x02\x03\x04",
+            {"type": "audio-chunk"},
+            data={"rate": 16000, "channels": 1}, payload=b"\x01\x02\x03\x04",
         )
         await write_event(writer, original)
         reader = asyncio.StreamReader()
@@ -64,13 +64,13 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
         async def upstream(reader, writer):
             request = await read_event(reader)
             self.assertEqual(request.type, "synthesize")
-            await write_event(writer, Event({"type": "audio-start", "data": {
+            await write_event(writer, Event({"type": "audio-start"}, {
                 "rate": 16000, "width": 2, "channels": 1,
-            }}))
-            await write_event(writer, Event({"type": "audio-chunk", "data": {
+            }))
+            await write_event(writer, Event({"type": "audio-chunk"}, {
                 "rate": 16000, "width": 2, "channels": 1,
-            }}, payload=pcm))
-            await write_event(writer, Event({"type": "audio-stop"}))
+            }, payload=pcm))
+            await write_event(writer, Event({"type": "audio-stop"}, {}))
             writer.close()
             await writer.wait_closed()
 
@@ -83,7 +83,7 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
         ))
         try:
             await proxy._handle_event(
-                Event({"type": "synthesize", "data": {"text": "Test"}}), client
+                Event({"type": "synthesize"}, {"text": "Test"}), client
             )
         finally:
             server.close()
@@ -99,17 +99,18 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await read_event(reader)).type, "audio-stop")
 
     def test_proxy_disables_streaming_advertisement(self):
-        header = {"type": "info", "data": {"tts": [
-            {"supports_synthesize_streaming": True, "models": []}
-        ]}}
-        result = _disable_streaming(header)
-        self.assertFalse(result["data"]["tts"][0]["supports_synthesize_streaming"])
+        event = Event({"type": "info"}, {"tts": [
+            {"name": "Piper", "supports_synthesize_streaming": True, "voices": []}
+        ]})
+        result = _refine_info(event)
+        self.assertFalse(result.data["tts"][0]["supports_synthesize_streaming"])
+        self.assertEqual(result.data["tts"][0]["name"], "Project Jarvis Voice")
 
     def test_addon_is_local_configurable_and_documents_fallback(self):
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
         docs = (ADDON / "DOCS.md").read_text(encoding="utf-8")
         server = (ADDON / "app" / "server.py").read_text(encoding="utf-8")
-        self.assertIn('version: "0.22.0"', config)
+        self.assertIn('version: "0.22.1"', config)
         self.assertIn('profile: list(refined|synthetic|clean)', config)
         self.assertIn("core-piper", config)
         self.assertIn("Normal Piper remains", docs)
