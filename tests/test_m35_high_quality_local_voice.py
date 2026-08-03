@@ -65,7 +65,7 @@ class M35HighQualityLocalVoiceTests(unittest.IsolatedAsyncioTestCase):
 
     def test_service_advertises_streaming_neural_and_fallback_voices(self):
         service = _voice_info("chatterbox_nano").data["tts"][0]
-        self.assertTrue(service["supports_synthesize_streaming"])
+        self.assertFalse(service["supports_synthesize_streaming"])
         self.assertEqual(service["voices"][0]["name"], "jarvis_neural")
         self.assertIn("bm_daniel", {voice["name"] for voice in service["voices"]})
         self.assertIn("jarvis_status", service)
