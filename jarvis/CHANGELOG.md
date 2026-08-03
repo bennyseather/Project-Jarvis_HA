@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.26.0
+
+- Add M35's warm CPU Chatterbox Nano engine with sentence-level Wyoming streaming.
+- Include an original British reference generated from permissively licensed Kokoro output.
+- Retain selectable Kokoro and automatic Piper fallbacks for A/B testing and resilience.
+- Remove sources, Markdown links, and URLs at every spoken Home Assistant output boundary.
+- Expose readiness, latency, fallback, and bounded error diagnostics while limiting inference threads.
+
 ## 0.25.1
 
 - Treat native browser and Assist Satellite pipelines as voice interactions without requiring external speaker routing.

@@ -29,6 +29,10 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         shorten_comma_pauses=bool(options.get("shorten_comma_pauses", True)),
         pitch_factor=float(options.get("pitch_factor", 1.10)),
         piper_fallback=bool(options.get("piper_fallback", True)),
+        engine=str(options.get("engine", "chatterbox_nano")),
+        reference_path=str(options.get("reference_path", "/app/jarvis-reference.wav")),
+        generation_timeout=float(options.get("generation_timeout", 30.0)),
+        warm_model=bool(options.get("warm_model", True)),
     )
 
 

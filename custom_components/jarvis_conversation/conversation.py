@@ -14,6 +14,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .voice import (
     build_tts_service_data,
+    sanitize_spoken_reply,
     should_route_external,
     suppress_local_audio,
 )
@@ -100,6 +101,8 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             payload = await response.json()
 
         answer = str(payload.get("message", "Jarvis is unavailable."))
+        if voice_mode:
+            answer = sanitize_spoken_reply(answer)
         chat_log.async_add_assistant_content_without_tools(
             AssistantContent(agent_id=user_input.agent_id, content=answer)
         )

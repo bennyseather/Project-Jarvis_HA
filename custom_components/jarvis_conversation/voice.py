@@ -53,7 +53,8 @@ def suppress_local_audio(options) -> bool:
 
 def format_spoken_response(message: str, maximum_characters: int = 700) -> str:
     """Make a transcript response comfortable to hear without changing meaning."""
-    text = " ".join(message.replace(";", ",").split())
+    text = sanitize_spoken_reply(message)
+    text = " ".join(text.replace(";", ",").split())
     text = re.sub(r"\b(-?\d+)\.0\b", r"\1", text)
     text = re.sub(
         r"\b(?:light|switch|sensor|binary_sensor|media_player)\.([a-z0-9_]+)\b",
@@ -65,3 +66,18 @@ def format_spoken_response(message: str, maximum_characters: int = 700) -> str:
         return text
     shortened = text[:maximum_characters].rsplit(" ", 1)[0].rstrip(" ,;:")
     return shortened + "."
+
+
+def sanitize_spoken_reply(message: str) -> str:
+    """Remove citation syntax and addresses from every spoken response path."""
+    text = re.sub(
+        r"\n+\s*(?:sources?|references?|citations?)\s*:\s*\n.*",
+        "",
+        str(message),
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    text = re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", text)
+    text = re.sub(r"<https?://[^>]+>", "", text)
+    text = re.sub(r"https?://[^\s)>]*[^\s)>.,;:!?]", "", text)
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    return " ".join(text.split()).strip()
