@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.3
+
+- Correct the Wyoming streaming capability flag so Home Assistant voice previews and pipelines send supported complete-text synthesis requests.
+
 ## 0.26.2
 
 - Pin the official Chatterbox source revision that implements the documented `nano=True` CPU API missing from PyPI 0.1.7.

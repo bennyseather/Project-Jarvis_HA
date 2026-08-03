@@ -1,5 +1,5 @@
 name: "Project Jarvis Voice"
-version: "0.26.2"
+version: "0.26.3"
 slug: "jarvis_voice"
 description: "High-quality local streaming Jarvis neural voice"
 arch: [amd64]
