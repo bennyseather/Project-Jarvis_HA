@@ -41,10 +41,18 @@ class PersonalityPresenter:
         changes = []
 
         if voice_mode and not serious and not management:
-            shaped = self._for_voice(message, profile.verbosity)
+            researched = bool(result.get("researched") or result.get("sources"))
+            shaped = self._for_voice(
+                message,
+                profile.verbosity,
+                omit_links=researched,
+            )
             if shaped != message:
                 message = shaped
-                changes.append("shortened for voice")
+                changes.append(
+                    "shortened for voice without spoken source links"
+                    if researched else "shortened for voice"
+                )
 
         if (
             not serious
@@ -83,10 +91,19 @@ class PersonalityPresenter:
         }
 
     @staticmethod
-    def _for_voice(message, verbosity):
+    def _for_voice(message, verbosity, *, omit_links=False):
         text = re.sub(r"\n+Sources:\n.*", "", message, flags=re.DOTALL | re.IGNORECASE)
+        if omit_links:
+            text = re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", text)
+            text = re.sub(r"https?://\S+", "", text)
         text = re.sub(r"[*_`#]", "", text)
         text = re.sub(r"\s+", " ", text).strip()
+        text = re.sub(
+            r"^(?:certainly|of course|understood|very good)[,!.]?\s+",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
         sentence_limit = 1 if verbosity == "concise" else 2
         sentences = re.split(r"(?<=[.!?])\s+", text)
         text = " ".join(sentences[:sentence_limit])
