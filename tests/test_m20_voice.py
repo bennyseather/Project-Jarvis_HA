@@ -94,3 +94,15 @@ class M20VoiceTests(unittest.TestCase):
         spoken = voice.sanitize_spoken_reply(message)
         self.assertEqual(spoken, "The release is documented in the notes. More detail is at.")
         self.assertNotIn("http", voice.format_spoken_response(message))
+
+    def test_spoken_formatter_removes_inline_and_generated_citation_variants(self):
+        variants = (
+            "The answer is forty-two. Sources: Example — https://example.com",
+            "The answer is forty-two.\n## References used\n- Example",
+            "The answer is forty-two 【12†Example Source】.",
+            "The answer is forty-two [1].\nCitations:\n1. Example",
+        )
+        for message in variants:
+            with self.subTest(message=message):
+                spoken = voice.sanitize_spoken_reply(message)
+                self.assertEqual(spoken, "The answer is forty-two.")

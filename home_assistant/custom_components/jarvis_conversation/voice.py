@@ -71,11 +71,20 @@ def format_spoken_response(message: str, maximum_characters: int = 700) -> str:
 def sanitize_spoken_reply(message: str) -> str:
     """Remove citation syntax and addresses from every spoken response path."""
     text = re.sub(
-        r"\n+\s*(?:sources?|references?|citations?)\s*:\s*\n.*",
+        r"(?:^|\n+)\s*(?:#{1,6}\s*)?"
+        r"(?:sources?|references?|citations?)(?:\s+used)?\s*:?[\s\S]*$",
         "",
         str(message),
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\s+(?:sources?|references?|citations?)(?:\s+used)?\s*:.*$",
+        "",
+        text,
         flags=re.IGNORECASE | re.DOTALL,
     )
+    text = re.sub(r"【[^】]*(?:†|source)[^】]*】", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<!\w)\[(?:\d+(?:\s*[-,]\s*\d+)*)\]", "", text)
     text = re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", text)
     text = re.sub(r"<https?://[^>]+>", "", text)
     text = re.sub(r"https?://[^\s)>]*[^\s)>.,;:!?]", "", text)
