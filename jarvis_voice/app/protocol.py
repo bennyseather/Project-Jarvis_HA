@@ -10,7 +10,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Event:
     header: dict
-    data: bytes = b""
+    data: dict
     payload: bytes = b""
 
     @property
@@ -23,17 +23,23 @@ async def read_event(reader: asyncio.StreamReader) -> Event | None:
     if not line:
         return None
     header = json.loads(line.decode("utf-8"))
-    data = await reader.readexactly(int(header.get("data_length", 0)))
+    data_bytes = await reader.readexactly(int(header.get("data_length", 0)))
     payload = await reader.readexactly(int(header.get("payload_length", 0)))
     header.pop("data_length", None)
     header.pop("payload_length", None)
+    data = dict(header.pop("data", {}))
+    if data_bytes:
+        data.update(json.loads(data_bytes.decode("utf-8")))
     return Event(header=header, data=data, payload=payload)
 
 
 async def write_event(writer: asyncio.StreamWriter, event: Event) -> None:
     header = dict(event.header)
-    if event.data:
-        header["data_length"] = len(event.data)
+    data = dict(header.pop("data", {}))
+    data.update(event.data)
+    data_bytes = json.dumps(data, separators=(",", ":")).encode("utf-8") if data else b""
+    if data_bytes:
+        header["data_length"] = len(data_bytes)
     else:
         header.pop("data_length", None)
     if event.payload:
@@ -43,8 +49,8 @@ async def write_event(writer: asyncio.StreamWriter, event: Event) -> None:
     writer.write(
         json.dumps(header, separators=(",", ":")).encode("utf-8") + b"\n"
     )
-    if event.data:
-        writer.write(event.data)
+    if data_bytes:
+        writer.write(data_bytes)
     if event.payload:
         writer.write(event.payload)
     await writer.drain()

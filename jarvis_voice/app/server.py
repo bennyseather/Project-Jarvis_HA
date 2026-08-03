@@ -51,8 +51,7 @@ class VoiceProxy:
             if event.type == "describe":
                 response = await read_event(upstream_reader)
                 if response is not None:
-                    header = _disable_streaming(response.header)
-                    await write_event(client, Event(header, response.data, response.payload))
+                    await write_event(client, _refine_info(response))
                 return
             if event.type != "synthesize":
                 response = await read_event(upstream_reader)
@@ -82,7 +81,7 @@ class VoiceProxy:
                 await write_event(client, response)
         if start is None or stop is None:
             raise RuntimeError("Piper returned an incomplete audio stream")
-        metadata = start.header.get("data", {})
+        metadata = start.data
         rate = int(metadata.get("rate", 22050))
         width = int(metadata.get("width", 2))
         channels = int(metadata.get("channels", 1))
@@ -93,12 +92,11 @@ class VoiceProxy:
                 self.config.strength, self.config.output_gain,
             )
         await write_event(client, start)
-        chunk_header = {
-            "type": "audio-chunk",
-            "data": {"rate": rate, "width": width, "channels": channels},
-        }
+        chunk_data = {"rate": rate, "width": width, "channels": channels}
         for offset in range(0, len(pcm), 8192):
-            await write_event(client, Event(chunk_header, payload=pcm[offset:offset + 8192]))
+            await write_event(client, Event(
+                {"type": "audio-chunk"}, chunk_data, pcm[offset:offset + 8192]
+            ))
         await write_event(client, stop)
         LOGGER.info(
             "Processed %.2fs of Piper audio with profile=%s strength=%.2f",
@@ -108,14 +106,14 @@ class VoiceProxy:
         )
 
 
-def _disable_streaming(header: dict) -> dict:
-    header = dict(header)
-    data = dict(header.get("data", {}))
+def _refine_info(event: Event) -> Event:
+    data = dict(event.data)
     for service in data.get("tts", []):
         if isinstance(service, dict):
             service["supports_synthesize_streaming"] = False
-    header["data"] = data
-    return header
+            service["name"] = "Project Jarvis Voice"
+            service["description"] = "Locally refined British synthetic Piper voice"
+    return Event(dict(event.header), data, event.payload)
 
 
 async def run_server(config: VoiceProxyConfig) -> None:
