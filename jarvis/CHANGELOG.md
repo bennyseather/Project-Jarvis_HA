@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.1
+
+- Build Project Jarvis Voice on Python 3.13 so Chatterbox and Kokoro share NumPy 2.x without resolver conflicts.
+
 ## 0.26.0
 
 - Add M35's warm CPU Chatterbox Nano engine with sentence-level Wyoming streaming.
