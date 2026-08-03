@@ -166,7 +166,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.23.2",
+        "version": "0.24.0",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
