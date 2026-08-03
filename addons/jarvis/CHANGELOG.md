@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.24.0
+
+- Add bounded post-response listening for contextual voice follow-ups.
+- Reuse Home Assistant conversation identity for up to three dialogue turns.
+- Return safely to wake-word mode on silence, exit phrases, errors, or limits.
+
 ## 0.23.2
 
 - Add a stronger Metallic voice-finishing profile.
