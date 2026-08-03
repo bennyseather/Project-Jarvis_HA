@@ -244,7 +244,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.26.2",
+        "version": "0.26.3",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
@@ -267,7 +267,10 @@ def _voice_info(
         if engine == "chatterbox_nano"
         else "Local Kokoro British voice with Piper fallback"
     )
-    service["supports_synthesize_streaming"] = engine == "chatterbox_nano"
+    # Wyoming's streaming capability describes incremental *text input*
+    # (synthesize-start/chunk/stop), not audio chunks in the response. Jarvis
+    # accepts complete synthesize events and always streams PCM output.
+    service["supports_synthesize_streaming"] = False
     service["jarvis_status"] = {
         "engine": engine,
         "ready": ready,

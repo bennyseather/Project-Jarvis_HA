@@ -13,9 +13,10 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.26.2
+## Project Jarvis 0.26.3
 
-Version 0.26.2 pins the official Chatterbox source revision containing the
+Version 0.26.3 corrects Wyoming TTS discovery so Home Assistant sends supported
+complete-text synthesis requests. It retains the official Chatterbox source revision containing the
 documented Nano CPU API. Python 3.13 keeps Kokoro and Chatterbox on a shared
 NumPy 2 compatibility boundary. M35 adds a warm,
 CPU-bounded Chatterbox Nano engine, sentence streaming, and ordered Kokoro/Piper
