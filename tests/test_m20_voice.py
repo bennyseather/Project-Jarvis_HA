@@ -84,3 +84,13 @@ class M20VoiceTests(unittest.TestCase):
         bounded = voice.format_spoken_response("word " * 300, 80)
         self.assertLessEqual(len(bounded), 81)
         self.assertTrue(bounded.endswith("."))
+
+    def test_every_spoken_path_removes_source_sections_and_addresses(self):
+        message = (
+            "The release is documented in [the notes](https://example.com/notes). "
+            "More detail is at https://example.com/detail.\n\n"
+            "Sources:\n- Project: https://example.com"
+        )
+        spoken = voice.sanitize_spoken_reply(message)
+        self.assertEqual(spoken, "The release is documented in the notes. More detail is at.")
+        self.assertNotIn("http", voice.format_spoken_response(message))
