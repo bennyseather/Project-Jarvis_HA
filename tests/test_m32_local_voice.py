@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ADDON = ROOT / "home_assistant" / "addons" / "jarvis_voice"
 sys.path.insert(0, str(ADDON / "app"))
 
-from dsp import PROFILES, process_pcm16  # noqa: E402
+from dsp import PROFILES, process_pcm16, raise_pitch_and_speed_pcm16  # noqa: E402
 from protocol import Event, read_event, write_event  # noqa: E402
 from server import (  # noqa: E402
     VoiceProxy, VoiceProxyConfig, _kokoro_info, _refine_info,
@@ -37,7 +37,7 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
             for name in PROFILES
         }
         self.assertTrue(all(len(value) == len(pcm) for value in outputs.values()))
-        self.assertEqual(len(set(outputs.values())), 3)
+        self.assertEqual(len(set(outputs.values())), len(PROFILES))
         for output in outputs.values():
             decoded = struct.unpack(f"<{len(samples)}h", output)
             self.assertLessEqual(max(decoded), 32767)
@@ -48,6 +48,12 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(process_pcm16(pcm, 16000, 2, "refined", 1, 1), pcm)
         zero = process_pcm16(pcm, 16000, 1, "refined", 0, 1)
         self.assertEqual(len(zero), len(pcm))
+
+    def test_pitch_shift_raises_delivery_rate_and_remains_pcm16(self):
+        pcm = struct.pack("<100h", *range(100))
+        shifted = raise_pitch_and_speed_pcm16(pcm, 1.10)
+        self.assertEqual(len(shifted) % 2, 0)
+        self.assertLess(len(shifted), len(pcm))
 
     async def test_wyoming_framing_round_trip(self):
         writer = MemoryWriter()
@@ -130,10 +136,10 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
         server = (ADDON / "app" / "server.py").read_text(encoding="utf-8")
         dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
         engine = (ADDON / "app" / "kokoro_engine.py").read_text(encoding="utf-8")
-        self.assertIn('version: "0.23.1"', config)
-        self.assertIn('profile: "synthetic"', config)
+        self.assertIn('version: "0.23.2"', config)
+        self.assertIn('profile: "metallic"', config)
         self.assertIn('speed: 1.08', config)
-        self.assertIn('profile: list(refined|synthetic|clean)', config)
+        self.assertIn('profile: list(refined|synthetic|metallic|clean)', config)
         self.assertIn("core-piper", config)
         self.assertIn("request is sent to Piper", docs)
         self.assertIn("never written to disk", docs)
