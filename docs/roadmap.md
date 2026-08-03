@@ -305,3 +305,9 @@ Learning & Adaptation
 
 - Bundled approved v5 Chatterbox reference, calibrated crisp staccato finishing,
   safe legacy-default migration, and retained Kokoro/Piper fallbacks.
+
+## M38 - Responsive and Articulate Jarvis Voice (complete)
+
+- Cached reference conditioning, startup pre-warming, adaptive clause-sized
+  generation, crisp articulation controls, timing diagnostics and a subtly
+  darker Jarvis v5 finish for the Home Assistant i5-8500 host.

@@ -29,6 +29,7 @@ class FakeChatterbox:
     ready = True
     last_error = ""
     last_generation_seconds = 0.02
+    last_first_audio_seconds = 0.0
 
     async def synthesize_segments(self, text):
         for segment in split_spoken_segments(text, 35):

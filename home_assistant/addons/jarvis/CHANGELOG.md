@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.29.0
+
+- Cache Chatterbox reference conditioning once and pre-warm the CPU model.
+- Add adaptive, abbreviation-safe clause segmentation and crisp articulation.
+- Add conditioning, warm-up and first-audio diagnostics.
+- Give Jarvis v5 a subtle darker finish without slowing delivery.
+- Preserve custom pitch settings while migrating untouched v5 defaults.
+
 ## 0.28.1
 
 - Fix Chatterbox Nano reference conditioning on CPU by bypassing an upstream
