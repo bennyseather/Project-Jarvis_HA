@@ -16,15 +16,17 @@ adds a restrained synthetic character. No cloud TTS account is required.
 ## Voices and profiles
 
 The default voice is `bm_george`. You can also select `bm_fable`, `bm_daniel`,
-or `bm_lewis` in Home Assistant. Start with speed `0.94`.
+or `bm_lewis` in Home Assistant. The tuned default uses speed `1.08`.
 
-- `refined`: restrained technical presence; recommended.
-- `synthetic`: stronger resonance and doubling.
+- `refined`: restrained technical presence.
+- `synthetic`: stronger resonance and doubling; recommended.
 - `clean`: neural voice with minimal coloration.
 
 `strength` controls the synthetic finishing layer and `output_gain` controls
 the final level. Restart the app after changing options. If local neural
 synthesis fails and `piper_fallback` is enabled, the request is sent to Piper.
+`shorten_comma_pauses` removes the model's exaggerated comma timing while
+preserving word separation.
 
 ## Privacy and boundaries
 
