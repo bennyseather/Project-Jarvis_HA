@@ -25,7 +25,8 @@ Do not expose ports 8099 or 8088 to the internet. They are intended for the
 trusted Home Assistant network only.
 
 Upgrading through the add-on repository preserves existing memory. Version
-0.27.2 removes all source-section and citation variants at the final spoken boundary. No reset
+0.28.0 installs the approved M37 local voice profile and migrates only untouched
+legacy voice defaults. Explicit custom voice settings are preserved. No reset
 or reinstallation is required.
 
 For the optional local British synthetic voice, install the official Piper app

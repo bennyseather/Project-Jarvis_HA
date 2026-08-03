@@ -8,7 +8,7 @@ import logging
 import time
 
 from chatterbox_engine import ChatterboxConfig, ChatterboxNanoEngine
-from dsp import process_pcm16, raise_pitch_and_speed_pcm16
+from dsp import process_voice_pcm16, raise_pitch_and_speed_pcm16
 from kokoro_engine import KokoroConfig, KokoroEngine, SUPPORTED_VOICES
 from protocol import Event, read_event, write_event
 
@@ -20,15 +20,16 @@ LOGGER = logging.getLogger("jarvis_voice")
 class VoiceProxyConfig:
     upstream_host: str = "core-piper"
     upstream_port: int = 10200
-    profile: str = "metallic"
-    strength: float = 0.92
-    output_gain: float = 0.92
+    profile: str = "jarvis_v5"
+    strength: float = 1.0
+    output_gain: float = 0.98
     listen_host: str = "0.0.0.0"
     listen_port: int = 10350
     voice: str = "bm_george"
     speed: float = 1.08
     shorten_comma_pauses: bool = True
-    pitch_factor: float = 1.10
+    pitch_factor: float = 1.055
+    staccato_pause_ms: float = 25.0
     piper_fallback: bool = True
     engine: str = "chatterbox_nano"
     reference_path: str = "/app/jarvis-reference.wav"
@@ -124,9 +125,10 @@ class VoiceProxy:
         voice = requested_voice.get("name") if isinstance(requested_voice, dict) else None
         pcm, rate = await self.kokoro.synthesize(text, voice)
         pcm = raise_pitch_and_speed_pcm16(pcm, self.config.pitch_factor)
-        pcm = process_pcm16(
+        pcm = process_voice_pcm16(
             pcm, rate, 1, self.config.profile,
             self.config.strength, self.config.output_gain,
+            self.config.staccato_pause_ms,
         )
         audio_data = {"rate": rate, "width": 2, "channels": 1}
         await write_event(client, Event({"type": "audio-start"}, audio_data))
@@ -150,9 +152,10 @@ class VoiceProxy:
         try:
             async for pcm, rate, segment, generation_seconds in self.chatterbox.synthesize_segments(text):
                 pcm = raise_pitch_and_speed_pcm16(pcm, self.config.pitch_factor)
-                pcm = process_pcm16(
+                pcm = process_voice_pcm16(
                     pcm, rate, 1, self.config.profile,
                     self.config.strength, self.config.output_gain,
+                    self.config.staccato_pause_ms,
                 )
                 metadata = {"rate": rate, "width": 2, "channels": 1}
                 if not audio_started:
@@ -201,9 +204,10 @@ class VoiceProxy:
         channels = int(metadata.get("channels", 1))
         pcm = b"".join(chunks)
         if width == 2:
-            pcm = process_pcm16(
+            pcm = process_voice_pcm16(
                 pcm, rate, channels, self.config.profile,
                 self.config.strength, self.config.output_gain,
+                self.config.staccato_pause_ms,
             )
         await write_event(client, start)
         chunk_data = {"rate": rate, "width": width, "channels": channels}
@@ -244,7 +248,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.27.2",
+        "version": "0.28.0",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
@@ -279,7 +283,7 @@ def _voice_info(
     }
     service["voices"].insert(0, {
         "name": "jarvis_neural",
-        "description": "Jarvis Neural (original British synthetic reference)",
+        "description": "Jarvis Neural (approved crisp synthetic reference)",
         "version": "1.0",
         "attribution": {
             "name": "Chatterbox Nano by Resemble AI",
@@ -305,7 +309,9 @@ def _shorten_comma_pauses(text: str) -> str:
 
 
 async def run_server(config: VoiceProxyConfig) -> None:
-    if config.profile not in {"refined", "synthetic", "metallic", "clean"}:
+    if config.profile not in {
+        "jarvis_v5", "refined", "synthetic", "metallic", "clean"
+    }:
         raise ValueError(f"Unsupported voice profile: {config.profile}")
     proxy = VoiceProxy(config)
     await proxy.warmup()

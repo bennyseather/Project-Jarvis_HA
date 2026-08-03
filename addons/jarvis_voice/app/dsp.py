@@ -34,6 +34,97 @@ PROFILES = {
 }
 
 
+JARVIS_V5_SYNTHETIC_MIX = 0.20
+JARVIS_V5_METALLIC_MIX = 0.61
+
+
+def process_voice_pcm16(
+    pcm: bytes,
+    sample_rate: int,
+    channels: int,
+    profile_name: str,
+    strength: float,
+    output_gain: float,
+    staccato_pause_ms: float = 0.0,
+) -> bytes:
+    """Apply one named finishing chain with a calibrated Jarvis v5 option."""
+    if not pcm or channels != 1 or sample_rate < 8000:
+        return pcm
+    if profile_name != "jarvis_v5":
+        return process_pcm16(
+            pcm, sample_rate, channels, profile_name, strength, output_gain
+        )
+    pcm = tighten_pauses_pcm16(
+        pcm,
+        sample_rate,
+        maximum_pause_ms=staccato_pause_ms,
+    )
+    bounded_strength = max(0.0, min(1.0, float(strength)))
+    pcm = process_pcm16(
+        pcm,
+        sample_rate,
+        channels,
+        "synthetic",
+        JARVIS_V5_SYNTHETIC_MIX * bounded_strength,
+        1.02,
+    )
+    return process_pcm16(
+        pcm,
+        sample_rate,
+        channels,
+        "metallic",
+        JARVIS_V5_METALLIC_MIX * bounded_strength,
+        output_gain,
+    )
+
+
+def tighten_pauses_pcm16(
+    pcm: bytes,
+    sample_rate: int,
+    *,
+    maximum_pause_ms: float,
+    minimum_silence_ms: float = 100.0,
+    threshold: float = 0.01,
+) -> bytes:
+    """Shorten long digital-silence runs while preserving speech boundaries."""
+    maximum_pause_ms = max(0.0, min(250.0, float(maximum_pause_ms)))
+    if not pcm or maximum_pause_ms <= 0.0 or sample_rate < 8000:
+        return pcm
+    samples = array("h")
+    samples.frombytes(pcm)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    maximum_pause = round(sample_rate * maximum_pause_ms / 1000.0)
+    minimum_silence = max(
+        maximum_pause + 1,
+        round(sample_rate * minimum_silence_ms / 1000.0),
+    )
+    silence_limit = max(1, round(32767.0 * max(0.0, min(0.2, threshold))))
+    output = array("h")
+    run_start = 0
+    index = 0
+    while index < len(samples):
+        if abs(samples[index]) > silence_limit:
+            output.append(samples[index])
+            index += 1
+            continue
+        run_start = index
+        while index < len(samples) and abs(samples[index]) <= silence_limit:
+            index += 1
+        run_length = index - run_start
+        if run_length < minimum_silence:
+            output.extend(samples[run_start:index])
+            continue
+        keep = min(run_length, maximum_pause)
+        leading = keep // 2
+        trailing = keep - leading
+        output.extend(samples[run_start:run_start + leading])
+        output.extend(samples[index - trailing:index])
+    if sys.byteorder != "little":
+        output.byteswap()
+    return output.tobytes()
+
+
 def process_pcm16(
     pcm: bytes,
     sample_rate: int,
