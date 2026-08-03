@@ -79,7 +79,7 @@ class JarvisCommandCenterTests(unittest.TestCase):
         self.assertIn("show_in_sidebar: true", snippet)
         readme = (UI_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn(
-            "/local/jarvis/jarvis-ui.js?v=0.27.0",
+            "/local/jarvis/jarvis-ui.js?v=0.27.1",
             readme,
         )
 

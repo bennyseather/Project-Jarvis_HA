@@ -41,9 +41,9 @@ class M31VoiceActivationTests(unittest.TestCase):
         self.assertIn("Promise.resolve(this._ttsPromise).finally", self.script)
 
     def test_release_is_versioned(self):
-        self.assertIn('const JARVIS_UI_VERSION = "0.27.0"', self.script)
+        self.assertIn('const JARVIS_UI_VERSION = "0.27.1"', self.script)
         manifest = (ROOT / "home_assistant" / "custom_components" / "jarvis_conversation" / "manifest.json").read_text(encoding="utf-8")
-        self.assertIn('"version": "0.27.0"', manifest)
+        self.assertIn('"version": "0.27.1"', manifest)
 
 
 if __name__ == "__main__":

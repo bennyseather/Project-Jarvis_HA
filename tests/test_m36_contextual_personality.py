@@ -63,6 +63,15 @@ class M36ContextualPersonalityTests(unittest.TestCase):
             (root / "home_assistant/addons/jarvis/app/src/jarvis/personality.py").read_text(),
         )
 
+    def test_validated_defaults_survive_configuration_and_service_lifecycle(self):
+        root = Path(__file__).resolve().parents[1]
+        application = (root / "src/jarvis/core/application.py").read_text()
+        container = (root / "src/jarvis/core/container.py").read_text()
+        self.assertIn("self.container.default_personality = default_personality", application)
+        self.assertIn("default_profile=self.container.default_personality", application)
+        self.assertIn("self.default_personality = None", container)
+        self.assertNotIn("default_profile=default_personality,", application)
+
 
 if __name__ == "__main__":
     unittest.main()
