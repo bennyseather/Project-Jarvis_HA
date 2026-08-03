@@ -56,7 +56,7 @@ from jarvis.homeassistant.home_references import build_home_references
 from jarvis.memory.repeated_context import RepeatedContextExtractor, RepeatedContextLearner
 from jarvis.management.natural_memory import NaturalMemoryController
 from jarvis.persona import JarvisPersona
-from jarvis.personality import PersonalityManager
+from jarvis.personality import PersonalityManager, PersonalityProfile
 from jarvis.personality_presentation import PersonalityPresenter
 from jarvis.reflection.manager import ReflectiveLearningManager
 from jarvis.storage.reflection_store import SQLiteReflectionStore
@@ -227,6 +227,23 @@ class JarvisApplication:
             raise ValueError("persona.name must be a non-empty string")
         if not isinstance(dry_wit, bool):
             raise ValueError("persona.dry_wit must be a boolean")
+        personality_defaults = {
+            "humour": persona_config.get("humour", "subtle"),
+            "warmth": persona_config.get("warmth", "balanced"),
+            "formality": persona_config.get("formality", "refined"),
+            "verbosity": persona_config.get("verbosity", "concise"),
+            "proactivity": persona_config.get("proactivity", "balanced"),
+        }
+        for setting, value in personality_defaults.items():
+            if value not in PersonalityManager.OPTIONS[setting]:
+                choices = "|".join(sorted(PersonalityManager.OPTIONS[setting]))
+                raise ValueError(f"persona.{setting} must be one of {choices}")
+        preferred_address = persona_config.get("preferred_address", "")
+        if not isinstance(preferred_address, str) or len(preferred_address) > 60:
+            raise ValueError("persona.preferred_address must be a string of 60 characters or fewer")
+        default_personality = PersonalityProfile(
+            address=preferred_address.strip(), **personality_defaults
+        )
         persona = JarvisPersona(persona_name.strip(), dry_wit)
         context_messages = conversation_config.get("context_messages", 20)
         maximum_conversations = conversation_config.get("maximum_conversations", 20)
@@ -540,7 +557,8 @@ class JarvisApplication:
             self.container.compound_orchestration,
         )
         self.container.personality_manager = PersonalityManager(
-            self.container.knowledge_store
+            self.container.knowledge_store,
+            default_profile=default_personality,
         )
         self.container.personality_presenter = PersonalityPresenter(
             self.container.personality_manager

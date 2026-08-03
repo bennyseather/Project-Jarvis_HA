@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.27.0
+
+- Add M36 Contextual Jarvis Personality with unified configurable presentation controls.
+- Add explicit proactivity and preferred-address app options plus local-first identity guidance.
+- Add inspectable response-mode diagnostics while preserving exact policy and action results.
+
 ## 0.26.3
 
 - Correct the Wyoming streaming capability flag so Home Assistant voice previews and pipelines send supported complete-text synthesis requests.

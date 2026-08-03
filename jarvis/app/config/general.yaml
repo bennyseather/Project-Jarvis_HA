@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.26.3"
+  version: "0.27.0"
 
 system:
   debug: false
@@ -97,6 +97,12 @@ compound_orchestration:
 persona:
   name: "Jarvis"
   dry_wit: true
+  humour: "subtle"
+  warmth: "balanced"
+  formality: "refined"
+  verbosity: "concise"
+  proactivity: "balanced"
+  preferred_address: ""
 
 event_timeline:
   enabled: true

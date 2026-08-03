@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.26.3"
+version: "0.27.0"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]
@@ -19,6 +19,12 @@ options:
   episodic_memory_enabled: true
   episodic_retention_days: 30
   maximum_episodes: 50
+  personality_humour: "subtle"
+  personality_warmth: "balanced"
+  personality_formality: "refined"
+  personality_verbosity: "concise"
+  personality_proactivity: "balanced"
+  preferred_address: ""
 schema:
   openai_api_key: password
   bridge_api_key: password
@@ -28,3 +34,9 @@ schema:
   episodic_memory_enabled: bool
   episodic_retention_days: int(1,365)
   maximum_episodes: int(1,200)
+  personality_humour: list(off|subtle|moderate)
+  personality_warmth: list(reserved|balanced|warm)
+  personality_formality: list(relaxed|refined)
+  personality_verbosity: list(concise|balanced|detailed)
+  personality_proactivity: list(reactive|balanced|proactive)
+  preferred_address: str?

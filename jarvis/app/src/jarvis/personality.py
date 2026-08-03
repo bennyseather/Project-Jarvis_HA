@@ -14,6 +14,7 @@ class PersonalityProfile:
     warmth: str = "balanced"
     formality: str = "refined"
     verbosity: str = "concise"
+    proactivity: str = "balanced"
     locale: str = "en-GB"
     voice: str = "original British synthetic"
 
@@ -21,7 +22,7 @@ class PersonalityProfile:
         return {
             "address": self.address, "humour": self.humour,
             "warmth": self.warmth, "formality": self.formality,
-            "verbosity": self.verbosity,
+            "verbosity": self.verbosity, "proactivity": self.proactivity,
             "locale": self.locale, "voice": self.voice,
             "presentation": (
                 "Use the preferred address sparingly and only when socially natural. "
@@ -29,7 +30,10 @@ class PersonalityProfile:
                 "Carry clear subjects across the bounded dialogue and honour explicit "
                 "corrections without pretending certainty when the referent is ambiguous. "
                 "Spoken answers must be shorter than text answers and must not read source URLs. Offer at most one "
-                "next step, and only when it is materially useful."
+                "next step, and only when it is materially useful and permitted by the "
+                "configured proactivity level. For identity questions, use explicit local "
+                "memory and approved household knowledge first; research only public facts "
+                "when the person or subject is sufficiently disambiguated."
             ),
             "safety": (
                 "No humour for failures, safety, confirmations, emergencies, "
@@ -46,17 +50,20 @@ class PersonalityManager:
         "warmth": {"reserved", "balanced", "warm"},
         "formality": {"relaxed", "refined"},
         "verbosity": {"concise", "balanced", "detailed"},
+        "proactivity": {"reactive", "balanced", "proactive"},
     }
 
-    def __init__(self, store, *, factory=None):
+    def __init__(self, store, *, factory=None, default_profile=None):
         self._store = store
         self._factory = factory or KnowledgeRecordFactory()
         self._last_style: dict[str, str] = {}
+        self._last_diagnostics: dict[str, dict[str, object]] = {}
+        self._default_profile = default_profile or PersonalityProfile()
 
     def profile(self):
         record = self._record()
         if record is None:
-            return PersonalityProfile()
+            return self._default_profile
         values = record.metadata
         return PersonalityProfile(
             str(values.get("address", "")),
@@ -64,6 +71,7 @@ class PersonalityManager:
             str(values.get("warmth", "balanced")),
             str(values.get("formality", "refined")),
             str(values.get("verbosity", "concise")),
+            str(values.get("proactivity", "balanced")),
         )
 
     def handle(self, text, conversation_id="local-default"):
@@ -72,7 +80,7 @@ class PersonalityManager:
             profile = self.profile()
             return {"status": "success", "message": (
                 f"Personality: {profile.formality}, {profile.warmth}, "
-                f"{profile.verbosity}, "
+                f"{profile.verbosity}, proactivity {profile.proactivity}, "
                 f"humour {profile.humour}, British English, original subtly "
                 f"synthetic voice. Address: {profile.address or 'not set'}."
             )}
@@ -90,6 +98,16 @@ class PersonalityManager:
                 "No adaptive response style has been applied in this conversation yet.",
             )
             return {"status": "success", "message": explanation}
+        if normalized in {"show personality diagnostics", "personality diagnostics"}:
+            diagnostic = self._last_diagnostics.get(conversation_id)
+            if diagnostic is None:
+                return {"status": "success", "message": "No personality diagnostic is available in this conversation yet."}
+            influences = ", ".join(diagnostic.get("influences", ())) or "base profile only"
+            return {"status": "success", "message": (
+                f"Personality diagnostic: mode {diagnostic['mode']}; profile "
+                f"{diagnostic['profile']}; influences {influences}. Presentation only; "
+                "facts, permissions and actions were unchanged."
+            )}
         if normalized.startswith("address me as "):
             address = text.strip()[len("address me as "):].strip()
             if (
@@ -110,7 +128,8 @@ class PersonalityManager:
                 return {"status": "clarification_required", "message": (
                     "Use: set personality humour off|subtle|moderate, warmth "
                     "reserved|balanced|warm, formality relaxed|refined, or "
-                    "verbosity concise|balanced|detailed."
+                    "verbosity concise|balanced|detailed, or proactivity "
+                    "reactive|balanced|proactive."
                 )}
             return self._save(
                 replace(self.profile(), **{parts[2]: parts[3]}),
@@ -136,6 +155,9 @@ class PersonalityManager:
 
     def record_style(self, conversation_id, explanation):
         self._last_style[str(conversation_id)] = str(explanation)
+
+    def record_diagnostic(self, conversation_id, diagnostic):
+        self._last_diagnostics[str(conversation_id)] = dict(diagnostic)
 
     def _save(self, profile, message):
         record = self._record()
