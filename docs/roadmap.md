@@ -295,3 +295,8 @@ Learning & Adaptation
 
 - Local SearXNG search, bounded public-page retrieval, citations, tiered OpenAI
   synthesis, persistent budget controls, and an Ollama-ready provider boundary.
+
+## M36 - Contextual Jarvis Personality (complete)
+
+- Unified configurable British-English presentation, local-first identity context,
+  protected exact responses, and inspectable per-conversation style diagnostics.

@@ -15,6 +15,7 @@ class PersonalityPresenter:
     _MANAGEMENT_PHRASES = {
         "show personality", "explain personality", "show relationship preferences",
         "explain last response style", "reset personality",
+        "show personality diagnostics", "personality diagnostics",
         "forget personality preferences", "forget relationship preferences",
     }
 
@@ -39,6 +40,10 @@ class PersonalityPresenter:
             return result
         profile = self._manager.profile()
         changes = []
+        mode = self._mode(result, normalized, serious)
+        influences = ["voice" if voice_mode else "text", mode]
+        if profile.address:
+            influences.append("explicit preferred address available")
 
         if voice_mode and not serious and not management:
             researched = bool(result.get("researched") or result.get("sources"))
@@ -77,6 +82,14 @@ class PersonalityPresenter:
             + (" Humour was suppressed because the context was serious." if serious else "")
         )
         self._manager.record_style(conversation_id, explanation)
+        self._manager.record_diagnostic(conversation_id, {
+            "mode": mode,
+            "profile": (
+                f"{profile.formality}/{profile.warmth}/{profile.verbosity}/"
+                f"humour-{profile.humour}/{profile.proactivity}"
+            ),
+            "influences": tuple(influences + changes),
+        })
         if message == result["message"]:
             return result
         presented = dict(result)
@@ -89,6 +102,18 @@ class PersonalityPresenter:
             "hello", "hi", "hey", "good morning", "good afternoon",
             "good evening", "hello jarvis", "hi jarvis",
         }
+
+    @staticmethod
+    def _mode(result, normalized, serious):
+        if serious:
+            return "protected exact response"
+        if result.get("researched") or result.get("sources"):
+            return "research summary"
+        if any(word in normalized for word in ("light", "switch", "temperature", "home", "house", "room")):
+            return "home interaction"
+        if normalized.startswith(("why ", "how ", "what ", "who ", "where ", "when ")):
+            return "informational dialogue"
+        return "general dialogue"
 
     @staticmethod
     def _for_voice(message, verbosity, *, omit_links=False):
