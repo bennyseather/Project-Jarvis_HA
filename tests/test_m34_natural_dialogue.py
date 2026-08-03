@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from jarvis.knowledge.in_memory_store import InMemoryKnowledgeStore
 from jarvis.persona import DEFAULT_PERSONA
@@ -69,6 +70,16 @@ class M34NaturalDialogueTests(unittest.TestCase):
             self.presenter.present(result, "Do it", "safe", voice_mode=True),
             result,
         )
+
+    def test_native_satellite_and_browser_device_are_voice_mode(self):
+        root = Path(__file__).resolve().parents[1]
+        integration = (
+            root
+            / "home_assistant/custom_components/jarvis_conversation/conversation.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("or user_input.device_id", integration)
+        self.assertIn("or user_input.satellite_id", integration)
+        self.assertIn('"voice_mode": voice_mode', integration)
 
 
 if __name__ == "__main__":

@@ -47,6 +47,11 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             user_input.device_id,
             satellite_device_id,
         )
+        voice_mode = bool(
+            external_voice
+            or user_input.device_id
+            or user_input.satellite_id
+        )
         if self.entry.options.get("external_voice_output") and not external_voice:
             LOGGER.warning(
                 "Jarvis external voice source did not match: configured=%s, "
@@ -82,7 +87,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                     or getattr(user_input.context, "user_id", None)
                     or f"entry:{self.entry.entry_id}"
                 ),
-                "voice_mode": external_voice,
+                "voice_mode": voice_mode,
                 "device_id": user_input.device_id,
                 "satellite_id": user_input.satellite_id,
                 "activation_id": getattr(user_input.context, "id", None),

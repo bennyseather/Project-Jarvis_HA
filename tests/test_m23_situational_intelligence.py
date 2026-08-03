@@ -248,6 +248,43 @@ class M23SituationalIntelligenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("30 sensors", result["message"])
         self.assertNotIn("Item 29 is", result["message"])
 
+    async def test_list_floor_lights_returns_bounded_friendly_names(self):
+        result = await self.engine.handle("List the lights upstairs", "listing")
+        self.assertEqual(result["entity_ids"], ("light.blocks", "light.office"))
+        self.assertIn("Blocks is on", result["message"])
+        self.assertIn("Office Main Light is off", result["message"])
+
+    async def test_voice_listing_reports_omitted_count(self):
+        many = [
+            {
+                "entity_id": f"light.item_{index}",
+                "state": "on",
+                "attributes": {"friendly_name": f"Light {index}"},
+            }
+            for index in range(8)
+        ]
+        assembler = HomeTopologyAssembler(
+            AREAS,
+            FLOORS,
+            [{"ei": item["entity_id"], "ai": "office"} for item in many],
+            [],
+            {item["entity_id"] for item in many},
+            (),
+            maximum_entities=50,
+        )
+        engine = WholeHomeSituationalIntelligence(
+            Client(many),
+            assembler,
+            self.timeline,
+            self.gateway,
+            SituationalIntelligencePolicy(maximum_entities=50),
+        )
+        result = await engine.handle(
+            "List the lights upstairs", "voice-listing", voice_mode=True
+        )
+        self.assertIn("Light 0 is on", result["message"])
+        self.assertIn("3 more are omitted", result["message"])
+
     async def test_temporal_query_uses_only_bounded_permitted_timeline(self):
         now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
         self.timeline.append("state_changed", "light.blocks", now, "off")
