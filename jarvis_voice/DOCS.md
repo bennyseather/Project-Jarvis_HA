@@ -16,14 +16,16 @@ processing adds a restrained synthetic character. No cloud account is required.
 
 ## Engines, voices, and profiles
 
-The default `chatterbox_nano` engine uses `jarvis_neural`. Its original British
-reference is generated during the image build from permissively licensed Kokoro
-output and original Project Jarvis wording. It does not contain an actor or
-copyrighted-media recording. Select `kokoro` to A/B test the prior engine.
+The default `chatterbox_nano` engine uses `jarvis_neural`. Version 0.28.0 bundles
+the approved Project Jarvis v5 reference as mono 24 kHz PCM. The project owner
+retains the source permission record. The reference and resulting profile are
+for this non-commercial open-source hobby project. Select `kokoro` to A/B test
+the prior engine.
 
-The default voice is `bm_george`. You can also select `bm_fable`, `bm_daniel`,
-or `bm_lewis` in Home Assistant. The tuned default uses speed `1.08`.
+The default fallback voice is `bm_george`. You can also select `bm_fable`,
+`bm_daniel`, or `bm_lewis` in Home Assistant.
 
+- `jarvis_v5`: approved crisp, staccato and balanced synthetic/metallic finish.
 - `refined`: restrained technical presence.
 - `synthetic`: stronger resonance and doubling.
 - `metallic`: raised pitch, controlled modulation, quantisation, and tight
@@ -31,12 +33,18 @@ or `bm_lewis` in Home Assistant. The tuned default uses speed `1.08`.
 - `clean`: neural voice with minimal coloration.
 
 `strength` controls the synthetic finishing layer and `output_gain` controls
-the final level. Restart the app after changing options. If local neural
+the final level. The v5 default uses full calibrated strength, gain `0.98`, a
+bounded delivery factor of `1.055`, and a `25` ms maximum long pause.
+`staccato_pause_ms` may be set to `0` to disable PCM pause tightening. Restart
+the app after changing options. If local neural
 synthesis fails and `piper_fallback` is enabled, the request is sent to Piper.
 `shorten_comma_pauses` removes the model's exaggerated comma timing while
 preserving word separation.
-`pitch_factor` raises pitch while slightly accelerating delivery. Start at
-`1.10`; values above `1.14` will sound deliberately artificial.
+`pitch_factor` raises pitch while slightly accelerating delivery. The v5
+default is `1.055`; values above `1.14` will sound deliberately artificial.
+
+Existing installations still using the untouched 0.27.2 Metallic defaults are
+migrated in memory to v5. Explicitly customised profiles and levels are retained.
 
 The model stays warm and synthesis is serialized. Logs report readiness,
 time-to-first-audio, per-segment generation time, fallback state, and errors.

@@ -1,5 +1,5 @@
 name: "Project Jarvis Voice"
-version: "0.27.2"
+version: "0.28.0"
 slug: "jarvis_voice"
 description: "High-quality local streaming Jarvis neural voice"
 arch: [amd64]
@@ -14,13 +14,15 @@ options:
   engine: "chatterbox_nano"
   upstream_host: "core-piper"
   upstream_port: 10200
-  profile: "metallic"
-  strength: 0.92
-  output_gain: 0.92
+  profile: "jarvis_v5"
+  strength: 1.0
+  output_gain: 0.98
   voice: "bm_george"
   speed: 1.08
   shorten_comma_pauses: true
-  pitch_factor: 1.10
+  pitch_factor: 1.055
+  staccato_pause_ms: 25.0
+  voice_revision: 5
   piper_fallback: true
   reference_path: "/app/jarvis-reference.wav"
   generation_timeout: 30.0
@@ -29,13 +31,15 @@ schema:
   engine: list(chatterbox_nano|kokoro)
   upstream_host: str
   upstream_port: port
-  profile: list(refined|synthetic|metallic|clean)
+  profile: list(jarvis_v5|refined|synthetic|metallic|clean)
   strength: float(0.0,1.0)
   output_gain: float(0.25,1.5)
   voice: list(bm_george|bm_fable|bm_daniel|bm_lewis)
   speed: float(0.75,1.25)
   shorten_comma_pauses: bool
   pitch_factor: float(1.0,1.2)
+  staccato_pause_ms: float(0.0,250.0)
+  voice_revision: int(0,5)
   piper_fallback: bool
   reference_path: str
   generation_timeout: float(5.0,120.0)

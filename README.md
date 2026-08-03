@@ -13,9 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.27.2
+## Project Jarvis 0.28.0
 
-Version 0.27.2 removes inline, headed and generated citation variants from spoken replies. It retains the M36 startup fix. M36 adds unified configurable
+Version 0.28.0 completes M37 Approved Jarvis Voice Integration with the bundled
+v5 Chatterbox reference, crisp staccato delivery, balanced synthetic/metallic
+finishing and safe migration from untouched legacy defaults. Explicit custom
+voice profiles remain unchanged and Kokoro/Piper fallbacks remain available.
+It retains the 0.27.2 spoken-source filtering and M36 startup fix. M36 adds unified configurable
 formality, warmth, verbosity, restrained humour, proactivity and preferred
 address, with inspectable per-conversation presentation diagnostics. It retains
 the Wyoming voice-preview fix and official Chatterbox source revision containing the
