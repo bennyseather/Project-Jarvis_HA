@@ -25,6 +25,11 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         and float(options.get("output_gain", 0.92)) == 0.92
         and float(options.get("pitch_factor", 1.10)) == 1.10
     )
+    v5_defaults = (
+        int(options.get("voice_revision", 5)) < 6
+        and str(options.get("profile", "jarvis_v5")) == "jarvis_v5"
+        and float(options.get("pitch_factor", 1.055)) == 1.055
+    )
     return VoiceProxyConfig(
         upstream_host=str(options.get("upstream_host", "core-piper")),
         upstream_port=int(options.get("upstream_port", 10200)),
@@ -43,14 +48,20 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         shorten_comma_pauses=bool(options.get("shorten_comma_pauses", True)),
         pitch_factor=(
             1.055 if legacy_defaults
-            else float(options.get("pitch_factor", 1.055))
+            else 1.035 if v5_defaults
+            else float(options.get("pitch_factor", 1.035))
         ),
         staccato_pause_ms=float(options.get("staccato_pause_ms", 25.0)),
+        darkness=float(options.get("darkness", 0.10)),
         piper_fallback=bool(options.get("piper_fallback", True)),
         engine=str(options.get("engine", "chatterbox_nano")),
         reference_path=str(options.get("reference_path", "/app/jarvis-reference.wav")),
         generation_timeout=float(options.get("generation_timeout", 30.0)),
         warm_model=bool(options.get("warm_model", True)),
+        articulation_mode=str(options.get("articulation_mode", "crisp")),
+        maximum_segment_characters=int(
+            options.get("maximum_segment_characters", 105)
+        ),
     )
 
 

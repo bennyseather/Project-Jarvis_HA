@@ -30,11 +30,14 @@ class VoiceProxyConfig:
     shorten_comma_pauses: bool = True
     pitch_factor: float = 1.055
     staccato_pause_ms: float = 25.0
+    darkness: float = 0.10
     piper_fallback: bool = True
     engine: str = "chatterbox_nano"
     reference_path: str = "/app/jarvis-reference.wav"
     generation_timeout: float = 30.0
     warm_model: bool = True
+    articulation_mode: str = "crisp"
+    maximum_segment_characters: int = 105
 
 
 class VoiceProxy:
@@ -45,6 +48,8 @@ class VoiceProxy:
             ChatterboxConfig(
                 reference_path=config.reference_path,
                 generation_timeout=config.generation_timeout,
+                articulation_mode=config.articulation_mode,
+                maximum_segment_characters=config.maximum_segment_characters,
             )
         )
 
@@ -80,6 +85,9 @@ class VoiceProxy:
                 ready=self.chatterbox.ready,
                 last_error=self.chatterbox.last_error,
                 last_generation_seconds=self.chatterbox.last_generation_seconds,
+                conditioning_seconds=self.chatterbox.conditioning_seconds,
+                warmup_seconds=self.chatterbox.warmup_seconds,
+                last_first_audio_seconds=self.chatterbox.last_first_audio_seconds,
             ))
             return
         if event.type == "synthesize":
@@ -129,6 +137,7 @@ class VoiceProxy:
             pcm, rate, 1, self.config.profile,
             self.config.strength, self.config.output_gain,
             self.config.staccato_pause_ms,
+            self.config.darkness,
         )
         audio_data = {"rate": rate, "width": 2, "channels": 1}
         await write_event(client, Event({"type": "audio-start"}, audio_data))
@@ -143,8 +152,6 @@ class VoiceProxy:
         text = str(event.data.get("text", "")).strip()
         if not text:
             raise ValueError("Synthesize request did not contain text")
-        if self.config.shorten_comma_pauses:
-            text = _shorten_comma_pauses(text)
         started = time.monotonic()
         audio_started = False
         total_bytes = 0
@@ -156,12 +163,15 @@ class VoiceProxy:
                     pcm, rate, 1, self.config.profile,
                     self.config.strength, self.config.output_gain,
                     self.config.staccato_pause_ms,
+                    self.config.darkness,
                 )
                 metadata = {"rate": rate, "width": 2, "channels": 1}
                 if not audio_started:
                     await write_event(client, Event({"type": "audio-start"}, metadata))
                     audio_started = True
-                    LOGGER.info("First Chatterbox audio ready in %.2fs", time.monotonic() - started)
+                    first_audio_seconds = time.monotonic() - started
+                    self.chatterbox.last_first_audio_seconds = first_audio_seconds
+                    LOGGER.info("First Chatterbox audio ready in %.2fs", first_audio_seconds)
                 for offset in range(0, len(pcm), 8192):
                     await write_event(client, Event(
                         {"type": "audio-chunk"}, metadata, pcm[offset:offset + 8192]
@@ -208,6 +218,7 @@ class VoiceProxy:
                 pcm, rate, channels, self.config.profile,
                 self.config.strength, self.config.output_gain,
                 self.config.staccato_pause_ms,
+                self.config.darkness,
             )
         await write_event(client, start)
         chunk_data = {"rate": rate, "width": width, "channels": channels}
@@ -248,7 +259,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.28.1",
+        "version": "0.29.0",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
@@ -262,6 +273,9 @@ def _voice_info(
     ready: bool = False,
     last_error: str = "",
     last_generation_seconds: float = 0.0,
+    conditioning_seconds: float = 0.0,
+    warmup_seconds: float = 0.0,
+    last_first_audio_seconds: float = 0.0,
 ) -> Event:
     event = _kokoro_info()
     service = event.data["tts"][0]
@@ -280,6 +294,9 @@ def _voice_info(
         "ready": ready,
         "last_error": last_error[:300],
         "last_generation_seconds": round(last_generation_seconds, 3),
+        "conditioning_seconds": round(conditioning_seconds, 3),
+        "warmup_seconds": round(warmup_seconds, 3),
+        "last_first_audio_seconds": round(last_first_audio_seconds, 3),
     }
     service["voices"].insert(0, {
         "name": "jarvis_neural",
@@ -313,6 +330,8 @@ async def run_server(config: VoiceProxyConfig) -> None:
         "jarvis_v5", "refined", "synthetic", "metallic", "clean"
     }:
         raise ValueError(f"Unsupported voice profile: {config.profile}")
+    if config.articulation_mode not in {"crisp", "balanced"}:
+        raise ValueError(f"Unsupported articulation mode: {config.articulation_mode}")
     proxy = VoiceProxy(config)
     await proxy.warmup()
     server = await asyncio.start_server(

@@ -46,6 +46,7 @@ def process_voice_pcm16(
     strength: float,
     output_gain: float,
     staccato_pause_ms: float = 0.0,
+    darkness: float = 0.0,
 ) -> bytes:
     """Apply one named finishing chain with a calibrated Jarvis v5 option."""
     if not pcm or channels != 1 or sample_rate < 8000:
@@ -68,7 +69,7 @@ def process_voice_pcm16(
         JARVIS_V5_SYNTHETIC_MIX * bounded_strength,
         1.02,
     )
-    return process_pcm16(
+    pcm = process_pcm16(
         pcm,
         sample_rate,
         channels,
@@ -76,6 +77,30 @@ def process_voice_pcm16(
         JARVIS_V5_METALLIC_MIX * bounded_strength,
         output_gain,
     )
+    return darken_voice_pcm16(pcm, sample_rate, darkness)
+
+
+def darken_voice_pcm16(pcm: bytes, sample_rate: int, amount: float) -> bytes:
+    """Add restrained low-mid body without lowering speed or obscuring consonants."""
+    amount = max(0.0, min(0.25, float(amount)))
+    if not pcm or amount <= 0.0 or sample_rate < 8000:
+        return pcm
+    samples = array("h")
+    samples.frombytes(pcm)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    cutoff_hz = 900.0
+    alpha = 1.0 - math.exp(-2.0 * math.pi * cutoff_hz / sample_rate)
+    low = 0.0
+    output = array("h")
+    for sample in samples:
+        value = sample / 32768.0
+        low += alpha * (value - low)
+        darkened = value * (1.0 - amount * 0.35) + low * amount * 0.35
+        output.append(max(-32768, min(32767, round(darkened * 32767.0))))
+    if sys.byteorder != "little":
+        output.byteswap()
+    return output.tobytes()
 
 
 def tighten_pauses_pcm16(
