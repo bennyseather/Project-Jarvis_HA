@@ -19,7 +19,9 @@ The default voice is `bm_george`. You can also select `bm_fable`, `bm_daniel`,
 or `bm_lewis` in Home Assistant. The tuned default uses speed `1.08`.
 
 - `refined`: restrained technical presence.
-- `synthetic`: stronger resonance and doubling; recommended.
+- `synthetic`: stronger resonance and doubling.
+- `metallic`: raised pitch, controlled modulation, quantisation, and tight
+  doubling; recommended when the neural base remains too human.
 - `clean`: neural voice with minimal coloration.
 
 `strength` controls the synthetic finishing layer and `output_gain` controls
@@ -27,6 +29,8 @@ the final level. Restart the app after changing options. If local neural
 synthesis fails and `piper_fallback` is enabled, the request is sent to Piper.
 `shorten_comma_pauses` removes the model's exaggerated comma timing while
 preserving word separation.
+`pitch_factor` raises pitch while slightly accelerating delivery. Start at
+`1.10`; values above `1.14` will sound deliberately artificial.
 
 ## Privacy and boundaries
 

@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 import logging
 
-from dsp import process_pcm16
+from dsp import process_pcm16, raise_pitch_and_speed_pcm16
 from kokoro_engine import KokoroConfig, KokoroEngine, SUPPORTED_VOICES
 from protocol import Event, read_event, write_event
 
@@ -18,14 +18,15 @@ LOGGER = logging.getLogger("jarvis_voice")
 class VoiceProxyConfig:
     upstream_host: str = "core-piper"
     upstream_port: int = 10200
-    profile: str = "synthetic"
-    strength: float = 0.82
+    profile: str = "metallic"
+    strength: float = 0.92
     output_gain: float = 0.92
     listen_host: str = "0.0.0.0"
     listen_port: int = 10350
     voice: str = "bm_george"
     speed: float = 1.08
     shorten_comma_pauses: bool = True
+    pitch_factor: float = 1.10
     piper_fallback: bool = True
 
 
@@ -84,6 +85,7 @@ class VoiceProxy:
         requested_voice = event.data.get("voice") or {}
         voice = requested_voice.get("name") if isinstance(requested_voice, dict) else None
         pcm, rate = await self.kokoro.synthesize(text, voice)
+        pcm = raise_pitch_and_speed_pcm16(pcm, self.config.pitch_factor)
         pcm = process_pcm16(
             pcm, rate, 1, self.config.profile,
             self.config.strength, self.config.output_gain,
@@ -164,7 +166,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.23.1",
+        "version": "0.23.2",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
@@ -178,7 +180,7 @@ def _shorten_comma_pauses(text: str) -> str:
 
 
 async def run_server(config: VoiceProxyConfig) -> None:
-    if config.profile not in {"refined", "synthetic", "clean"}:
+    if config.profile not in {"refined", "synthetic", "metallic", "clean"}:
         raise ValueError(f"Unsupported voice profile: {config.profile}")
     proxy = VoiceProxy(config)
     server = await asyncio.start_server(

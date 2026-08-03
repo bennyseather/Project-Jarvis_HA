@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.2
+
+- Add a stronger Metallic voice-finishing profile.
+- Raise the default voice pitch and accelerate delivery with bounded resampling.
+- Add controlled modulation and quantisation to reduce human naturalness.
+
 ## 0.23.1
 
 - Increase default neural voice speed and synthetic strength.
