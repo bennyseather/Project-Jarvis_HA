@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.25.0
+
+- Add M34 Natural Jarvis Dialogue with explicit follow-up and correction guidance.
+- Apply concise British-English personality presentation consistently across response paths.
+- Remove source URLs from researched voice answers while preserving structured sources and text citations.
+- Remove redundant spoken acknowledgement openings without changing facts or action results.
+
 ## 0.24.0
 
 - Add bounded post-response listening for contextual voice follow-ups.
