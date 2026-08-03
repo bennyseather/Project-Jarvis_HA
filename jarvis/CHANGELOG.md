@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.2
+
+- Remove inline source lists, Markdown source headings and generated citation markers at the final Home Assistant spoken-response boundary.
+
 ## 0.27.1
 
 - Fix M36 startup by retaining validated personality defaults across configuration loading and service initialisation.
