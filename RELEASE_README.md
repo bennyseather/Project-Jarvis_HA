@@ -13,12 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.28.1
+## Project Jarvis 0.29.0
 
-Version 0.28.1 completes M37 Approved Jarvis Voice Integration with the bundled
-v5 Chatterbox reference, crisp staccato delivery, balanced synthetic/metallic
-finishing and safe migration from untouched legacy defaults. Explicit custom
-voice profiles remain unchanged and Kokoro/Piper fallbacks remain available.
+Version 0.29.0 completes M38 Responsive and Articulate Jarvis Voice with cached
+conditioning, startup pre-warming, adaptive clause segmentation, conservative
+articulation controls, timing diagnostics and a subtly darker v5 finish.
+Explicit custom voice profiles remain unchanged and Kokoro/Piper fallbacks remain available.
 It retains the 0.27.2 spoken-source filtering and M36 startup fix. M36 adds unified configurable
 formality, warmth, verbosity, restrained humour, proactivity and preferred
 address, with inspectable per-conversation presentation diagnostics. It retains
