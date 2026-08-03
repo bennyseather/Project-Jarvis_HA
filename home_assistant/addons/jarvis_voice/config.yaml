@@ -1,5 +1,5 @@
 name: "Project Jarvis Voice"
-version: "0.23.0"
+version: "0.23.1"
 slug: "jarvis_voice"
 description: "Local British synthetic voice refinement for Piper"
 arch: [amd64, aarch64]
@@ -13,11 +13,12 @@ ports_description:
 options:
   upstream_host: "core-piper"
   upstream_port: 10200
-  profile: "refined"
-  strength: 0.65
+  profile: "synthetic"
+  strength: 0.82
   output_gain: 0.92
   voice: "bm_george"
-  speed: 0.94
+  speed: 1.08
+  shorten_comma_pauses: true
   piper_fallback: true
 schema:
   upstream_host: str
@@ -27,4 +28,5 @@ schema:
   output_gain: float(0.25,1.5)
   voice: list(bm_george|bm_fable|bm_daniel|bm_lewis)
   speed: float(0.75,1.25)
+  shorten_comma_pauses: bool
   piper_fallback: bool

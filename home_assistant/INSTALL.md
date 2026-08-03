@@ -25,7 +25,7 @@ Do not expose ports 8099 or 8088 to the internet. They are intended for the
 trusted Home Assistant network only.
 
 Upgrading through the add-on repository preserves existing memory. Version
-0.23.0 adds local Kokoro neural voice synthesis. No reset
+0.23.1 tunes local Kokoro delivery and comma timing. No reset
 or reinstallation is required.
 
 For the optional local British synthetic voice, install the official Piper app

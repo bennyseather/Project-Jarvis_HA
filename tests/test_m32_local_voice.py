@@ -11,7 +11,10 @@ sys.path.insert(0, str(ADDON / "app"))
 
 from dsp import PROFILES, process_pcm16  # noqa: E402
 from protocol import Event, read_event, write_event  # noqa: E402
-from server import VoiceProxy, VoiceProxyConfig, _kokoro_info, _refine_info  # noqa: E402
+from server import (  # noqa: E402
+    VoiceProxy, VoiceProxyConfig, _kokoro_info, _refine_info,
+    _shorten_comma_pauses,
+)
 
 
 class MemoryWriter:
@@ -115,13 +118,21 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
             {"bm_george", "bm_fable", "bm_daniel", "bm_lewis"},
         )
 
+    def test_comma_pause_normalization_preserves_words(self):
+        self.assertEqual(
+            _shorten_comma_pauses("Good evening, Benny, all systems ready."),
+            "Good evening Benny all systems ready.",
+        )
+
     def test_addon_is_local_configurable_and_documents_fallback(self):
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
         docs = (ADDON / "DOCS.md").read_text(encoding="utf-8")
         server = (ADDON / "app" / "server.py").read_text(encoding="utf-8")
         dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
         engine = (ADDON / "app" / "kokoro_engine.py").read_text(encoding="utf-8")
-        self.assertIn('version: "0.23.0"', config)
+        self.assertIn('version: "0.23.1"', config)
+        self.assertIn('profile: "synthetic"', config)
+        self.assertIn('speed: 1.08', config)
         self.assertIn('profile: list(refined|synthetic|clean)', config)
         self.assertIn("core-piper", config)
         self.assertIn("request is sent to Piper", docs)
