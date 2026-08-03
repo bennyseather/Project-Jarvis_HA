@@ -67,6 +67,7 @@ class ServiceContainer:
         self.contextual_goals = None
         self.personality_manager = None
         self.personality_presenter = None
+        self.default_personality = None
         self.episodic_policy = None
         self.episodic_manager = None
         self.research_policy = None

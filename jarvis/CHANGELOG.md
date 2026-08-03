@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.1
+
+- Fix M36 startup by retaining validated personality defaults across configuration loading and service initialisation.
+
 ## 0.27.0
 
 - Add M36 Contextual Jarvis Personality with unified configurable presentation controls.

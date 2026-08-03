@@ -244,6 +244,7 @@ class JarvisApplication:
         default_personality = PersonalityProfile(
             address=preferred_address.strip(), **personality_defaults
         )
+        self.container.default_personality = default_personality
         persona = JarvisPersona(persona_name.strip(), dry_wit)
         context_messages = conversation_config.get("context_messages", 20)
         maximum_conversations = conversation_config.get("maximum_conversations", 20)
@@ -558,7 +559,7 @@ class JarvisApplication:
         )
         self.container.personality_manager = PersonalityManager(
             self.container.knowledge_store,
-            default_profile=default_personality,
+            default_profile=self.container.default_personality,
         )
         self.container.personality_presenter = PersonalityPresenter(
             self.container.personality_manager
