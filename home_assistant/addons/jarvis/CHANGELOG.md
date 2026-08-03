@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.28.0
+
+- Complete M37 Approved Jarvis Voice Integration.
+- Bundle the approved v5 Chatterbox reference and dedicated balanced synthetic profile.
+- Add bounded 25 ms long-pause compression for crisp staccato delivery.
+- Migrate untouched legacy voice defaults while preserving explicit custom profiles.
+- Retain warm CPU inference plus ordered Kokoro and Piper fallbacks.
+
 ## 0.27.2
 
 - Remove inline source lists, Markdown source headings and generated citation markers at the final Home Assistant spoken-response boundary.

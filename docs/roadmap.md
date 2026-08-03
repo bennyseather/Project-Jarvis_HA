@@ -300,3 +300,8 @@ Learning & Adaptation
 
 - Unified configurable British-English presentation, local-first identity context,
   protected exact responses, and inspectable per-conversation style diagnostics.
+
+## M37 - Approved Jarvis Voice Integration (complete)
+
+- Bundled approved v5 Chatterbox reference, calibrated crisp staccato finishing,
+  safe legacy-default migration, and retained Kokoro/Piper fallbacks.

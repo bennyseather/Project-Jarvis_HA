@@ -25,6 +25,7 @@ data/*.db
 *.egg-info/
 build/
 dist/
+/output/
 !home_assistant/jarvis_ui/dist/
 !home_assistant/jarvis_ui/dist/*.js
 
