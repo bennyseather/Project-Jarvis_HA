@@ -18,12 +18,19 @@ class Profile:
     resonance_ms: float
     doubling: float
     doubling_ms: float
+    modulation_depth: float = 0.0
+    modulation_hz: float = 0.0
+    quantization_steps: int = 0
 
 
 PROFILES = {
     "clean": Profile(65.0, 0.04, 0.72, 1.8, 0.0, 0.0, 0.0, 0.0),
     "refined": Profile(82.0, 0.14, 0.48, 2.8, 0.075, 6.5, 0.045, 13.0),
     "synthetic": Profile(95.0, 0.22, 0.42, 3.4, 0.14, 5.0, 0.09, 11.0),
+    "metallic": Profile(
+        125.0, 0.34, 0.34, 4.2, 0.22, 3.7, 0.16, 7.5,
+        modulation_depth=0.16, modulation_hz=71.0, quantization_steps=1024,
+    ),
 }
 
 
@@ -38,7 +45,7 @@ def process_pcm16(
     """Process signed little-endian PCM16 without retaining audio."""
     if not pcm or channels != 1 or sample_rate < 8000:
         return pcm
-    profile = PROFILES.get(profile_name, PROFILES["refined"])
+    profile = PROFILES.get(profile_name, PROFILES["metallic"])
     mix = max(0.0, min(1.0, float(strength)))
     gain = max(0.25, min(1.5, float(output_gain)))
     samples = array("h")
@@ -84,5 +91,32 @@ def _effect(samples: list[float], rate: int, profile: Profile) -> list[float]:
         if magnitude > threshold:
             magnitude = threshold + (magnitude - threshold) / profile.compression_ratio
             presence = math.copysign(magnitude, presence)
+        if profile.modulation_depth:
+            carrier = math.sin(2.0 * math.pi * profile.modulation_hz * index / rate)
+            presence *= 1.0 - profile.modulation_depth + profile.modulation_depth * carrier
+        if profile.quantization_steps:
+            presence = round(presence * profile.quantization_steps) / profile.quantization_steps
         output.append(presence)
     return output
+
+
+def raise_pitch_and_speed_pcm16(pcm: bytes, factor: float) -> bytes:
+    """Raise pitch and shorten delivery with bounded linear resampling."""
+    factor = max(1.0, min(1.2, float(factor)))
+    if not pcm or factor == 1.0:
+        return pcm
+    samples = array("h")
+    samples.frombytes(pcm)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    output_count = max(1, int(len(samples) / factor))
+    output = array("h")
+    for index in range(output_count):
+        position = index * factor
+        left = min(len(samples) - 1, int(position))
+        right = min(len(samples) - 1, left + 1)
+        fraction = position - left
+        output.append(round(samples[left] * (1.0 - fraction) + samples[right] * fraction))
+    if sys.byteorder != "little":
+        output.byteswap()
+    return output.tobytes()
