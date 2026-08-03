@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.0
+
+- Add local Kokoro-82M neural synthesis with four British male voices.
+- Keep bounded Jarvis finishing profiles and automatic Piper fallback.
+- Load the neural model once and run CPU inference outside the event loop.
+
 ## 0.22.1
 
 - Correct Wyoming JSON data-frame handling for Project Jarvis Voice discovery.

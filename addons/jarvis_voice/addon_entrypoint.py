@@ -24,6 +24,9 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         profile=str(options.get("profile", "refined")),
         strength=float(options.get("strength", 0.65)),
         output_gain=float(options.get("output_gain", 0.92)),
+        voice=str(options.get("voice", "bm_george")),
+        speed=float(options.get("speed", 0.94)),
+        piper_fallback=bool(options.get("piper_fallback", True)),
     )
 
 

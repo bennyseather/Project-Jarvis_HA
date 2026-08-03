@@ -1,44 +1,33 @@
-# Project Jarvis Voice
+# Project Jarvis Neural Voice
 
-Project Jarvis Voice is a local Wyoming TTS processor for the existing Piper
-app. It creates an original British synthetic assistant sound without cloning
-an actor, using cloud processing, or retaining generated audio.
-
-## Prerequisites
-
-Install and start the official Piper app first. Select a British Piper voice;
-`en_GB-alan-medium` is recommended.
+Project Jarvis Voice is a local Wyoming neural TTS service. Kokoro-82M creates
+the British voice on the Home Assistant CPU, then bounded Jarvis processing
+adds a restrained synthetic character. No cloud TTS account is required.
 
 ## Installation
 
-1. Install and start **Project Jarvis Voice** from the Project Jarvis app
-   repository.
-2. Keep `upstream_host` set to `core-piper` and `upstream_port` to `10200`.
-   If the log reports a DNS error, open the Piper app's **Info** page and use
-   its displayed hostname instead.
-3. Go to **Settings -> Devices & services -> Add integration** and select
-   **Wyoming Protocol**.
-4. Enter host `homeassistant.local` and port `10350`. The port is exposed only
-   on your Home Assistant host; do not forward it through your router.
-5. Rename the discovered TTS service to **Jarvis Piper**.
-6. Open **Settings -> Voice assistants -> Jarvis** and choose the new Piper
-   TTS service. Select `en_GB-alan-medium`.
+1. Keep the official **Piper** app installed as the optional fallback.
+2. Install and start **Project Jarvis Voice** from the Project Jarvis app
+   repository. The neural model is included in the app image.
+3. Add **Wyoming Protocol** under **Settings -> Devices & services** using the
+   Home Assistant local IP and port `10350`.
+4. Select **Project Jarvis Neural Voice** in the Jarvis Assist pipeline.
 
-## Profiles
+## Voices and profiles
 
-- `refined`: restrained British technical voice; recommended.
+The default voice is `bm_george`. You can also select `bm_fable`, `bm_daniel`,
+or `bm_lewis` in Home Assistant. Start with speed `0.94`.
+
+- `refined`: restrained technical presence; recommended.
 - `synthetic`: stronger resonance and doubling.
-- `clean`: light cleanup and compression with minimal coloration.
+- `clean`: neural voice with minimal coloration.
 
-`strength` blends the processed signal with the original Piper signal.
-`output_gain` adjusts the final level before a soft limiter. Start with the
-defaults. Restart the app after changing options.
-
-Normal Piper remains installed and selectable as an immediate bypass.
+`strength` controls the synthetic finishing layer and `output_gain` controls
+the final level. Restart the app after changing options. If local neural
+synthesis fails and `piper_fallback` is enabled, the request is sent to Piper.
 
 ## Privacy and boundaries
 
-Only the generated PCM response exists briefly in memory while it is being
-processed. It is discarded after delivery and never written to disk. Home
-Assistant continues to own Assist pipelines, TTS selection, devices, and audio
-routing. Project Jarvis Voice cannot perform home actions.
+Generated PCM exists only in memory, is never written to disk, and is discarded after delivery. Home
+Assistant owns Assist pipelines, TTS selection, devices, and audio routing.
+Project Jarvis Voice cannot perform home actions.
