@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.25.1
+
+- Treat native browser and Assist Satellite pipelines as voice interactions without requiring external speaker routing.
+- Recognise list/show/name/what home queries and return bounded permitted floor light names.
+- Report omitted item counts in long spoken listings.
+
 ## 0.25.0
 
 - Add M34 Natural Jarvis Dialogue with explicit follow-up and correction guidance.

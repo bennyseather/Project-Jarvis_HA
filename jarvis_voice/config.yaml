@@ -1,5 +1,5 @@
 name: "Project Jarvis Voice"
-version: "0.25.0"
+version: "0.25.1"
 slug: "jarvis_voice"
 description: "Local British synthetic voice refinement for Piper"
 arch: [amd64, aarch64]
