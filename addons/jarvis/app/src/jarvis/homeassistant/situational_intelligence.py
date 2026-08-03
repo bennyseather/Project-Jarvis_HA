@@ -96,7 +96,7 @@ class WholeHomeSituationalIntelligence:
     _READ_WORDS = frozenset({
         "state", "status", "which", "any", "all", "everything", "unavailable",
         "unknown", "open", "closed", "on", "off", "low", "changed", "changes",
-        "recently", "rest",
+        "recently", "rest", "list", "show", "name", "what",
     })
     _EXTERNAL_TOPIC_WORDS = frozenset({
         "latest", "release", "version", "update", "news", "website", "web",
@@ -492,6 +492,7 @@ class WholeHomeSituationalIntelligence:
         if (
             desired_state is None
             and len(matching) > self.policy.maximum_details
+            and not self._asks_listing(text)
         ):
             domains: dict[str, int] = {}
             for item in matching:
@@ -527,19 +528,22 @@ class WholeHomeSituationalIntelligence:
         return self._summary(matching, lead, voice_mode)
 
     def _summary(self, entities, lead, voice_mode):
-        details = self._details(entities)
-        if voice_mode and len(entities) > 5:
-            details = self._details(entities[:3])
-        suffix = (
-            f" {len(entities) - self.policy.maximum_details} more are omitted."
-            if len(entities) > self.policy.maximum_details and not voice_mode
-            else ""
-        )
+        detail_limit = min(5, self.policy.maximum_details) if voice_mode else self.policy.maximum_details
+        details = self._details(entities[:detail_limit])
+        omitted = len(entities) - detail_limit
+        suffix = f" {omitted} more are omitted." if omitted > 0 else ""
         return {
             "status": "success",
             "message": f"{lead}. {details}{suffix}".strip(),
             "entity_ids": tuple(item.entity_id for item in entities),
         }
+
+    @staticmethod
+    def _asks_listing(text):
+        words = set(text.split())
+        return bool(words & {"list", "show", "name", "which"}) or (
+            "what" in words and not words & {"state", "status"}
+        )
 
     def _details(self, entities):
         values = []
