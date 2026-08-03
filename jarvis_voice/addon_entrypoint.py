@@ -21,11 +21,12 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
     return VoiceProxyConfig(
         upstream_host=str(options.get("upstream_host", "core-piper")),
         upstream_port=int(options.get("upstream_port", 10200)),
-        profile=str(options.get("profile", "refined")),
-        strength=float(options.get("strength", 0.65)),
+        profile=str(options.get("profile", "synthetic")),
+        strength=float(options.get("strength", 0.82)),
         output_gain=float(options.get("output_gain", 0.92)),
         voice=str(options.get("voice", "bm_george")),
-        speed=float(options.get("speed", 0.94)),
+        speed=float(options.get("speed", 1.08)),
+        shorten_comma_pauses=bool(options.get("shorten_comma_pauses", True)),
         piper_fallback=bool(options.get("piper_fallback", True)),
     )
 

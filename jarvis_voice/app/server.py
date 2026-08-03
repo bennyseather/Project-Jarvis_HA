@@ -18,13 +18,14 @@ LOGGER = logging.getLogger("jarvis_voice")
 class VoiceProxyConfig:
     upstream_host: str = "core-piper"
     upstream_port: int = 10200
-    profile: str = "refined"
-    strength: float = 0.65
+    profile: str = "synthetic"
+    strength: float = 0.82
     output_gain: float = 0.92
     listen_host: str = "0.0.0.0"
     listen_port: int = 10350
     voice: str = "bm_george"
-    speed: float = 0.94
+    speed: float = 1.08
+    shorten_comma_pauses: bool = True
     piper_fallback: bool = True
 
 
@@ -78,6 +79,8 @@ class VoiceProxy:
         text = str(event.data.get("text", "")).strip()
         if not text:
             raise ValueError("Synthesize request did not contain text")
+        if self.config.shorten_comma_pauses:
+            text = _shorten_comma_pauses(text)
         requested_voice = event.data.get("voice") or {}
         voice = requested_voice.get("name") if isinstance(requested_voice, dict) else None
         pcm, rate = await self.kokoro.synthesize(text, voice)
@@ -161,12 +164,17 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.23.0",
+        "version": "0.23.1",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
         "supports_synthesize_streaming": False,
     }]})
+
+
+def _shorten_comma_pauses(text: str) -> str:
+    """Remove comma timing while retaining a word boundary."""
+    return " ".join(text.replace(",", " ").split())
 
 
 async def run_server(config: VoiceProxyConfig) -> None:

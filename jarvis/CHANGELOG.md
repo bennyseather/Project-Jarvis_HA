@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.1
+
+- Increase default neural voice speed and synthetic strength.
+- Select the synthetic finishing profile by default.
+- Normalize commas to avoid exaggerated pauses during speech.
+
 ## 0.23.0
 
 - Add local Kokoro-82M neural synthesis with four British male voices.
