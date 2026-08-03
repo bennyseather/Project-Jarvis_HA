@@ -82,7 +82,7 @@ class M27OpenKnowledgeResearchTests(unittest.IsolatedAsyncioTestCase):
             root / "home_assistant/addons/jarvis/app/config/general.yaml"
         ).read_text(encoding="utf-8")
         self.assertEqual(config, addon_config)
-        self.assertIn('version: "0.26.0"', config)
+        self.assertIn('version: "0.26.1"', config)
         self.assertIn("research:", config)
         self.assertIn(
             "M27 - Open Knowledge and Live Research (complete)",
