@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.2
+
+- Pin the official Chatterbox source revision that implements the documented `nano=True` CPU API missing from PyPI 0.1.7.
+
 ## 0.26.1
 
 - Build Project Jarvis Voice on Python 3.13 so Chatterbox and Kokoro share NumPy 2.x without resolver conflicts.
