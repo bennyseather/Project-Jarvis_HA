@@ -16,7 +16,7 @@ processing adds a restrained synthetic character. No cloud account is required.
 
 ## Engines, voices, and profiles
 
-The default `chatterbox_nano` engine uses `jarvis_neural`. Version 0.28.0 bundles
+The default `chatterbox_nano` engine uses `jarvis_neural`. Version 0.28.1 bundles
 the approved Project Jarvis v5 reference as mono 24 kHz PCM. The project owner
 retains the source permission record. The reference and resulting profile are
 for this non-commercial open-source hobby project. Select `kokoro` to A/B test

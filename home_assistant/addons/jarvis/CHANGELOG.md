@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.28.1
+
+- Fix Chatterbox Nano reference conditioning on CPU by bypassing an upstream
+  loudness conversion that promoted the approved reference to Float64.
+- Restore the intended Jarvis v5 voice instead of falling back to Kokoro.
+
 ## 0.28.0
 
 - Complete M37 Approved Jarvis Voice Integration.

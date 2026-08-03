@@ -71,11 +71,23 @@ class ChatterboxNanoEngine:
 
         model = self._load()
         reference = Path(self.config.reference_path)
-        options = {"audio_prompt_path": str(reference)} if reference.is_file() else {}
+        options = generation_options(reference)
         waveform = model.generate(text, **options)
         values = waveform.detach().cpu().float().numpy().reshape(-1)
         pcm = (np.clip(values, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()
         return pcm, int(model.sr)
+
+
+def generation_options(reference: Path) -> dict[str, object]:
+    """Build safe conditioning options for the pre-normalized reference."""
+    if not reference.is_file():
+        return {}
+    return {
+        "audio_prompt_path": str(reference),
+        # Chatterbox's loudness normalizer promotes this reference to float64
+        # on the CPU image, while its S3 tokenizer requires float32.
+        "norm_loudness": False,
+    }
 
 
 def split_spoken_segments(text: str, maximum: int = 180) -> tuple[str, ...]:

@@ -89,11 +89,11 @@ conversation` for control. Search findings remain temporary unless you say
 `remember this`; `forget this` permanently deletes that approved research
 memory. Research never grants Home Assistant or external-action authority.
 
-Version 0.28.0 includes the optional complete Jarvis Dashboard System. Download the
+Version 0.28.1 includes the optional complete Jarvis Dashboard System. Download the
 `jarvis_ui` folder from the Project Jarvis Home Assistant repository and follow
 its `README.md`. Installation remains explicit: the add-on is not granted
 write access to Home Assistant's configuration directory. Register
-`/local/jarvis/jarvis-ui.js?v=0.28.0` as a JavaScript module in Home Assistant
+`/local/jarvis/jarvis-ui.js?v=0.28.1` as a JavaScript module in Home Assistant
 
 ## Hybrid research and AI budget
 

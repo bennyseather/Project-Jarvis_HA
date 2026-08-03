@@ -14,11 +14,18 @@ sys.path.insert(0, str(ADDON / "app"))
 sys.path.insert(0, str(ADDON))
 
 from addon_entrypoint import load_config  # noqa: E402
+from chatterbox_engine import generation_options  # noqa: E402
 from dsp import process_voice_pcm16, tighten_pauses_pcm16  # noqa: E402
 from server import VoiceProxyConfig, _voice_info  # noqa: E402
 
 
 class M37ApprovedJarvisVoiceTests(unittest.TestCase):
+    def test_chatterbox_uses_normalized_reference_without_float64_conversion(self):
+        reference = ADDON / "assets" / "jarvis-v5-reference.wav"
+        options = generation_options(reference)
+        self.assertEqual(options["audio_prompt_path"], str(reference))
+        self.assertIs(options["norm_loudness"], False)
+
     def test_reference_is_bundled_clean_pcm(self):
         reference = ADDON / "assets" / "jarvis-v5-reference.wav"
         self.assertEqual(
@@ -84,13 +91,13 @@ class M37ApprovedJarvisVoiceTests(unittest.TestCase):
         defaults = VoiceProxyConfig()
         self.assertEqual(defaults.profile, "jarvis_v5")
         self.assertEqual(defaults.staccato_pause_ms, 25.0)
-        self.assertIn('version: "0.28.0"', config)
+        self.assertIn('version: "0.28.1"', config)
         self.assertIn('profile: "jarvis_v5"', config)
         self.assertIn("COPY assets/jarvis-v5-reference.wav", dockerfile)
         self.assertIn("Kokoro", docs)
         self.assertIn("Piper", docs)
         service = _voice_info("chatterbox_nano").data["tts"][0]
-        self.assertEqual(service["version"], "0.28.0")
+        self.assertEqual(service["version"], "0.28.1")
 
 
 if __name__ == "__main__":
