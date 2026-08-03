@@ -25,7 +25,7 @@ Do not expose ports 8099 or 8088 to the internet. They are intended for the
 trusted Home Assistant network only.
 
 Upgrading through the add-on repository preserves existing memory. Version
-0.27.1 fixes M36 personality-default startup lifecycle wiring. No reset
+0.27.2 removes all source-section and citation variants at the final spoken boundary. No reset
 or reinstallation is required.
 
 For the optional local British synthetic voice, install the official Piper app
