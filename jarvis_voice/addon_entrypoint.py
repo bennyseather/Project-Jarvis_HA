@@ -82,6 +82,9 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         maximum_segment_characters=int(
             options.get("maximum_segment_characters", 105)
         ),
+        piper_noise_scale=float(options.get("piper_noise_scale", 0.35)),
+        piper_noise_w=float(options.get("piper_noise_w", 0.45)),
+        clarity_mode=bool(options.get("clarity_mode", True)),
     )
 
 

@@ -13,6 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Voice 0.30.1
+
+Version 0.30.1 adds a reversible M39 clarity baseline. Piper inference noise is
+reduced, a gentle high-frequency hiss filter is enabled, and synthetic DSP is
+bypassed while `clarity_mode` is active. The private voice package is unchanged.
+
 ## Project Jarvis 0.30.0
 
 Version 0.30.0 completes M39 Dedicated Jarvis Piper Voice. The voice add-on now
