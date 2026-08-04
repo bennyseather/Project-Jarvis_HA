@@ -13,9 +13,17 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis 0.29.0
+## Project Jarvis 0.30.0
 
-Version 0.29.0 completes M38 Responsive and Articulate Jarvis Voice with cached
+Version 0.30.0 completes M39 Dedicated Jarvis Piper Voice. The voice add-on now
+loads the private `jarvis-piper-m39.zip` package from Home Assistant `/share`,
+serves the dedicated `jarvis_m39` voice through Wyoming, targets 1–4 second CPU
+responses, and keeps local Kokoro and Piper fallbacks. The dataset, checkpoints,
+and trained model remain outside the public repository. The reproducible Colab
+notebook includes checkpoint migration, live output, Piper native-extension
+building, and PyTorch legacy ONNX export compatibility.
+
+M38 added cached
 conditioning, startup pre-warming, adaptive clause segmentation, conservative
 articulation controls, timing diagnostics and a subtly darker v5 finish.
 Explicit custom voice profiles remain unchanged and Kokoro/Piper fallbacks remain available.
