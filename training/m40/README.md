@@ -18,3 +18,8 @@ Download `jarvis-piper-m40.zip` when training completes. Keep the model private
 and place it under `training/m40_models` for integration verification. Home
 Assistant will load the accepted package from `/share/jarvis_voice` after the
 M40 integration release.
+
+If Colab GPU quota is unavailable, upload `M40_Piper_Training_Kaggle.ipynb` to
+Kaggle, enable a GPU accelerator and Internet, and attach the private dataset
+ZIP with **Add Input**. The resulting model is written to
+`/kaggle/working/jarvis-piper-m40.zip` for download from notebook outputs.
