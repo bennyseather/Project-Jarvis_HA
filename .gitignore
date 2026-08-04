@@ -26,6 +26,8 @@ data/*.db
 build/
 dist/
 /output/
+/training/m39_dataset/
+/training/m39_models/
 !home_assistant/jarvis_ui/dist/
 !home_assistant/jarvis_ui/dist/*.js
 

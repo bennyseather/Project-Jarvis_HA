@@ -1,0 +1,35 @@
+{
+  "status": "manual_review_required",
+  "target_sample_rate": 22050,
+  "sources": [
+    {
+      "name": "Xeno1.mp3",
+      "sha256": "ed9975c906989787a1de54955f712dc1527bfdff96a9844d15c06e101b295559",
+      "duration_seconds": 79.482,
+      "candidate_clips": 9,
+      "candidate_seconds": 36.5
+    },
+    {
+      "name": "Xeno2.mp3",
+      "sha256": "40b6c23cb29689ad2b1b12bf393d23fd0ee0669e02aa0657c55758a3c7787ad1",
+      "duration_seconds": 44.76,
+      "candidate_clips": 7,
+      "candidate_seconds": 38.2
+    },
+    {
+      "name": "Xeno3.mp3",
+      "sha256": "856d3ff9bffeb3fe20358f83789cf531ff1e5aa7dd2f00f765f2190ad967992f",
+      "duration_seconds": 857.002,
+      "candidate_clips": 152,
+      "candidate_seconds": 692.9
+    }
+  ],
+  "candidate_clip_count": 168,
+  "candidate_seconds": 767.6,
+  "clipping_flag_count": 0,
+  "notes": [
+    "Audio and full transcripts remain private and are excluded from Git.",
+    "All 168 clips require listening and exact transcript correction.",
+    "Reject other speakers, audience audio, music, effects and poor boundaries."
+  ]
+}

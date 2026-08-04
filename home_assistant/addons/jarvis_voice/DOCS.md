@@ -1,22 +1,24 @@
-# Project Jarvis Neural Voice
+# Project Jarvis Dedicated Voice
 
-Project Jarvis Voice is a local Wyoming neural TTS service. Chatterbox Nano
-generates an expressive voice on the Home Assistant CPU and streams the first
-completed sentence while later sentences are generated. Bounded Jarvis
-processing adds a restrained synthetic character. No cloud account is required.
+Project Jarvis Voice is a local Wyoming TTS service. M39 defaults to a private
+Piper medium model trained for Jarvis, with bounded synthetic finishing and no
+cloud account or per-request cost.
 
 ## Installation
 
 1. Keep the official **Piper** app installed as the optional fallback.
-2. Install and start **Project Jarvis Voice** from the Project Jarvis app
-   repository. The Chatterbox Nano and Kokoro models are included in the app image.
-3. Add **Wyoming Protocol** under **Settings -> Devices & services** using the
+2. Create `/share/jarvis_voice` and copy `jarvis-piper-m39.zip` into it without
+   extracting the archive.
+3. Install or update **Project Jarvis Voice** from the Project Jarvis app repository.
+4. Add **Wyoming Protocol** under **Settings -> Devices & services** using the
    Home Assistant local IP and port `10350`.
-4. Select **Project Jarvis Neural Voice** in the Jarvis Assist pipeline.
+5. Select **Jarvis M39** in the Jarvis Assist pipeline.
 
 ## Engines, voices, and profiles
 
-The default `chatterbox_nano` engine uses `jarvis_neural`. Version 0.29.0 bundles
+The default `piper_m39` engine uses `jarvis_m39`. The private model ZIP is loaded
+from `/share` and is never included in Git or the public app image. Chatterbox
+Nano and Kokoro remain fallback/A-B engines. Version 0.29.0 bundles
 the approved Project Jarvis v5 reference as mono 24 kHz PCM. The project owner
 retains the source permission record. The reference and resulting profile are
 for this non-commercial open-source hobby project. Select `kokoro` to A/B test

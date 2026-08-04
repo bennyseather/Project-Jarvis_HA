@@ -1,17 +1,21 @@
 name: "Project Jarvis Voice"
-version: "0.29.0"
+version: "0.30.0"
 slug: "jarvis_voice"
 description: "High-quality local streaming Jarvis neural voice"
 arch: [amd64]
 startup: services
 boot: auto
 init: false
+map:
+  - share:ro
 ports:
   10350/tcp: 10350
 ports_description:
   10350/tcp: "Jarvis Wyoming TTS (normally internal only)"
 options:
-  engine: "chatterbox_nano"
+  engine: "piper_m39"
+  model_package: "/share/jarvis_voice/jarvis-piper-m39.zip"
+  model_cache_dir: "/data/models/m39"
   upstream_host: "core-piper"
   upstream_port: 10200
   profile: "jarvis_v5"
@@ -22,16 +26,18 @@ options:
   shorten_comma_pauses: true
   pitch_factor: 1.035
   staccato_pause_ms: 25.0
-  darkness: 0.10
+  darkness: 0.12
   articulation_mode: "crisp"
   maximum_segment_characters: 105
-  voice_revision: 6
+  voice_revision: 7
   piper_fallback: true
   reference_path: "/app/jarvis-reference.wav"
   generation_timeout: 30.0
   warm_model: true
 schema:
-  engine: list(chatterbox_nano|kokoro)
+  engine: list(piper_m39|chatterbox_nano|kokoro)
+  model_package: str
+  model_cache_dir: str
   upstream_host: str
   upstream_port: port
   profile: list(jarvis_v5|refined|synthetic|metallic|clean)
@@ -45,7 +51,7 @@ schema:
   darkness: float(0.0,0.25)
   articulation_mode: list(crisp|balanced)
   maximum_segment_characters: int(60,180)
-  voice_revision: int(0,6)
+  voice_revision: int(0,7)
   piper_fallback: bool
   reference_path: str
   generation_timeout: float(5.0,120.0)

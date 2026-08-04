@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.30.0
+
+- Add the private M39 Piper medium voice as the default Wyoming TTS engine.
+- Load and validate the model ZIP from `/share` without publishing voice data.
+- Retain local neural and official Piper fallbacks with readiness diagnostics.
+- Add reproducible Colab training/export fixes and private-model tests.
+
 ## 0.29.0
 
 - Cache Chatterbox reference conditioning once and pre-warm the CPU model.

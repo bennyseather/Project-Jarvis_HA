@@ -10,6 +10,7 @@ import time
 from chatterbox_engine import ChatterboxConfig, ChatterboxNanoEngine
 from dsp import process_voice_pcm16, raise_pitch_and_speed_pcm16
 from kokoro_engine import KokoroConfig, KokoroEngine, SUPPORTED_VOICES
+from piper_m39_engine import PiperM39Config, PiperM39Engine
 from protocol import Event, read_event, write_event
 
 
@@ -20,6 +21,8 @@ LOGGER = logging.getLogger("jarvis_voice")
 class VoiceProxyConfig:
     upstream_host: str = "core-piper"
     upstream_port: int = 10200
+    model_package: str = "/share/jarvis_voice/jarvis-piper-m39.zip"
+    model_cache_dir: str = "/data/models/m39"
     profile: str = "jarvis_v5"
     strength: float = 1.0
     output_gain: float = 0.98
@@ -32,7 +35,7 @@ class VoiceProxyConfig:
     staccato_pause_ms: float = 25.0
     darkness: float = 0.10
     piper_fallback: bool = True
-    engine: str = "chatterbox_nano"
+    engine: str = "piper_m39"
     reference_path: str = "/app/jarvis-reference.wav"
     generation_timeout: float = 30.0
     warm_model: bool = True
@@ -44,6 +47,11 @@ class VoiceProxy:
     def __init__(self, config: VoiceProxyConfig) -> None:
         self.config = config
         self.kokoro = KokoroEngine(KokoroConfig(voice=config.voice, speed=config.speed))
+        self.piper_m39 = PiperM39Engine(PiperM39Config(
+            package_path=config.model_package,
+            cache_dir=config.model_cache_dir,
+            timeout=config.generation_timeout,
+        ))
         self.chatterbox = ChatterboxNanoEngine(
             ChatterboxConfig(
                 reference_path=config.reference_path,
@@ -54,6 +62,14 @@ class VoiceProxy:
         )
 
     async def warmup(self) -> None:
+        if self.config.engine == "piper_m39":
+            try:
+                await self.piper_m39.prepare()
+                LOGGER.info("M39 Piper voice is ready")
+            except Exception as error:
+                self.piper_m39.last_error = str(error)
+                LOGGER.exception("M39 Piper preparation failed; neural fallbacks remain available")
+            return
         if self.config.engine != "chatterbox_nano" or not self.config.warm_model:
             return
         try:
@@ -82,9 +98,9 @@ class VoiceProxy:
         if event.type == "describe":
             await write_event(client, _voice_info(
                 self.config.engine,
-                ready=self.chatterbox.ready,
-                last_error=self.chatterbox.last_error,
-                last_generation_seconds=self.chatterbox.last_generation_seconds,
+                ready=self.piper_m39.ready if self.config.engine == "piper_m39" else self.chatterbox.ready,
+                last_error=self.piper_m39.last_error if self.config.engine == "piper_m39" else self.chatterbox.last_error,
+                last_generation_seconds=self.piper_m39.last_generation_seconds if self.config.engine == "piper_m39" else self.chatterbox.last_generation_seconds,
                 conditioning_seconds=self.chatterbox.conditioning_seconds,
                 warmup_seconds=self.chatterbox.warmup_seconds,
                 last_first_audio_seconds=self.chatterbox.last_first_audio_seconds,
@@ -92,6 +108,15 @@ class VoiceProxy:
             return
         if event.type == "synthesize":
             requested_voice = _requested_voice(event)
+            if (
+                self.config.engine == "piper_m39"
+                and requested_voice in {None, "jarvis_m39", "jarvis_neural"}
+            ):
+                try:
+                    await self._synthesize_piper_m39(event, client)
+                    return
+                except Exception:
+                    LOGGER.exception("M39 Piper synthesis failed; trying neural fallback")
             if (
                 self.config.engine == "chatterbox_nano"
                 and requested_voice in {None, "jarvis_neural"}
@@ -122,6 +147,32 @@ class VoiceProxy:
         finally:
             upstream_writer.close()
             await upstream_writer.wait_closed()
+
+    async def _synthesize_piper_m39(self, event: Event, client: asyncio.StreamWriter) -> None:
+        text = str(event.data.get("text", "")).strip()
+        if not text:
+            raise ValueError("Synthesize request did not contain text")
+        if self.config.shorten_comma_pauses:
+            text = _shorten_comma_pauses(text)
+        started = time.monotonic()
+        pcm, rate = await self.piper_m39.synthesize(text)
+        pcm = raise_pitch_and_speed_pcm16(pcm, self.config.pitch_factor)
+        pcm = process_voice_pcm16(
+            pcm, rate, 1, self.config.profile,
+            self.config.strength, self.config.output_gain,
+            self.config.staccato_pause_ms, self.config.darkness,
+        )
+        metadata = {"rate": rate, "width": 2, "channels": 1}
+        await write_event(client, Event({"type": "audio-start"}, metadata))
+        for offset in range(0, len(pcm), 8192):
+            await write_event(client, Event(
+                {"type": "audio-chunk"}, metadata, pcm[offset:offset + 8192]
+            ))
+        await write_event(client, Event({"type": "audio-stop"}, {}))
+        LOGGER.info(
+            "M39 Piper response ready in %.2fs; audio=%.2fs",
+            time.monotonic() - started, len(pcm) / max(1, rate * 2),
+        )
 
     async def _synthesize_kokoro(self, event: Event, client: asyncio.StreamWriter) -> None:
         text = str(event.data.get("text", "")).strip()
@@ -259,7 +310,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.29.0",
+        "version": "0.30.0",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
@@ -281,9 +332,10 @@ def _voice_info(
     service = event.data["tts"][0]
     service["name"] = "Project Jarvis High Quality Voice"
     service["description"] = (
-        "Streaming Chatterbox Nano CPU voice with Kokoro and Piper fallbacks"
-        if engine == "chatterbox_nano"
-        else "Local Kokoro British voice with Piper fallback"
+        "Private M39 Jarvis Piper voice with local neural fallbacks"
+        if engine == "piper_m39"
+        else "Streaming Chatterbox Nano CPU voice with Kokoro and Piper fallbacks"
+        if engine == "chatterbox_nano" else "Local Kokoro British voice with Piper fallback"
     )
     # Wyoming's streaming capability describes incremental *text input*
     # (synthesize-start/chunk/stop), not audio chunks in the response. Jarvis
@@ -310,6 +362,16 @@ def _voice_info(
         "languages": ["en-GB"],
         "speakers": None,
     })
+    if engine == "piper_m39":
+        service["voices"].insert(0, {
+            "name": "jarvis_m39",
+            "description": "Jarvis M39 (private dedicated Piper model)",
+            "version": "1.0",
+            "attribution": {"name": "Private Project Jarvis model", "url": ""},
+            "installed": ready,
+            "languages": ["en-GB"],
+            "speakers": None,
+        })
     return event
 
 
@@ -326,6 +388,8 @@ def _shorten_comma_pauses(text: str) -> str:
 
 
 async def run_server(config: VoiceProxyConfig) -> None:
+    if config.engine not in {"piper_m39", "chatterbox_nano", "kokoro"}:
+        raise ValueError(f"Unsupported voice engine: {config.engine}")
     if config.profile not in {
         "jarvis_v5", "refined", "synthetic", "metallic", "clean"
     }:

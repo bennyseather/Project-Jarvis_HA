@@ -105,13 +105,13 @@ class M37ApprovedJarvisVoiceTests(unittest.TestCase):
         defaults = VoiceProxyConfig()
         self.assertEqual(defaults.profile, "jarvis_v5")
         self.assertEqual(defaults.staccato_pause_ms, 25.0)
-        self.assertIn('version: "0.29.0"', config)
+        self.assertIn('version: "0.30.0"', config)
         self.assertIn('profile: "jarvis_v5"', config)
         self.assertIn("COPY assets/jarvis-v5-reference.wav", dockerfile)
         self.assertIn("Kokoro", docs)
         self.assertIn("Piper", docs)
         service = _voice_info("chatterbox_nano").data["tts"][0]
-        self.assertEqual(service["version"], "0.29.0")
+        self.assertEqual(service["version"], "0.30.0")
 
 
 if __name__ == "__main__":
