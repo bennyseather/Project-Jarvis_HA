@@ -22,6 +22,8 @@ class PiperM39Config:
     cache_dir: str = "/data/models/m39"
     executable: str = "piper"
     timeout: float = 20.0
+    noise_scale: float = 0.35
+    noise_w: float = 0.45
 
 
 class PiperM39Engine:
@@ -85,6 +87,8 @@ class PiperM39Engine:
                 self.config.executable,
                 "--model", str(self._model_path),
                 "--config", str(self._config_path),
+                "--noise-scale", str(max(0.0, min(1.0, self.config.noise_scale))),
+                "--noise-w", str(max(0.0, min(1.0, self.config.noise_w))),
                 "--output-raw",
             ],
             input=(text.strip() + "\n").encode("utf-8"),

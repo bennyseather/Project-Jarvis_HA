@@ -8,7 +8,7 @@ import logging
 import time
 
 from chatterbox_engine import ChatterboxConfig, ChatterboxNanoEngine
-from dsp import process_voice_pcm16, raise_pitch_and_speed_pcm16
+from dsp import clarity_filter_pcm16, process_voice_pcm16, raise_pitch_and_speed_pcm16
 from kokoro_engine import KokoroConfig, KokoroEngine, SUPPORTED_VOICES
 from piper_m39_engine import PiperM39Config, PiperM39Engine
 from protocol import Event, read_event, write_event
@@ -41,6 +41,9 @@ class VoiceProxyConfig:
     warm_model: bool = True
     articulation_mode: str = "crisp"
     maximum_segment_characters: int = 105
+    piper_noise_scale: float = 0.35
+    piper_noise_w: float = 0.45
+    clarity_mode: bool = True
 
 
 class VoiceProxy:
@@ -51,6 +54,8 @@ class VoiceProxy:
             package_path=config.model_package,
             cache_dir=config.model_cache_dir,
             timeout=config.generation_timeout,
+            noise_scale=config.piper_noise_scale,
+            noise_w=config.piper_noise_w,
         ))
         self.chatterbox = ChatterboxNanoEngine(
             ChatterboxConfig(
@@ -156,12 +161,15 @@ class VoiceProxy:
             text = _shorten_comma_pauses(text)
         started = time.monotonic()
         pcm, rate = await self.piper_m39.synthesize(text)
-        pcm = raise_pitch_and_speed_pcm16(pcm, self.config.pitch_factor)
-        pcm = process_voice_pcm16(
-            pcm, rate, 1, self.config.profile,
-            self.config.strength, self.config.output_gain,
-            self.config.staccato_pause_ms, self.config.darkness,
-        )
+        if self.config.clarity_mode:
+            pcm = clarity_filter_pcm16(pcm, rate)
+        else:
+            pcm = raise_pitch_and_speed_pcm16(pcm, self.config.pitch_factor)
+            pcm = process_voice_pcm16(
+                pcm, rate, 1, self.config.profile,
+                self.config.strength, self.config.output_gain,
+                self.config.staccato_pause_ms, self.config.darkness,
+            )
         metadata = {"rate": rate, "width": 2, "channels": 1}
         await write_event(client, Event({"type": "audio-start"}, metadata))
         for offset in range(0, len(pcm), 8192):
@@ -310,7 +318,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.30.0",
+        "version": "0.30.1",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
