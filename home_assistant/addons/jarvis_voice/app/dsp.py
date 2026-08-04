@@ -103,6 +103,29 @@ def darken_voice_pcm16(pcm: bytes, sample_rate: int, amount: float) -> bytes:
     return output.tobytes()
 
 
+def clarity_filter_pcm16(
+    pcm: bytes, sample_rate: int, cutoff_hz: float = 7200.0
+) -> bytes:
+    """Gently attenuate high-frequency model hiss without masking consonants."""
+    if not pcm or sample_rate < 8000:
+        return pcm
+    cutoff_hz = max(3000.0, min(sample_rate * 0.45, float(cutoff_hz)))
+    alpha = 1.0 - math.exp(-2.0 * math.pi * cutoff_hz / sample_rate)
+    samples = array("h")
+    samples.frombytes(pcm)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    filtered = array("h")
+    previous = 0.0
+    for sample in samples:
+        value = sample / 32768.0
+        previous += alpha * (value - previous)
+        filtered.append(max(-32768, min(32767, round(previous * 32767.0))))
+    if sys.byteorder != "little":
+        filtered.byteswap()
+    return filtered.tobytes()
+
+
 def tighten_pauses_pcm16(
     pcm: bytes,
     sample_rate: int,

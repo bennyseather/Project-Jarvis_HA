@@ -1,5 +1,10 @@
 # Project Jarvis Dedicated Voice
 
+Version 0.30.1 enables `clarity_mode` for the M39 model by default. This lowers
+Piper inference randomness, attenuates high-frequency model hiss, and bypasses
+the synthetic finishing chain for an unambiguous model-quality baseline. Set
+`clarity_mode: false` to restore the configured Jarvis DSP profile.
+
 Project Jarvis Voice is a local Wyoming TTS service. M39 defaults to a private
 Piper medium model trained for Jarvis, with bounded synthetic finishing and no
 cloud account or per-request cost.

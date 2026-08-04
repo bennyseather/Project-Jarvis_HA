@@ -58,6 +58,8 @@ class M39DedicatedPiperVoiceTests(unittest.TestCase):
             self.assertEqual(rate, 22050)
             self.assertEqual(pcm, completed.stdout)
             self.assertIn("--output-raw", run.call_args.args[0])
+            self.assertIn("--noise-scale", run.call_args.args[0])
+            self.assertIn("--noise-w", run.call_args.args[0])
             self.assertEqual(run.call_args.kwargs["input"], b"Systems ready.\n")
 
     def test_release_defaults_to_private_m39_engine(self):
@@ -68,7 +70,7 @@ class M39DedicatedPiperVoiceTests(unittest.TestCase):
         self.assertEqual(service["voices"][0]["name"], "jarvis_m39")
         self.assertTrue(service["voices"][0]["installed"])
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-        self.assertIn('version: "0.30.0"', config)
+        self.assertIn('version: "0.30.1"', config)
         self.assertIn("- share:ro", config)
         self.assertIn('engine: "piper_m39"', config)
 
@@ -83,6 +85,9 @@ class M39DedicatedPiperVoiceTests(unittest.TestCase):
             loaded = load_config(options)
             self.assertEqual(loaded.model_package, "/share/private/model.zip")
             self.assertEqual(loaded.model_cache_dir, "/data/private")
+            self.assertEqual(loaded.piper_noise_scale, 0.35)
+            self.assertEqual(loaded.piper_noise_w, 0.45)
+            self.assertTrue(loaded.clarity_mode)
 
     def test_untouched_m38_defaults_migrate_but_custom_engine_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
