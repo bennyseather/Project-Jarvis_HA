@@ -28,6 +28,8 @@ dist/
 /output/
 /training/m39_dataset/
 /training/m39_models/
+/training/m40_dataset/
+/training/m40_models/
 !home_assistant/jarvis_ui/dist/
 !home_assistant/jarvis_ui/dist/*.js
 
