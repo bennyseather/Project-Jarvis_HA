@@ -1,1 +1,0 @@
-"""Ephemeral event-awareness components."""
