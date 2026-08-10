@@ -13,7 +13,15 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Voice 0.30.1
+## Project Jarvis Voice 0.31.0
+
+Version 0.31.0 completes M40 Expanded Private Piper Voice. The voice add-on now
+loads `jarvis-piper-m40.zip`, advertises `jarvis_m40` through Wyoming, and
+retains M39 as an explicit rollback option. The expanded model was trained from
+799 privately approved British English clips. Recordings, transcripts,
+checkpoints, and the exported model remain outside this public repository.
+
+## Previous M39 clarity release
 
 Version 0.30.1 adds a reversible M39 clarity baseline. Piper inference noise is
 reduced, a gentle high-frequency hiss filter is enabled, and synthetic DSP is

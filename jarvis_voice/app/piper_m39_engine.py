@@ -1,4 +1,4 @@
-"""Private M39 Piper voice loaded from Home Assistant's shared storage."""
+"""Private Project Jarvis Piper voice loaded from shared storage."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import subprocess
 import zipfile
 
 
-LOGGER = logging.getLogger("jarvis_voice.piper_m39")
+LOGGER = logging.getLogger("jarvis_voice.private_piper")
 MODEL_NAME = "en_GB-jarvis-medium.onnx"
 CONFIG_NAME = f"{MODEL_NAME}.json"
 
@@ -46,7 +46,7 @@ class PiperM39Engine:
         package = Path(self.config.package_path)
         if not package.is_file():
             raise FileNotFoundError(
-                f"M39 voice package not found at {package}; copy jarvis-piper-m39.zip to /share/jarvis_voice"
+                f"Private voice package not found at {package}; copy the configured model ZIP to /share/jarvis_voice"
             )
         destination = Path(self.config.cache_dir)
         destination.mkdir(parents=True, exist_ok=True)
@@ -62,11 +62,11 @@ class PiperM39Engine:
         model = destination / MODEL_NAME
         config = destination / CONFIG_NAME
         if model.stat().st_size < 1_000_000 or config.stat().st_size < 100:
-            raise ValueError("M39 voice package contains invalid model files")
+            raise ValueError("Private voice package contains invalid model files")
         self._model_path = model
         self._config_path = config
         self.last_error = ""
-        LOGGER.info("Private M39 Piper model ready: %.1f MB", model.stat().st_size / 1_000_000)
+        LOGGER.info("Private Piper model ready: %.1f MB", model.stat().st_size / 1_000_000)
 
     async def synthesize(self, text: str) -> tuple[bytes, int]:
         if not self.ready:
