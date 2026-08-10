@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jarvis"
+version = "0.30.0"
+description = "AI-powered Home Assistant companion"
+readme = "README.md"
+requires-python = ">=3.13"
+
+dependencies = [
+    "PyYAML",
+    "rich",
+    "python-dotenv",
+    "openai",
+    "websockets"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

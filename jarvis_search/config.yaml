@@ -1,0 +1,13 @@
+name: "Project Jarvis Search"
+version: "0.30.0"
+slug: "jarvis_search"
+description: "Private metasearch service for Project Jarvis"
+arch: [amd64, aarch64]
+startup: services
+boot: auto
+ports:
+  8080/tcp: 8088
+ports_description:
+  8080/tcp: "SearXNG search API"
+options: {}
+schema: {}

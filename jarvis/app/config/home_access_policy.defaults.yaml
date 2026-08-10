@@ -1,0 +1,14 @@
+home_assistant:
+  all_entities: true
+  allowed_read_entities: []
+  allowed_read_domains: []
+  excluded_entities: []
+  entity_aliases: {}
+  action_policy:
+    all_entities: true
+    all_device_services: true
+    confirm_required: []
+    high_impact: []
+    allowed_entities: []
+    allowed_domains: []
+    excluded_entities: []

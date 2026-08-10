@@ -1,0 +1,64 @@
+name: "Project Jarvis Voice"
+version: "0.30.1"
+slug: "jarvis_voice"
+description: "High-quality local streaming Jarvis neural voice"
+arch: [amd64]
+startup: services
+boot: auto
+init: false
+map:
+  - share:ro
+ports:
+  10350/tcp: 10350
+ports_description:
+  10350/tcp: "Jarvis Wyoming TTS (normally internal only)"
+options:
+  engine: "piper_m39"
+  model_package: "/share/jarvis_voice/jarvis-piper-m39.zip"
+  model_cache_dir: "/data/models/m39"
+  piper_noise_scale: 0.35
+  piper_noise_w: 0.45
+  clarity_mode: true
+  upstream_host: "core-piper"
+  upstream_port: 10200
+  profile: "jarvis_v5"
+  strength: 1.0
+  output_gain: 0.98
+  voice: "bm_george"
+  speed: 1.08
+  shorten_comma_pauses: true
+  pitch_factor: 1.035
+  staccato_pause_ms: 25.0
+  darkness: 0.12
+  articulation_mode: "crisp"
+  maximum_segment_characters: 105
+  voice_revision: 7
+  piper_fallback: true
+  reference_path: "/app/jarvis-reference.wav"
+  generation_timeout: 30.0
+  warm_model: true
+schema:
+  engine: list(piper_m39|chatterbox_nano|kokoro)
+  model_package: str
+  model_cache_dir: str
+  piper_noise_scale: float(0.0,1.0)
+  piper_noise_w: float(0.0,1.0)
+  clarity_mode: bool
+  upstream_host: str
+  upstream_port: port
+  profile: list(jarvis_v5|refined|synthetic|metallic|clean)
+  strength: float(0.0,1.0)
+  output_gain: float(0.25,1.5)
+  voice: list(bm_george|bm_fable|bm_daniel|bm_lewis)
+  speed: float(0.75,1.25)
+  shorten_comma_pauses: bool
+  pitch_factor: float(1.0,1.2)
+  staccato_pause_ms: float(0.0,250.0)
+  darkness: float(0.0,0.25)
+  articulation_mode: list(crisp|balanced)
+  maximum_segment_characters: int(60,180)
+  voice_revision: int(0,7)
+  piper_fallback: bool
+  reference_path: str
+  generation_timeout: float(5.0,120.0)
+  warm_model: bool
