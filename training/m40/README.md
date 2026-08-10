@@ -23,3 +23,9 @@ If Colab GPU quota is unavailable, upload `M40_Piper_Training_Kaggle.ipynb` to
 Kaggle, enable a GPU accelerator and Internet, and attach the private dataset
 ZIP with **Add Input**. The resulting model is written to
 `/kaggle/working/jarvis-piper-m40.zip` for download from notebook outputs.
+
+For a persistent RunPod GPU, upload the private archive and
+`train_runpod.py` to `/workspace/jarvis-m40`, then run the script inside
+`tmux` or with `nohup`. The defaults retain clips up to 10 seconds/180
+characters and use batch size 2 on a 24 GB RTX 4090. Checkpoints, logs, and
+the exported `jarvis-piper-m40.zip` remain under `/workspace/jarvis-m40`.

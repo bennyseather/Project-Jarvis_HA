@@ -64,15 +64,15 @@ class M39DedicatedPiperVoiceTests(unittest.TestCase):
 
     def test_release_defaults_to_private_m39_engine(self):
         defaults = VoiceProxyConfig()
-        self.assertEqual(defaults.engine, "piper_m39")
+        self.assertEqual(defaults.engine, "piper_m40")
         self.assertEqual(defaults.darkness, 0.10)
         service = _voice_info("piper_m39", ready=True).data["tts"][0]
         self.assertEqual(service["voices"][0]["name"], "jarvis_m39")
         self.assertTrue(service["voices"][0]["installed"])
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-        self.assertIn('version: "0.30.1"', config)
+        self.assertIn('version: "0.31.0"', config)
         self.assertIn("- share:ro", config)
-        self.assertIn('engine: "piper_m39"', config)
+        self.assertIn('engine: "piper_m40"', config)
 
     def test_addon_options_preserve_private_model_location(self):
         with tempfile.TemporaryDirectory() as directory:

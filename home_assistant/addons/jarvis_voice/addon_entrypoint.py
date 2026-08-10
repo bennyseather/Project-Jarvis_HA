@@ -39,14 +39,27 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         and float(options.get("output_gain", 0.98)) == 0.98
         and float(options.get("pitch_factor", 1.035)) == 1.035
     )
-    engine = "piper_m39" if m39_defaults else source_engine
+    m40_defaults = (
+        int(options.get("voice_revision", 7)) < 8
+        and source_engine == "piper_m39"
+        and str(options.get("model_package", "/share/jarvis_voice/jarvis-piper-m39.zip"))
+        == "/share/jarvis_voice/jarvis-piper-m39.zip"
+        and str(options.get("model_cache_dir", "/data/models/m39")) == "/data/models/m39"
+    )
+    engine = "piper_m40" if m40_defaults else "piper_m39" if m39_defaults else source_engine
     return VoiceProxyConfig(
         upstream_host=str(options.get("upstream_host", "core-piper")),
         upstream_port=int(options.get("upstream_port", 10200)),
-        model_package=str(options.get(
-            "model_package", "/share/jarvis_voice/jarvis-piper-m39.zip"
-        )),
-        model_cache_dir=str(options.get("model_cache_dir", "/data/models/m39")),
+        model_package=(
+            "/share/jarvis_voice/jarvis-piper-m40.zip"
+            if m40_defaults else str(options.get(
+                "model_package", "/share/jarvis_voice/jarvis-piper-m40.zip"
+            ))
+        ),
+        model_cache_dir=(
+            "/data/models/m40" if m40_defaults
+            else str(options.get("model_cache_dir", "/data/models/m40"))
+        ),
         profile=(
             "jarvis_v5" if legacy_defaults
             else str(options.get("profile", "jarvis_v5"))
@@ -69,7 +82,7 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         darkness=float(options.get(
             "darkness",
             0.12 if (
-                engine == "piper_m39"
+                engine in {"piper_m39", "piper_m40"}
                 or int(options.get("voice_revision", 0)) >= 7
             ) else 0.10,
         )),

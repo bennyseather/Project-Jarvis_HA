@@ -1,28 +1,30 @@
 # Project Jarvis Dedicated Voice
 
-Version 0.30.1 enables `clarity_mode` for the M39 model by default. This lowers
+Version 0.31.0 introduces the M40 model trained from the expanded, privately
+approved British voice dataset. It retains `clarity_mode` by default. This lowers
 Piper inference randomness, attenuates high-frequency model hiss, and bypasses
 the synthetic finishing chain for an unambiguous model-quality baseline. Set
 `clarity_mode: false` to restore the configured Jarvis DSP profile.
 
-Project Jarvis Voice is a local Wyoming TTS service. M39 defaults to a private
+Project Jarvis Voice is a local Wyoming TTS service. M40 defaults to a private
 Piper medium model trained for Jarvis, with bounded synthetic finishing and no
 cloud account or per-request cost.
 
 ## Installation
 
 1. Keep the official **Piper** app installed as the optional fallback.
-2. Create `/share/jarvis_voice` and copy `jarvis-piper-m39.zip` into it without
+2. Create `/share/jarvis_voice` and copy `jarvis-piper-m40.zip` into it without
    extracting the archive.
 3. Install or update **Project Jarvis Voice** from the Project Jarvis app repository.
 4. Add **Wyoming Protocol** under **Settings -> Devices & services** using the
    Home Assistant local IP and port `10350`.
-5. Select **Jarvis M39** in the Jarvis Assist pipeline.
+5. Select **Jarvis M40** in the Jarvis Assist pipeline.
 
 ## Engines, voices, and profiles
 
-The default `piper_m39` engine uses `jarvis_m39`. The private model ZIP is loaded
-from `/share` and is never included in Git or the public app image. Chatterbox
+The default `piper_m40` engine uses `jarvis_m40`. The private model ZIP is loaded
+from `/share` and is never included in Git or the public app image. The previous
+`piper_m39` engine remains available for rollback. Chatterbox
 Nano and Kokoro remain fallback/A-B engines. Version 0.29.0 bundles
 the approved Project Jarvis v5 reference as mono 24 kHz PCM. The project owner
 retains the source permission record. The reference and resulting profile are

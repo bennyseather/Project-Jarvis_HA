@@ -21,8 +21,8 @@ LOGGER = logging.getLogger("jarvis_voice")
 class VoiceProxyConfig:
     upstream_host: str = "core-piper"
     upstream_port: int = 10200
-    model_package: str = "/share/jarvis_voice/jarvis-piper-m39.zip"
-    model_cache_dir: str = "/data/models/m39"
+    model_package: str = "/share/jarvis_voice/jarvis-piper-m40.zip"
+    model_cache_dir: str = "/data/models/m40"
     profile: str = "jarvis_v5"
     strength: float = 1.0
     output_gain: float = 0.98
@@ -35,7 +35,7 @@ class VoiceProxyConfig:
     staccato_pause_ms: float = 25.0
     darkness: float = 0.10
     piper_fallback: bool = True
-    engine: str = "piper_m39"
+    engine: str = "piper_m40"
     reference_path: str = "/app/jarvis-reference.wav"
     generation_timeout: float = 30.0
     warm_model: bool = True
@@ -67,13 +67,13 @@ class VoiceProxy:
         )
 
     async def warmup(self) -> None:
-        if self.config.engine == "piper_m39":
+        if self.config.engine in {"piper_m39", "piper_m40"}:
             try:
                 await self.piper_m39.prepare()
-                LOGGER.info("M39 Piper voice is ready")
+                LOGGER.info("%s Piper voice is ready", self.config.engine.upper())
             except Exception as error:
                 self.piper_m39.last_error = str(error)
-                LOGGER.exception("M39 Piper preparation failed; neural fallbacks remain available")
+                LOGGER.exception("Private Piper preparation failed; neural fallbacks remain available")
             return
         if self.config.engine != "chatterbox_nano" or not self.config.warm_model:
             return
@@ -103,9 +103,9 @@ class VoiceProxy:
         if event.type == "describe":
             await write_event(client, _voice_info(
                 self.config.engine,
-                ready=self.piper_m39.ready if self.config.engine == "piper_m39" else self.chatterbox.ready,
-                last_error=self.piper_m39.last_error if self.config.engine == "piper_m39" else self.chatterbox.last_error,
-                last_generation_seconds=self.piper_m39.last_generation_seconds if self.config.engine == "piper_m39" else self.chatterbox.last_generation_seconds,
+                ready=self.piper_m39.ready if self.config.engine in {"piper_m39", "piper_m40"} else self.chatterbox.ready,
+                last_error=self.piper_m39.last_error if self.config.engine in {"piper_m39", "piper_m40"} else self.chatterbox.last_error,
+                last_generation_seconds=self.piper_m39.last_generation_seconds if self.config.engine in {"piper_m39", "piper_m40"} else self.chatterbox.last_generation_seconds,
                 conditioning_seconds=self.chatterbox.conditioning_seconds,
                 warmup_seconds=self.chatterbox.warmup_seconds,
                 last_first_audio_seconds=self.chatterbox.last_first_audio_seconds,
@@ -114,14 +114,14 @@ class VoiceProxy:
         if event.type == "synthesize":
             requested_voice = _requested_voice(event)
             if (
-                self.config.engine == "piper_m39"
-                and requested_voice in {None, "jarvis_m39", "jarvis_neural"}
+                self.config.engine in {"piper_m39", "piper_m40"}
+                and requested_voice in {None, "jarvis_m39", "jarvis_m40", "jarvis_neural"}
             ):
                 try:
                     await self._synthesize_piper_m39(event, client)
                     return
                 except Exception:
-                    LOGGER.exception("M39 Piper synthesis failed; trying neural fallback")
+                    LOGGER.exception("Private Piper synthesis failed; trying neural fallback")
             if (
                 self.config.engine == "chatterbox_nano"
                 and requested_voice in {None, "jarvis_neural"}
@@ -178,7 +178,8 @@ class VoiceProxy:
             ))
         await write_event(client, Event({"type": "audio-stop"}, {}))
         LOGGER.info(
-            "M39 Piper response ready in %.2fs; audio=%.2fs",
+            "%s Piper response ready in %.2fs; audio=%.2fs",
+            self.config.engine.upper(),
             time.monotonic() - started, len(pcm) / max(1, rate * 2),
         )
 
@@ -318,7 +319,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.30.1",
+        "version": "0.31.0",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
@@ -340,7 +341,9 @@ def _voice_info(
     service = event.data["tts"][0]
     service["name"] = "Project Jarvis High Quality Voice"
     service["description"] = (
-        "Private M39 Jarvis Piper voice with local neural fallbacks"
+            "Private M40 Jarvis Piper voice with local neural fallbacks"
+        if engine == "piper_m40"
+        else "Private M39 Jarvis Piper voice with local neural fallbacks"
         if engine == "piper_m39"
         else "Streaming Chatterbox Nano CPU voice with Kokoro and Piper fallbacks"
         if engine == "chatterbox_nano" else "Local Kokoro British voice with Piper fallback"
@@ -370,10 +373,10 @@ def _voice_info(
         "languages": ["en-GB"],
         "speakers": None,
     })
-    if engine == "piper_m39":
+    if engine in {"piper_m39", "piper_m40"}:
         service["voices"].insert(0, {
-            "name": "jarvis_m39",
-            "description": "Jarvis M39 (private dedicated Piper model)",
+            "name": "jarvis_m40" if engine == "piper_m40" else "jarvis_m39",
+            "description": "Jarvis M40 (private dedicated Piper model)" if engine == "piper_m40" else "Jarvis M39 (private dedicated Piper model)",
             "version": "1.0",
             "attribution": {"name": "Private Project Jarvis model", "url": ""},
             "installed": ready,
@@ -396,7 +399,7 @@ def _shorten_comma_pauses(text: str) -> str:
 
 
 async def run_server(config: VoiceProxyConfig) -> None:
-    if config.engine not in {"piper_m39", "chatterbox_nano", "kokoro"}:
+    if config.engine not in {"piper_m39", "piper_m40", "chatterbox_nano", "kokoro"}:
         raise ValueError(f"Unsupported voice engine: {config.engine}")
     if config.profile not in {
         "jarvis_v5", "refined", "synthetic", "metallic", "clean"

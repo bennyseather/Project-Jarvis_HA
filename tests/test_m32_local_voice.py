@@ -136,7 +136,7 @@ class M32LocalVoiceTests(unittest.IsolatedAsyncioTestCase):
         server = (ADDON / "app" / "server.py").read_text(encoding="utf-8")
         dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
         engine = (ADDON / "app" / "kokoro_engine.py").read_text(encoding="utf-8")
-        self.assertIn('version: "0.30.1"', config)
+        self.assertIn('version: "0.31.0"', config)
         self.assertIn('profile: "jarvis_v5"', config)
         self.assertIn('speed: 1.08', config)
         self.assertIn('profile: list(jarvis_v5|refined|synthetic|metallic|clean)', config)
