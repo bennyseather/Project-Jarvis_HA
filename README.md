@@ -13,6 +13,14 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Local Qwen Worker 0.32.1
+
+Version 0.32.1 adds an experimental CPU Qwen3-TTS 1.7B Home Assistant add-on.
+It allows the i5-8500/64 GB Home Assistant computer to be benchmarked locally
+before any external GPU or private VPN is considered. Public model weights are
+cached under add-on `/data`; private voice reference files are mounted read-only
+from `/share` and are not included in this repository.
+
 ## Project Jarvis Voice 0.32.0
 
 Version 0.32.0 adds M41 Qwen Jarvis Voice Runtime. The existing Home Assistant

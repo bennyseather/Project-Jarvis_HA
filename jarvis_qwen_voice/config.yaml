@@ -1,0 +1,26 @@
+name: "Project Jarvis Qwen Voice Worker"
+version: "0.32.1"
+slug: "jarvis_qwen_voice"
+description: "Local CPU Qwen3-TTS 1.7B worker for Project Jarvis Voice"
+arch: [amd64]
+startup: services
+boot: auto
+init: false
+map:
+  - share:ro
+ports:
+  10400/tcp: 10400
+ports_description:
+  10400/tcp: "Private local Qwen Wyoming TTS worker"
+options:
+  reference_audio: "/share/jarvis_voice/qwen-reference.wav"
+  reference_text_file: "/share/jarvis_voice/qwen-reference.txt"
+  model_cache_dir: "/data/models"
+  cpu_threads: 6
+  maximum_segment_characters: 180
+schema:
+  reference_audio: str
+  reference_text_file: str
+  model_cache_dir: str
+  cpu_threads: int(1,8)
+  maximum_segment_characters: int(60,300)
