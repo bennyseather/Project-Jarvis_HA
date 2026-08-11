@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.32.1
+
+- Package an experimental local CPU Qwen3-TTS worker as a Home Assistant add-on.
+- Use six bounded i5-8500 threads and float32 inference for CPU compatibility.
+- Store public model weights under add-on `/data` and mount private references
+  read-only from `/share`.
+- Keep the external GPU worker optional rather than required.
+
 ## 0.32.0
 
 - Add the optional private Qwen3-TTS 1.7B GPU worker and Wyoming proxy route.

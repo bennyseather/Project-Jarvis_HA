@@ -11,6 +11,10 @@ home actions.
 
 `Home Assistant Assist -> Jarvis Voice proxy -> private Qwen worker -> PCM`
 
+The first deployment preference is now the experimental local CPU worker on
+the Home Assistant i5-8500. The external GPU deployment remains an optional
+fallback only if measured local latency is unacceptable.
+
 - The Qwen worker runs on an NVIDIA GPU and caches model and clone conditioning.
 - The winning 8.88-second reference and exact transcript are mounted read-only.
 - Clean audio streams as soon as Qwen completes the first bounded sentence.

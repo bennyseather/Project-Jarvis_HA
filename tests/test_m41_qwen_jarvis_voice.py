@@ -112,6 +112,25 @@ class M41QwenJarvisVoiceTests(unittest.TestCase):
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
         self.assertIn('version: "0.32.0"', config)
 
+    def test_home_assistant_cpu_worker_is_private_and_float32(self):
+        addon = ROOT / "home_assistant" / "addons" / "jarvis_qwen_voice"
+        entrypoint = (addon / "addon_entrypoint.py").read_text(encoding="utf-8")
+        self.assertIn('device="cpu"', entrypoint)
+        self.assertIn('dtype="float32"', entrypoint)
+        self.assertIn('options.get("cpu_threads", 6)', entrypoint)
+        config = (addon / "config.yaml").read_text(encoding="utf-8")
+        self.assertIn("share:ro", config)
+        self.assertIn("10400/tcp", config)
+        self.assertFalse((addon / "qwen-reference.wav").exists())
+
+    def test_home_assistant_worker_matches_deployable_worker(self):
+        addon_app = ROOT / "home_assistant" / "addons" / "jarvis_qwen_voice" / "app"
+        for name in ("protocol.py", "qwen_engine.py", "server.py"):
+            self.assertEqual(
+                (addon_app / name).read_bytes(),
+                (WORKER / name).read_bytes(),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
