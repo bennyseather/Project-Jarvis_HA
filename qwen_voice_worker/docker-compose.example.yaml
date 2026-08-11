@@ -1,0 +1,23 @@
+services:
+  jarvis-qwen-voice:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "10400:10400"
+    volumes:
+      - ./private:/data/private:ro
+      - qwen-models:/data/models
+    environment:
+      QWEN_REFERENCE_AUDIO: /data/private/reference.wav
+      QWEN_REFERENCE_TEXT_FILE: /data/private/reference.txt
+      QWEN_DEVICE: cuda:0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  qwen-models:

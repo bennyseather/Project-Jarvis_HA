@@ -1,5 +1,5 @@
 name: "Project Jarvis Voice"
-version: "0.31.0"
+version: "0.32.0"
 slug: "jarvis_voice"
 description: "High-quality local streaming Jarvis neural voice"
 arch: [amd64]
@@ -13,7 +13,12 @@ ports:
 ports_description:
   10350/tcp: "Jarvis Wyoming TTS (normally internal only)"
 options:
-  engine: "piper_m40"
+  engine: "qwen_1_7b"
+  qwen_host: "127.0.0.1"
+  qwen_port: 10400
+  qwen_filter: "clean"
+  qwen_filter_strength: 0.55
+  qwen_connect_timeout: 3.0
   model_package: "/share/jarvis_voice/jarvis-piper-m40.zip"
   model_cache_dir: "/data/models/m40"
   piper_noise_scale: 0.35
@@ -38,7 +43,12 @@ options:
   generation_timeout: 30.0
   warm_model: true
 schema:
-  engine: list(piper_m40|piper_m39|chatterbox_nano|kokoro)
+  engine: list(qwen_1_7b|piper_m40|piper_m39|chatterbox_nano|kokoro)
+  qwen_host: str
+  qwen_port: port
+  qwen_filter: list(clean|refined|synthesized|synthetic|metallic)
+  qwen_filter_strength: float(0.0,1.0)
+  qwen_connect_timeout: float(1.0,30.0)
   model_package: str
   model_cache_dir: str
   piper_noise_scale: float(0.0,1.0)
@@ -46,7 +56,7 @@ schema:
   clarity_mode: bool
   upstream_host: str
   upstream_port: port
-  profile: list(jarvis_v5|refined|synthetic|metallic|clean)
+  profile: list(jarvis_v5|refined|synthesized|synthetic|metallic|clean)
   strength: float(0.0,1.0)
   output_gain: float(0.25,1.5)
   voice: list(bm_george|bm_fable|bm_daniel|bm_lewis)

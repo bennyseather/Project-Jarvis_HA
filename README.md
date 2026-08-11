@@ -13,6 +13,17 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Voice 0.32.0
+
+Version 0.32.0 adds M41 Qwen Jarvis Voice Runtime. The existing Home Assistant
+Wyoming add-on can connect to a warm private Qwen3-TTS 1.7B GPU worker and
+stream clean sentence audio immediately. Clean, Refined, Synthesized,
+Synthetic, and Metallic finishing filters are selectable. The private voice
+reference, transcript, and model cache are not included in this repository.
+
+The public worker package is in `qwen_voice_worker`. Run it only on a private
+LAN or VPN; its Wyoming port must not be exposed directly to the internet.
+
 ## Project Jarvis Voice 0.31.0
 
 Version 0.31.0 completes M40 Expanded Private Piper Voice. The voice add-on now

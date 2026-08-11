@@ -35,7 +35,7 @@ class VoiceProxyConfig:
     staccato_pause_ms: float = 25.0
     darkness: float = 0.10
     piper_fallback: bool = True
-    engine: str = "piper_m40"
+    engine: str = "qwen_1_7b"
     reference_path: str = "/app/jarvis-reference.wav"
     generation_timeout: float = 30.0
     warm_model: bool = True
@@ -44,6 +44,11 @@ class VoiceProxyConfig:
     piper_noise_scale: float = 0.35
     piper_noise_w: float = 0.45
     clarity_mode: bool = True
+    qwen_host: str = "127.0.0.1"
+    qwen_port: int = 10400
+    qwen_filter: str = "clean"
+    qwen_filter_strength: float = 0.55
+    qwen_connect_timeout: float = 3.0
 
 
 class VoiceProxy:
@@ -65,8 +70,32 @@ class VoiceProxy:
                 maximum_segment_characters=config.maximum_segment_characters,
             )
         )
+        self.qwen_ready = False
+        self.qwen_last_error = ""
 
     async def warmup(self) -> None:
+        if self.config.engine == "qwen_1_7b":
+            try:
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_connection(self.config.qwen_host, self.config.qwen_port),
+                    self.config.qwen_connect_timeout,
+                )
+                await write_event(writer, Event({"type": "describe"}, {}))
+                response = await asyncio.wait_for(
+                    read_event(reader), self.config.qwen_connect_timeout
+                )
+                writer.close()
+                await writer.wait_closed()
+                if response is None or response.type != "info":
+                    raise RuntimeError("Qwen worker returned no service information")
+                self.qwen_ready = True
+                self.qwen_last_error = ""
+                LOGGER.info("Qwen worker is ready at %s:%s", self.config.qwen_host, self.config.qwen_port)
+            except Exception as error:
+                self.qwen_ready = False
+                self.qwen_last_error = str(error)[:300]
+                LOGGER.exception("Qwen worker is unavailable; local fallbacks remain available")
+            return
         if self.config.engine in {"piper_m39", "piper_m40"}:
             try:
                 await self.piper_m39.prepare()
@@ -103,8 +132,8 @@ class VoiceProxy:
         if event.type == "describe":
             await write_event(client, _voice_info(
                 self.config.engine,
-                ready=self.piper_m39.ready if self.config.engine in {"piper_m39", "piper_m40"} else self.chatterbox.ready,
-                last_error=self.piper_m39.last_error if self.config.engine in {"piper_m39", "piper_m40"} else self.chatterbox.last_error,
+                ready=self.qwen_ready if self.config.engine == "qwen_1_7b" else self.piper_m39.ready if self.config.engine in {"piper_m39", "piper_m40"} else self.chatterbox.ready,
+                last_error=self.qwen_last_error if self.config.engine == "qwen_1_7b" else self.piper_m39.last_error if self.config.engine in {"piper_m39", "piper_m40"} else self.chatterbox.last_error,
                 last_generation_seconds=self.piper_m39.last_generation_seconds if self.config.engine in {"piper_m39", "piper_m40"} else self.chatterbox.last_generation_seconds,
                 conditioning_seconds=self.chatterbox.conditioning_seconds,
                 warmup_seconds=self.chatterbox.warmup_seconds,
@@ -113,6 +142,15 @@ class VoiceProxy:
             return
         if event.type == "synthesize":
             requested_voice = _requested_voice(event)
+            if (
+                self.config.engine == "qwen_1_7b"
+                and requested_voice in {None, "jarvis_qwen", "jarvis_neural"}
+            ):
+                try:
+                    await self._synthesize_qwen(event, client)
+                    return
+                except Exception:
+                    LOGGER.exception("Qwen synthesis failed; trying local fallback")
             if (
                 self.config.engine in {"piper_m39", "piper_m40"}
                 and requested_voice in {None, "jarvis_m39", "jarvis_m40", "jarvis_neural"}
@@ -152,6 +190,47 @@ class VoiceProxy:
         finally:
             upstream_writer.close()
             await upstream_writer.wait_closed()
+
+    async def _synthesize_qwen(self, event: Event, client: asyncio.StreamWriter) -> None:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(self.config.qwen_host, self.config.qwen_port),
+            self.config.qwen_connect_timeout,
+        )
+        started = time.monotonic()
+        try:
+            await write_event(writer, event)
+            relay = (
+                self._relay_synthesis_streaming(reader, client)
+                if self.config.qwen_filter == "clean"
+                else self._relay_synthesis(
+                    reader,
+                    client,
+                    profile_name=self.config.qwen_filter,
+                    strength=self.config.qwen_filter_strength,
+                )
+            )
+            await asyncio.wait_for(relay, self.config.generation_timeout)
+        finally:
+            writer.close()
+            await writer.wait_closed()
+        LOGGER.info("Qwen response relayed in %.2fs with filter=%s", time.monotonic() - started, self.config.qwen_filter)
+
+    async def _relay_synthesis_streaming(
+        self, upstream: asyncio.StreamReader, client: asyncio.StreamWriter
+    ) -> None:
+        """Forward clean Qwen PCM as it arrives, preserving time-to-first-audio."""
+        started = False
+        stopped = False
+        while response := await read_event(upstream):
+            if response.type == "audio-start":
+                started = True
+            elif response.type == "audio-stop":
+                stopped = True
+            await write_event(client, response)
+            if stopped:
+                break
+        if not started or not stopped:
+            raise RuntimeError("Qwen worker returned an incomplete audio stream")
 
     async def _synthesize_piper_m39(self, event: Event, client: asyncio.StreamWriter) -> None:
         text = str(event.data.get("text", "")).strip()
@@ -251,7 +330,12 @@ class VoiceProxy:
         )
 
     async def _relay_synthesis(
-        self, upstream: asyncio.StreamReader, client: asyncio.StreamWriter
+        self,
+        upstream: asyncio.StreamReader,
+        client: asyncio.StreamWriter,
+        *,
+        profile_name: str | None = None,
+        strength: float | None = None,
     ) -> None:
         start: Event | None = None
         stop: Event | None = None
@@ -275,8 +359,9 @@ class VoiceProxy:
         pcm = b"".join(chunks)
         if width == 2:
             pcm = process_voice_pcm16(
-                pcm, rate, channels, self.config.profile,
-                self.config.strength, self.config.output_gain,
+                pcm, rate, channels, profile_name or self.config.profile,
+                self.config.strength if strength is None else strength,
+                self.config.output_gain,
                 self.config.staccato_pause_ms,
                 self.config.darkness,
             )
@@ -290,8 +375,8 @@ class VoiceProxy:
         LOGGER.info(
             "Processed %.2fs of Piper audio with profile=%s strength=%.2f",
             len(pcm) / max(1, rate * width * channels),
-            self.config.profile,
-            self.config.strength,
+            profile_name or self.config.profile,
+            self.config.strength if strength is None else strength,
         )
 
 
@@ -319,7 +404,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.31.0",
+        "version": "0.32.0",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
@@ -341,6 +426,9 @@ def _voice_info(
     service = event.data["tts"][0]
     service["name"] = "Project Jarvis High Quality Voice"
     service["description"] = (
+            "Qwen3-TTS 1.7B cloned Jarvis voice with selectable local finishing filters"
+        if engine == "qwen_1_7b"
+        else
             "Private M40 Jarvis Piper voice with local neural fallbacks"
         if engine == "piper_m40"
         else "Private M39 Jarvis Piper voice with local neural fallbacks"
@@ -373,6 +461,19 @@ def _voice_info(
         "languages": ["en-GB"],
         "speakers": None,
     })
+    if engine == "qwen_1_7b":
+        service["voices"].insert(0, {
+            "name": "jarvis_qwen",
+            "description": "Jarvis Qwen 1.7B (private approved reference)",
+            "version": "1.0",
+            "attribution": {
+                "name": "Qwen3-TTS by Qwen",
+                "url": "https://github.com/QwenLM/Qwen3-TTS",
+            },
+            "installed": True,
+            "languages": ["en-GB"],
+            "speakers": None,
+        })
     if engine in {"piper_m39", "piper_m40"}:
         service["voices"].insert(0, {
             "name": "jarvis_m40" if engine == "piper_m40" else "jarvis_m39",
@@ -399,14 +500,16 @@ def _shorten_comma_pauses(text: str) -> str:
 
 
 async def run_server(config: VoiceProxyConfig) -> None:
-    if config.engine not in {"piper_m39", "piper_m40", "chatterbox_nano", "kokoro"}:
+    if config.engine not in {"qwen_1_7b", "piper_m39", "piper_m40", "chatterbox_nano", "kokoro"}:
         raise ValueError(f"Unsupported voice engine: {config.engine}")
     if config.profile not in {
-        "jarvis_v5", "refined", "synthetic", "metallic", "clean"
+        "jarvis_v5", "refined", "synthesized", "synthetic", "metallic", "clean"
     }:
         raise ValueError(f"Unsupported voice profile: {config.profile}")
     if config.articulation_mode not in {"crisp", "balanced"}:
         raise ValueError(f"Unsupported articulation mode: {config.articulation_mode}")
+    if config.qwen_filter not in {"clean", "refined", "synthesized", "synthetic", "metallic"}:
+        raise ValueError(f"Unsupported Qwen filter: {config.qwen_filter}")
     proxy = VoiceProxy(config)
     await proxy.warmup()
     server = await asyncio.start_server(

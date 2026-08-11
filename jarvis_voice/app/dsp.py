@@ -26,6 +26,12 @@ class Profile:
 PROFILES = {
     "clean": Profile(65.0, 0.04, 0.72, 1.8, 0.0, 0.0, 0.0, 0.0),
     "refined": Profile(82.0, 0.14, 0.48, 2.8, 0.075, 6.5, 0.045, 13.0),
+    # Tuned for an already high-quality cloned voice: retain the dry signal and
+    # add a narrow, controlled electronic character without coarse bit-crush.
+    "synthesized": Profile(
+        88.0, 0.18, 0.46, 3.0, 0.10, 4.8, 0.055, 9.5,
+        modulation_depth=0.045, modulation_hz=58.0, quantization_steps=0,
+    ),
     "synthetic": Profile(95.0, 0.22, 0.42, 3.4, 0.14, 5.0, 0.09, 11.0),
     "metallic": Profile(
         125.0, 0.34, 0.34, 4.2, 0.22, 3.7, 0.16, 7.5,
@@ -51,6 +57,10 @@ def process_voice_pcm16(
     """Apply one named finishing chain with a calibrated Jarvis v5 option."""
     if not pcm or channels != 1 or sample_rate < 8000:
         return pcm
+    if profile_name in {"synthesized", "synthetic", "metallic"}:
+        pcm = tighten_pauses_pcm16(
+            pcm, sample_rate, maximum_pause_ms=staccato_pause_ms
+        )
     if profile_name != "jarvis_v5":
         return process_pcm16(
             pcm, sample_rate, channels, profile_name, strength, output_gain
