@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.32.3
+
+- Repair partial Qwen model caches by downloading the complete repository snapshot.
+- Validate the nested speech-tokenizer files before loading the local Qwen model.
+
+## 0.32.2
+
+- Add the packaged Qwen worker `/app` directory to `PYTHONPATH`.
+- Fix local worker startup failing to import `qwen_engine`.
+
+## 0.32.1
+
+- Package an experimental local CPU Qwen3-TTS worker as a Home Assistant add-on.
+- Use six bounded i5-8500 threads and float32 inference for CPU compatibility.
+- Store public model weights under add-on `/data` and mount private references
+  read-only from `/share`.
+- Keep the external GPU worker optional rather than required.
+
+## 0.32.0
+
+- Add the optional private Qwen3-TTS 1.7B GPU worker and Wyoming proxy route.
+- Cache the winning voice-clone reference prompt once per worker process.
+- Stream the clean cloned voice without whole-response proxy buffering.
+- Add Clean, Refined, Synthesized, Synthetic, and Metallic Qwen post-filters.
+- Retain local Kokoro and Piper fallbacks without exposing private voice assets.
+
 ## 0.30.0
 
 - Add the private M39 Piper medium voice as the default Wyoming TTS engine.

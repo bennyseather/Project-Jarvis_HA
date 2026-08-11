@@ -13,37 +13,42 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Local Qwen Worker 0.32.3
+
+Version 0.32.3 prefetches and validates the complete Qwen model snapshot before
+loading it, repairing partial caches that omitted the nested speech tokenizer.
+
 ## Project Jarvis Local Qwen Worker 0.32.2
 
-Version 0.32.2 fixes the packaged worker startup path so its Qwen engine and
-Wyoming server import correctly inside Home Assistant.
+Version 0.32.2 exposes the worker's `/app` directory on `PYTHONPATH`, allowing
+the Home Assistant entrypoint to import the packaged Qwen engine and server.
 
 ## Project Jarvis Local Qwen Worker 0.32.1
 
-Version 0.32.1 adds an experimental CPU Qwen3-TTS 1.7B Home Assistant add-on.
-It allows the i5-8500/64 GB Home Assistant computer to be benchmarked locally
-before any external GPU or private VPN is considered. Public model weights are
-cached under add-on `/data`; private voice reference files are mounted read-only
-from `/share` and are not included in this repository.
+Version 0.32.1 packages the Qwen3-TTS 1.7B worker as an experimental amd64
+Home Assistant add-on. It uses CPU float32 inference, six bounded worker
+threads, persistent `/data` model caching, and read-only private reference
+files from `/share`. This allows the i5-8500/64 GB Home Assistant host to be
+benchmarked before any external GPU or VPN is considered.
 
 ## Project Jarvis Voice 0.32.0
 
-Version 0.32.0 adds M41 Qwen Jarvis Voice Runtime. The existing Home Assistant
-Wyoming add-on can connect to a warm private Qwen3-TTS 1.7B GPU worker and
-stream clean sentence audio immediately. Clean, Refined, Synthesized,
-Synthetic, and Metallic finishing filters are selectable. The private voice
-reference, transcript, and model cache are not included in this repository.
+Version 0.32.0 adds M41 Qwen Jarvis Voice Runtime. The Home Assistant voice
+add-on can route its existing Wyoming service to a warm private Qwen3-TTS 1.7B
+GPU worker, stream clean audio sentence by sentence, and apply selectable
+Clean, Refined, Synthesized, Synthetic, or Metallic finishing filters. Private
+reference audio, its transcript, and model caches remain outside Git and HACS.
 
-The public worker package is in `qwen_voice_worker`. Run it only on a private
-LAN or VPN; its Wyoming port must not be exposed directly to the internet.
+The worker is optional and independently deployable. Piper M39/M40, Chatterbox,
+Kokoro, and official Piper fallback behavior remain available.
 
 ## Project Jarvis Voice 0.31.0
 
-Version 0.31.0 completes M40 Expanded Private Piper Voice. The voice add-on now
-loads `jarvis-piper-m40.zip`, advertises `jarvis_m40` through Wyoming, and
-retains M39 as an explicit rollback option. The expanded model was trained from
-799 privately approved British English clips. Recordings, transcripts,
-checkpoints, and the exported model remain outside this public repository.
+Version 0.31.0 introduces M40, an expanded private Piper medium voice trained
+from 799 approved British English clips. The add-on loads the separately
+transferred `jarvis-piper-m40.zip` package from Home Assistant `/share`, serves
+`jarvis_m40` through Wyoming, and retains M39 as a rollback option. Source
+recordings, transcripts, caches, and checkpoints remain private.
 
 ## Previous M39 clarity release
 

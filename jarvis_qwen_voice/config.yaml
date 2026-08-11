@@ -1,5 +1,5 @@
 name: "Project Jarvis Qwen Voice Worker"
-version: "0.32.2"
+version: "0.32.3"
 slug: "jarvis_qwen_voice"
 description: "Local CPU Qwen3-TTS 1.7B worker for Project Jarvis Voice"
 arch: [amd64]
