@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Local Qwen Worker 0.32.3
+
+Version 0.32.3 prefetches and validates the complete Qwen model snapshot before
+loading it, repairing partial caches that omitted the nested speech tokenizer.
+
 ## Project Jarvis Local Qwen Worker 0.32.2
 
 Version 0.32.2 exposes the worker's `/app` directory on `PYTHONPATH`, allowing

@@ -72,6 +72,7 @@ class QwenVoiceEngine:
                 self._model = self._model_factory()
             else:
                 import torch
+                from huggingface_hub import snapshot_download
                 from qwen_tts import Qwen3TTSModel
                 if self.config.device == "cpu":
                     torch.set_num_threads(max(1, int(self.config.cpu_threads)))
@@ -83,8 +84,21 @@ class QwenVoiceEngine:
                 }.get(self.config.dtype)
                 if dtype is None:
                     raise ValueError(f"Unsupported Qwen dtype: {self.config.dtype}")
+                # Transformers may otherwise download only the root model files
+                # before resolving the nested speech tokenizer as a local path.
+                # Materialize and validate the complete repository snapshot first.
+                model_path = Path(snapshot_download(
+                    repo_id=self.config.model,
+                    cache_dir=self.config.cache_dir,
+                ))
+                required = model_path / "speech_tokenizer" / "preprocessor_config.json"
+                if not required.is_file():
+                    raise FileNotFoundError(
+                        "Qwen model snapshot is incomplete; missing "
+                        f"{required}. Restart the add-on to retry the download."
+                    )
                 self._model = Qwen3TTSModel.from_pretrained(
-                    self.config.model,
+                    str(model_path),
                     device_map=self.config.device,
                     dtype=dtype,
                     attn_implementation="sdpa",

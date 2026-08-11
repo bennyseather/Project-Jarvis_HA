@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.32.3
+
+- Repair partial Qwen model caches by downloading the complete repository snapshot.
+- Validate the nested speech-tokenizer files before loading the local Qwen model.
+
 ## 0.32.2
 
 - Add the packaged Qwen worker `/app` directory to `PYTHONPATH`.
