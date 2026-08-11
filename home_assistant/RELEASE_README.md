@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Local Qwen Worker 0.32.2
+
+Version 0.32.2 exposes the worker's `/app` directory on `PYTHONPATH`, allowing
+the Home Assistant entrypoint to import the packaged Qwen engine and server.
+
 ## Project Jarvis Local Qwen Worker 0.32.1
 
 Version 0.32.1 packages the Qwen3-TTS 1.7B worker as an experimental amd64

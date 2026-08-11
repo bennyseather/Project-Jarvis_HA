@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.32.2
+
+- Add the packaged Qwen worker `/app` directory to `PYTHONPATH`.
+- Fix local worker startup failing to import `qwen_engine`.
+
 ## 0.32.1
 
 - Package an experimental local CPU Qwen3-TTS worker as a Home Assistant add-on.

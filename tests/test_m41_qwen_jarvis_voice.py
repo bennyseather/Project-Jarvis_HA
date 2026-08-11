@@ -122,6 +122,8 @@ class M41QwenJarvisVoiceTests(unittest.TestCase):
         self.assertIn("share:ro", config)
         self.assertIn("10400/tcp", config)
         self.assertFalse((addon / "qwen-reference.wav").exists())
+        dockerfile = (addon / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("PYTHONPATH=/app", dockerfile)
 
     def test_home_assistant_worker_matches_deployable_worker(self):
         addon_app = ROOT / "home_assistant" / "addons" / "jarvis_qwen_voice" / "app"

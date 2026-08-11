@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV PYTHONUNBUFFERED=1 HF_HOME=/data/models/hf \
+ENV PYTHONUNBUFFERED=1 PYTHONPATH=/app HF_HOME=/data/models/hf \
     OMP_NUM_THREADS=6 MKL_NUM_THREADS=6 OPENBLAS_NUM_THREADS=6
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libsndfile1 sox \
