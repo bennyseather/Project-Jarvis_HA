@@ -18,7 +18,7 @@ logging.basicConfig(
 
 def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
     options = json.loads(path.read_text(encoding="utf-8"))
-    source_engine = str(options.get("engine", "chatterbox_nano"))
+    source_engine = str(options.get("engine", "qwen_1_7b"))
     legacy_defaults = (
         int(options.get("voice_revision", 0)) < 5
         and str(options.get("profile", "metallic")) == "metallic"
@@ -98,6 +98,11 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         piper_noise_scale=float(options.get("piper_noise_scale", 0.35)),
         piper_noise_w=float(options.get("piper_noise_w", 0.45)),
         clarity_mode=bool(options.get("clarity_mode", True)),
+        qwen_host=str(options.get("qwen_host", "127.0.0.1")),
+        qwen_port=int(options.get("qwen_port", 10400)),
+        qwen_filter=str(options.get("qwen_filter", "clean")),
+        qwen_filter_strength=float(options.get("qwen_filter_strength", 0.55)),
+        qwen_connect_timeout=float(options.get("qwen_connect_timeout", 3.0)),
     )
 
 

@@ -92,7 +92,7 @@ class M35HighQualityLocalVoiceTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("FROM python:3.13-slim", dockerfile)
         self.assertIn("kokoro-onnx==0.5.0", dockerfile)
-        self.assertIn('engine: list(piper_m40|piper_m39|chatterbox_nano|kokoro)', config)
+        self.assertIn('engine: list(qwen_1_7b|piper_m40|piper_m39|chatterbox_nano|kokoro)', config)
         self.assertIn("generation_timeout", config)
         self.assertIn("OMP_NUM_THREADS=4", dockerfile)
         self.assertIn("trying Kokoro", server)

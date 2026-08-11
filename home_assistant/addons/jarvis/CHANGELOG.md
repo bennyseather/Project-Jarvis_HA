@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.32.0
+
+- Add the optional private Qwen3-TTS 1.7B GPU worker and Wyoming proxy route.
+- Cache the winning voice-clone reference prompt once per worker process.
+- Stream the clean cloned voice without whole-response proxy buffering.
+- Add Clean, Refined, Synthesized, Synthetic, and Metallic Qwen post-filters.
+- Retain local Kokoro and Piper fallbacks without exposing private voice assets.
+
 ## 0.30.0
 
 - Add the private M39 Piper medium voice as the default Wyoming TTS engine.

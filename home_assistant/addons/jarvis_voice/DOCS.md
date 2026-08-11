@@ -1,4 +1,21 @@
-# Project Jarvis Dedicated Voice
+# Project Jarvis Qwen Voice
+
+Version 0.32.0 adds M41's private Qwen3-TTS 1.7B worker route. The worker runs
+on a GPU computer, while this lightweight add-on remains on Home Assistant and
+continues to expose the same Wyoming service on port `10350`.
+
+Set `engine: qwen_1_7b`, `qwen_host` to the worker's private LAN/VPN address,
+and `qwen_port: 10400`. Use `qwen_filter: clean` to preserve the approved clone.
+The optional `synthesized` filter adds restrained electronic resonance and
+articulation without bit crushing; `metallic` is intentionally stronger.
+Adjust `qwen_filter_strength` from `0.0` to `1.0`.
+
+The Qwen worker, installation instructions, and example Docker Compose file are
+in `deployment/qwen_voice_worker`. Never expose its unauthenticated Wyoming port
+to the public internet. The private reference audio and transcript are mounted
+on the worker and are never distributed through Git, HACS, or the add-on image.
+
+# Previous dedicated Piper voice
 
 Version 0.31.0 introduces the M40 model trained from the expanded, privately
 approved British voice dataset. It retains `clarity_mode` by default. This lowers

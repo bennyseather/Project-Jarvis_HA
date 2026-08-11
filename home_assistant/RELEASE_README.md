@@ -13,6 +13,17 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Voice 0.32.0
+
+Version 0.32.0 adds M41 Qwen Jarvis Voice Runtime. The Home Assistant voice
+add-on can route its existing Wyoming service to a warm private Qwen3-TTS 1.7B
+GPU worker, stream clean audio sentence by sentence, and apply selectable
+Clean, Refined, Synthesized, Synthetic, or Metallic finishing filters. Private
+reference audio, its transcript, and model caches remain outside Git and HACS.
+
+The worker is optional and independently deployable. Piper M39/M40, Chatterbox,
+Kokoro, and official Piper fallback behavior remain available.
+
 ## Project Jarvis Voice 0.31.0
 
 Version 0.31.0 introduces M40, an expanded private Piper medium voice trained

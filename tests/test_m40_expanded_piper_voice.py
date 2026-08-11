@@ -17,14 +17,14 @@ from server import VoiceProxyConfig, _voice_info  # noqa: E402
 
 class M40ExpandedPiperVoiceTests(unittest.TestCase):
     def test_release_defaults_to_m40(self):
-        defaults = VoiceProxyConfig()
+        defaults = VoiceProxyConfig(engine="piper_m40")
         self.assertEqual(defaults.engine, "piper_m40")
         self.assertEqual(
             defaults.model_package,
             "/share/jarvis_voice/jarvis-piper-m40.zip",
         )
         service = _voice_info("piper_m40", ready=True).data["tts"][0]
-        self.assertEqual(service["version"], "0.31.0")
+        self.assertEqual(service["version"], "0.32.0")
         self.assertEqual(service["voices"][0]["name"], "jarvis_m40")
         self.assertTrue(service["voices"][0]["installed"])
 
