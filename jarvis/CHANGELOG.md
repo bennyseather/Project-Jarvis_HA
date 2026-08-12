@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.2
+
+- Remove a duplicate module-level editor helper declaration that prevented the HACS JavaScript module from loading.
+
 ## 0.36.1
 
 - Publish the dashboard resource at the root filename required by HACS.

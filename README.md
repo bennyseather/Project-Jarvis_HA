@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Dashboard Module Hotfix 0.36.2
+
+Version 0.36.2 removes a duplicate module-level editor helper declaration
+that prevented Home Assistant from registering any Jarvis custom elements.
+
 ## Project Jarvis Dashboard HACS Hotfix 0.36.1
 
 Version 0.36.1 restores every Jarvis custom card after the 0.36.0 HACS

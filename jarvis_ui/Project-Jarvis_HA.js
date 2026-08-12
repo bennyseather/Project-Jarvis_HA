@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.36.1";
+const JARVIS_UI_VERSION = "0.36.2";
 
 const HISTORY_CACHE = new Map();
 const CALENDAR_CACHE = new Map();
@@ -1666,7 +1666,7 @@ class JarvisPresenceBadge extends JarvisBaseBadge {
   }
 }
 
-function multiEntityForm(extra = []) {
+function d4MultiEntityForm(extra = []) {
   return { schema: [
     { name: "name", selector: { text: {} } },
     { name: "entities", required: true, selector: { entity: { multiple: true } } },
@@ -1678,7 +1678,7 @@ function multiEntityForm(extra = []) {
 class JarvisGlanceCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Glance";
-  static getConfigForm() { return multiEntityForm([{ name: "columns", selector: { number: { min: 2, max: 6, mode: "slider" } } }]); }
+  static getConfigForm() { return d4MultiEntityForm([{ name: "columns", selector: { number: { min: 2, max: 6, mode: "slider" } } }]); }
   static getStubConfig(hass) { return { name: "At a glance", entities: Object.keys(hass?.states || {}).slice(0, 4), columns: 4 }; }
   render() {
     if (!this._config) return;
@@ -1695,7 +1695,7 @@ class JarvisSummaryPanel extends JarvisBaseCard {
   static requiresEntity = false;
   static icon = "jarvis:core";
   static kicker = "System overview";
-  static getConfigForm() { return multiEntityForm(); }
+  static getConfigForm() { return d4MultiEntityForm(); }
   static getStubConfig(hass) { return { entities: Object.keys(hass?.states || {}).slice(0, 6) }; }
   rowStatus(state) { return isUnavailable(state) ? "ALERT" : formatState(state, { entity: state?.entity_id }); }
   render() {
@@ -1707,7 +1707,7 @@ class JarvisSummaryPanel extends JarvisBaseCard {
   }
 }
 
-class JarvisAlertsCard extends JarvisSummaryPanel { static cardName = "Jarvis Home Alerts"; static icon = "jarvis:alert"; static kicker = "Priority monitor"; rowStatus(state) { return isUnavailable(state) ? "UNAVAILABLE" : (isActive(state) || Number(state?.state) < Number(this._config.battery_threshold || 20) ? "ATTENTION" : "CLEAR"); } static getConfigForm() { return multiEntityForm([{ name: "battery_threshold", selector: { number: { min: 1, max: 100, mode: "slider" } } }]); } }
+class JarvisAlertsCard extends JarvisSummaryPanel { static cardName = "Jarvis Home Alerts"; static icon = "jarvis:alert"; static kicker = "Priority monitor"; rowStatus(state) { return isUnavailable(state) ? "UNAVAILABLE" : (isActive(state) || Number(state?.state) < Number(this._config.battery_threshold || 20) ? "ATTENTION" : "CLEAR"); } static getConfigForm() { return d4MultiEntityForm([{ name: "battery_threshold", selector: { number: { min: 1, max: 100, mode: "slider" } } }]); } }
 class JarvisNetworkCard extends JarvisSummaryPanel { static cardName = "Jarvis Network / NAS"; static icon = "jarvis:storage"; static kicker = "Infrastructure telemetry"; }
 class JarvisClimateOverviewCard extends JarvisSummaryPanel { static cardName = "Jarvis Climate Overview"; static icon = "jarvis:climate"; static kicker = "Whole-home climate"; }
 class JarvisPerimeterCard extends JarvisSummaryPanel { static cardName = "Jarvis Security Perimeter"; static icon = "jarvis:security"; static kicker = "Doors, windows and locks"; }
