@@ -11,7 +11,7 @@ class JarvisConversationBridge:
 
     _AFFIRMATIVE = {
         "yes", "yes please", "confirm", "confirmed", "do it", "go ahead",
-        "proceed", "please do",
+        "proceed", "please do", "approve", "approved",
     }
     _NEGATIVE = {
         "no", "no thanks", "cancel", "never mind", "nevermind", "stop",

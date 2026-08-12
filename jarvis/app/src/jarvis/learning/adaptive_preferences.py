@@ -271,7 +271,12 @@ class AdaptivePreferenceController:
             self.store.save(replace(item, evidence_count=count, confidence=confidence, status=status))
 
     def _parse_observation(self, text):
-        temperature = re.search(r"\b(?:i prefer|i like|i usually (?:set|keep))\s+(?:the\s+)?([a-z0-9 _-]+?)\s+(?:at|to|on)\s+(-?\d+(?:\.\d+)?)\s*degrees?\b", text)
+        temperature = re.search(
+            r"\b(?:i prefer|i like|i usually (?:set|keep))\s+(?:the\s+)?"
+            r"([a-z0-9 _-]+?)(?:\s+temperature)?\s+"
+            r"(?:at|to(?:\s+be)?|on)\s+(-?\d+(?:\.\d+)?)\s*degrees?\b",
+            text,
+        )
         if temperature:
             return "temperature", self._scope(temperature.group(1)), f"{float(temperature.group(2)):.1f}"
         lighting = re.search(r"\b(?:i prefer|i like|i usually (?:set|keep))\s+(?:the\s+)?([a-z0-9 _-]+?)\s+(?:lights?\s+)?(?:at|to|on)\s+(\d{1,3})\s*(?:percent|%)\b", text)
