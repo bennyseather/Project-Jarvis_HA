@@ -1,5 +1,5 @@
 name: "Project Jarvis RSS"
-version: "0.1.0"
+version: "0.1.1"
 slug: "jarvis_rss"
 description: "Private RSS and Atom feed cache for Project Jarvis"
 arch: [amd64, aarch64]
@@ -13,11 +13,14 @@ options:
     - "https://www.nrk.no/toppsaker.rss"
     - "https://feeds.bbci.co.uk/news/rss.xml"
     - "https://www.home-assistant.io/atom.xml"
+  custom_feeds: []
   refresh_minutes: 15
   maximum_stories: 100
   request_timeout_seconds: 20
 schema:
   feeds:
+    - url
+  custom_feeds:
     - url
   refresh_minutes: int(5,1440)
   maximum_stories: int(10,100)

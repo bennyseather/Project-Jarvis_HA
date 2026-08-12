@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.2
+
+- Add a dedicated custom RSS feed input while retaining the built-in feeds.
+- Merge, validate, deduplicate, and bound configured RSS sources.
+
 ## 0.39.1
 
 - Preserve the complete bounded RSS headline list in concise voice responses.

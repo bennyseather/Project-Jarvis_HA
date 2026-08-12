@@ -17,6 +17,7 @@ LOG = logging.getLogger("jarvis_rss")
 OPTIONS = Path("/data/options.json")
 CACHE = Path("/share/jarvis_rss/stories.json")
 TAG = re.compile(r"<[^>]+>")
+MAXIMUM_FEEDS = 20
 
 
 def clean(value, maximum=800):
@@ -52,6 +53,23 @@ def normalize(url, payload):
     return source, stories
 
 
+def configured_feeds(options):
+    """Merge built-in and custom feeds, preserving order and removing duplicates."""
+    values = list(options.get("feeds") or ()) + list(options.get("custom_feeds") or ())
+    feeds = []
+    seen = set()
+    for value in values:
+        url = str(value).strip()
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc or url in seen:
+            continue
+        seen.add(url)
+        feeds.append(url)
+        if len(feeds) == MAXIMUM_FEEDS:
+            break
+    return feeds
+
+
 def refresh(options):
     previous = {}
     try:
@@ -59,7 +77,7 @@ def refresh(options):
     except (OSError, ValueError):
         pass
     merged, health = {}, []
-    for url in options["feeds"][:20]:
+    for url in configured_feeds(options):
         try:
             source, stories = normalize(url, fetch(url, options["request_timeout_seconds"]))
             health.append({"url": url, "source": source, "status": "ok", "stories": len(stories)})
@@ -85,6 +103,7 @@ def main():
     while True:
         options = json.loads(OPTIONS.read_text(encoding="utf-8"))
         options.setdefault("feeds", [])
+        options.setdefault("custom_feeds", [])
         options.setdefault("refresh_minutes", 15)
         options.setdefault("maximum_stories", 100)
         options.setdefault("request_timeout_seconds", 20)
