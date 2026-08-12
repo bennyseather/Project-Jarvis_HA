@@ -33,6 +33,10 @@ class BlueprintPlannerTests(unittest.TestCase):
             self.assertIn(value, pending)
         self.assertIn("{{ today_at('00:00') }}", pending)
         self.assertIn("{{ briefing }}", pending)
+        self.assertEqual(pending.count("cache: true"), 2)
+        self.assertEqual(pending.count("preferred_format: mp3"), 2)
+        self.assertEqual(pending.count("preferred_sample_rate: 44100"), 2)
+        self.assertEqual(pending.count("preferred_sample_channels: 2"), 2)
         self.assertNotIn('start_date_time: "{ today_at', pending)
         self.assertEqual(pending.count("continue_on_error: true"), 3)
 

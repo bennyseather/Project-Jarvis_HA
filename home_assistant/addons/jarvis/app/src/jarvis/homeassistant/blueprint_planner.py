@@ -236,6 +236,11 @@ actions:
             data:
               media_player_entity_id: !input output_speaker
               message: "{{{{ briefing }}}}"
+              cache: true
+              options:
+                preferred_format: mp3
+                preferred_sample_rate: 44100
+                preferred_sample_channels: 2
       - conditions:
           - condition: time
             after: "15:00:00"
@@ -268,6 +273,11 @@ actions:
             data:
               media_player_entity_id: !input output_speaker
               message: "{{{{ signoff }}}}"
+              cache: true
+              options:
+                preferred_format: mp3
+                preferred_sample_rate: 44100
+                preferred_sample_channels: 2
     default:
       - action: homeassistant.toggle
         continue_on_error: true

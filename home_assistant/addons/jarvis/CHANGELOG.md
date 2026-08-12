@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.4
+
+- Request cached MP3 output at 44.1 kHz stereo for generated blueprint announcements.
+- Let Home Assistant transcode Qwen PCM into a Google Cast-compatible format before playback.
+- Apply the format consistently to morning briefings and afternoon sign-offs.
+
 ## 0.34.3
 
 - Buffer the complete CPU-generated Qwen response before exposing audio to Home Assistant.
