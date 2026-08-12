@@ -13,9 +13,20 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Namron ZHA Compatibility 0.34.6
+## Project Jarvis Adaptive Preference Learning 0.35.0
 
-Version 0.34.6 adds an optional, exact-match local ZHA quirk for the NamronAS
+Version 0.35.0 adds approval-gated adaptive preference learning. Jarvis can
+accumulate repeated temperature and lighting preferences, explain the evidence,
+and suggest a durable preference only after the configured confidence threshold.
+Nothing learned affects reasoning until Benny explicitly confirms it.
+
+Natural controls include “What have you learned?”, “Why did you learn office
+temperature?”, “That is wrong, use 21 degrees instead”, and “Forget the office
+temperature preference”. Security, credentials, alarm, unlocking and spending
+categories are denied. Observations, approvals, corrections, deletion and a
+bounded audit survive restarts in Jarvis SQLite storage.
+
+The prior release also includes an optional, exact-match local ZHA quirk for the NamronAS
 4512751 dimmer. The device executes commands but omits the application response
 expected by ZHA; the quirk prevents that omission from blocking automations while
 preserving genuine radio delivery failures. Installation is intentionally manual.

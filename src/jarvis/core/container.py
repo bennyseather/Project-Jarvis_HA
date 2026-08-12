@@ -40,6 +40,9 @@ class ServiceContainer:
         self.natural_memory_controller = None
         self.reflection_store = None
         self.reflective_learning_manager = None
+        self.adaptive_learning_policy = None
+        self.adaptive_preference_store = None
+        self.adaptive_preferences = None
         self.reflection_context_limit = 5
         self.read_only_assistant = None
         self.runtime_context_assembler = None

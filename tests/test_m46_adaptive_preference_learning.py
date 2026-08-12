@@ -1,0 +1,91 @@
+import tempfile
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from jarvis.learning.adaptive_preferences import (
+    AdaptiveLearningPolicy,
+    AdaptivePreferenceController,
+    SQLiteAdaptivePreferenceStore,
+)
+
+
+class M46AdaptivePreferenceLearningTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.now = datetime(2026, 8, 12, 12, tzinfo=timezone.utc)
+        self.store = SQLiteAdaptivePreferenceStore(Path(self.directory.name) / "jarvis.db")
+        self.controller = AdaptivePreferenceController(
+            self.store, AdaptiveLearningPolicy(), clock=lambda: self.now
+        )
+
+    def tearDown(self):
+        self.store.close()
+        self.directory.cleanup()
+
+    def test_repetition_requires_approval_before_context_use(self):
+        first = self.controller.handle("I prefer the office at 21 degrees", "c1")
+        second = self.controller.handle("I prefer the office at 21 degrees", "c1")
+        third = self.controller.handle("I prefer the office at 21 degrees", "c1")
+        self.assertIn("1 of 3", first["message"])
+        self.assertIn("2 of 3", second["message"])
+        self.assertEqual(third["status"], "requires_confirmation")
+        self.assertEqual(self.controller.context(), ())
+        approved = self.controller.confirm(third["token"], third["action_payload"])
+        self.assertEqual(approved["status"], "success")
+        self.assertEqual(self.controller.context()[0]["value"], "21.0")
+
+    def test_restart_persistence_explanation_correction_and_deletion(self):
+        for _ in range(3):
+            proposal = self.controller.handle("I prefer the lounge at 20 degrees", "c1")
+        self.controller.confirm(proposal["token"], proposal["action_payload"])
+        replacement = AdaptivePreferenceController(self.store, AdaptiveLearningPolicy(), clock=lambda: self.now)
+        self.assertIn("lounge", replacement.handle("What have you learned?", "c2")["message"])
+        self.assertIn("3 times", replacement.handle("Why did you learn lounge temperature?", "c2")["message"])
+        replacement.handle("I prefer the lounge at 20 degrees", "c2")
+        corrected = replacement.handle("That is wrong, use 21 degrees instead", "c2")
+        self.assertIn("Correction recorded", corrected["message"])
+        self.assertEqual(replacement.context(), ())
+        forgotten = replacement.handle("Forget the lounge temperature preference", "c2")
+        self.assertEqual(forgotten["status"], "success")
+        self.assertEqual(self.store.list(), ())
+
+    def test_forbidden_categories_and_stale_observation_decay(self):
+        denied = self.controller.handle("I prefer the front door unlock at 21 degrees", "c1")
+        self.assertEqual(denied["status"], "forbidden")
+        self.controller.handle("I prefer the office at 21 degrees", "c1")
+        self.now += timedelta(days=91)
+        self.controller.context()
+        item = self.store.list()[0]
+        self.assertEqual(item.evidence_count, 0)
+        self.assertEqual(item.status, "stale")
+
+    def test_repeated_successful_actions_can_propose_but_failures_cannot(self):
+        for _ in range(2):
+            self.assertIsNone(self.controller.observe_outcome(
+                "Set the office temperature to 21 degrees",
+                {"status": "action_done"},
+                "c1",
+            ))
+        proposal = self.controller.observe_outcome(
+            "Set the office temperature to 21 degrees",
+            {"status": "success"},
+            "c1",
+        )
+        self.assertEqual(proposal["status"], "requires_confirmation")
+        self.assertIn("action completed", proposal["summary"].casefold())
+        before = len(self.store.list())
+        self.controller.observe_outcome(
+            "Set lounge lights to 40 percent", {"status": "unavailable"}, "c1"
+        )
+        self.assertEqual(len(self.store.list()), before)
+
+    def test_policy_validation(self):
+        with self.assertRaises(ValueError):
+            AdaptiveLearningPolicy.from_config({"evidence_threshold": 1})
+        with self.assertRaises(ValueError):
+            AdaptiveLearningPolicy.from_config({"minimum_confidence": 0.2})
+
+
+if __name__ == "__main__":
+    unittest.main()

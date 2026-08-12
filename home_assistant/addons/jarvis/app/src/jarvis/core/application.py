@@ -89,6 +89,11 @@ from jarvis.homeassistant.stewardship import (
     StewardshipController,
     StewardshipPolicy,
 )
+from jarvis.learning.adaptive_preferences import (
+    AdaptiveLearningPolicy,
+    AdaptivePreferenceController,
+    SQLiteAdaptivePreferenceStore,
+)
 from jarvis.homeassistant.blueprint_planner import BlueprintPlanner
 
 
@@ -184,6 +189,7 @@ class JarvisApplication:
                 self.container.reflection_store.close()
                 self.container.proactive_store.close()
                 self.container.stewardship_store.close()
+                self.container.adaptive_preference_store.close()
                 self.container.confirmed_action_audit_store.close()
                 self.container.ai_usage_ledger.close()
         else:
@@ -355,6 +361,18 @@ class JarvisApplication:
             CompoundOrchestrationPolicy.from_config(
                 self.general.get("compound_orchestration", {})
             )
+        )
+        self.container.adaptive_learning_policy = AdaptiveLearningPolicy.from_config(
+            self.general.get("adaptive_learning", {})
+        )
+        self.container.adaptive_preference_store = SQLiteAdaptivePreferenceStore(
+            database_file,
+            audit_limit=self.container.adaptive_learning_policy.audit_limit,
+        )
+        self.container.adaptive_preferences = AdaptivePreferenceController(
+            self.container.adaptive_preference_store,
+            self.container.adaptive_learning_policy,
+            clock=clock,
         )
         self.container.stewardship_policy = StewardshipPolicy.from_config(
             self.general.get("stewardship", {})
@@ -711,6 +729,24 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(goal_management)
             )
             return goal_management
+        adaptive_result = self.container.adaptive_preferences.handle(text, identifier)
+        if adaptive_result is not None:
+            normalized_learning = " ".join(text.casefold().strip(" .?!").split())
+            if normalized_learning in {
+                "what have you learned", "what have you learned about me"
+            }:
+                natural_result = self.container.natural_memory_controller.handle(
+                    text, identifier
+                )
+                if natural_result is not None:
+                    adaptive_result = dict(adaptive_result)
+                    adaptive_result["message"] = (
+                        self._user_message(natural_result).rstrip(". ")
+                        + ". "
+                        + self._user_message(adaptive_result)
+                    )
+            conversation_store.add_message(identifier, "assistant", self._user_message(adaptive_result))
+            return adaptive_result
         natural_result = self.container.natural_memory_controller.handle(text, identifier)
         if natural_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(natural_result))
@@ -796,6 +832,7 @@ class JarvisApplication:
             "reflection": self.container.reflective_learning_manager.context_for(
                 text, self.container.reflection_context_limit
             ),
+            "approved_preferences": self.container.adaptive_preferences.context(),
             "proactive": self.container.proactive_manager.context_for(text),
             "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
@@ -804,6 +841,11 @@ class JarvisApplication:
             self.container.situational_intelligence.context(identifier)
         )
         result = await self.container.read_only_assistant.handle(text, context)
+        learned_suggestion = self.container.adaptive_preferences.observe_outcome(
+            text, result, identifier
+        )
+        if learned_suggestion is not None:
+            result = learned_suggestion
         if result.get("sources") and not voice_mode:
             result = dict(result)
             result["message"] = (
@@ -974,6 +1016,8 @@ class JarvisApplication:
                         )
                     elif payload.get("kind") == "stewardship_mode":
                         result = await self.container.stewardship.confirm(token, payload)
+                    elif payload.get("kind") == "adaptive_preference":
+                        result = self.container.adaptive_preferences.confirm(token, payload)
                     elif payload.get("kind") == "blueprint_install":
                         result = self.container.blueprint_planner.confirm(token, payload)
                     else:

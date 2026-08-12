@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.34.6"
+  version: "0.35.0"
 
 system:
   debug: false
@@ -101,6 +101,15 @@ stewardship:
   confirmation_ttl_seconds: 300
   manual_override_minutes: 30
   audit_limit: 100
+
+adaptive_learning:
+  enabled: true
+  evidence_threshold: 3
+  minimum_confidence: 0.75
+  stale_after_days: 90
+  confirmation_ttl_seconds: 300
+  maximum_preferences: 100
+  audit_limit: 200
 
 persona:
   name: "Jarvis"
