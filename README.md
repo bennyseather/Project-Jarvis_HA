@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Stewardship Departure Hotfix 0.38.2
+
+Version 0.38.2 recognises natural departure, travel, and bedtime phrases and
+maps them to confirmation-gated away, vacation, or sleep stewardship modes.
+
 ## Project Jarvis Stewardship Return-Home Hotfix 0.38.1
 
 Version 0.38.1 recognises natural return-home phrases when ending stewardship

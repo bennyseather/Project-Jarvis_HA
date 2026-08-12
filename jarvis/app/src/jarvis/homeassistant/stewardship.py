@@ -239,7 +239,7 @@ class StewardshipController:
         return proposals
 
     def _parse(self, text):
-        name = next((item for item in ("vacation", "away", "sleep", "home", "custom") if item in text), "custom")
+        name = self._infer_mode(text)
         lights_off = name in {"away", "vacation", "sleep"} or "lights off" in text or "keep the lights off" in text
         match = re.search(r"(?:temperature|thermostat|climate)(?:\s+\w+){0,3}?\s+(?:to|at)\s+(-?\d+(?:\.\d+)?)", text)
         temperature = float(match.group(1)) if match else (20.0 if name == "vacation" else None)
@@ -321,7 +321,35 @@ class StewardshipController:
 
     @staticmethod
     def _is_mode_request(text):
-        return any(phrase in text for phrase in ("vacation mode", "away mode", "sleep mode", "home mode", "stewardship mode", "going on vacation", "going on holiday", "i am travelling", "i'm travelling", "i am traveling", "i'm traveling", "watch the house while", "monitor the house while"))
+        return any(phrase in text for phrase in (
+            "vacation mode", "away mode", "sleep mode", "home mode", "stewardship mode",
+            "going on vacation", "going on holiday", "off on vacation", "off on holiday",
+            "leaving for vacation", "leaving for holiday", "i am travelling", "i'm travelling",
+            "im travelling", "i am traveling", "i'm traveling", "im traveling",
+            "watch the house while", "monitor the house while", "i am leaving", "i'm leaving",
+            "im leaving", "we are leaving", "we're leaving", "were leaving", "leaving home",
+            "heading out", "going out", "we are going out", "we're going out", "were going out",
+            "going away", "we are going away", "we're going away", "were going away",
+            "going to bed", "i am going to bed", "i'm going to bed", "im going to bed",
+            "we are going to bed", "we're going to bed", "were going to bed", "good night",
+            "goodnight", "bedtime",
+        ))
+
+    @staticmethod
+    def _infer_mode(text):
+        if any(phrase in text for phrase in (
+            "vacation", "holiday", "travelling", "traveling", "going away", "leaving for",
+        )):
+            return "vacation"
+        if any(phrase in text for phrase in (
+            "sleep", "going to bed", "good night", "goodnight", "bedtime",
+        )):
+            return "sleep"
+        if any(phrase in text for phrase in (
+            "away", "leaving", "leaving home", "heading out", "going out",
+        )):
+            return "away"
+        return "home" if "home mode" in text else "custom"
 
     @staticmethod
     def _is_return_home(text):

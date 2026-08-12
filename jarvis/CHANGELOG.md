@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.2
+
+- Recognize natural departure and bedtime phrases and deterministically map them to confirmation-gated away, vacation, or sleep stewardship modes.
+
 ## 0.38.1
 
 - Recognize natural return-home phrases such as “I'm home”, “back home”, “I'm back”, and “we're home” when ending stewardship and restoring prior states.
