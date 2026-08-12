@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.40.3
+
+- Keep Jarvis Voice card animations continuous across unrelated HA updates.
+- Update the Voice Satellite only when its own entity or live status changes.
+
 ## 0.40.2
 
 - Prevent unrelated Home Assistant state updates from restarting the RSS ticker.
