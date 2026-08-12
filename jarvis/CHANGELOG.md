@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.40.0
+
+- Add the full-width, visual-editor-compatible Jarvis RSS News Ticker card.
+- Add configurable speed, height, sources, story count, metadata, separators,
+  pause behaviour, click behaviour, NSPanel sizing, and reduced-motion mode.
+
 ## 0.39.2
 
 - Add a dedicated custom RSS feed input while retaining the built-in feeds.

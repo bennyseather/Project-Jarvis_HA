@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.39.0";
+const JARVIS_UI_VERSION = "0.40.0";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1805,6 +1805,55 @@ class JarvisRSSCard extends JarvisBaseCard {
   }
 }
 
+class JarvisRSSTickerCard extends JarvisBaseCard {
+  static cardName = "Jarvis RSS News Ticker";
+  static requiresEntity = true;
+  static gridRows = 1;
+  static getConfigForm() { return { schema: [
+    { name: "name", selector: { text: {} } },
+    { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
+    { name: "story_limit", selector: { number: { min: 3, max: 20, mode: "slider" } } },
+    { name: "height", selector: { number: { min: 40, max: 80, mode: "slider", unit_of_measurement: "px" } } },
+    { name: "scroll_speed", selector: { select: { options: ["slow", "medium", "fast"] } } },
+    { name: "pause_seconds", selector: { number: { min: 0, max: 10, mode: "slider", unit_of_measurement: "s" } } },
+    { name: "include_sources", selector: { text: {} } },
+    { name: "exclude_sources", selector: { text: {} } },
+    { name: "show_source", selector: { boolean: {} } },
+    { name: "show_time", selector: { boolean: {} } },
+    { name: "separator", selector: { select: { options: ["diamond", "line", "dot"] } } },
+    { name: "click_action", selector: { select: { options: ["open", "mark_read", "none"] } } },
+  ] }; }
+  static getStubConfig() { return { name: "Jarvis Wire", entity: "sensor.jarvis_rss_top_stories", story_limit: 5, height: 52, scroll_speed: "medium", pause_seconds: 2, show_source: true, show_time: true, separator: "diamond", click_action: "open" }; }
+  getCardSize() { return 1; }
+  getGridOptions() { return { rows: 1, columns: 12, min_rows: 1, min_columns: 6 }; }
+  render() {
+    if (!this._config || !this._hass) return;
+    const state = this._hass.states?.[this._config.entity];
+    const parseSources = (value) => new Set(String(value || "").split(",").map((item) => item.trim().casefold?.() || item.trim().toLowerCase()).filter(Boolean));
+    const included = parseSources(this._config.include_sources);
+    const excluded = parseSources(this._config.exclude_sources);
+    const stories = (state?.attributes?.stories || []).filter((story) => {
+      const source = String(story.source || "RSS").toLowerCase();
+      return (!included.size || included.has(source)) && !excluded.has(source);
+    }).slice(0, Number(this._config.story_limit) || 5);
+    const speed = { slow: 16, medium: 11, fast: 7 }[this._config.scroll_speed] || 11;
+    const pause = Math.max(0, Number(this._config.pause_seconds) || 0);
+    const duration = Math.max(18, stories.length * (speed + pause));
+    const height = Math.min(80, Math.max(40, Number(this._config.height) || 52));
+    const separator = { diamond: "◆", line: "//", dot: "•" }[this._config.separator] || "◆";
+    const entries = stories.map((story) => `<button class="story" data-id="${escapeHtml(story.id || "")}" data-url="${escapeHtml(story.url || "")}" title="${escapeHtml(story.title || "RSS story")}">${this._config.show_source !== false ? `<b>${escapeHtml(story.source || "RSS")}</b>` : ""}<span>${escapeHtml(story.title || "Untitled story")}</span>${this._config.show_time !== false ? `<time>${escapeHtml(relativeTime(story.published))}</time>` : ""}</button><i aria-hidden="true">${separator}</i>`).join("");
+    const track = entries ? `${entries}${entries}` : `<span class="empty">RSS CHANNEL READY // NO STORIES AVAILABLE</span>`;
+    this.shell(`<div class="ticker" style="--ticker-height:${height}px;--ticker-duration:${duration}s"><div class="channel"><ha-icon icon="mdi:rss"></ha-icon><span>${escapeHtml(this._config.name || "Jarvis Wire")}</span></div><div class="viewport" tabindex="0" aria-label="Scrolling RSS headlines"><div class="track">${track}</div></div></div><style>:host{padding:3px}ha-card{min-height:var(--ticker-height)!important;height:var(--ticker-height)!important}.ticker{height:100%;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center}.channel{height:100%;display:flex;align-items:center;gap:7px;padding:0 14px;color:var(--j-accent);border-right:1px solid var(--j-line);background:rgba(32,216,255,.055);white-space:nowrap;z-index:2}.channel ha-icon{--mdc-icon-size:17px}.channel span{font:800 9px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}.viewport{height:100%;overflow:hidden;display:flex;align-items:center;mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);outline:none}.track{width:max-content;display:flex;align-items:center;animation:ticker-scroll var(--ticker-duration) linear infinite;will-change:transform}.viewport:hover .track,.viewport:focus .track,.viewport.paused .track{animation-play-state:paused}.story{min-height:34px;border:0;background:transparent;display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--primary-text-color);text-transform:none;letter-spacing:0;white-space:nowrap;cursor:pointer}.story:hover,.story:focus-visible{color:var(--j-accent);outline:1px solid var(--j-line)}.story b{font:800 9px ui-monospace,monospace;letter-spacing:.08em;color:var(--j-accent);text-transform:uppercase}.story span{font-size:12px}.story time{font:700 9px ui-monospace,monospace;color:var(--secondary-text-color)}.track>i{font:700 9px ui-monospace,monospace;color:var(--j-accent);font-style:normal;opacity:.65}.empty{padding:0 22px;font:700 10px ui-monospace,monospace;color:var(--secondary-text-color)}@keyframes ticker-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}@container(max-width:430px){ha-card{height:46px!important;min-height:46px!important}.channel{padding:0 8px}.channel span{display:none}.story{min-height:40px;padding:0 12px}.story span{font-size:13px}.story time{display:none}}@media(prefers-reduced-motion:reduce){.track{animation:none!important;max-width:100%;overflow:hidden}.track .story:nth-of-type(n+2),.track>i{display:none}.story{max-width:100%}.story span{overflow:hidden;text-overflow:ellipsis}}</style>`, { interactive: false });
+    const viewport = this.shadowRoot.querySelector(".viewport");
+    viewport?.addEventListener("pointerdown", () => viewport.classList.toggle("paused"));
+    this.shadowRoot.querySelectorAll(".story").forEach((button) => button.addEventListener("click", () => {
+      const action = this._config.click_action || "open";
+      if (action !== "none" && button.dataset.id) this._hass.callService("jarvis_rss", "mark_read", { story_id: button.dataset.id });
+      if (action === "open" && button.dataset.url) window.open(button.dataset.url, "_blank", "noopener");
+    }));
+  }
+}
+
 class JarvisIconCatalogCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Icon Catalog";
@@ -1882,6 +1931,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-calendar-card", JarvisCalendarCard, "Jarvis Calendar", "Calendar views and upcoming appointments"],
   ["jarvis-month-calendar-card", JarvisMonthCalendarCard, "Jarvis Month Calendar", "Dedicated monthly calendar grid"],
   ["jarvis-rss-card", JarvisRSSCard, "Jarvis RSS Intelligence", "Top RSS stories grouped by source or category"],
+  ["jarvis-rss-ticker-card", JarvisRSSTickerCard, "Jarvis RSS News Ticker", "Full-width scrolling RSS headline wire"],
   ["jarvis-glance-card", JarvisGlanceCard, "Jarvis Glance", "Compact multi-entity overview"],
   ["jarvis-alerts-card", JarvisAlertsCard, "Jarvis Home Alerts", "Leaks, smoke, batteries and availability"],
   ["jarvis-network-card", JarvisNetworkCard, "Jarvis Network / NAS", "Network and storage telemetry"],
@@ -1910,6 +1960,7 @@ const CARD_DOMAINS = new Map([
   [JarvisCalendarCard, ["calendar"]],
   [JarvisMonthCalendarCard, ["calendar"]],
   [JarvisRSSCard, ["sensor"]],
+  [JarvisRSSTickerCard, ["sensor"]],
 ]);
 
 window.customCards = window.customCards || [];
