@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.36.3"
+  version: "0.37.0"
 
 system:
   debug: false
@@ -111,6 +111,7 @@ adaptive_learning:
   confirmation_ttl_seconds: 300
   maximum_preferences: 100
   audit_limit: 200
+  routine_evidence_threshold: 5
 
 persona:
   name: "Jarvis"

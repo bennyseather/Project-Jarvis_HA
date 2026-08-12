@@ -13,6 +13,16 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Adaptive Self-Learning 0.37.0
+
+Version 0.37.0 extends Jarvis's durable three-observation preference learner
+across rooms and contextual weekday/weekend or time-of-day scopes. It learns
+low-risk climate, lighting, cover, speaker, and volume preferences; detects
+repeated compound routines as inactive proposals; provides durable category
+controls, explanations, correction, deletion, and bounded auditing; and never
+automatically learns security, safety, credential, purchase, or EV-charging
+actions. Home Assistant remains the sole execution authority.
+
 ## Project Jarvis Dashboard Refinement 0.36.3
 
 Version 0.36.3 restores compact light icons with separate ON/OFF controls,

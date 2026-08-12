@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.37.0
+
+- Expand adaptive preferences across rooms, weekdays/weekends, time periods, lighting, colour temperature, covers, speakers, and volume.
+- Detect repeated multi-action routines and create inactive, approval-gated proposals only.
+- Add durable per-category learning controls, explanations, corrections, deletion, confidence decay, and bounded audit history.
+- Exclude security, safety, credential, purchasing, and vehicle-charging actions from automatic learning.
+
 ## 0.36.3
 
 - Restore the compact light icon and add explicit ON/OFF controls.
