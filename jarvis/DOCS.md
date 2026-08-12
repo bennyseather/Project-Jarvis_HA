@@ -5,8 +5,8 @@ Set an OpenAI API key and a long random bridge API key in the add-on options.
 ## Adaptive preference learning
 
 M46 records repeated explicit temperature and lighting preferences as local
-observations. An observation never affects Jarvis until the evidence threshold
-is reached and you confirm the proposed preference. Natural controls include
+observations. An observation never affects Jarvis until three consistent
+observations reach the evidence threshold and are automatically approved. Natural controls include
 `I prefer the office at 21 degrees`, `What have you learned?`, `Why did you
 learn office temperature?`, `That is wrong, use 20 degrees instead`, and
 `Forget the office temperature preference`.

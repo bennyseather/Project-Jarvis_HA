@@ -176,13 +176,7 @@ class AdaptivePreferenceController:
         learning = self._observe(
             *observation, text=text, conversation_id=conversation_id, quiet=True
         )
-        if learning.get("status") != "requires_confirmation":
-            return None
-        learning = dict(learning)
-        learning["summary"] = (
-            "The requested action completed. " + str(learning["summary"])
-        )
-        return learning
+        return None
 
     def confirm(self, token, payload):
         pending = self._pending.pop(token, None)
@@ -236,7 +230,7 @@ class AdaptivePreferenceController:
             self.store.save(current)
             self.store.audit("corrected", current.preference_id, {"key": key, "value": value}, now)
             self._last_key[conversation_id] = key
-            return {"status": "success", "message": f"Correction recorded. I will require repeated evidence and approval before using {value}."}
+            return {"status": "success", "message": f"Correction recorded. I will require three consistent observations before using {value}."}
         if current is None:
             if len(self.store.list()) >= self.policy.maximum_preferences:
                 return {"status": "forbidden", "message": "The learned-preference limit has been reached."}
@@ -245,12 +239,20 @@ class AdaptivePreferenceController:
         confidence = min(0.95, 0.35 + 0.2 * count)
         evidence = (current.evidence + (text[:200],))[-5:]
         status = current.status
-        if status != "approved" and count >= self.policy.evidence_threshold and confidence >= self.policy.minimum_confidence:
-            status = "suggested"
+        automatically_approved = (
+            status != "approved"
+            and count >= self.policy.evidence_threshold
+            and confidence >= self.policy.minimum_confidence
+        )
+        if automatically_approved:
+            status = "approved"
         current = self.store.save(replace(current, evidence_count=count, confidence=confidence, status=status, last_observed_at=now.isoformat(), evidence=evidence))
         self.store.audit("observed", current.preference_id, {"key": key, "count": count, "confidence": confidence}, now)
         self._last_key[conversation_id] = key
         if status == "approved":
+            if automatically_approved:
+                self.store.audit("automatically_approved", current.preference_id, {"key": key, "value": value, "evidence_count": count}, now)
+                return {"status": "success", "message": f"Preference automatically approved after {count} consistent observations: {self._describe(current)}."}
             return {"status": "success", "message": f"That matches the approved preference: {self._describe(current)}."}
         if status == "suggested":
             token = token_urlsafe(24)
@@ -258,7 +260,7 @@ class AdaptivePreferenceController:
             return {"status": "requires_confirmation", "token": token, "summary": f"Learn {self._describe(current)} based on {count} observations", "risk": "preference_learning_confirmation_required", "action_payload": {"kind": "adaptive_preference", "preference_id": current.preference_id}}
         if quiet:
             return {"status": "observed"}
-        return {"status": "success", "message": f"Preference observation recorded ({count} of {self.policy.evidence_threshold}); it will not affect Jarvis until you approve it."}
+        return {"status": "success", "message": f"Preference observation recorded ({count} of {self.policy.evidence_threshold}); it will not affect Jarvis until three consistent observations are recorded."}
 
     def _decay(self):
         cutoff = self._clock() - timedelta(days=self.policy.stale_after_days)
