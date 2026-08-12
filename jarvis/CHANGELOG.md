@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.40.4
+
+- Preserve the RSS Intelligence card scroll position across unrelated HA updates.
+- Re-render the RSS feed only when its stories or configuration change.
+
 ## 0.40.3
 
 - Keep Jarvis Voice card animations continuous across unrelated HA updates.

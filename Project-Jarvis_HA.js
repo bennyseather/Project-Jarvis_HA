@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.40.3";
+const JARVIS_UI_VERSION = "0.40.4";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1803,6 +1803,23 @@ class JarvisRSSCard extends JarvisBaseCard {
     { name: "compact", selector: { boolean: {} } },
   ] }; }
   static getStubConfig() { return { name: "Top Stories", entity: "sensor.jarvis_rss_top_stories", story_limit: 12, stories_per_feed: 3, group_by: "source", compact: false }; }
+  setConfig(config) {
+    this._rssCardSignature = undefined;
+    super.setConfig(config);
+  }
+  set hass(value) {
+    this._hass = value;
+    const state = value?.states?.[this._config?.entity];
+    const stories = state?.attributes?.stories || [];
+    const signature = JSON.stringify([
+      state?.state,
+      stories.map((story) => [story.id, story.title, story.source, story.category, story.summary, story.image, story.published, story.read]),
+      this._config,
+    ]);
+    if (signature === this._rssCardSignature) return;
+    this._rssCardSignature = signature;
+    this.render();
+  }
   render() {
     if (!this._config || !this._hass) return;
     const state = this._hass.states?.[this._config.entity];

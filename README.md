@@ -13,9 +13,9 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Animation Stability 0.40.3
+## Project Jarvis RSS Scroll Stability 0.40.4
 
-Version 0.40.3 adds a private RSS/Atom add-on, Home Assistant RSS entities and
+Version 0.40.4 adds a private RSS/Atom add-on, Home Assistant RSS entities and
 services, deterministic Jarvis news summaries with spoken-link suppression,
 and a responsive visual-editor RSS card. Feed content is sanitized, bounded,
 deduplicated, cached locally, and cannot authorize Home Assistant actions.
