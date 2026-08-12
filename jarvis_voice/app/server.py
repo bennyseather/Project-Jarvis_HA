@@ -37,7 +37,7 @@ class VoiceProxyConfig:
     piper_fallback: bool = True
     engine: str = "qwen_1_7b"
     reference_path: str = "/app/jarvis-reference.wav"
-    generation_timeout: float = 30.0
+    generation_timeout: float = 300.0
     warm_model: bool = True
     articulation_mode: str = "crisp"
     maximum_segment_characters: int = 105
@@ -49,6 +49,7 @@ class VoiceProxyConfig:
     qwen_filter: str = "clean"
     qwen_filter_strength: float = 0.55
     qwen_connect_timeout: float = 3.0
+    qwen_maximum_spoken_characters: int = 420
 
 
 class VoiceProxy:
@@ -192,6 +193,12 @@ class VoiceProxy:
             await upstream_writer.wait_closed()
 
     async def _synthesize_qwen(self, event: Event, client: asyncio.StreamWriter) -> None:
+        text = _bounded_spoken_text(
+            str(event.data.get("text", "")), self.config.qwen_maximum_spoken_characters
+        )
+        if not text:
+            raise ValueError("Synthesize request did not contain text")
+        event = Event(dict(event.header), {**event.data, "text": text}, event.payload)
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection(self.config.qwen_host, self.config.qwen_port),
             self.config.qwen_connect_timeout,
@@ -209,6 +216,8 @@ class VoiceProxy:
                     strength=self.config.qwen_filter_strength,
                 )
             )
+            # The timeout is deliberately large on CPU. It prevents an abandoned
+            # request from running forever without replacing Qwen merely for being slow.
             await asyncio.wait_for(relay, self.config.generation_timeout)
         finally:
             writer.close()
@@ -221,15 +230,30 @@ class VoiceProxy:
         """Forward clean Qwen PCM as it arrives, preserving time-to-first-audio."""
         started = False
         stopped = False
-        while response := await read_event(upstream):
-            if response.type == "audio-start":
-                started = True
-            elif response.type == "audio-stop":
-                stopped = True
-            await write_event(client, response)
-            if stopped:
-                break
+        try:
+            while response := await read_event(upstream):
+                if response.type == "audio-start":
+                    started = True
+                elif response.type == "audio-stop":
+                    stopped = True
+                await write_event(client, response)
+                if stopped:
+                    break
+        except Exception:
+            if not started:
+                raise
+            LOGGER.exception(
+                "Qwen stream failed after audio began; closing partial Qwen audio without fallback"
+            )
+            await write_event(client, Event({"type": "audio-stop"}, {}))
+            return
         if not started or not stopped:
+            if started:
+                LOGGER.warning(
+                    "Qwen stream ended after partial audio; closing it without changing voice"
+                )
+                await write_event(client, Event({"type": "audio-stop"}, {}))
+                return
             raise RuntimeError("Qwen worker returned an incomplete audio stream")
 
     async def _synthesize_piper_m39(self, event: Event, client: asyncio.StreamWriter) -> None:
@@ -390,6 +414,20 @@ def _refine_info(event: Event) -> Event:
     return Event(dict(event.header), data, event.payload)
 
 
+def _bounded_spoken_text(text: str, maximum: int) -> str:
+    """Bound unusually long TTS payloads at a natural sentence boundary."""
+    normalized = " ".join(str(text).split())
+    maximum = max(120, min(1000, int(maximum)))
+    if len(normalized) <= maximum:
+        return normalized
+    candidate = normalized[: maximum + 1]
+    boundary = max(candidate.rfind(". "), candidate.rfind("? "), candidate.rfind("! "))
+    if boundary >= maximum // 2:
+        return candidate[: boundary + 1]
+    boundary = candidate.rfind(" ", 0, maximum + 1)
+    return candidate[:boundary].rstrip(" ,;:") + "."
+
+
 def _kokoro_info() -> Event:
     attribution = {"name": "Kokoro-82M", "url": "https://huggingface.co/hexgrad/Kokoro-82M"}
     voices = [{
@@ -404,7 +442,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.32.0",
+        "version": "0.33.0",
         "attribution": attribution,
         "installed": True,
         "voices": voices,

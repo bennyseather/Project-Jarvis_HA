@@ -1,5 +1,5 @@
 name: "Project Jarvis Qwen Voice Worker"
-version: "0.32.3"
+version: "0.33.0"
 slug: "jarvis_qwen_voice"
 description: "Local CPU Qwen3-TTS 1.7B worker for Project Jarvis Voice"
 arch: [amd64]
@@ -18,9 +18,11 @@ options:
   model_cache_dir: "/data/models"
   cpu_threads: 6
   maximum_segment_characters: 180
+  response_cache_entries: 24
 schema:
   reference_audio: str
   reference_text_file: str
   model_cache_dir: str
   cpu_threads: int(1,8)
   maximum_segment_characters: int(60,300)
+  response_cache_entries: int(0,100)

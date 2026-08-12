@@ -13,6 +13,14 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Responsive Qwen Voice 0.33.0
+
+Version 0.33.0 keeps Qwen3-TTS as Jarvis's primary voice even on the temporary
+CPU host. Repeated replies use a bounded in-memory audio cache, unusually long
+spoken payloads are shortened at natural boundaries, CPU generation receives a
+five-minute budget, and diagnostics expose cache and generation timings. Local
+Piper and Kokoro voices remain failure-only fallbacks.
+
 ## Project Jarvis Local Qwen Worker 0.32.3
 
 Version 0.32.3 prefetches and validates the complete Qwen model snapshot before

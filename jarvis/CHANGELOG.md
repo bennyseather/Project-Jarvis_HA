@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.33.0
+
+- Keep Qwen3-TTS as the primary voice regardless of generation latency.
+- Cache repeated Qwen replies in bounded memory for near-immediate regeneration.
+- Bound unusually long spoken payloads at natural sentence boundaries.
+- Raise the CPU generation timeout and preserve partial Qwen streams without
+  switching voices after playback data has begun.
+- Report cache hits, misses, first-audio timing, and total generation timing.
+
 ## 0.32.3
 
 - Repair partial Qwen model caches by downloading the complete repository snapshot.

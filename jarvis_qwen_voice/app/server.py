@@ -37,7 +37,7 @@ class Worker:
         return Event({"type": "info"}, {"tts": [{
             "name": "Project Jarvis Qwen Worker",
             "description": "Private warm Qwen3-TTS 1.7B voice-clone worker",
-            "version": "0.32.0",
+            "version": "0.33.0",
             "installed": self.engine.ready,
             "voices": [{
                 "name": "jarvis_qwen", "description": "Jarvis Qwen 1.7B",
@@ -52,6 +52,9 @@ class Worker:
                 "prompt_encode_seconds": round(self.engine.prompt_encode_seconds, 3),
                 "last_generation_seconds": round(self.engine.last_generation_seconds, 3),
                 "last_first_audio_seconds": round(self.engine.last_first_audio_seconds, 3),
+                "response_cache_entries": len(self.engine._response_cache),
+                "cache_hits": self.engine.cache_hits,
+                "cache_misses": self.engine.cache_misses,
             },
         }]})
 
@@ -70,7 +73,10 @@ class Worker:
                 await write_event(writer, Event(
                     {"type": "audio-chunk"}, metadata, pcm[offset:offset + 8192]
                 ))
-            LOGGER.info("Generated segment in %.2fs: %s", seconds, segment[:100])
+            LOGGER.info(
+                "%s segment in %.2fs: %s",
+                "Cached" if seconds == 0.0 else "Generated", seconds, segment[:100]
+            )
         if not audio_started:
             raise RuntimeError("Qwen returned no audio")
         await write_event(writer, Event({"type": "audio-stop"}, {}))
@@ -98,6 +104,7 @@ async def main() -> None:
         dtype=os.getenv("QWEN_DTYPE", QwenConfig.dtype),
         cpu_threads=int(os.getenv("QWEN_CPU_THREADS", "6")),
         maximum_segment_characters=int(os.getenv("QWEN_MAXIMUM_SEGMENT_CHARACTERS", "180")),
+        response_cache_entries=int(os.getenv("QWEN_RESPONSE_CACHE_ENTRIES", "24")),
     )
     host = os.getenv("QWEN_LISTEN_HOST", "0.0.0.0")
     port = int(os.getenv("QWEN_LISTEN_PORT", "10400"))
