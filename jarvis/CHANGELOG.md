@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.1
+
+- Route natural questions about learned room preferences to adaptive memory instead of Home Assistant room-state enumeration.
+
 ## 0.37.0
 
 - Expand adaptive preferences across rooms, weekdays/weekends, time periods, lighting, colour temperature, covers, speakers, and volume.

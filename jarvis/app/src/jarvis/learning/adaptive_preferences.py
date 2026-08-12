@@ -254,6 +254,8 @@ class AdaptivePreferenceController:
         normalized = " ".join(text.casefold().strip(" .?!").split())
         if normalized in {"what have you learned", "what have you learned about me", "show learned preferences", "show preferences"}:
             return self.list_approved()
+        if self._is_preference_query(normalized):
+            return self.query_preference(normalized)
         if normalized in {"show learned routines", "show routine proposals", "what routines have you learned"}:
             return self.list_routines()
         control = self._learning_control(normalized)
@@ -336,6 +338,13 @@ class AdaptivePreferenceController:
         evidence = "; ".join(item.evidence[-3:])
         context = ", ".join(f"{key}={value}" for key, value in item.context.items()) or "general"
         return {"status": "success", "message": f"I observed this {item.evidence_count} times with {item.confidence:.0%} confidence. Context: {context}. Evidence: {evidence}. Status: {item.status}."}
+
+    def query_preference(self, text):
+        items = self.store.list("approved")
+        item = self._best_match(text, items)
+        if item is None:
+            return {"status": "not_found", "message": "I have no approved preference matching that question."}
+        return {"status": "success", "message": f"You prefer {self._describe(item)}."}
 
     def forget(self, text):
         item = self._best_match(text, self.store.list())
@@ -451,6 +460,16 @@ class AdaptivePreferenceController:
     def _category_name(value):
         normalized = " ".join(value.casefold().split())
         return {"temperatures": "temperature", "lights": "lighting", "light": "lighting", "covers": "cover", "blinds": "cover", "speakers": "speaker", "routines": "routine", "colour": "colour_temperature", "color": "colour_temperature"}.get(normalized, normalized.replace(" ", "_"))
+
+    @staticmethod
+    def _is_preference_query(text):
+        if not re.match(r"^(?:what|which|how)\b", text):
+            return False
+        preference_terms = (
+            "prefer", "preference", "usual temperature", "usual brightness",
+            "usual volume", "like the temperature", "like my temperature",
+        )
+        return any(term in text for term in preference_terms)
 
     def _observation_context(self, text=""):
         now = self._clock()

@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Preference Query Hotfix 0.37.1
+
+Version 0.37.1 answers natural preference questions from approved adaptive
+memory instead of treating the room name as a request to enumerate devices.
+
 ## Project Jarvis Adaptive Self-Learning 0.37.0
 
 Version 0.37.0 extends Jarvis's durable three-observation preference learner
