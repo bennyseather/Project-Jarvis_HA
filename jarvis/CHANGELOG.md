@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.1
+
+- Preserve the complete bounded RSS headline list in concise voice responses.
+- Continue applying normal concise voice limits to non-RSS replies.
+
 ## 0.39.0
 
 - Add the Project Jarvis RSS add-on with bounded RSS/Atom fetching, sanitization, deduplication, feed health, and last-good caching.

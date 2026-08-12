@@ -51,6 +51,7 @@ class PersonalityPresenter:
                 message,
                 profile.verbosity,
                 omit_links=researched,
+                preserve_list=bool(result.get("preserve_voice_list")),
             )
             if shaped != message:
                 message = shaped
@@ -116,7 +117,7 @@ class PersonalityPresenter:
         return "general dialogue"
 
     @staticmethod
-    def _for_voice(message, verbosity, *, omit_links=False):
+    def _for_voice(message, verbosity, *, omit_links=False, preserve_list=False):
         text = re.sub(r"\n+Sources:\n.*", "", message, flags=re.DOTALL | re.IGNORECASE)
         if omit_links:
             text = re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", text)
@@ -129,10 +130,10 @@ class PersonalityPresenter:
             text,
             flags=re.IGNORECASE,
         )
-        sentence_limit = 1 if verbosity == "concise" else 2
+        sentence_limit = 10 if preserve_list else (1 if verbosity == "concise" else 2)
         sentences = re.split(r"(?<=[.!?])\s+", text)
         text = " ".join(sentences[:sentence_limit])
-        character_limit = 220 if verbosity == "concise" else 360
+        character_limit = 900 if preserve_list else (220 if verbosity == "concise" else 360)
         if len(text) > character_limit:
             shortened = text[:character_limit].rsplit(" ", 1)[0].rstrip(" ,;:")
             text = shortened + "."

@@ -53,7 +53,12 @@ class RSSIntelligence:
         chosen = tuple(stories[:limit]); self._selection[conversation_id] = chosen
         if not chosen: return {"status": "unavailable", "message": "No matching RSS stories are available in the current cache."}
         message = "Top stories: " + " ".join(f"{index}. {item.get('title')}." for index, item in enumerate(chosen, 1))
-        return {"status": "success", "message": message, "stories": chosen}
+        return {
+            "status": "success",
+            "message": message,
+            "stories": chosen,
+            "preserve_voice_list": True,
+        }
 
     def _load(self):
         try:
