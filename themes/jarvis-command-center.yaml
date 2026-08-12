@@ -48,7 +48,7 @@ Jarvis Command Center:
       jarvis-space-2: "10px"
       jarvis-space-3: "14px"
       jarvis-space-4: "18px"
-      jarvis-control-size: "52px"
+      jarvis-control-size: "42px"
       lovelace-background: >-
         linear-gradient(rgba(1, 8, 14, 0.28), rgba(1, 8, 14, 0.28)),
         center / cover no-repeat url("/local/jarvis/jarvis-command-center-landscape.png") fixed
@@ -110,7 +110,7 @@ Jarvis Command Center Panel:
       jarvis-space-2: "8px"
       jarvis-space-3: "11px"
       jarvis-space-4: "14px"
-      jarvis-control-size: "56px"
+      jarvis-control-size: "38px"
       lovelace-background: >-
         linear-gradient(rgba(1, 8, 14, 0.22), rgba(1, 8, 14, 0.22)),
         center / cover no-repeat url("/local/jarvis/jarvis-command-center-portrait.png") fixed

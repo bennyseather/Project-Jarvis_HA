@@ -124,10 +124,13 @@ views:
             charging_entity: binary_sensor.car_charging
             lock_entity: lock.car
           - type: custom:jarvis-calendar-card
-            name: Household calendar
+            name: Household agenda
             entities:
               - calendar.example
-            view: month
+          - type: custom:jarvis-month-calendar-card
+            name: Household month
+            entities:
+              - calendar.example
           - type: custom:jarvis-glance-card
             name: At a glance
             entities:
