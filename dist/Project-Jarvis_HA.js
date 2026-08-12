@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.40.0";
+const JARVIS_UI_VERSION = "0.40.1";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1787,14 +1787,24 @@ class JarvisRSSCard extends JarvisBaseCard {
     { name: "name", selector: { text: {} } },
     { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
     { name: "story_limit", selector: { number: { min: 3, max: 20, mode: "slider" } } },
+    { name: "stories_per_feed", selector: { number: { min: 1, max: 10, mode: "slider" } } },
     { name: "group_by", selector: { select: { options: ["none", "source", "category"] } } },
     { name: "compact", selector: { boolean: {} } },
   ] }; }
-  static getStubConfig() { return { name: "Top Stories", entity: "sensor.jarvis_rss_top_stories", story_limit: 8, group_by: "source", compact: false }; }
+  static getStubConfig() { return { name: "Top Stories", entity: "sensor.jarvis_rss_top_stories", story_limit: 12, stories_per_feed: 3, group_by: "source", compact: false }; }
   render() {
     if (!this._config || !this._hass) return;
     const state = this._hass.states?.[this._config.entity];
-    const stories = (state?.attributes?.stories || []).slice(0, Number(this._config.story_limit) || 8);
+    const totalLimit = Number(this._config.story_limit) || 12;
+    const perFeedLimit = Number(this._config.stories_per_feed) || 3;
+    const sourceCounts = new Map();
+    const stories = (state?.attributes?.stories || []).filter((story) => {
+      const source = String(story.source || "RSS");
+      const count = sourceCounts.get(source) || 0;
+      if (count >= perFeedLimit) return false;
+      sourceCounts.set(source, count + 1);
+      return true;
+    }).slice(0, totalLimit);
     const groupBy = this._config.group_by || "source";
     const groups = new Map();
     for (const story of stories) { const key = groupBy === "none" ? "Latest" : (story[groupBy] || "Other"); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(story); }
