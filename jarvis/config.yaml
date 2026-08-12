@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.30.0"
+version: "0.34.0"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]
@@ -25,6 +25,8 @@ options:
   personality_verbosity: "concise"
   personality_proactivity: "balanced"
   preferred_address: ""
+  stewardship_enabled: true
+  stewardship_reconciliation_seconds: 300
 schema:
   openai_api_key: password
   bridge_api_key: password
@@ -40,3 +42,5 @@ schema:
   personality_verbosity: list(concise|balanced|detailed)
   personality_proactivity: list(reactive|balanced|proactive)
   preferred_address: str?
+  stewardship_enabled: bool
+  stewardship_reconciliation_seconds: int(30,3600)

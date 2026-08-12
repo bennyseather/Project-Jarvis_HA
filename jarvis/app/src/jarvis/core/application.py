@@ -84,6 +84,11 @@ from jarvis.hybrid_research import (
     SearXNGResearchClient,
 )
 from jarvis.episodic_memory import EpisodicMemoryManager, EpisodicPolicy
+from jarvis.homeassistant.stewardship import (
+    SQLiteStewardshipStore,
+    StewardshipController,
+    StewardshipPolicy,
+)
 
 
 class JarvisApplication:
@@ -165,6 +170,8 @@ class JarvisApplication:
                     self.container.timeline_task.cancel()
                 if self.container.proactive_task is not None:
                     self.container.proactive_task.cancel()
+                if self.container.stewardship_task is not None:
+                    self.container.stewardship_task.cancel()
                 if self.container.timeline_client is not None:
                     await self.container.timeline_client.disconnect()
                 if self.container.proactive_client is not None:
@@ -175,6 +182,7 @@ class JarvisApplication:
                 self.container.conversation_store.close()
                 self.container.reflection_store.close()
                 self.container.proactive_store.close()
+                self.container.stewardship_store.close()
                 self.container.confirmed_action_audit_store.close()
                 self.container.ai_usage_ledger.close()
         else:
@@ -346,6 +354,12 @@ class JarvisApplication:
             CompoundOrchestrationPolicy.from_config(
                 self.general.get("compound_orchestration", {})
             )
+        )
+        self.container.stewardship_policy = StewardshipPolicy.from_config(
+            self.general.get("stewardship", {})
+        )
+        self.container.stewardship_store = SQLiteStewardshipStore(
+            database_file, audit_limit=self.container.stewardship_policy.audit_limit
         )
         self.container.conversation_context_messages = context_messages
         self.container.confirmed_action_audit_store = SQLiteConfirmedActionAuditStore(database_file)
@@ -553,6 +567,13 @@ class JarvisApplication:
             self.container.home_assistant_action_gateway,
             self.container.compound_orchestration_policy,
         )
+        self.container.stewardship = StewardshipController(
+            self.container.home_assistant,
+            self.container.home_topology_assembler,
+            self.container.home_assistant_action_gateway,
+            self.container.stewardship_store,
+            self.container.stewardship_policy,
+        )
         self.container.contextual_goals = ContextualGoalManager(
             self.container.knowledge_store,
             self.container.compound_orchestration,
@@ -592,6 +613,10 @@ class JarvisApplication:
             )
             self.container.proactive_task = asyncio.create_task(
                 self._run_proactive_loop()
+            )
+        if self.container.stewardship_policy.enabled:
+            self.container.stewardship_task = asyncio.create_task(
+                self._run_stewardship_loop()
             )
 
         self.container.logger.info(
@@ -682,6 +707,10 @@ class JarvisApplication:
         if natural_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(natural_result))
             return natural_result
+        stewardship_result = await self.container.stewardship.handle(text, identifier)
+        if stewardship_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(stewardship_result))
+            return stewardship_result
         home_result = self._handle_home_access_command(text)
         if home_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(home_result))
@@ -832,6 +861,18 @@ class JarvisApplication:
                 f"Proactive assistance stopped safely: {error}"
             )
 
+    async def _run_stewardship_loop(self) -> None:
+        try:
+            while True:
+                await self.container.stewardship.reconcile()
+                await asyncio.sleep(
+                    self.container.stewardship_policy.reconciliation_seconds
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            self.container.logger.error(f"Stewardship reconciliation stopped safely: {error}")
+
     @staticmethod
     def _user_message(result: dict[str, object]) -> str:
         """Return a stable, safe console response for every runtime outcome."""
@@ -923,6 +964,8 @@ class JarvisApplication:
                         result = await self.container.compound_orchestration.confirm(
                             token, payload
                         )
+                    elif payload.get("kind") == "stewardship_mode":
+                        result = await self.container.stewardship.confirm(token, payload)
                     else:
                         result = await self.container.read_only_assistant.confirm_action(
                             token, payload

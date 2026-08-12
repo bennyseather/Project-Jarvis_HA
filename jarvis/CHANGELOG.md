@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.34.0
+
+- Add durable Home, Away, Vacation, and Custom stewardship modes.
+- Preview and confirm the complete bounded policy before activation.
+- Reconcile permitted lights and climate targets with expiry, exclusions, manual-override grace, partial-result reporting, and a bounded audit.
+- Keep locks, alarms, cameras, permissions, entity state, and service execution owned by Home Assistant.
+
 ## 0.33.0
 
 - Keep Qwen3-TTS as the primary voice regardless of generation latency.

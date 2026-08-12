@@ -26,6 +26,11 @@ persona["formality"] = str(options.get("personality_formality", "refined"))
 persona["verbosity"] = str(options.get("personality_verbosity", "concise"))
 persona["proactivity"] = str(options.get("personality_proactivity", "balanced"))
 persona["preferred_address"] = str(options.get("preferred_address", ""))
+stewardship = general.setdefault("stewardship", {})
+stewardship["enabled"] = bool(options.get("stewardship_enabled", True))
+stewardship["reconciliation_seconds"] = int(
+    options.get("stewardship_reconciliation_seconds", 300)
+)
 general_path.write_text(
     yaml.safe_dump(general, sort_keys=False, allow_unicode=True)
 )
