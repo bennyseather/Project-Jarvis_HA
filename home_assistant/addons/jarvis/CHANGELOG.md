@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.6
+
+- Add an exact-match local ZHA quirk for the NamronAS 4512751 dimmer.
+- Stop waiting for application responses the dimmer omits while preserving radio delivery errors.
+- Cover on/off and level-control commands with installation, verification, and rollback guidance.
+
 ## 0.34.5
 
 - Work around slow Qwen cold-cache playback by repeating the identical cached TTS request after generation.
