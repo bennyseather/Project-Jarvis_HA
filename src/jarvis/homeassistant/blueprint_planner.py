@@ -241,6 +241,18 @@ actions:
                 preferred_format: mp3
                 preferred_sample_rate: 44100
                 preferred_sample_channels: 2
+          - delay: "00:00:01"
+          - action: tts.speak
+            target:
+              entity_id: !input tts_entity
+            data:
+              media_player_entity_id: !input output_speaker
+              message: "{{{{ briefing }}}}"
+              cache: true
+              options:
+                preferred_format: mp3
+                preferred_sample_rate: 44100
+                preferred_sample_channels: 2
       - conditions:
           - condition: time
             after: "15:00:00"
@@ -267,6 +279,18 @@ actions:
                 next_appointments[0].summary ~ ' at ' ~
                 as_datetime(next_appointments[0].start).astimezone().strftime('%H:%M') ~ '.')
                 if next_appointments else 'There are no appointments on the next working day.' }}}}
+          - action: tts.speak
+            target:
+              entity_id: !input tts_entity
+            data:
+              media_player_entity_id: !input output_speaker
+              message: "{{{{ signoff }}}}"
+              cache: true
+              options:
+                preferred_format: mp3
+                preferred_sample_rate: 44100
+                preferred_sample_channels: 2
+          - delay: "00:00:01"
           - action: tts.speak
             target:
               entity_id: !input tts_entity
