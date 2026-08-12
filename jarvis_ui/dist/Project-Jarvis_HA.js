@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.36.2";
+const JARVIS_UI_VERSION = "0.36.3";
 
 const HISTORY_CACHE = new Map();
 const CALENDAR_CACHE = new Map();
@@ -464,10 +464,10 @@ class JarvisLightCard extends JarvisBaseCard {
     const state = this.cardState();
     const on = state?.state === "on";
     const brightness = Math.round(((state?.attributes?.brightness || 0) / 255) * 100);
-    this.shell(`<div class="light-layout"><div class="top"><button class="icon-shell light-toggle ${on ? "primary" : ""}" aria-label="Turn ${on ? "off" : "on"} ${escapeHtml(friendlyName(state, this._config))}" aria-pressed="${on}"><ha-icon icon="${escapeHtml(entityIcon(state, this._config))}"></ha-icon></button><div class="copy"><div class="eyebrow">Lighting array</div><div class="name">${escapeHtml(friendlyName(state, this._config))}</div><div class="state">${escapeHtml(formatState(state, this._config))}</div></div></div><div class="meter"><span>OUTPUT</span><b>${brightness}%</b><input aria-label="Brightness" type="range" min="0" max="100" value="${brightness}"></div></div>
-      <style>.light-layout{min-height:160px;padding:18px}.top{display:grid;grid-template-columns:54px minmax(0,1fr);gap:14px;align-items:center}.light-toggle{width:52px;height:52px;min-width:52px;min-height:52px;padding:0;touch-action:manipulation}.light-toggle ha-icon{--mdc-icon-size:29px}.meter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:20px;font:700 10px monospace;color:var(--secondary-text-color)}.meter input{grid-column:1/-1}.meter b{grid-column:3;color:var(--j-accent)}@media(max-width:900px){.light-layout{padding:14px}.top{grid-template-columns:58px minmax(0,1fr);gap:10px}.light-toggle{width:56px;height:56px;min-width:56px;min-height:56px}.light-toggle ha-icon{--mdc-icon-size:30px}.eyebrow{font-size:8px;letter-spacing:.13em}.name{font-size:14px}.meter{margin-top:14px;gap:8px}}</style>`,
+    this.shell(`<div class="light-layout"><div class="top"><div class="icon-shell light-toggle"><ha-icon icon="${escapeHtml(entityIcon(state, this._config))}"></ha-icon></div><div class="copy"><div class="eyebrow">Lighting array</div><div class="name">${escapeHtml(friendlyName(state, this._config))}</div><div class="state">${escapeHtml(formatState(state, this._config))}</div></div></div><div class="light-controls"><button data-service="turn_on" class="${on ? "primary" : ""}">ON</button><button data-service="turn_off" class="${!on ? "primary" : ""}">OFF</button></div><div class="meter"><span>OUTPUT</span><b>${brightness}%</b><input aria-label="Brightness" type="range" min="0" max="100" value="${brightness}"></div></div>
+      <style>.light-layout{min-height:190px;padding:18px}.top{display:grid;grid-template-columns:48px minmax(0,1fr);gap:14px;align-items:center}.light-toggle{width:46px;height:46px}.light-toggle ha-icon{--mdc-icon-size:27px}.light-controls{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:16px}.meter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:14px;font:700 10px monospace;color:var(--secondary-text-color)}.meter input{grid-column:1/-1}.meter b{grid-column:3;color:var(--j-accent)}@media(max-width:900px){.light-layout{padding:14px}.top{grid-template-columns:40px minmax(0,1fr);gap:8px}.light-toggle{width:38px;height:38px}.light-toggle ha-icon{--mdc-icon-size:23px}.eyebrow{font-size:8px;letter-spacing:.13em}.name{font-size:14px}.light-controls{margin-top:12px}.meter{margin-top:12px;gap:8px}}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
-    this.shadowRoot.querySelector(".light-toggle").addEventListener("click", () => this.call("light", "toggle"));
+    this.shadowRoot.querySelectorAll(".light-controls button").forEach((button) => button.addEventListener("click", () => this.call("light", button.dataset.service)));
     this.shadowRoot.querySelector("input").addEventListener("change", (event) => {
       const value = Number(event.target.value);
       this.call("light", "turn_on", { brightness_pct: value });
@@ -669,7 +669,7 @@ class JarvisSensorCard extends JarvisBaseCard {
     const state = this.cardState();
     const value = formatState(state, this._config);
     this.shell(`<div class="sensor-layout">${this.entityHeader("Telemetry")}<div class="value">${escapeHtml(value)}</div><div class="trace"><span>HISTORY LOADING</span></div></div>
-      <style>.sensor-layout{min-height:148px;padding:18px;display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.value{font:700 21px monospace;color:var(--j-accent)}.trace{grid-column:1/-1;height:38px;border-bottom:1px solid var(--j-line);overflow:hidden;display:grid;align-items:end}.trace span{align-self:center;font:600 8px monospace;letter-spacing:.12em;color:var(--secondary-text-color)}.trace svg{width:100%;height:36px;overflow:visible}.trace polyline{fill:none;stroke:var(--j-accent);stroke-width:2;filter:drop-shadow(0 0 4px var(--j-accent))}.binary-trace{height:24px;display:flex;gap:2px;align-items:end}.binary-trace i{flex:1;height:100%;background:var(--j-accent);opacity:.15}.binary-trace i.on{opacity:.8}</style>`,
+      <style>.sensor-layout{min-height:176px;padding:18px;display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.value{font:700 21px monospace;color:var(--j-accent)}.trace{grid-column:1/-1;height:64px;overflow:hidden;display:grid;align-items:end}.trace>span{align-self:center;font:600 8px monospace;letter-spacing:.12em;color:var(--secondary-text-color)}.history-chart{height:64px;display:grid;grid-template-columns:34px 1fr;grid-template-rows:46px 16px}.y-axis{display:flex;flex-direction:column;justify-content:space-between;font:600 8px monospace;color:var(--secondary-text-color);padding-right:5px;text-align:right}.plot{border-left:1px solid var(--j-line);border-bottom:1px solid var(--j-line);overflow:hidden}.plot svg{width:100%;height:45px;overflow:visible}.plot polyline{fill:none;stroke:var(--j-accent);stroke-width:2;filter:drop-shadow(0 0 4px var(--j-accent))}.x-axis{grid-column:2;display:flex;justify-content:space-between;padding-top:3px;font:600 8px monospace;color:var(--secondary-text-color)}.binary-trace{height:44px;display:flex;gap:2px;align-items:end;border-left:1px solid var(--j-line);border-bottom:1px solid var(--j-line)}.binary-trace i{flex:1;height:100%;background:var(--j-accent);opacity:.15}.binary-trace i.on{opacity:.8}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     if (this._visible) this.loadHistory();
   }
@@ -695,14 +695,22 @@ class JarvisSensorCard extends JarvisBaseCard {
     const states = entry.states || [];
     if (!states.length) { trace.innerHTML = "<span>NO HISTORY AVAILABLE</span>"; return; }
     if (entityDomain(this._config.entity) === "binary_sensor") {
-      trace.innerHTML = `<div class="binary-trace">${states.map((item) => `<i class="${item.state === "on" ? "on" : ""}"></i>`).join("")}</div>`;
+      const labels = this.historyTimeLabels(states, hours);
+      trace.innerHTML = `<div class="history-chart"><div class="y-axis"><span>ON</span><span>OFF</span></div><div class="binary-trace">${states.map((item) => `<i class="${item.state === "on" ? "on" : ""}"></i>`).join("")}</div><div class="x-axis"><span>${labels[0]}</span><span>${labels[1]}</span><span>${labels[2]}</span></div></div>`;
       return;
     }
     const numbers = states.map((item) => Number(item.state)).filter(Number.isFinite);
     if (numbers.length < 2) { trace.innerHTML = "<span>NO NUMERIC HISTORY</span>"; return; }
     const min = Math.min(...numbers), span = Math.max(0.001, Math.max(...numbers) - min);
     const points = numbers.map((number, index) => `${(index / (numbers.length - 1) * 100).toFixed(1)},${(34 - ((number - min) / span * 30)).toFixed(1)}`).join(" ");
-    trace.innerHTML = `<svg viewBox="0 0 100 36" preserveAspectRatio="none" aria-label="${hours} hour history"><polyline points="${points}"></polyline></svg>`;
+    const labels = this.historyTimeLabels(states, hours);
+    trace.innerHTML = `<div class="history-chart"><div class="y-axis"><span>${formatValue(Math.max(...numbers))}</span><span>${formatValue(Math.min(...numbers))}</span></div><div class="plot"><svg viewBox="0 0 100 36" preserveAspectRatio="none" aria-label="${hours} hour history"><polyline points="${points}"></polyline></svg></div><div class="x-axis"><span>${labels[0]}</span><span>${labels[1]}</span><span>${labels[2]}</span></div></div>`;
+  }
+  historyTimeLabels(states, hours) {
+    const end = new Date(states.at(-1)?.last_changed || Date.now());
+    const start = new Date(states[0]?.last_changed || end.getTime() - hours * 3600000);
+    const mid = new Date((start.getTime() + end.getTime()) / 2);
+    return [start, mid, end].map((date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
   }
 }
 
@@ -1348,12 +1356,16 @@ class JarvisWasherCard extends JarvisEntityCard {
     if (!this._config) return;
     const state = this.cardState();
     const remaining = stateObject(this._hass, this._config.remaining_entity || this._config.progress_entity);
-    const totalEntity = stateObject(this._hass, this._config.total_cycle_entity);
     const minutes = Number(remaining?.state);
-    const total = Number(totalEntity?.state || this._config.total_cycle_minutes);
-    const value = Number.isFinite(minutes) && Number.isFinite(total) && total > 0 ? Math.min(100, Math.max(0, (total - minutes) / total * 100)) : null;
+    if (Number.isFinite(minutes) && minutes > 0 &&
+        (!Number.isFinite(this._cycleStartMinutes) || this._lastMinutes === 0 || minutes > this._cycleStartMinutes)) {
+      this._cycleStartMinutes = minutes;
+    }
+    const value = Number.isFinite(minutes) && Number.isFinite(this._cycleStartMinutes) && this._cycleStartMinutes > 0 ?
+      Math.min(100, Math.max(0, (this._cycleStartMinutes - minutes) / this._cycleStartMinutes * 100)) : null;
+    this._lastMinutes = Number.isFinite(minutes) ? minutes : this._lastMinutes;
     const readout = Number.isFinite(minutes) ? `${formatValue(minutes)} min` : escapeHtml(String(state?.state || "unknown").toUpperCase());
-    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Laundry unit")}<div class="j-value">${readout}</div></div>${value == null ? '<div class="state">Configure total cycle time to calculate progress.</div>' : `<div class="energy-bar" aria-label="${formatValue(value)} percent complete"><i style="width:${value}%"></i></div><div class="state">${formatValue(value)}% complete</div>`}</div>
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Laundry unit")}<div class="j-value">${readout}</div></div>${value == null ? '<div class="state">Waiting for an active programme.</div>' : `<div class="energy-bar" aria-label="${formatValue(value)} percent complete"><i style="width:${value}%"></i></div><div class="state">${formatValue(value)}% complete</div>`}</div>
       <style>.energy-bar{height:9px;border:1px solid var(--j-line);padding:2px}.energy-bar i{display:block;height:100%;background:var(--j-accent)}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
   }
@@ -1720,17 +1732,17 @@ class JarvisCalendarCard extends JarvisBaseCard {
   static getConfigForm() { return { schema: [
     { name: "name", selector: { text: {} } },
     { name: "entities", required: true, selector: { entity: { domain: "calendar", multiple: true } } },
-    { name: "view", selector: { select: { options: ["month", "week", "agenda"] } } },
     { name: "appointment_limit", selector: { number: { min: 1, max: 20, mode: "slider" } } },
   ] }; }
-  static getStubConfig(hass) { return { name: "Calendar", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), view: "month", appointment_limit: 6 }; }
+  static getStubConfig(hass) { return { name: "Calendar Agenda", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), appointment_limit: 10 }; }
+  calendarView() { return "agenda"; }
   connectedCallback() { this._visible = false; this._observer = new IntersectionObserver((entries) => { this._visible = entries.some((entry) => entry.isIntersecting); if (this._visible) this.loadEvents(); }, { rootMargin: "160px" }); this._observer.observe(this); }
   disconnectedCallback() { this._observer?.disconnect(); }
   render() {
     if (!this._config) return;
     this._offset = this._offset || 0;
-    const view = this._config.view || "month";
-    this.shell(`<div class="calendar"><div class="calendar-head"><div><div class="eyebrow">Schedule channel</div><div class="title">${escapeHtml(this._config.name || "Calendar")}</div></div><div class="nav"><button data-nav="-1">&lt;</button><b>${view.toUpperCase()}</b><button data-nav="1">&gt;</button></div></div><div class="calendar-content"><span>CALENDAR LOADING</span></div></div><style>.calendar{padding:18px;min-height:300px}.calendar-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.title{font-size:21px;font-weight:700}.nav{display:flex;align-items:center;gap:7px}.nav b{font:700 9px monospace;color:var(--j-accent)}.nav button{min-width:36px}.calendar-content{margin-top:14px}.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.day{min-height:45px;padding:5px;border:1px solid rgba(32,216,255,.12);font:700 10px monospace}.day.has{border-color:var(--j-accent);background:rgba(32,216,255,.07)}.agenda{display:grid;gap:6px}.event{display:grid;grid-template-columns:70px 1fr;gap:9px;padding:8px;border-left:2px solid var(--j-accent);background:rgba(32,216,255,.04)}.event time{font:700 9px monospace;color:var(--j-accent)}.event span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@container(max-width:430px){.month-grid{display:none}.calendar{min-height:230px}}</style>`, { interactive: false });
+    const view = this.calendarView();
+    this.shell(`<div class="calendar"><div class="calendar-head"><div><div class="eyebrow">Schedule channel</div><div class="title">${escapeHtml(this._config.name || "Calendar")}</div></div><div class="nav"><button data-nav="-1">&lt;</button><b>${view.toUpperCase()}</b><button data-nav="1">&gt;</button></div></div><div class="calendar-content"><span>CALENDAR LOADING</span></div></div><style>.calendar{padding:18px;min-height:300px}.calendar-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.title{font-size:21px;font-weight:700}.nav{display:flex;align-items:center;gap:7px}.nav b{font:700 9px monospace;color:var(--j-accent)}.nav button{min-width:36px}.calendar-content{margin-top:14px}.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.day{min-height:45px;padding:5px;border:1px solid rgba(32,216,255,.12);font:700 10px monospace}.day.has{border-color:var(--j-accent);background:rgba(32,216,255,.07)}.agenda{display:grid;gap:10px}.agenda-day h3{margin:6px 0;font:700 10px monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--j-accent)}.event{display:grid;grid-template-columns:70px 1fr;gap:9px;padding:8px;border-left:2px solid var(--j-accent);background:rgba(32,216,255,.04)}.event time{font:700 9px monospace;color:var(--j-accent)}.event span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@container(max-width:430px){.month-grid{display:none}.calendar{min-height:230px}}</style>`, { interactive: false });
     this.shadowRoot.querySelectorAll("[data-nav]").forEach((button) => button.addEventListener("click", () => { this._offset += Number(button.dataset.nav); CALENDAR_CACHE.clear(); this.loadEvents(); }));
     if (this._visible) this.loadEvents();
   }
@@ -1738,7 +1750,7 @@ class JarvisCalendarCard extends JarvisBaseCard {
     const host = this.shadowRoot?.querySelector(".calendar-content");
     const entities = this._config?.entities || [];
     if (!host || !this._hass?.callApi || !entities.length || this._loadingEvents) return;
-    const view = this._config.view || "month", anchor = new Date();
+    const view = this.calendarView(), anchor = new Date();
     if (view === "month") anchor.setMonth(anchor.getMonth() + this._offset); else anchor.setDate(anchor.getDate() + this._offset * 7);
     const start = new Date(anchor); start.setHours(0, 0, 0, 0); const end = new Date(start);
     if (view === "month") { start.setDate(1); end.setMonth(end.getMonth() + 1, 1); } else { start.setDate(start.getDate() - start.getDay() + 1); end.setDate(start.getDate() + (view === "agenda" ? 30 : 7)); }
@@ -1751,12 +1763,20 @@ class JarvisCalendarCard extends JarvisBaseCard {
     }
     if (!this.shadowRoot?.contains(host)) return;
     const limit = Number(this._config.appointment_limit) || 6;
-    const agenda = cached.events.slice(0, limit).map((event) => { const date = new Date(event.start?.dateTime || event.start?.date); return `<div class="event"><time>${date.toLocaleDateString([], { weekday: "short" })} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><span>${escapeHtml(event.summary || "Calendar event")}</span></div>`; }).join("") || "<span>NO UPCOMING APPOINTMENTS</span>";
+    const grouped = new Map();
+    cached.events.slice(0, limit).forEach((event) => { const date = new Date(event.start?.dateTime || event.start?.date); const key = date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }); if (!grouped.has(key)) grouped.set(key, []); grouped.get(key).push({ event, date }); });
+    const agenda = [...grouped.entries()].map(([day, events]) => `<section class="agenda-day"><h3>${escapeHtml(day)}</h3>${events.map(({ event, date }) => `<div class="event"><time>${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><span>${escapeHtml(event.summary || "Calendar event")}</span></div>`).join("")}</section>`).join("") || "<span>NO UPCOMING APPOINTMENTS</span>";
     if (view !== "month") { host.innerHTML = `<div class="agenda">${agenda}</div>`; return; }
     const days = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate(); const first = (start.getDay() + 6) % 7;
     const cells = Array.from({ length: first }, () => "<div></div>").concat(Array.from({ length: days }, (_, index) => { const day = index + 1; const has = cached.events.some((event) => new Date(event.start?.dateTime || event.start?.date).getDate() === day); return `<div class="day ${has ? "has" : ""}">${day}</div>`; })).join("");
     host.innerHTML = `<div class="month-grid">${cells}</div><div class="agenda">${agenda}</div>`;
   }
+}
+
+class JarvisMonthCalendarCard extends JarvisCalendarCard {
+  static cardName = "Jarvis Month Calendar";
+  static getStubConfig(hass) { return { name: "Month Calendar", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), appointment_limit: 6 }; }
+  calendarView() { return "month"; }
 }
 
 class JarvisIconCatalogCard extends JarvisBaseCard {
@@ -1834,6 +1854,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-markup-card", JarvisMarkupCard, "Jarvis Markup", "Editable Jarvis information panel"],
   ["jarvis-car-card", JarvisCarCard, "Jarvis Car", "Vehicle location, battery, range and status"],
   ["jarvis-calendar-card", JarvisCalendarCard, "Jarvis Calendar", "Calendar views and upcoming appointments"],
+  ["jarvis-month-calendar-card", JarvisMonthCalendarCard, "Jarvis Month Calendar", "Dedicated monthly calendar grid"],
   ["jarvis-glance-card", JarvisGlanceCard, "Jarvis Glance", "Compact multi-entity overview"],
   ["jarvis-alerts-card", JarvisAlertsCard, "Jarvis Home Alerts", "Leaks, smoke, batteries and availability"],
   ["jarvis-network-card", JarvisNetworkCard, "Jarvis Network / NAS", "Network and storage telemetry"],
@@ -1860,6 +1881,7 @@ const CARD_DOMAINS = new Map([
   [JarvisSpotifyCard, ["media_player"]],
   [JarvisEvChargerCard, ["switch", "sensor"]],
   [JarvisCalendarCard, ["calendar"]],
+  [JarvisMonthCalendarCard, ["calendar"]],
 ]);
 
 window.customCards = window.customCards || [];

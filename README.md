@@ -13,6 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Dashboard Refinement 0.36.3
+
+Version 0.36.3 restores compact light icons with separate ON/OFF controls,
+makes washing-machine progress adapt to each programme, labels real sensor
+history axes, groups agenda appointments by day, and adds a dedicated month
+calendar card.
+
 ## Project Jarvis Dashboard Module Hotfix 0.36.2
 
 Version 0.36.2 removes a duplicate module-level editor helper declaration

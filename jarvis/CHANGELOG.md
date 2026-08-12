@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.36.3
+
+- Restore the compact light icon and add explicit ON/OFF controls.
+- Fill washer progress from programme start to zero minutes remaining.
+- Label sensor history with value and time axes.
+- Group calendar agendas by day and add a dedicated month calendar card.
+
 ## 0.36.2
 
 - Remove a duplicate module-level editor helper declaration that prevented the HACS JavaScript module from loading.

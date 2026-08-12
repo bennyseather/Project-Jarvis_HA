@@ -1,4 +1,4 @@
-# Project Jarvis UI 0.36.2
+# Project Jarvis UI 0.36.3
 
 Project Jarvis UI is a reusable Home Assistant theme, card library, icon set,
 and dashboard package. Cards use a squared technical HUD style and can be
@@ -29,7 +29,7 @@ Use Studio Code Server, File editor, or Samba to access `/config`.
    `/config/themes/jarvis-command-center.yaml`.
 3. Copy the `www/jarvis` folder into `/config/www/jarvis`.
 4. In Home Assistant, open **Settings -> Dashboards**, open the three-dot menu,
-   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.36.2`
+   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.36.3`
    as a **JavaScript module**.
 5. If you want the supplied dashboards, merge `configuration-snippet.yaml`
    into `/config/configuration.yaml`. Do not create a second `frontend:` or
@@ -61,7 +61,7 @@ editable through Home Assistant.
 - Scene / Script, Timer, Robot Mower, Washing Machine, and Spotify
 - EV Charger, universal Tile, and Markup
 - Car telemetry
-- Calendar with month, week, agenda, and upcoming appointments
+- Calendar Agenda grouped by day, plus a separate Month Calendar card
 - Glance, Home Alerts, Network / NAS, Climate Overview, Security Perimeter,
   and Energy Flow
 
@@ -79,10 +79,10 @@ All cards share hover/focus illumination, cyan/amber/green/red accent states,
 keyboard controls, responsive sizing, and reduced-motion support.
 Numeric sensor values displayed on Jarvis cards are limited to one decimal.
 Sensor cards request real Home Assistant history only while near the viewport,
-cache it for one minute, and cap rendered samples. Select 1, 6, 12, 24, or 48
-hours in the visual editor. Washing Machine cards interpret their configured
-remaining-time sensor as minutes and calculate completion when a total cycle
-duration is supplied.
+cache it for one minute, cap rendered samples, and label the graph with minimum,
+maximum, start, midpoint, and end values. Select 1, 6, 12, 24, or 48 hours in
+the visual editor. Washing Machine cards learn the active programme's starting
+minutes and fill from empty to complete as the remaining-time sensor reaches zero.
 
 The Voice card dispatches Home Assistant's standard Assist action. The separate
 Voice Satellite card can use a browser microphone over HTTPS for wake-word or
@@ -136,7 +136,7 @@ complete Home Assistant configuration.
 ## Update from an earlier UI release
 
 Replace both dashboard files, the theme, and the `www/jarvis` folder. Replace
-the old resource with `/local/jarvis/jarvis-ui.js?v=0.36.2`, restart Home
+the old resource with `/local/jarvis/jarvis-ui.js?v=0.36.3`, restart Home
 Assistant, and hard-refresh every client. The old JavaScript resource remains
 a compatibility loader, but the new URL is recommended.
 
