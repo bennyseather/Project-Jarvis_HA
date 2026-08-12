@@ -2,6 +2,14 @@
 
 Set an OpenAI API key and a long random bridge API key in the add-on options.
 
+## Blueprint planning
+
+Ask Jarvis to create a blueprint, then describe the trigger, conditions and
+actions. Jarvis generates an editor-compatible draft and asks for confirmation
+before writing it under `blueprints/automation/project_jarvis`. Afterward, use
+**Settings → Automations & scenes → Blueprints** to create an automation and
+choose its entities. Jarvis does not create or enable an automation silently.
+
 ## Stewardship modes
 
 Jarvis can maintain a confirmed Home, Away, Vacation, or Custom policy over

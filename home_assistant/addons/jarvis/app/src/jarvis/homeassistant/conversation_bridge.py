@@ -58,6 +58,11 @@ class JarvisConversationBridge:
                 )
                 if compound is not None:
                     compound.cancel(token)
+                blueprint = getattr(
+                    self._application.container, "blueprint_planner", None
+                )
+                if blueprint is not None:
+                    blueprint.cancel(token)
             else:
                 self._application.container.natural_memory_controller.cancel_confirmation(
                     token
@@ -93,6 +98,11 @@ class JarvisConversationBridge:
             )
             if compound is not None:
                 compound.cancel(token)
+            blueprint = getattr(
+                self._application.container, "blueprint_planner", None
+            )
+            if blueprint is not None:
+                blueprint.cancel(token)
             request_text = re.sub(
                 r"^\s*(?:(?:actually|instead|change that to|rather|just)\b[\s,:-]*)+",
                 "",
@@ -193,6 +203,10 @@ class JarvisConversationBridge:
             )
         elif payload.get("kind") == "stewardship_mode":
             result = await self._application.container.stewardship.confirm(
+                token, payload
+            )
+        elif payload.get("kind") == "blueprint_install":
+            result = self._application.container.blueprint_planner.confirm(
                 token, payload
             )
         else:

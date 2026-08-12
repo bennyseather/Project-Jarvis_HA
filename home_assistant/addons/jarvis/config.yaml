@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.34.0"
+version: "0.34.1"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]
@@ -10,6 +10,7 @@ ingress: true
 ingress_port: 8099
 map:
   - addon_config:rw
+  - homeassistant_config:rw
 options:
   openai_api_key: ""
   bridge_api_key: ""

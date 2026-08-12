@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.34.1
+
+- Route blueprint requests to a dedicated review-first planner instead of entity-state queries.
+- Add graphical trigger, action, target, weather, calendar, TTS, and speaker selectors.
+- Add a tailored Office Work Greeting blueprint with morning, afternoon, next-workday, and fallback branches.
+- Install generated YAML only after conversation-bound confirmation and keep automation creation inside Home Assistant.
+
 ## 0.34.0
 
 - Add durable Home, Away, Vacation, and Custom stewardship modes.

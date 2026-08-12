@@ -89,6 +89,7 @@ from jarvis.homeassistant.stewardship import (
     StewardshipController,
     StewardshipPolicy,
 )
+from jarvis.homeassistant.blueprint_planner import BlueprintPlanner
 
 
 class JarvisApplication:
@@ -360,6 +361,9 @@ class JarvisApplication:
         )
         self.container.stewardship_store = SQLiteStewardshipStore(
             database_file, audit_limit=self.container.stewardship_policy.audit_limit
+        )
+        self.container.blueprint_planner = BlueprintPlanner(
+            os.environ.get("JARVIS_BLUEPRINT_ROOT")
         )
         self.container.conversation_context_messages = context_messages
         self.container.confirmed_action_audit_store = SQLiteConfirmedActionAuditStore(database_file)
@@ -691,6 +695,10 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(personality_result)
             )
             return personality_result
+        blueprint_result = self.container.blueprint_planner.handle(text, identifier)
+        if blueprint_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(blueprint_result))
+            return blueprint_result
         research_control = self.container.research_controller.handle(text, identifier)
         if research_control is not None:
             conversation_store.add_message(
@@ -966,6 +974,8 @@ class JarvisApplication:
                         )
                     elif payload.get("kind") == "stewardship_mode":
                         result = await self.container.stewardship.confirm(token, payload)
+                    elif payload.get("kind") == "blueprint_install":
+                        result = self.container.blueprint_planner.confirm(token, payload)
                     else:
                         result = await self.container.read_only_assistant.confirm_action(
                             token, payload
