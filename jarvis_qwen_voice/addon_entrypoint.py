@@ -19,6 +19,8 @@ logging.basicConfig(
 
 def load_config(path: Path = Path("/data/options.json")) -> QwenConfig:
     options = json.loads(path.read_text(encoding="utf-8"))
+    legacy_segment_default = int(options.get("maximum_segment_characters", 180)) == 180
+    legacy_cache_default = int(options.get("response_cache_entries", 24)) == 24
     return QwenConfig(
         reference_audio=str(options.get(
             "reference_audio", "/share/jarvis_voice/qwen-reference.wav"
@@ -31,9 +33,10 @@ def load_config(path: Path = Path("/data/options.json")) -> QwenConfig:
         dtype="float32",
         cpu_threads=int(options.get("cpu_threads", 6)),
         maximum_segment_characters=int(
-            options.get("maximum_segment_characters", 180)
+            240 if legacy_segment_default else options.get("maximum_segment_characters", 240)
         ),
-        response_cache_entries=int(options.get("response_cache_entries", 24)),
+        response_cache_entries=int(40 if legacy_cache_default else options.get("response_cache_entries", 40)),
+        response_cache_dir=str(options.get("response_cache_dir", "/data/response-cache")),
     )
 
 

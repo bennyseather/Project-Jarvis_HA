@@ -51,6 +51,12 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         and source_engine == "qwen_1_7b"
         and float(options.get("generation_timeout", 30.0)) == 30.0
     )
+    latency_defaults = (
+        int(options.get("voice_revision", 9)) < 10
+        and source_engine == "qwen_1_7b"
+        and int(options.get("qwen_maximum_spoken_characters", 420)) == 420
+        and bool(options.get("qwen_buffer_before_playback", True))
+    )
     engine = "piper_m40" if m40_defaults else "piper_m39" if m39_defaults else source_engine
     return VoiceProxyConfig(
         upstream_host=str(options.get("upstream_host", "core-piper")),
@@ -112,10 +118,10 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         qwen_filter_strength=float(options.get("qwen_filter_strength", 0.55)),
         qwen_connect_timeout=float(options.get("qwen_connect_timeout", 3.0)),
         qwen_maximum_spoken_characters=int(
-            options.get("qwen_maximum_spoken_characters", 420)
+            260 if latency_defaults else options.get("qwen_maximum_spoken_characters", 260)
         ),
         qwen_buffer_before_playback=bool(
-            options.get("qwen_buffer_before_playback", True)
+            False if latency_defaults else options.get("qwen_buffer_before_playback", False)
         ),
         qwen_maximum_buffer_bytes=int(
             options.get("qwen_maximum_buffer_megabytes", 64)

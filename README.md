@@ -13,11 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Morning Stewardship Transition 0.38.4
+## Project Jarvis CPU Voice Latency Optimisation 0.38.5
 
-Version 0.38.4 lets morning phrases end sleep stewardship, restore the saved
-pre-sleep state, and switch on authorized interior lights. Outdoor and garden
-lights remain excluded, and morning greetings do not end away or vacation mode.
+Version 0.38.5 reduces Qwen CPU voice latency without changing Jarvis reasoning
+or home control. Clean audio now streams after the first generated segment,
+adjacent sentences are packed into fewer inference calls, spoken responses are
+bounded naturally, and common generated replies persist in a bounded cache.
 
 ## Project Jarvis Stewardship Departure Hotfix 0.38.2
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.38.5
+
+- Stream clean Qwen audio as soon as the first generated segment is available.
+- Pack adjacent sentences into fewer CPU generation calls and bound spoken replies to 260 characters.
+- Persist a bounded cache of generated replies across Qwen worker restarts.
+- Preserve customized buffering and spoken-length settings during migration.
+
 ## 0.38.4
 
 - End sleep stewardship when a morning greeting or wake-up phrase is received.

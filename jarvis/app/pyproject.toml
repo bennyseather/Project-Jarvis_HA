@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jarvis"
-version = "0.38.4"
+version = "0.38.5"
 description = "AI-powered Home Assistant companion"
 readme = "README.md"
 requires-python = ">=3.13"

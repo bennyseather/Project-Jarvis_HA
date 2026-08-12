@@ -6,6 +6,8 @@ import asyncio
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
+import hashlib
+import json
 import re
 import time
 
@@ -21,6 +23,7 @@ class QwenConfig:
     cpu_threads: int = 6
     maximum_segment_characters: int = 180
     response_cache_entries: int = 24
+    response_cache_dir: str = "/data/response-cache"
 
 
 class QwenVoiceEngine:
@@ -49,6 +52,8 @@ class QwenVoiceEngine:
             request_started = time.monotonic()
             cache_key = normalize_cache_key(text)
             cached = self._response_cache.get(cache_key)
+            if cached is None:
+                cached = self._load_persistent_cache(cache_key)
             if cached is not None:
                 self.cache_hits += 1
                 self._response_cache.move_to_end(cache_key)
@@ -78,6 +83,50 @@ class QwenVoiceEngine:
                 self._response_cache.move_to_end(cache_key)
                 while len(self._response_cache) > self.config.response_cache_entries:
                     self._response_cache.popitem(last=False)
+                self._save_persistent_cache(cache_key, tuple(generated))
+
+    def _cache_path(self, cache_key: str) -> Path:
+        digest = hashlib.sha256(cache_key.encode("utf-8")).hexdigest()
+        return Path(self.config.response_cache_dir) / f"{digest}.json"
+
+    def _load_persistent_cache(self, cache_key: str):
+        if self.config.response_cache_entries <= 0:
+            return None
+        path = self._cache_path(cache_key)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if payload.get("key") != cache_key:
+                return None
+            cached = tuple(
+                (bytes.fromhex(item["pcm"]), int(item["rate"]), str(item["segment"]))
+                for item in payload["segments"]
+            )
+            self._response_cache[cache_key] = cached
+            self._response_cache.move_to_end(cache_key)
+            return cached
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def _save_persistent_cache(self, cache_key: str, generated) -> None:
+        directory = Path(self.config.response_cache_dir)
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            path = self._cache_path(cache_key)
+            payload = {
+                "key": cache_key,
+                "segments": [
+                    {"pcm": pcm.hex(), "rate": rate, "segment": segment}
+                    for pcm, rate, segment in generated
+                ],
+            }
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+            temporary.replace(path)
+            files = sorted(directory.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+            for stale in files[self.config.response_cache_entries:]:
+                stale.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def _prepare_sync(self) -> None:
         reference = Path(self.config.reference_audio)
@@ -164,17 +213,23 @@ def split_segments(text: str, maximum: int = 180) -> tuple[str, ...]:
         for part in re.split(r"(?<=[.!?])\s+", protected)
         if part.strip()
     ]
-    output: list[str] = []
+    raw: list[str] = []
     for sentence in sentences:
         remaining = sentence.strip()
         while len(remaining) > maximum:
             cut = remaining.rfind(" ", 0, maximum + 1)
             if cut < maximum // 2:
                 cut = maximum
-            output.append(remaining[:cut].strip())
+            raw.append(remaining[:cut].strip())
             remaining = remaining[cut:].strip()
         if remaining:
-            output.append(remaining)
+            raw.append(remaining)
+    output: list[str] = []
+    for part in raw:
+        if output and len(output[-1]) + 1 + len(part) <= maximum:
+            output[-1] += " " + part
+        else:
+            output.append(part)
     return tuple(output)
 
 

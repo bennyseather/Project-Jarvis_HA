@@ -49,8 +49,8 @@ class VoiceProxyConfig:
     qwen_filter: str = "clean"
     qwen_filter_strength: float = 0.55
     qwen_connect_timeout: float = 3.0
-    qwen_maximum_spoken_characters: int = 420
-    qwen_buffer_before_playback: bool = True
+    qwen_maximum_spoken_characters: int = 260
+    qwen_buffer_before_playback: bool = False
     qwen_maximum_buffer_bytes: int = 67108864
 
 
