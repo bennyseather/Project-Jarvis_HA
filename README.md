@@ -13,9 +13,9 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis RSS News Ticker 0.40.0
+## Project Jarvis RSS Cards 0.40.1
 
-Version 0.40.0 adds a private RSS/Atom add-on, Home Assistant RSS entities and
+Version 0.40.1 adds a private RSS/Atom add-on, Home Assistant RSS entities and
 services, deterministic Jarvis news summaries with spoken-link suppression,
 and a responsive visual-editor RSS card. Feed content is sanitized, bounded,
 deduplicated, cached locally, and cannot authorize Home Assistant actions.

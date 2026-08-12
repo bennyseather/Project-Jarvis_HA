@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.40.1
+
+- Add a per-feed story limit to the Jarvis RSS Intelligence card.
+- Apply per-feed limits before the card-wide maximum to balance sources.
+
 ## 0.40.0
 
 - Add the full-width, visual-editor-compatible Jarvis RSS News Ticker card.
