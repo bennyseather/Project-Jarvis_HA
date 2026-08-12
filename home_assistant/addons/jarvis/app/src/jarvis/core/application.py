@@ -532,13 +532,18 @@ class JarvisApplication:
         )
         floor_members = self.container.home_topology_assembler.floor_references
         self.container.read_only_assistant._allowed_entity_ids = allowed_reads
-        self.container.read_only_assistant._resolver = EntityReferenceResolver(
+        reference_resolver = EntityReferenceResolver(
             permitted,
             ha_config.get("entity_aliases", {}),
             names,
             area_members,
             groups,
             floor_members,
+        )
+        self.container.read_only_assistant._resolver = reference_resolver
+        self.container.adaptive_preferences.set_area_references(
+            area_members,
+            ha_config.get("area_aliases", {}),
         )
         self.container.home_assistant_capability_context = HomeAssistantCapabilityContext(
             catalog,

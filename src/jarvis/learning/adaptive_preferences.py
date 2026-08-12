@@ -144,6 +144,19 @@ class AdaptivePreferenceController:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._pending = {}
         self._last_key = {}
+        self._area_names = ()
+        self._area_aliases = {}
+
+    def set_area_references(self, area_names, aliases=None):
+        """Install current HA area names and safely canonicalize stored scopes."""
+        self._area_names = tuple(sorted({self._normalize_area(name) for name in area_names if name}))
+        aliases = aliases or {}
+        self._area_aliases = {
+            self._normalize_area(alias): self._normalize_area(target)
+            for alias, target in aliases.items()
+            if alias and target
+        }
+        self._canonicalize_existing()
 
     def handle(self, text, conversation_id):
         if not self.policy.enabled:
@@ -314,9 +327,61 @@ class AdaptivePreferenceController:
             return "lighting", self._scope(lighting.group(1)), str(int(lighting.group(2)))
         return None
 
+    def _scope(self, value):
+        canonical = self._canonical_area(value)
+        normalized = canonical or self._normalize_area(value)
+        return re.sub(r"[^a-z0-9]+", "_", normalized).strip("_")
+
+    def _canonical_area(self, value):
+        normalized = self._normalize_area(value)
+        if not self._area_names:
+            return normalized
+        normalized = self._area_aliases.get(normalized, normalized)
+        if normalized in self._area_names:
+            return normalized
+        words = set(normalized.split())
+        candidates = tuple(
+            area for area in self._area_names
+            if words <= set(area.split()) or set(area.split()) <= words
+        )
+        return candidates[0] if len(candidates) == 1 else None
+
     @staticmethod
-    def _scope(value):
-        return re.sub(r"[^a-z0-9]+", "_", value.casefold()).strip("_")
+    def _normalize_area(value):
+        words = re.sub(r"[^a-z0-9]+", " ", str(value).casefold()).split()
+        while words and words[0] in {"my", "the", "our", "a", "an"}:
+            words.pop(0)
+        while words and words[-1] == "area":
+            words.pop()
+        return " ".join(words)
+
+    def _canonicalize_existing(self):
+        for item in self.store.list():
+            canonical = self._canonical_area(item.scope.replace("_", " "))
+            if canonical is None:
+                continue
+            scope = re.sub(r"[^a-z0-9]+", "_", canonical).strip("_")
+            key = f"{item.category}.{scope}"
+            if key == item.key:
+                continue
+            existing = self.store.get_by_key(key)
+            if existing is not None and existing.value != item.value:
+                continue
+            if existing is None:
+                self.store.delete(item.preference_id)
+                self.store.save(replace(item, key=key, scope=scope))
+                continue
+            merged = replace(
+                existing,
+                evidence_count=max(existing.evidence_count, item.evidence_count),
+                confidence=max(existing.confidence, item.confidence),
+                status="approved" if "approved" in {existing.status, item.status} else existing.status,
+                first_observed_at=min(existing.first_observed_at, item.first_observed_at),
+                last_observed_at=max(existing.last_observed_at, item.last_observed_at),
+                evidence=(existing.evidence + item.evidence)[-5:],
+            )
+            self.store.delete(item.preference_id)
+            self.store.save(merged)
 
     @staticmethod
     def _describe(item):

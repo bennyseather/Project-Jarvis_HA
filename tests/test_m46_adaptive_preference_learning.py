@@ -5,6 +5,7 @@ from pathlib import Path
 
 from jarvis.learning.adaptive_preferences import (
     AdaptiveLearningPolicy,
+    AdaptivePreference,
     AdaptivePreferenceController,
     SQLiteAdaptivePreferenceStore,
 )
@@ -35,6 +36,7 @@ class M46AdaptivePreferenceLearningTests(unittest.TestCase):
         self.assertEqual(self.controller.context()[0]["value"], "21.0")
 
     def test_equivalent_temperature_wording_stays_in_adaptive_learning(self):
+        self.controller.set_area_references(("upstairs office", "living room"))
         self.controller.handle("I prefer the upstairs office at 21 degrees", "c1")
         self.controller.handle("I prefer the upstairs office at 21 degrees", "c1")
         result = self.controller.handle(
@@ -44,6 +46,37 @@ class M46AdaptivePreferenceLearningTests(unittest.TestCase):
         item = self.store.list()[0]
         self.assertEqual(item.evidence_count, 3)
         self.assertEqual(item.key, "temperature.upstairs_office")
+
+    def test_all_ha_areas_use_canonical_names_and_ambiguous_partial_names_do_not_merge(self):
+        self.controller.set_area_references(
+            ("upstairs office", "living room", "guest bedroom"),
+            {"lounge": "living room"},
+        )
+        self.controller.handle("I prefer my office at 21 degrees", "c1")
+        self.controller.handle("I prefer the upstairs office at 21 degrees", "c1")
+        result = self.controller.handle("I like office temperature to be 21 degrees", "c1")
+        self.assertIn("automatically approved", result["message"])
+        self.assertEqual(self.store.list()[0].key, "temperature.upstairs_office")
+        for phrase in ("the living room", "my lounge", "living room area"):
+            self.controller.handle(f"I prefer {phrase} at 20 degrees", "c2")
+        self.assertEqual(self.store.get_by_key("temperature.living_room").status, "approved")
+
+    def test_existing_article_and_possessive_scopes_migrate_to_area(self):
+        timestamp = self.now.isoformat()
+        self.store.save(AdaptivePreference(
+            "one", "temperature.my_office", "temperature", "my_office", "21.0",
+            3, 0.95, "approved", timestamp, timestamp, ("first",),
+        ))
+        self.store.save(AdaptivePreference(
+            "two", "temperature.office", "temperature", "office", "21.0",
+            1, 0.55, "observed", timestamp, timestamp, ("second",),
+        ))
+        self.assertEqual(len(self.store.list()), 2)
+        self.controller.set_area_references(("upstairs office",))
+        self.assertEqual(len(self.store.list()), 1)
+        item = self.store.list()[0]
+        self.assertEqual(item.key, "temperature.upstairs_office")
+        self.assertEqual(item.status, "approved")
 
     def test_restart_persistence_explanation_correction_and_deletion(self):
         for _ in range(3):

@@ -17,6 +17,8 @@ observations automatically become available to Jarvis reasoning context.
 ## Scope
 
 - Deterministic temperature and lighting preference observations.
+- Canonical scope resolution across all Home Assistant areas, configured aliases,
+  articles, possessives and unique partial room names.
 - Three observations by default before a suggestion is eligible.
 - Automatic approval after three consistent safe observations.
 - SQLite persistence, bounded evidence and audit history.

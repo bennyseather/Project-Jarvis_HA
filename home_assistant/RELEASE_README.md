@@ -13,10 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Adaptive Preference Learning 0.35.2
+## Project Jarvis Adaptive Preference Learning 0.35.3
 
-Version 0.35.2 adds threshold-gated adaptive preference learning and keeps
-equivalent preference wording in the same evidence ledger. Jarvis accumulates
+Version 0.35.3 adds threshold-gated adaptive preference learning and resolves
+preference scopes against every discovered Home Assistant area. Articles,
+possessives, configured aliases, and unique partial room names share one evidence
+ledger. Jarvis accumulates
 repeated temperature and lighting preferences and automatically approves a safe
 preference after three consistent observations. Nothing learned affects
 reasoning before that threshold.
