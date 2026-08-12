@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.1
+
+- Publish the dashboard resource at the root filename required by HACS.
+
 ## 0.36.0
 
 - Refine light, cover, washing-machine, and sensor cards for touch use and real telemetry.
