@@ -101,7 +101,11 @@ class BlueprintPlanner:
 
     @staticmethod
     def _name(text):
-        match = re.search(r"\bname\s*:\s*([^\r\n]+)", text, re.IGNORECASE)
+        match = re.search(
+            r"\bname\s*:\s*(.+?)(?=\s+(?:trigger|conditions?|actions?)\s*:|[\r\n]|$)",
+            text,
+            re.IGNORECASE,
+        )
         return (match.group(1).strip() if match else "Jarvis generated automation")[:80]
 
     @staticmethod
@@ -200,6 +204,7 @@ actions:
             before: "10:00:00"
         sequence:
           - action: homeassistant.turn_on
+            continue_on_error: true
             target: !input office_targets
           - action: weather.get_forecasts
             target:
@@ -211,59 +216,61 @@ actions:
             target:
               entity_id: !input work_calendar
             data:
-              start_date_time: "{{ today_at('00:00') }}"
-              end_date_time: "{{ today_at('00:00') + timedelta(days=1) }}"
+              start_date_time: "{{{{ today_at('00:00') }}}}"
+              end_date_time: "{{{{ today_at('00:00') + timedelta(days=1) }}}}"
             response_variable: today_agenda
           - variables:
-              forecast: "{{ daily_weather.get(weather_entity, {{}}).get('forecast', []) }}"
-              appointments: "{{ today_agenda.get(work_calendar, {{}}).get('events', []) }}"
+              forecast: "{{{{ daily_weather.get(weather_entity, {{}}).get('forecast', []) }}}}"
+              appointments: "{{{{ today_agenda.get(work_calendar, {{}}).get('events', []) }}}}"
               briefing: >-
-                Good morning, Benny. It is {{ now().strftime('%H:%M') }}.
-                {{ ('Today will be ' ~ forecast[0].condition | replace('_', ' ') ~
+                Good morning, Benny. It is {{{{ now().strftime('%H:%M') }}}}.
+                {{{{ ('Today will be ' ~ forecast[0].condition | replace('_', ' ') ~
                 ', with a high of ' ~ forecast[0].temperature ~ ' degrees.') if forecast else
-                'The weather forecast is unavailable.' }}
-                You have {{ appointments | count }} appointment{{ '' if appointments | count == 1 else 's' }} today.
-                {{ ('The first is ' ~ appointments[0].summary ~ ' at ' ~
-                as_datetime(appointments[0].start).astimezone().strftime('%H:%M') ~ '.') if appointments else '' }}
+                'The weather forecast is unavailable.' }}}}
+                You have {{{{ appointments | count }}}} appointment{{{{ '' if appointments | count == 1 else 's' }}}} today.
+                {{{{ ('The first is ' ~ appointments[0].summary ~ ' at ' ~
+                as_datetime(appointments[0].start).astimezone().strftime('%H:%M') ~ '.') if appointments else '' }}}}
           - action: tts.speak
             target:
               entity_id: !input tts_entity
             data:
               media_player_entity_id: !input output_speaker
-              message: "{{ briefing }}"
+              message: "{{{{ briefing }}}}"
       - conditions:
           - condition: time
             after: "15:00:00"
             before: "18:00:00"
         sequence:
           - action: homeassistant.turn_off
+            continue_on_error: true
             target: !input office_targets
           - variables:
-              days_ahead: "{{ 3 if now().weekday() == 4 else 1 }}"
-              next_day: "{{ today_at('00:00') + timedelta(days=days_ahead) }}"
+              days_ahead: "{{{{ 3 if now().weekday() == 4 else 1 }}}}"
+              next_day: "{{{{ today_at('00:00') + timedelta(days=days_ahead) }}}}"
           - action: calendar.get_events
             target:
               entity_id: !input work_calendar
             data:
-              start_date_time: "{{ next_day }}"
-              end_date_time: "{{ next_day + timedelta(days=1) }}"
+              start_date_time: "{{{{ next_day }}}}"
+              end_date_time: "{{{{ next_day + timedelta(days=1) }}}}"
             response_variable: next_agenda
           - variables:
-              next_appointments: "{{ next_agenda.get(work_calendar, {{}}).get('events', []) }}"
+              next_appointments: "{{{{ next_agenda.get(work_calendar, {{}}).get('events', []) }}}}"
               signoff: >-
                 You had a productive day at work, Benny.
-                {{ ('Your first appointment on the next working day is ' ~
+                {{{{ ('Your first appointment on the next working day is ' ~
                 next_appointments[0].summary ~ ' at ' ~
                 as_datetime(next_appointments[0].start).astimezone().strftime('%H:%M') ~ '.')
-                if next_appointments else 'There are no appointments on the next working day.' }}
+                if next_appointments else 'There are no appointments on the next working day.' }}}}
           - action: tts.speak
             target:
               entity_id: !input tts_entity
             data:
               media_player_entity_id: !input output_speaker
-              message: "{{ signoff }}"
+              message: "{{{{ signoff }}}}"
     default:
       - action: homeassistant.toggle
+        continue_on_error: true
         target: !input office_targets
 mode: single
 '''
