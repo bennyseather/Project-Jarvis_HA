@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.36.3";
+const JARVIS_UI_VERSION = "0.37.0";
 
 const HISTORY_CACHE = new Map();
 const CALENDAR_CACHE = new Map();
