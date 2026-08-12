@@ -13,11 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Immediate Stewardship Activation 0.38.3
+## Project Jarvis Morning Stewardship Transition 0.38.4
 
-Version 0.38.3 activates stewardship commands immediately without a separate
-confirmation step. Authorization, target limits, security exclusions,
-restoration, manual overrides, notifications, and auditing remain enforced.
+Version 0.38.4 lets morning phrases end sleep stewardship, restore the saved
+pre-sleep state, and switch on authorized interior lights. Outdoor and garden
+lights remain excluded, and morning greetings do not end away or vacation mode.
 
 ## Project Jarvis Stewardship Departure Hotfix 0.38.2
 

@@ -129,6 +129,11 @@ class StewardshipController:
             return self.status()
         if normalized in {"show stewardship audit", "show stewardship history", "what has stewardship done"}:
             return self.audit_status()
+        if self._is_morning_return(normalized):
+            active = self.store.active()
+            if active is not None and active.name == "sleep":
+                return await self._end_sleep_and_start_morning(active)
+            return None
         if self._is_return_home(normalized):
             return await self.cancel()
         if not self._is_mode_request(normalized): return None
@@ -176,6 +181,34 @@ class StewardshipController:
         restoration = await self._restore(mode)
         self.store.clear(); self.store.clear_alerts(); self.store.audit("cancelled", {"mode": mode.name, "mode_id": mode.mode_id, "restored": restoration[0], "failed": restoration[1]}, self._clock())
         return {"status": "success" if not restoration[1] else "unavailable", "message": f"{mode.name.title()} stewardship mode has ended. Restored {restoration[0]} prior Home Assistant states; {restoration[1]} were unavailable."}
+
+    async def _end_sleep_and_start_morning(self, mode):
+        restored, failed = await self._restore(mode)
+        self.store.clear(); self.store.clear_alerts()
+        try:
+            snapshot = self._assembler.assemble(await self._client.get_states(), captured_at=self._clock())
+        except Exception:
+            self.store.audit("morning_started", {"mode": mode.name, "restored": restored, "failed": failed, "lights_on": 0, "snapshot_unavailable": True}, self._clock())
+            return {"status": "unavailable", "message": f"Good morning. Sleep stewardship has ended and {restored} prior states were restored, but Home Assistant state was unavailable for the interior lights."}
+        targets = tuple(
+            entity.entity_id for entity in snapshot.entities
+            if entity.domain == "light" and entity.action_allowed
+            and entity.state not in {"on", "unavailable", "unknown"}
+            and self._is_interior_light(entity)
+        )
+        lights_on = 0
+        for chunk in self._chunks(targets):
+            proposal = HomeAssistantActionProposal("light", "turn_on", chunk, {}, "Stewardship: morning interior lights")
+            if self._gateway.request(proposal).get("status") != "immediate_action":
+                failed += len(chunk)
+                continue
+            result = await self._gateway.execute_immediate(proposal)
+            lights_on += len(result.get("succeeded", ())); failed += len(result.get("failed", ()))
+        self.store.audit("morning_started", {"mode": mode.name, "restored": restored, "failed": failed, "lights_on": lights_on}, self._clock())
+        return {
+            "status": "success" if not failed else "unavailable",
+            "message": f"Good morning. Sleep stewardship has ended, {restored} prior states were restored, and {lights_on} interior lights were switched on; {failed} actions were unavailable.",
+        }
 
     async def reconcile(self):
         mode = self.store.active()
@@ -329,6 +362,15 @@ class StewardshipController:
         except (TypeError, ValueError): return True
 
     @staticmethod
+    def _is_interior_light(entity):
+        description = " ".join(filter(None, (entity.entity_id, entity.friendly_name, entity.area_name))).casefold()
+        exterior_terms = (
+            "exterior", "outdoor", "outside", "garden", "driveway", "terrace",
+            "balcony", "porch", "facade", "carport", "yard",
+        )
+        return not any(term in description for term in exterior_terms)
+
+    @staticmethod
     def _is_mode_request(text):
         return any(phrase in text for phrase in (
             "vacation mode", "away mode", "sleep mode", "home mode", "stewardship mode",
@@ -374,6 +416,14 @@ class StewardshipController:
             r"(?:hi jarvis,?\s+)?(?:i(?: am|'m|m)|we(?: are|'re|re))\s+(?:back\s+)?home(?:\s+now)?",
             text,
         ))
+
+    @staticmethod
+    def _is_morning_return(text):
+        return text in {
+            "good morning", "morning", "i am awake", "i'm awake", "im awake",
+            "we are awake", "we're awake", "were awake", "wake up the house",
+            "start the morning", "start morning mode",
+        }
 
     @staticmethod
     def _chunks(values, size=20):

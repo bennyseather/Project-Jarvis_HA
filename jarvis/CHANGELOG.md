@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.38.4
+
+- End sleep stewardship when a morning greeting or wake-up phrase is received.
+- Restore the saved pre-sleep state and switch on authorized interior lights.
+- Keep away and vacation stewardship active on morning greetings.
+
 ## 0.38.3
 
 - Activate stewardship immediately without confirmation while retaining authorization, target caps, exclusions, restoration, and auditing.
