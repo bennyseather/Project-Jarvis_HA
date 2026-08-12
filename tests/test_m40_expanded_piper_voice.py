@@ -24,7 +24,7 @@ class M40ExpandedPiperVoiceTests(unittest.TestCase):
             "/share/jarvis_voice/jarvis-piper-m40.zip",
         )
         service = _voice_info("piper_m40", ready=True).data["tts"][0]
-        self.assertEqual(service["version"], "0.33.0")
+        self.assertEqual(service["version"], "0.34.3")
         self.assertEqual(service["voices"][0]["name"], "jarvis_m40")
         self.assertTrue(service["voices"][0]["installed"])
 

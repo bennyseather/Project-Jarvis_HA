@@ -17,7 +17,19 @@ sys.path.append(str(WORKER))
 from addon_entrypoint import load_config  # noqa: E402
 from dsp import PROFILES, process_voice_pcm16  # noqa: E402
 from qwen_engine import QwenConfig, QwenVoiceEngine, split_segments  # noqa: E402
-from server import VoiceProxyConfig, _bounded_spoken_text, _voice_info  # noqa: E402
+from protocol import Event, read_event, write_event  # noqa: E402
+from server import VoiceProxy, VoiceProxyConfig, _bounded_spoken_text, _voice_info  # noqa: E402
+
+
+class MemoryWriter:
+    def __init__(self):
+        self.buffer = bytearray()
+
+    def write(self, data):
+        self.buffer.extend(data)
+
+    async def drain(self):
+        return None
 
 
 class FakePromptModel:
@@ -36,12 +48,13 @@ class FakePromptModel:
         return [np.array([0.0, 0.25, -0.25], dtype=np.float32)], 24000
 
 
-class M41QwenJarvisVoiceTests(unittest.TestCase):
+class M41QwenJarvisVoiceTests(unittest.IsolatedAsyncioTestCase):
     def test_release_defaults_to_remote_qwen_and_clean_filter(self):
         defaults = VoiceProxyConfig()
         self.assertEqual(defaults.engine, "qwen_1_7b")
         self.assertEqual(defaults.qwen_filter, "clean")
         self.assertEqual(defaults.qwen_port, 10400)
+        self.assertTrue(defaults.qwen_buffer_before_playback)
         service = _voice_info("qwen_1_7b", ready=True).data["tts"][0]
         self.assertEqual(service["voices"][0]["name"], "jarvis_qwen")
         self.assertIn("Qwen3-TTS", service["description"])
@@ -63,6 +76,32 @@ class M41QwenJarvisVoiceTests(unittest.TestCase):
         self.assertEqual(loaded.qwen_filter_strength, 0.62)
         self.assertEqual(loaded.generation_timeout, 300.0)
         self.assertEqual(loaded.qwen_maximum_spoken_characters, 420)
+        self.assertTrue(loaded.qwen_buffer_before_playback)
+        self.assertEqual(loaded.qwen_maximum_buffer_bytes, 64 * 1024 * 1024)
+
+    async def test_m43_cast_delivery_waits_for_complete_qwen_audio(self):
+        upstream = asyncio.StreamReader()
+        client = MemoryWriter()
+        source = MemoryWriter()
+        metadata = {"rate": 24000, "width": 2, "channels": 1}
+        await write_event(source, Event({"type": "audio-start"}, metadata))
+        await write_event(source, Event({"type": "audio-chunk"}, metadata, b"\x01\x02" * 8000))
+        upstream.feed_data(bytes(source.buffer))
+        proxy = VoiceProxy(VoiceProxyConfig(qwen_maximum_buffer_bytes=1024 * 1024))
+        task = asyncio.create_task(proxy._relay_synthesis_buffered(upstream, client))
+        await asyncio.sleep(0)
+        self.assertEqual(client.buffer, b"")
+        stop = MemoryWriter()
+        await write_event(stop, Event({"type": "audio-stop"}, {}))
+        upstream.feed_data(bytes(stop.buffer))
+        upstream.feed_eof()
+        await task
+        received = asyncio.StreamReader()
+        received.feed_data(bytes(client.buffer))
+        received.feed_eof()
+        self.assertEqual((await read_event(received)).type, "audio-start")
+        self.assertEqual((await read_event(received)).type, "audio-chunk")
+        self.assertEqual((await read_event(received)).type, "audio-stop")
 
     def test_m42_migrates_only_untouched_cpu_timeout(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -128,7 +167,7 @@ class M41QwenJarvisVoiceTests(unittest.TestCase):
         self.assertIn("./private:/data/private:ro", compose)
         self.assertFalse((WORKER / "reference.wav").exists())
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-        self.assertIn('version: "0.33.0"', config)
+        self.assertIn('version: "0.34.3"', config)
 
     def test_home_assistant_cpu_worker_is_private_and_float32(self):
         addon = ROOT / "home_assistant" / "addons" / "jarvis_qwen_voice"

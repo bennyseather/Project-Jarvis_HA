@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.3
+
+- Buffer the complete CPU-generated Qwen response before exposing audio to Home Assistant.
+- Prevent Google Cast announcement sessions from timing out between the chime and delayed speech.
+- Bound the pre-playback audio buffer and preserve Qwen as the primary voice.
+
 ## 0.34.2
 
 - Preserve Home Assistant Jinja expressions with the required double braces in generated blueprints.

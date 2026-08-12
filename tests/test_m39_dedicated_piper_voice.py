@@ -70,7 +70,7 @@ class M39DedicatedPiperVoiceTests(unittest.TestCase):
         self.assertEqual(service["voices"][0]["name"], "jarvis_m39")
         self.assertTrue(service["voices"][0]["installed"])
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-        self.assertIn('version: "0.33.0"', config)
+        self.assertIn('version: "0.34.3"', config)
         self.assertIn("- share:ro", config)
         self.assertIn('engine: "qwen_1_7b"', config)
 
