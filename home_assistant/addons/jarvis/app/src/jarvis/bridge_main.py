@@ -19,6 +19,8 @@ async def main():
             app.container.timeline_task.cancel()
         if app.container.proactive_task is not None:
             app.container.proactive_task.cancel()
+        if app.container.stewardship_task is not None:
+            app.container.stewardship_task.cancel()
         if app.container.timeline_client is not None:
             await app.container.timeline_client.disconnect()
         if app.container.proactive_client is not None:
@@ -29,6 +31,7 @@ async def main():
         app.container.conversation_store.close()
         app.container.reflection_store.close()
         app.container.proactive_store.close()
+        app.container.stewardship_store.close()
 
 
 if __name__ == "__main__": asyncio.run(main())

@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.30.0"
+  version: "0.34.0"
 
 system:
   debug: false
@@ -93,6 +93,14 @@ compound_orchestration:
   enabled: true
   maximum_actions: 10
   confirmation_ttl_seconds: 60
+
+stewardship:
+  enabled: true
+  reconciliation_seconds: 300
+  maximum_targets: 100
+  confirmation_ttl_seconds: 300
+  manual_override_minutes: 30
+  audit_limit: 100
 
 persona:
   name: "Jarvis"

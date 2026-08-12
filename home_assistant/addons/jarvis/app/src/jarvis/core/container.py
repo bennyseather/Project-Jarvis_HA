@@ -64,6 +64,10 @@ class ServiceContainer:
         self.situational_intelligence = None
         self.compound_orchestration_policy = None
         self.compound_orchestration = None
+        self.stewardship_policy = None
+        self.stewardship_store = None
+        self.stewardship = None
+        self.stewardship_task = None
         self.contextual_goals = None
         self.personality_manager = None
         self.personality_presenter = None

@@ -13,6 +13,15 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Home Stewardship 0.34.0
+
+Version 0.34.0 adds confirmed, restart-safe Home, Away, Vacation, and Custom
+stewardship modes. Jarvis can maintain permitted light and climate policy with
+timed expiry, exclusions, manual-override grace, bounded reconciliation and
+audit reporting. Home Assistant remains the sole owner of entities, state,
+permissions, services, and automations; locks, alarms, and cameras stay out of
+mode scope.
+
 ## Project Jarvis Responsive Qwen Voice 0.33.0
 
 Version 0.33.0 keeps Qwen3-TTS as Jarvis's primary voice even on the temporary

@@ -1,6 +1,16 @@
 # Project Jarvis add-on
 
 Set an OpenAI API key and a long random bridge API key in the add-on options.
+
+## Stewardship modes
+
+Jarvis can maintain a confirmed Home, Away, Vacation, or Custom policy over
+Home Assistant-authorized lights and climate entities. Try “I am travelling;
+activate vacation mode until Sunday, keep the lights off, and keep the
+temperature at 20 degrees.” Jarvis previews the complete scope and waits for
+confirmation. Ask “stewardship status” to inspect it or “cancel stewardship
+mode” to end it. Cancellation and expiry do not restore prior device states.
+Locks, alarms, and cameras are never included by a stewardship mode.
 The add-on stores its SQLite database in its persistent add-on configuration
 folder. It uses the Home Assistant Supervisor's internal API proxy and does not
 need a Home Assistant long-lived token.

@@ -191,6 +191,10 @@ class JarvisConversationBridge:
             result = await self._application.container.compound_orchestration.confirm(
                 token, payload
             )
+        elif payload.get("kind") == "stewardship_mode":
+            result = await self._application.container.stewardship.confirm(
+                token, payload
+            )
         else:
             result = await self._application.container.read_only_assistant.confirm_action(
                 token, payload
