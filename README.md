@@ -13,7 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis RSS Scroll Stability 0.40.4
+## Project Jarvis Mobile Talk Animation Performance 0.40.5
+
+Version 0.40.5 optimizes the Jarvis press-to-talk animation for phone and panel
+browsers. It reduces animated waveform layers on narrow cards, removes
+paint-heavy glow effects, and keeps motion on compositor-friendly transforms.
 
 Version 0.40.4 adds a private RSS/Atom add-on, Home Assistant RSS entities and
 services, deterministic Jarvis news summaries with spoken-link suppression,

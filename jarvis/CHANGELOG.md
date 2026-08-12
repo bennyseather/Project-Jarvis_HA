@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.40.5
+
+- Optimized the Jarvis press-to-talk animation for mobile and panel browsers.
+- Reduced waveform layers and removed continuously repainted glow effects.
+- Moved remaining animation to compositor-friendly transforms.
+
 ## 0.40.4
 
 - Preserve the RSS Intelligence card scroll position across unrelated HA updates.
