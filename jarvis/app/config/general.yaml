@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.35.2"
+  version: "0.35.3"
 
 system:
   debug: false
@@ -19,6 +19,7 @@ home_assistant:
   allowed_read_domains: []
   excluded_entities: []
   entity_aliases: {}
+  area_aliases: {}
   action_policy:
     all_entities: true
     all_device_services: true

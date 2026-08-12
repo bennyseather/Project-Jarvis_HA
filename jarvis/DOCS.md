@@ -13,6 +13,9 @@ learn office temperature?`, `That is wrong, use 20 degrees instead`, and
 
 Disable the feature with the **Adaptive learning enabled** add-on option. Jarvis
 does not adapt permissions, security actions, credentials, alarms or spending.
+All discovered Home Assistant areas are canonicalized automatically. Optional
+aliases can be added under `home_assistant.area_aliases` in Jarvis configuration,
+for example `lounge: living room`.
 
 ## Blueprint planning
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.3
+
+- Canonicalize preference scopes against every discovered Home Assistant area.
+- Treat articles, possessives, configured area aliases, and unique partial area names as the same room.
+- Merge compatible legacy scope records safely while leaving ambiguous or conflicting records separate.
+
 ## 0.35.2
 
 - Automatically approve safe preferences after three consistent observations.
