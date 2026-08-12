@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.40.2";
+const JARVIS_UI_VERSION = "0.40.3";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -785,6 +785,10 @@ class JarvisVoiceCard extends JarvisBaseCard {
   setConfig(config) {
     super.setConfig({ title: "Ask Jarvis", description: "Open Assist and start listening", pipeline_id: "preferred", start_listening: true, ...config });
   }
+  set hass(value) {
+    this._hass = value;
+    if (!this.shadowRoot.querySelector("ha-card")) this.render();
+  }
   render() {
     if (!this._config) return;
     const bars = Array.from({ length: 25 }, (_, i) => `<i style="--i:${i};--h:${16 + ((i * 19) % 62)}%"></i>`).join("");
@@ -848,8 +852,12 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
   set hass(value) {
     this._hass = value;
-    if (this._mode === "idle") this.render();
-    else this._paintStatus();
+    const entity = stateObject(value, this._config?.satellite_entity);
+    const signature = JSON.stringify([entity?.state, entity?.attributes?.friendly_name]);
+    if (this._mode === "idle" && (!this.shadowRoot.querySelector("ha-card") || signature !== this._satelliteSignature)) {
+      this._satelliteSignature = signature;
+      this.render();
+    } else this._paintStatus();
   }
   disconnectedCallback() { this._stop(false); }
   render() {
@@ -868,6 +876,9 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   _paintStatus() {
     const root = this.shadowRoot;
     if (!root) return;
+    const entity = stateObject(this._hass, this._config?.satellite_entity);
+    const entityState = root.querySelector(".entity-state");
+    if (entityState) entityState.textContent = entity ? formatState(entity, {}) : "Browser satellite";
     const status = root.querySelector(".satellite-status");
     if (status) status.textContent = this._status;
     const dot = root.querySelector(".live-dot");
