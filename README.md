@@ -13,6 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Cold-Cache Cast Handoff 0.34.5
+
+Version 0.34.5 works around slow CPU Qwen cold-cache playback by making one
+bounded repeat of the identical cached TTS request after a one-second handoff.
+The first pass completes generation; the second lets Google Cast retrieve the
+finished MP3. This temporary compatibility path applies to both briefing branches.
+
 ## Project Jarvis Cast-Compatible Briefings 0.34.4
 
 Version 0.34.4 makes generated Office Work Greeting blueprints request cached

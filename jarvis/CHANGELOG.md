@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.5
+
+- Work around slow Qwen cold-cache playback by repeating the identical cached TTS request after generation.
+- Keep the retry bounded to one pass after a one-second handoff delay.
+- Apply the workaround to morning briefings and afternoon sign-offs.
+
 ## 0.34.4
 
 - Request cached MP3 output at 44.1 kHz stereo for generated blueprint announcements.
