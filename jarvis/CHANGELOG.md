@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.3
+
+- Activate stewardship immediately without confirmation while retaining authorization, target caps, exclusions, restoration, and auditing.
+- Keep an optional `require_confirmation` policy switch for installations that want the prior behaviour.
+
 ## 0.38.2
 
 - Recognize natural departure and bedtime phrases and deterministically map them to confirmation-gated away, vacation, or sleep stewardship modes.

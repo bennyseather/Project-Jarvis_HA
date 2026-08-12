@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.38.2"
+  version: "0.38.3"
 
 system:
   debug: false
@@ -97,6 +97,7 @@ compound_orchestration:
 
 stewardship:
   enabled: true
+  require_confirmation: false
   reconciliation_seconds: 300
   maximum_targets: 100
   confirmation_ttl_seconds: 300

@@ -16,6 +16,7 @@ from jarvis.models.home_assistant_gateway import HomeAssistantActionProposal
 @dataclass(frozen=True, slots=True)
 class StewardshipPolicy:
     enabled: bool = True
+    require_confirmation: bool = False
     reconciliation_seconds: int = 300
     maximum_targets: int = 100
     confirmation_ttl_seconds: int = 300
@@ -28,8 +29,11 @@ class StewardshipPolicy:
         if not isinstance(value, dict):
             raise ValueError("stewardship must be a mapping")
         enabled = value.get("enabled", True)
+        require_confirmation = value.get("require_confirmation", False)
         if not isinstance(enabled, bool):
             raise ValueError("stewardship.enabled must be a boolean")
+        if not isinstance(require_confirmation, bool):
+            raise ValueError("stewardship.require_confirmation must be a boolean")
         bounds = {
             "reconciliation_seconds": (30, 3600, 300),
             "maximum_targets": (1, 200, 100),
@@ -43,7 +47,7 @@ class StewardshipPolicy:
             if not isinstance(item, int) or isinstance(item, bool) or not low <= item <= high:
                 raise ValueError(f"stewardship.{name} must be between {low} and {high}")
             values[name] = item
-        return cls(enabled=enabled, **values)
+        return cls(enabled=enabled, require_confirmation=require_confirmation, **values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +138,8 @@ class StewardshipController:
         mode = replace(mode, restore_states=self._capture_restore_states(snapshot))
         plan = self._plan(mode, snapshot)
         if isinstance(plan, dict): return plan
+        if not self.policy.require_confirmation:
+            return await self._activate(mode)
         token = token_urlsafe(24)
         self._pending[token] = (self._clock() + timedelta(seconds=self.policy.confirmation_ttl_seconds), mode)
         return {"status": "requires_confirmation", "token": token, "summary": plan, "risk": "stewardship_confirmation_required", "action_payload": {"kind": "stewardship_mode", "conversation_id": conversation_id}}
@@ -142,7 +148,10 @@ class StewardshipController:
         pending = self._pending.pop(token, None)
         if pending is None or pending[0] < self._clock() or payload.get("kind") != "stewardship_mode":
             return {"status": "forbidden", "message": "Stewardship confirmation is invalid or expired."}
-        mode = pending[1]; self.store.save(mode)
+        return await self._activate(pending[1])
+
+    async def _activate(self, mode):
+        self.store.save(mode)
         self.store.clear_alerts()
         self.store.audit("activated", {"mode": mode.name, "mode_id": mode.mode_id}, self._clock())
         result = await self.reconcile()

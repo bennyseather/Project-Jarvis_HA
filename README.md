@@ -13,6 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Immediate Stewardship Activation 0.38.3
+
+Version 0.38.3 activates stewardship commands immediately without a separate
+confirmation step. Authorization, target limits, security exclusions,
+restoration, manual overrides, notifications, and auditing remain enforced.
+
 ## Project Jarvis Stewardship Departure Hotfix 0.38.2
 
 Version 0.38.2 recognises natural departure, travel, and bedtime phrases and
