@@ -8,6 +8,7 @@ from jarvis.learning.adaptive_preferences import (
     AdaptivePreferenceController,
     SQLiteAdaptivePreferenceStore,
 )
+from jarvis.homeassistant.conversation_bridge import JarvisConversationBridge
 
 
 class M46AdaptivePreferenceLearningTests(unittest.TestCase):
@@ -34,6 +35,17 @@ class M46AdaptivePreferenceLearningTests(unittest.TestCase):
         approved = self.controller.confirm(third["token"], third["action_payload"])
         self.assertEqual(approved["status"], "success")
         self.assertEqual(self.controller.context()[0]["value"], "21.0")
+
+    def test_equivalent_temperature_wording_stays_in_adaptive_learning(self):
+        self.controller.handle("I prefer the upstairs office at 21 degrees", "c1")
+        self.controller.handle("I prefer the upstairs office at 21 degrees", "c1")
+        result = self.controller.handle(
+            "I like the upstairs office temperature to be 21 degrees", "c1"
+        )
+        self.assertEqual(result["status"], "requires_confirmation")
+        item = self.store.list()[0]
+        self.assertEqual(item.evidence_count, 3)
+        self.assertEqual(item.key, "temperature.upstairs_office")
 
     def test_restart_persistence_explanation_correction_and_deletion(self):
         for _ in range(3):
@@ -85,6 +97,7 @@ class M46AdaptivePreferenceLearningTests(unittest.TestCase):
             AdaptiveLearningPolicy.from_config({"evidence_threshold": 1})
         with self.assertRaises(ValueError):
             AdaptiveLearningPolicy.from_config({"minimum_confidence": 0.2})
+        self.assertIn("approved", JarvisConversationBridge._AFFIRMATIVE)
 
 
 if __name__ == "__main__":

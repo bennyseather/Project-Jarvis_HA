@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.1
+
+- Keep equivalent preference wording such as “temperature to be 21 degrees” inside M46.
+- Accept “approve” and “approved” as natural confirmation replies.
+- Prevent the legacy repeated-memory learner from capturing the third M46 observation.
+
 ## 0.35.0
 
 - Add M46 Adaptive Preference Learning with durable evidence and confidence tracking.
