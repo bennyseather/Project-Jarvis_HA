@@ -68,6 +68,7 @@ class ServiceContainer:
         self.stewardship_store = None
         self.stewardship = None
         self.stewardship_task = None
+        self.blueprint_planner = None
         self.contextual_goals = None
         self.personality_manager = None
         self.personality_presenter = None

@@ -56,4 +56,5 @@ os.environ["JARVIS_BRIDGE_API_KEY"] = options["bridge_api_key"]
 os.environ["JARVIS_CONFIG_DIR"] = "/app/config"
 os.environ["JARVIS_HOME_POLICY_PATH"] = str(policy_path)
 os.environ["JARVIS_STORAGE_PATH"] = "/config/jarvis.sqlite3"
+os.environ["JARVIS_BLUEPRINT_ROOT"] = "/homeassistant"
 os.execvp("python", ["python", "-m", "jarvis.bridge_main"])

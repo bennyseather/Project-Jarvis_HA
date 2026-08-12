@@ -13,6 +13,16 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Blueprint Planner 0.34.1
+
+Version 0.34.1 prevents blueprint requests from falling through to Home
+Assistant entity-state queries. Jarvis now gathers the blueprint description,
+generates structurally validated editor-compatible YAML, previews the full
+configuration write, and installs it only after explicit confirmation. The
+Office Work Greeting design includes reusable selectors plus weather, calendar,
+TTS, next-workday, and outside-hours branches. Home Assistant remains the owner
+of the resulting blueprint and every automation created from it.
+
 ## Project Jarvis Home Stewardship 0.34.0
 
 Version 0.34.0 adds confirmed, restart-safe Home, Away, Vacation, and Custom
