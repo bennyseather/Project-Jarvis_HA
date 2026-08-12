@@ -95,6 +95,7 @@ from jarvis.learning.adaptive_preferences import (
     SQLiteAdaptivePreferenceStore,
 )
 from jarvis.homeassistant.blueprint_planner import BlueprintPlanner
+from jarvis.rss import RSSIntelligence, RSSPolicy
 
 
 class JarvisApplication:
@@ -383,6 +384,8 @@ class JarvisApplication:
         self.container.blueprint_planner = BlueprintPlanner(
             os.environ.get("JARVIS_BLUEPRINT_ROOT")
         )
+        self.container.rss_policy = RSSPolicy.from_config(self.general.get("rss", {}))
+        self.container.rss_intelligence = RSSIntelligence(self.container.rss_policy)
         self.container.conversation_context_messages = context_messages
         self.container.confirmed_action_audit_store = SQLiteConfirmedActionAuditStore(database_file)
         self.container.runtime_context_assembler = ContextAssembler((
@@ -760,6 +763,12 @@ class JarvisApplication:
         if stewardship_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(stewardship_result))
             return stewardship_result
+        rss_result = self.container.rss_intelligence.handle(
+            text, identifier, voice_mode=voice_mode
+        )
+        if rss_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(rss_result))
+            return rss_result
         home_result = self._handle_home_access_command(text)
         if home_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(home_result))

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.39.0
+
+- Add the Project Jarvis RSS add-on with bounded RSS/Atom fetching, sanitization, deduplication, feed health, and last-good caching.
+- Add Home Assistant RSS story and feed-health entities plus refresh and mark-read services.
+- Add deterministic Jarvis news commands and numbered follow-up story summaries; spoken replies omit URLs.
+- Add a visual-editor compatible responsive Jarvis RSS Intelligence card with source/category grouping and lazy images.
+
 ## 0.38.6
 
 - Resolve washing-machine, washer, dryer, and dishwasher status requests across all related permitted entities.

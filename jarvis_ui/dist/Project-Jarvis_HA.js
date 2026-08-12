@@ -1,4 +1,5 @@
-const JARVIS_UI_VERSION = "0.38.6";
+const JARVIS_UI_VERSION = "0.39.0";
+const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
 const CALENDAR_CACHE = new Map();
@@ -1779,6 +1780,31 @@ class JarvisMonthCalendarCard extends JarvisCalendarCard {
   calendarView() { return "month"; }
 }
 
+class JarvisRSSCard extends JarvisBaseCard {
+  static cardName = "Jarvis RSS Intelligence";
+  static gridRows = 7;
+  static getConfigForm() { return { schema: [
+    { name: "name", selector: { text: {} } },
+    { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
+    { name: "story_limit", selector: { number: { min: 3, max: 20, mode: "slider" } } },
+    { name: "group_by", selector: { select: { options: ["none", "source", "category"] } } },
+    { name: "compact", selector: { boolean: {} } },
+  ] }; }
+  static getStubConfig() { return { name: "Top Stories", entity: "sensor.jarvis_rss_top_stories", story_limit: 8, group_by: "source", compact: false }; }
+  render() {
+    if (!this._config || !this._hass) return;
+    const state = this._hass.states?.[this._config.entity];
+    const stories = (state?.attributes?.stories || []).slice(0, Number(this._config.story_limit) || 8);
+    const groupBy = this._config.group_by || "source";
+    const groups = new Map();
+    for (const story of stories) { const key = groupBy === "none" ? "Latest" : (story[groupBy] || "Other"); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(story); }
+    const rows = [...groups.entries()].map(([group, items]) => `<section><h3>${escapeHtml(group)}</h3>${items.map((story) => `<article class="${story.read ? "read" : ""}" data-url="${escapeHtml(story.url || "")}" data-id="${escapeHtml(story.id || "")}">${story.image && !this._config.compact ? `<img loading="lazy" src="${escapeHtml(story.image)}" alt="">` : ""}<div><b>${escapeHtml(story.title || "Untitled story")}</b><small>${escapeHtml(story.source || "RSS")} · ${escapeHtml(relativeTime(story.published))}</small>${!this._config.compact && story.summary ? `<p>${escapeHtml(story.summary)}</p>` : ""}</div></article>`).join("")}</section>`).join("") || `<div class="empty">NO RSS STORIES AVAILABLE</div>`;
+    this.shell(`<div class="rss"><header><div><div class="eyebrow">Intelligence wire</div><div class="title">${escapeHtml(this._config.name || "Top Stories")}</div></div><button data-refresh title="Refresh"><ha-icon icon="mdi:refresh"></ha-icon></button></header><div class="feed">${rows}</div></div><style>.rss{padding:18px;min-height:260px}.rss header{display:flex;justify-content:space-between;align-items:center}.title{font-size:21px;font-weight:700}.rss header button{min-width:38px}.feed{display:grid;gap:12px;margin-top:13px;max-height:${this._config.compact ? "310" : "520"}px;overflow:auto}.feed section{display:grid;gap:6px}.feed h3{margin:0;font:700 9px monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--j-accent)}article{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:9px;border-left:2px solid var(--j-accent);background:rgba(32,216,255,.04);cursor:pointer;text-align:left;text-transform:none;letter-spacing:0}article.read{opacity:.58}article img{width:74px;height:54px;object-fit:cover}article div{min-width:0}article b{display:block;font-size:13px;line-height:1.25}article small{font:600 9px monospace;color:var(--j-accent)}article p{margin:5px 0 0;font-size:11px;color:var(--secondary-text-color);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.empty{font:700 10px monospace;color:var(--secondary-text-color)}@container(max-width:430px){.rss{padding:13px}.feed{max-height:300px}article img,article p{display:none}.title{font-size:18px}}</style>`, { interactive: false });
+    this.shadowRoot.querySelector("[data-refresh]")?.addEventListener("click", () => this._hass.callService("jarvis_rss", "refresh"));
+    this.shadowRoot.querySelectorAll("article").forEach((article) => article.addEventListener("click", () => { const id = article.dataset.id; if (id) this._hass.callService("jarvis_rss", "mark_read", { story_id: id }); if (article.dataset.url) window.open(article.dataset.url, "_blank", "noopener"); }));
+  }
+}
+
 class JarvisIconCatalogCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Icon Catalog";
@@ -1855,6 +1881,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-car-card", JarvisCarCard, "Jarvis Car", "Vehicle location, battery, range and status"],
   ["jarvis-calendar-card", JarvisCalendarCard, "Jarvis Calendar", "Calendar views and upcoming appointments"],
   ["jarvis-month-calendar-card", JarvisMonthCalendarCard, "Jarvis Month Calendar", "Dedicated monthly calendar grid"],
+  ["jarvis-rss-card", JarvisRSSCard, "Jarvis RSS Intelligence", "Top RSS stories grouped by source or category"],
   ["jarvis-glance-card", JarvisGlanceCard, "Jarvis Glance", "Compact multi-entity overview"],
   ["jarvis-alerts-card", JarvisAlertsCard, "Jarvis Home Alerts", "Leaks, smoke, batteries and availability"],
   ["jarvis-network-card", JarvisNetworkCard, "Jarvis Network / NAS", "Network and storage telemetry"],
@@ -1882,6 +1909,7 @@ const CARD_DOMAINS = new Map([
   [JarvisEvChargerCard, ["switch", "sensor"]],
   [JarvisCalendarCard, ["calendar"]],
   [JarvisMonthCalendarCard, ["calendar"]],
+  [JarvisRSSCard, ["sensor"]],
 ]);
 
 window.customCards = window.customCards || [];

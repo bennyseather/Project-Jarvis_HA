@@ -1,0 +1,11 @@
+refresh:
+  name: Refresh RSS entities
+  description: Reload the latest cache written by the Project Jarvis RSS add-on.
+mark_read:
+  name: Mark RSS story read
+  description: Mark a cached story as read in Home Assistant.
+  fields:
+    story_id:
+      required: true
+      selector:
+        text:

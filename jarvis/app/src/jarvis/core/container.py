@@ -72,6 +72,8 @@ class ServiceContainer:
         self.stewardship = None
         self.stewardship_task = None
         self.blueprint_planner = None
+        self.rss_policy = None
+        self.rss_intelligence = None
         self.contextual_goals = None
         self.personality_manager = None
         self.personality_presenter = None

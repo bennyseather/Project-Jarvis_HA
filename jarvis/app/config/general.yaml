@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.38.6"
+  version: "0.39.0"
 
 system:
   debug: false
@@ -103,6 +103,11 @@ stewardship:
   confirmation_ttl_seconds: 300
   manual_override_minutes: 30
   audit_limit: 100
+
+rss:
+  enabled: true
+  cache_path: "/share/jarvis_rss/stories.json"
+  maximum_spoken_stories: 5
 
 adaptive_learning:
   enabled: true

@@ -13,12 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Appliance State Resolution 0.38.6
+## Project Jarvis RSS Intelligence 0.39.0
 
-Version 0.38.6 resolves appliance status requests across the related permitted
-Home Assistant entities. Washing-machine questions now include its operating
-state and related sensors such as remaining time. Qwen streaming, sentence
-packing, and persistent response caching from 0.38.5 remain enabled.
+Version 0.39.0 adds a private RSS/Atom add-on, Home Assistant RSS entities and
+services, deterministic Jarvis news summaries with spoken-link suppression,
+and a responsive visual-editor RSS card. Feed content is sanitized, bounded,
+deduplicated, cached locally, and cannot authorize Home Assistant actions.
 
 ## Project Jarvis Stewardship Departure Hotfix 0.38.2
 
