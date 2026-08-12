@@ -103,7 +103,8 @@ views:
             entity: lawn_mower.example_mower
           - type: custom:jarvis-washer-card
             entity: sensor.washing_machine
-            progress_entity: sensor.washing_machine_progress
+            remaining_entity: sensor.washing_machine_minutes_remaining
+            total_cycle_minutes: 120
           - type: custom:jarvis-spotify-card
             entity: media_player.loftstue_group
           - type: custom:jarvis-ev-charger-card
@@ -122,6 +123,36 @@ views:
             odometer_entity: sensor.car_odometer
             charging_entity: binary_sensor.car_charging
             lock_entity: lock.car
+          - type: custom:jarvis-calendar-card
+            name: Household calendar
+            entities:
+              - calendar.example
+            view: month
+          - type: custom:jarvis-glance-card
+            name: At a glance
+            entities:
+              - light.blocks
+              - media_player.loftstue_group
+          - type: custom:jarvis-alerts-card
+            name: Home alerts
+            entities:
+              - binary_sensor.example_leak
+          - type: custom:jarvis-network-card
+            name: Network and NAS
+            entities:
+              - sensor.example_storage
+          - type: custom:jarvis-climate-overview-card
+            name: Climate overview
+            entities:
+              - climate.mill_heater_upstairs_office
+          - type: custom:jarvis-perimeter-card
+            name: Security perimeter
+            entities:
+              - lock.front_door
+          - type: custom:jarvis-energy-flow-card
+            name: Energy flow
+            entities:
+              - sensor.home_energy
       - type: grid
         cards:
           - type: heading
