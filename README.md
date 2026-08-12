@@ -13,6 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Namron ZHA Compatibility 0.34.6
+
+Version 0.34.6 adds an optional, exact-match local ZHA quirk for the NamronAS
+4512751 dimmer. The device executes commands but omits the application response
+expected by ZHA; the quirk prevents that omission from blocking automations while
+preserving genuine radio delivery failures. Installation is intentionally manual.
+
 ## Project Jarvis Cold-Cache Cast Handoff 0.34.5
 
 Version 0.34.5 works around slow CPU Qwen cold-cache playback by making one
