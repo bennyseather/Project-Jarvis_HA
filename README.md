@@ -13,12 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis CPU Voice Latency Optimisation 0.38.5
+## Project Jarvis Appliance State Resolution 0.38.6
 
-Version 0.38.5 reduces Qwen CPU voice latency without changing Jarvis reasoning
-or home control. Clean audio now streams after the first generated segment,
-adjacent sentences are packed into fewer inference calls, spoken responses are
-bounded naturally, and common generated replies persist in a bounded cache.
+Version 0.38.6 resolves appliance status requests across the related permitted
+Home Assistant entities. Washing-machine questions now include its operating
+state and related sensors such as remaining time. Qwen streaming, sentence
+packing, and persistent response caching from 0.38.5 remain enabled.
 
 ## Project Jarvis Stewardship Departure Hotfix 0.38.2
 

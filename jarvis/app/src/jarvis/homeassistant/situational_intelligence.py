@@ -91,6 +91,7 @@ class WholeHomeSituationalIntelligence:
         "device", "devices", "entity", "entities", "battery", "batteries",
         "door", "doors", "window", "windows", "home", "house", "upstairs",
         "downstairs", "room", "rooms", "floor", "area", "group",
+        "washer", "washing", "machine", "dryer", "dishwasher", "appliance",
         *_DOMAIN_WORDS,
     })
     _READ_WORDS = frozenset({
@@ -268,6 +269,9 @@ class WholeHomeSituationalIntelligence:
             for reference, ids in references.items()
             if self._contains(text, reference)
         ]
+        appliance = self._appliance_reference(text, references)
+        if appliance is not None:
+            return appliance
         if matches:
             reference, ids = max(
                 matches,
@@ -294,6 +298,26 @@ class WholeHomeSituationalIntelligence:
         ) and not self._unresolved_topics(text):
             return "the home", tuple(item.entity_id for item in snapshot.entities)
         return None
+
+    @staticmethod
+    def _appliance_reference(text, references):
+        phrases = (
+            ("washing machine", {"washing", "machine"}),
+            ("washer", {"washer"}),
+            ("tumble dryer", {"tumble", "dryer"}),
+            ("dryer", {"dryer"}),
+            ("dishwasher", {"dishwasher"}),
+        )
+        requested = next((label for label, words in phrases if words <= set(text.split())), None)
+        if requested is None:
+            return None
+        requested_words = set(requested.split())
+        ids = {
+            entity_id for reference, entity_ids in references.items()
+            if requested_words <= set(reference.replace("_", " ").split())
+            for entity_id in entity_ids
+        }
+        return (requested, tuple(sorted(ids))) if ids else None
 
     @staticmethod
     def _references(snapshot):

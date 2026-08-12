@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.6
+
+- Resolve washing-machine, washer, dryer, and dishwasher status requests across all related permitted entities.
+- Report appliance operating state and related sensors such as remaining time instead of stopping at the first exact-name entity.
+
 ## 0.38.5
 
 - Stream clean Qwen audio as soon as the first generated segment is available.
