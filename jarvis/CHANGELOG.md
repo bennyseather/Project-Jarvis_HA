@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.1
+
+- Recognize natural return-home phrases such as “I'm home”, “back home”, “I'm back”, and “we're home” when ending stewardship and restoring prior states.
+
 ## 0.38.0
 
 - Complete Autonomous Home Stewardship with vacation, away, sleep, home, and custom modes.

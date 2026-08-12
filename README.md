@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Stewardship Return-Home Hotfix 0.38.1
+
+Version 0.38.1 recognises natural return-home phrases when ending stewardship
+and restoring captured light and climate states.
+
 ## Project Jarvis Autonomous Home Stewardship 0.38.0
 
 Version 0.38.0 completes bounded vacation, away, sleep, home, and custom

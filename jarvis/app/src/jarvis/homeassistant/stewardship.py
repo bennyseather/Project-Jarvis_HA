@@ -125,7 +125,7 @@ class StewardshipController:
             return self.status()
         if normalized in {"show stewardship audit", "show stewardship history", "what has stewardship done"}:
             return self.audit_status()
-        if normalized in {"cancel stewardship mode", "stop stewardship mode", "end vacation mode", "return home", "i am home"}:
+        if self._is_return_home(normalized):
             return await self.cancel()
         if not self._is_mode_request(normalized): return None
         mode = self._parse(normalized)
@@ -322,6 +322,21 @@ class StewardshipController:
     @staticmethod
     def _is_mode_request(text):
         return any(phrase in text for phrase in ("vacation mode", "away mode", "sleep mode", "home mode", "stewardship mode", "going on vacation", "going on holiday", "i am travelling", "i'm travelling", "i am traveling", "i'm traveling", "watch the house while", "monitor the house while"))
+
+    @staticmethod
+    def _is_return_home(text):
+        exact = {
+            "cancel stewardship mode", "stop stewardship mode", "end stewardship mode",
+            "end vacation mode", "end away mode", "return home", "back home",
+            "i am home", "i'm home", "im home", "i am back home", "i'm back home",
+            "im back home", "i am back", "i'm back", "im back", "we are home",
+            "we're home", "were home", "we are back home", "we're back home",
+            "home again", "back from vacation", "back from holiday",
+        }
+        return text in exact or bool(re.fullmatch(
+            r"(?:hi jarvis,?\s+)?(?:i(?: am|'m|m)|we(?: are|'re|re))\s+(?:back\s+)?home(?:\s+now)?",
+            text,
+        ))
 
     @staticmethod
     def _chunks(values, size=20):
