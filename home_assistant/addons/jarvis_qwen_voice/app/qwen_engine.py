@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -19,6 +20,7 @@ class QwenConfig:
     dtype: str = "bfloat16"
     cpu_threads: int = 6
     maximum_segment_characters: int = 180
+    response_cache_entries: int = 24
 
 
 class QwenVoiceEngine:
@@ -34,6 +36,9 @@ class QwenVoiceEngine:
         self.prompt_encode_seconds = 0.0
         self.last_generation_seconds = 0.0
         self.last_first_audio_seconds = 0.0
+        self.cache_hits = 0
+        self.cache_misses = 0
+        self._response_cache: OrderedDict[str, tuple[tuple[bytes, int, str], ...]] = OrderedDict()
 
     async def warmup(self) -> None:
         async with self._lock:
@@ -42,6 +47,18 @@ class QwenVoiceEngine:
     async def synthesize_segments(self, text: str):
         async with self._lock:
             request_started = time.monotonic()
+            cache_key = normalize_cache_key(text)
+            cached = self._response_cache.get(cache_key)
+            if cached is not None:
+                self.cache_hits += 1
+                self._response_cache.move_to_end(cache_key)
+                self.last_first_audio_seconds = 0.0
+                self.last_generation_seconds = 0.0
+                for pcm, rate, segment in cached:
+                    yield pcm, rate, segment, 0.0
+                return
+            self.cache_misses += 1
+            generated: list[tuple[bytes, int, str]] = []
             for index, segment in enumerate(split_segments(
                 text, self.config.maximum_segment_characters
             )):
@@ -54,7 +71,13 @@ class QwenVoiceEngine:
                 self.last_generation_seconds = time.monotonic() - started
                 if index == 0:
                     self.last_first_audio_seconds = time.monotonic() - request_started
+                generated.append((pcm, rate, segment))
                 yield pcm, rate, segment, self.last_generation_seconds
+            if generated and self.config.response_cache_entries > 0:
+                self._response_cache[cache_key] = tuple(generated)
+                self._response_cache.move_to_end(cache_key)
+                while len(self._response_cache) > self.config.response_cache_entries:
+                    self._response_cache.popitem(last=False)
 
     def _prepare_sync(self) -> None:
         reference = Path(self.config.reference_audio)
@@ -153,3 +176,7 @@ def split_segments(text: str, maximum: int = 180) -> tuple[str, ...]:
         if remaining:
             output.append(remaining)
     return tuple(output)
+
+
+def normalize_cache_key(text: str) -> str:
+    return " ".join(str(text).casefold().split())

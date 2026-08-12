@@ -17,7 +17,7 @@ sys.path.append(str(WORKER))
 from addon_entrypoint import load_config  # noqa: E402
 from dsp import PROFILES, process_voice_pcm16  # noqa: E402
 from qwen_engine import QwenConfig, QwenVoiceEngine, split_segments  # noqa: E402
-from server import VoiceProxyConfig, _voice_info  # noqa: E402
+from server import VoiceProxyConfig, _bounded_spoken_text, _voice_info  # noqa: E402
 
 
 class FakePromptModel:
@@ -61,6 +61,24 @@ class M41QwenJarvisVoiceTests(unittest.TestCase):
         self.assertEqual(loaded.qwen_port, 10401)
         self.assertEqual(loaded.qwen_filter, "synthesized")
         self.assertEqual(loaded.qwen_filter_strength, 0.62)
+        self.assertEqual(loaded.generation_timeout, 300.0)
+        self.assertEqual(loaded.qwen_maximum_spoken_characters, 420)
+
+    def test_m42_migrates_only_untouched_cpu_timeout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "options.json"
+            path.write_text(json.dumps({
+                "engine": "qwen_1_7b", "voice_revision": 8,
+                "generation_timeout": 30.0,
+            }), encoding="utf-8")
+            migrated = load_config(path)
+            path.write_text(json.dumps({
+                "engine": "qwen_1_7b", "voice_revision": 8,
+                "generation_timeout": 90.0,
+            }), encoding="utf-8")
+            customized = load_config(path)
+        self.assertEqual(migrated.generation_timeout, 300.0)
+        self.assertEqual(customized.generation_timeout, 90.0)
 
     def test_synthesized_filter_is_bounded_and_distinct(self):
         self.assertIn("synthesized", PROFILES)
@@ -110,7 +128,7 @@ class M41QwenJarvisVoiceTests(unittest.TestCase):
         self.assertIn("./private:/data/private:ro", compose)
         self.assertFalse((WORKER / "reference.wav").exists())
         config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-        self.assertIn('version: "0.32.0"', config)
+        self.assertIn('version: "0.33.0"', config)
 
     def test_home_assistant_cpu_worker_is_private_and_float32(self):
         addon = ROOT / "home_assistant" / "addons" / "jarvis_qwen_voice"
@@ -127,6 +145,35 @@ class M41QwenJarvisVoiceTests(unittest.TestCase):
         engine = (addon / "app" / "qwen_engine.py").read_text(encoding="utf-8")
         self.assertIn("snapshot_download", engine)
         self.assertIn('speech_tokenizer" / "preprocessor_config.json', engine)
+
+    def test_m42_repeated_qwen_reply_uses_bounded_memory_cache(self):
+        async def collect(engine, text):
+            return [item async for item in engine.synthesize_segments(text)]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            audio = root / "reference.wav"
+            transcript = root / "reference.txt"
+            audio.write_bytes(b"private-audio-placeholder")
+            transcript.write_text("Exact private reference transcript.", encoding="utf-8")
+            model = FakePromptModel()
+            engine = QwenVoiceEngine(QwenConfig(
+                reference_audio=str(audio), reference_text_file=str(transcript),
+                response_cache_entries=2,
+            ), model_factory=lambda: model)
+            first = asyncio.run(collect(engine, "All systems are normal."))
+            second = asyncio.run(collect(engine, "  all SYSTEMS are normal. "))
+        self.assertEqual(first[0][0], second[0][0])
+        self.assertEqual(model.generate_calls, 1)
+        self.assertEqual(engine.cache_hits, 1)
+        self.assertEqual(engine.cache_misses, 1)
+
+    def test_m42_spoken_bound_is_natural_and_configurable(self):
+        text = "First sentence is useful. " + ("Further detail " * 80)
+        bounded = _bounded_spoken_text(text, 180)
+        self.assertLessEqual(len(bounded), 180)
+        self.assertTrue(bounded.endswith("."))
+        self.assertTrue(bounded.startswith("First sentence is useful."))
 
     def test_home_assistant_worker_matches_deployable_worker(self):
         addon_app = ROOT / "home_assistant" / "addons" / "jarvis_qwen_voice" / "app"

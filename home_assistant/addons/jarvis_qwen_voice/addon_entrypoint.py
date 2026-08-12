@@ -33,6 +33,7 @@ def load_config(path: Path = Path("/data/options.json")) -> QwenConfig:
         maximum_segment_characters=int(
             options.get("maximum_segment_characters", 180)
         ),
+        response_cache_entries=int(options.get("response_cache_entries", 24)),
     )
 
 

@@ -10,6 +10,11 @@ The optional `synthesized` filter adds restrained electronic resonance and
 articulation without bit crushing; `metallic` is intentionally stronger.
 Adjust `qwen_filter_strength` from `0.0` to `1.0`.
 
+For the temporary CPU worker, retain `generation_timeout: 300`. The
+`qwen_maximum_spoken_characters` option defaults to 420 and bounds unusually
+long TTS payloads at a sentence boundary. Qwen remains primary throughout the
+timeout; fallback voices are used only when Qwen genuinely fails.
+
 The Qwen worker, installation instructions, and example Docker Compose file are
 in `deployment/qwen_voice_worker`. Never expose its unauthenticated Wyoming port
 to the public internet. The private reference audio and transcript are mounted

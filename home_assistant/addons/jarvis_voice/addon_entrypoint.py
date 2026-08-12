@@ -46,6 +46,11 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         == "/share/jarvis_voice/jarvis-piper-m39.zip"
         and str(options.get("model_cache_dir", "/data/models/m39")) == "/data/models/m39"
     )
+    m42_defaults = (
+        int(options.get("voice_revision", 8)) < 9
+        and source_engine == "qwen_1_7b"
+        and float(options.get("generation_timeout", 30.0)) == 30.0
+    )
     engine = "piper_m40" if m40_defaults else "piper_m39" if m39_defaults else source_engine
     return VoiceProxyConfig(
         upstream_host=str(options.get("upstream_host", "core-piper")),
@@ -89,7 +94,10 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         piper_fallback=bool(options.get("piper_fallback", True)),
         engine=engine,
         reference_path=str(options.get("reference_path", "/app/jarvis-reference.wav")),
-        generation_timeout=float(options.get("generation_timeout", 30.0)),
+        generation_timeout=(
+            300.0 if m42_defaults
+            else float(options.get("generation_timeout", 300.0))
+        ),
         warm_model=bool(options.get("warm_model", True)),
         articulation_mode=str(options.get("articulation_mode", "crisp")),
         maximum_segment_characters=int(
@@ -103,6 +111,9 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         qwen_filter=str(options.get("qwen_filter", "clean")),
         qwen_filter_strength=float(options.get("qwen_filter_strength", 0.55)),
         qwen_connect_timeout=float(options.get("qwen_connect_timeout", 3.0)),
+        qwen_maximum_spoken_characters=int(
+            options.get("qwen_maximum_spoken_characters", 420)
+        ),
     )
 
 

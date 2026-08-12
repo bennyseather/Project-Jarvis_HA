@@ -70,7 +70,7 @@ class M38ResponsiveArticulateVoiceTests(unittest.TestCase):
         self.assertEqual(defaults.articulation_mode, "crisp")
         self.assertEqual(defaults.maximum_segment_characters, 105)
         self.assertEqual(defaults.darkness, 0.10)
-        self.assertIn('version: "0.32.0"', config_text)
+        self.assertIn('version: "0.33.0"', config_text)
         self.assertIn("maximum_segment_characters: 105", config_text)
         status = _voice_info(
             "chatterbox_nano", conditioning_seconds=1.2,

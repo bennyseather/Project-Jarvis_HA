@@ -21,3 +21,7 @@ HACS, the add-on image, logs, or generated output.
 After the worker reports `listening on 0.0.0.0:10400`, configure Project Jarvis
 Voice with `engine: qwen_1_7b`, the Home Assistant computer's LAN address as
 `qwen_host`, and `qwen_port: 10400`.
+
+`response_cache_entries` controls the bounded in-memory cache for exact repeated
+replies. The default of 24 is appropriate for the temporary CPU host; the cache
+is cleared whenever this add-on restarts.

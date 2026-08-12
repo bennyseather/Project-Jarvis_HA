@@ -4,7 +4,7 @@ An AI-powered home intelligence platform built around Home Assistant.
 
 ## Current Version
 
-v0.32.3
+v0.33.0
 
 ## Status
 
