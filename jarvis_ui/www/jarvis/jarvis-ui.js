@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.40.1";
+const JARVIS_UI_VERSION = "0.40.2";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1834,6 +1834,23 @@ class JarvisRSSTickerCard extends JarvisBaseCard {
     { name: "click_action", selector: { select: { options: ["open", "mark_read", "none"] } } },
   ] }; }
   static getStubConfig() { return { name: "Jarvis Wire", entity: "sensor.jarvis_rss_top_stories", story_limit: 5, height: 52, scroll_speed: "medium", pause_seconds: 2, show_source: true, show_time: true, separator: "diamond", click_action: "open" }; }
+  setConfig(config) {
+    this._tickerSignature = undefined;
+    super.setConfig(config);
+  }
+  set hass(value) {
+    this._hass = value;
+    const state = value?.states?.[this._config?.entity];
+    const stories = state?.attributes?.stories || [];
+    const signature = JSON.stringify([
+      state?.state,
+      stories.map((story) => [story.id, story.title, story.source, story.published, story.read]),
+      this._config,
+    ]);
+    if (signature === this._tickerSignature) return;
+    this._tickerSignature = signature;
+    this.render();
+  }
   getCardSize() { return 1; }
   getGridOptions() { return { rows: 1, columns: 12, min_rows: 1, min_columns: 6 }; }
   render() {
