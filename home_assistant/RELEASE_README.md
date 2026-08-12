@@ -13,6 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Blueprint Repair 0.34.2
+
+Version 0.34.2 corrects Jinja escaping in generated blueprint YAML, bounds
+inline name parsing, and prevents an unavailable office target from stopping
+the weather, calendar, and spoken briefing stages.
+
 ## Project Jarvis Blueprint Planner 0.34.1
 
 Version 0.34.1 prevents blueprint requests from falling through to Home

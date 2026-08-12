@@ -31,6 +31,20 @@ class BlueprintPlannerTests(unittest.TestCase):
             "Lofstue Group Speaker", "Good morning, Benny",
         ):
             self.assertIn(value, pending)
+        self.assertIn("{{ today_at('00:00') }}", pending)
+        self.assertIn("{{ briefing }}", pending)
+        self.assertNotIn('start_date_time: "{ today_at', pending)
+        self.assertEqual(pending.count("continue_on_error: true"), 3)
+
+    def test_name_stops_before_inline_trigger_field(self):
+        planner = BlueprintPlanner()
+        result = planner.handle(
+            "Create a blueprint. Name: Office Work Greeting Trigger: Lumi Remote. "
+            "Actions: include office weather and calendar briefing.",
+            "c1",
+        )
+        self.assertIn("Office Work Greeting", result["summary"])
+        self.assertNotIn("Trigger:", result["summary"])
 
     def test_install_is_confirmation_bound_and_path_bounded(self):
         with tempfile.TemporaryDirectory() as directory:

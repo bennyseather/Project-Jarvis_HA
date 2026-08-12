@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.2
+
+- Preserve Home Assistant Jinja expressions with the required double braces in generated blueprints.
+- Stop blueprint names at inline Trigger, Condition, or Actions fields.
+- Continue weather, calendar, and speech steps when an individual office target is unavailable.
+
 ## 0.34.1
 
 - Route blueprint requests to a dedicated review-first planner instead of entity-state queries.
