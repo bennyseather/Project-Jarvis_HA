@@ -205,6 +205,10 @@ class JarvisConversationBridge:
             result = await self._application.container.stewardship.confirm(
                 token, payload
             )
+        elif payload.get("kind") == "adaptive_preference":
+            result = self._application.container.adaptive_preferences.confirm(
+                token, payload
+            )
         elif payload.get("kind") == "blueprint_install":
             result = self._application.container.blueprint_planner.confirm(
                 token, payload

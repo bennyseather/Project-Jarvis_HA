@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.0
+
+- Add M46 Adaptive Preference Learning with durable evidence and confidence tracking.
+- Require explicit confirmation before an observed preference enters Jarvis context.
+- Support natural inspection, evidence explanations, correction, deletion, stale-observation decay, and restart recovery.
+- Reject security, credential, unlocking, alarm, and spending preferences from adaptive learning.
+
 ## 0.34.6
 
 - Add an exact-match local ZHA quirk for the NamronAS 4512751 dimmer.
