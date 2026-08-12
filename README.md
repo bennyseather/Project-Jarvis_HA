@@ -13,6 +13,16 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Autonomous Home Stewardship 0.38.0
+
+Version 0.38.0 completes bounded vacation, away, sleep, home, and custom
+stewardship modes. Jarvis can reconcile authorized lights and climate targets,
+optionally simulate presence with at most two authorized lights, monitor and
+deduplicate safety/perimeter/availability exceptions, restore captured light
+and climate states on exit or expiry, honour manual overrides, and expose an
+inspectable audit. Locks, alarms, cameras, and security services remain outside
+automatic execution, and Home Assistant remains the sole execution authority.
+
 ## Project Jarvis Preference Query Hotfix 0.37.1
 
 Version 0.37.1 answers natural preference questions from approved adaptive

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.38.0
+
+- Complete Autonomous Home Stewardship with vacation, away, sleep, home, and custom modes.
+- Persist and restore authorized light and climate states when a mode ends or expires.
+- Add optional bounded presence simulation and deduplicated exception notifications.
+- Monitor smoke, gas, moisture, perimeter, unlocked-lock, and critical availability exceptions without taking security actions.
+- Expose bounded stewardship status and audit history while preserving manual-override grace periods.
+
 ## 0.37.1
 
 - Route natural questions about learned room preferences to adaptive memory instead of Home Assistant room-state enumeration.

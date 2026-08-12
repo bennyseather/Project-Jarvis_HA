@@ -5,7 +5,7 @@ import json
 import re
 import sqlite3
 import calendar
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from secrets import token_urlsafe
@@ -55,6 +55,9 @@ class StewardshipMode:
     lights_off: bool
     climate_temperature: float | None
     excluded_entities: tuple[str, ...]
+    restore_states: tuple[dict[str, object], ...] = ()
+    monitor_exceptions: bool = True
+    presence_simulation: bool = False
 
 
 class SQLiteStewardshipStore:
@@ -65,11 +68,12 @@ class SQLiteStewardshipStore:
         with self._connection:
             self._connection.execute("CREATE TABLE IF NOT EXISTS stewardship_state (slot INTEGER PRIMARY KEY CHECK(slot=1), payload TEXT NOT NULL)")
             self._connection.execute("CREATE TABLE IF NOT EXISTS stewardship_audit (occurred_at TEXT NOT NULL, event TEXT NOT NULL, payload TEXT NOT NULL)")
+            self._connection.execute("CREATE TABLE IF NOT EXISTS stewardship_alerts (fingerprint TEXT PRIMARY KEY, occurred_at TEXT NOT NULL)")
 
     def active(self):
         row = self._connection.execute("SELECT payload FROM stewardship_state WHERE slot=1").fetchone()
         if row is None: return None
-        value = json.loads(row[0]); value["excluded_entities"] = tuple(value.get("excluded_entities", ()))
+        value = json.loads(row[0]); value["excluded_entities"] = tuple(value.get("excluded_entities", ())); value["restore_states"] = tuple(value.get("restore_states", ()))
         return StewardshipMode(**value)
 
     def save(self, mode):
@@ -88,12 +92,23 @@ class SQLiteStewardshipStore:
     def recent(self, limit=10):
         return tuple(self._connection.execute("SELECT occurred_at,event,payload FROM stewardship_audit ORDER BY occurred_at DESC,rowid DESC LIMIT ?", (min(max(limit, 1), 50),)))
 
+    def claim_alert(self, fingerprint, occurred_at):
+        with self._connection:
+            inserted = self._connection.execute(
+                "INSERT OR IGNORE INTO stewardship_alerts VALUES (?,?)",
+                (fingerprint, occurred_at.isoformat()),
+            ).rowcount
+        return bool(inserted)
+
+    def clear_alerts(self):
+        with self._connection: self._connection.execute("DELETE FROM stewardship_alerts")
+
     def close(self): self._connection.close()
 
 
 class StewardshipController:
     """Preview, activate, reconcile and cancel bounded home modes."""
-    _MODES = {"home", "away", "vacation", "custom"}
+    _MODES = {"home", "away", "vacation", "sleep", "custom"}
 
     def __init__(self, client, assembler, gateway, store, policy, *, clock=None):
         self._client, self._assembler, self._gateway = client, assembler, gateway
@@ -108,12 +123,15 @@ class StewardshipController:
         normalized = " ".join(text.casefold().strip(" .?!").split())
         if normalized in {"show stewardship mode", "stewardship status", "show house mode", "what mode is the house in"}:
             return self.status()
+        if normalized in {"show stewardship audit", "show stewardship history", "what has stewardship done"}:
+            return self.audit_status()
         if normalized in {"cancel stewardship mode", "stop stewardship mode", "end vacation mode", "return home", "i am home"}:
             return await self.cancel()
         if not self._is_mode_request(normalized): return None
         mode = self._parse(normalized)
         try: snapshot = self._assembler.assemble(await self._client.get_states(), captured_at=self._clock())
         except Exception: return {"status": "unavailable", "message": "Home Assistant data is unavailable."}
+        mode = replace(mode, restore_states=self._capture_restore_states(snapshot))
         plan = self._plan(mode, snapshot)
         if isinstance(plan, dict): return plan
         token = token_urlsafe(24)
@@ -125,6 +143,7 @@ class StewardshipController:
         if pending is None or pending[0] < self._clock() or payload.get("kind") != "stewardship_mode":
             return {"status": "forbidden", "message": "Stewardship confirmation is invalid or expired."}
         mode = pending[1]; self.store.save(mode)
+        self.store.clear_alerts()
         self.store.audit("activated", {"mode": mode.name, "mode_id": mode.mode_id}, self._clock())
         result = await self.reconcile()
         return {"status": result["status"], "message": f"{mode.name.title()} stewardship mode is active. {result['message']}"}
@@ -134,20 +153,28 @@ class StewardshipController:
         if mode is None: return {"status": "success", "message": "No stewardship mode is active."}
         expiry = "until cancelled" if mode.expires_at is None else f"until {mode.expires_at}"
         temperature = "no climate target" if mode.climate_temperature is None else f"climate at {mode.climate_temperature:.1f} degrees"
-        return {"status": "success", "message": f"{mode.name.title()} mode is active {expiry}: lights {'off' if mode.lights_off else 'unchanged'}, {temperature}, {len(mode.excluded_entities)} exclusions."}
+        simulation = "presence simulation enabled" if mode.presence_simulation else "presence simulation disabled"
+        return {"status": "success", "message": f"{mode.name.title()} mode is active {expiry}: lights {'off' if mode.lights_off else 'unchanged'}, {temperature}, {simulation}, {len(mode.excluded_entities)} exclusions."}
+
+    def audit_status(self):
+        events = self.store.recent(10)
+        if not events: return {"status": "success", "message": "The stewardship audit is empty."}
+        return {"status": "success", "message": "Recent stewardship activity: " + "; ".join(f"{event} at {occurred_at}" for occurred_at, event, _payload in events) + "."}
 
     async def cancel(self):
         mode = self.store.active()
         if mode is None: return {"status": "success", "message": "No stewardship mode is active."}
-        self.store.clear(); self.store.audit("cancelled", {"mode": mode.name, "mode_id": mode.mode_id}, self._clock())
-        return {"status": "success", "message": f"{mode.name.title()} stewardship mode has ended. Devices remain in their current Home Assistant state."}
+        restoration = await self._restore(mode)
+        self.store.clear(); self.store.clear_alerts(); self.store.audit("cancelled", {"mode": mode.name, "mode_id": mode.mode_id, "restored": restoration[0], "failed": restoration[1]}, self._clock())
+        return {"status": "success" if not restoration[1] else "unavailable", "message": f"{mode.name.title()} stewardship mode has ended. Restored {restoration[0]} prior Home Assistant states; {restoration[1]} were unavailable."}
 
     async def reconcile(self):
         mode = self.store.active()
         if mode is None: return {"status": "success", "message": "No reconciliation was required."}
         if mode.expires_at and datetime.fromisoformat(mode.expires_at) <= self._clock():
-            self.store.clear(); self.store.audit("expired", {"mode": mode.name}, self._clock())
-            return {"status": "success", "message": f"{mode.name.title()} mode expired safely."}
+            restored, failed = await self._restore(mode)
+            self.store.clear(); self.store.clear_alerts(); self.store.audit("expired", {"mode": mode.name, "restored": restored, "failed": failed}, self._clock())
+            return {"status": "success" if not failed else "unavailable", "message": f"{mode.name.title()} mode expired safely. Restored {restored} prior states; {failed} were unavailable."}
         try: snapshot = self._assembler.assemble(await self._client.get_states(), captured_at=self._clock())
         except Exception:
             self.store.audit("reconcile_unavailable", {"mode": mode.name}, self._clock())
@@ -162,9 +189,12 @@ class StewardshipController:
             expected = "off" if proposal.service == "turn_off" else mode.climate_temperature
             for entity_id in result.get("succeeded", ()):
                 self._expected[entity_id] = expected
-        self.store.audit("reconciled", {"mode": mode.name, "succeeded": succeeded, "failed": failed, "skipped": skipped}, self._clock())
+        exceptions = self._exceptions(mode, snapshot)
+        notified = await self._notify_exceptions(mode, exceptions)
+        self.store.audit("reconciled", {"mode": mode.name, "succeeded": succeeded, "failed": failed, "skipped": skipped, "exceptions": len(exceptions), "notified": notified}, self._clock())
         status = "success" if not failed else "unavailable"
-        return {"status": status, "message": f"Reconciliation complete: {succeeded} corrected, {skipped} policy-skipped, {failed} unavailable."}
+        exception_text = "" if not exceptions else f" {len(exceptions)} exception{'s' if len(exceptions) != 1 else ''} detected; {notified} new alert{'s' if notified != 1 else ''} issued."
+        return {"status": status, "message": f"Reconciliation complete: {succeeded} corrected, {skipped} policy-skipped, {failed} unavailable.{exception_text}"}
 
     def _plan(self, mode, snapshot):
         proposals = self._proposals(mode, snapshot)
@@ -174,6 +204,9 @@ class StewardshipController:
         details = []
         if mode.lights_off: details.append("keep authorized lights off")
         if mode.climate_temperature is not None: details.append(f"keep authorized climate entities at {mode.climate_temperature:.1f} degrees")
+        if mode.presence_simulation: details.append("simulate evening presence with at most two authorized lights")
+        if mode.monitor_exceptions: details.append("monitor safety, perimeter and availability exceptions")
+        details.append(f"restore up to {len(mode.restore_states)} prior states when the mode ends")
         details.append(f"exclude {len(mode.excluded_entities)} entities")
         details.append("leave locks, alarms and cameras unchanged")
         return f"Activate {mode.name} mode: " + "; ".join(details) + f". Current correction targets: {count}."
@@ -198,11 +231,16 @@ class StewardshipController:
         if mode.climate_temperature is not None:
             targets = tuple(e.entity_id for e in entities if e.domain == "climate" and e.action_allowed and e.entity_id not in excluded and e.entity_id not in self._manual and e.state not in {"off", "unavailable", "unknown"} and self._temperature_differs(e.attributes, mode.climate_temperature))
             for chunk in self._chunks(targets): proposals.append(HomeAssistantActionProposal("climate", "set_temperature", chunk, {"temperature": mode.climate_temperature}, "Stewardship: set climate temperature"))
+        if mode.presence_simulation:
+            evening = 18 <= now.astimezone().hour < 23
+            candidates = tuple(e.entity_id for e in entities if e.domain == "light" and e.action_allowed and e.entity_id not in excluded and e.entity_id not in self._manual and e.state not in {"unavailable", "unknown"})[:2]
+            targets = tuple(entity_id for entity_id in candidates if (snapshot.entity_map()[entity_id].state == "on") != evening)
+            if targets: proposals.append(HomeAssistantActionProposal("light", "turn_on" if evening else "turn_off", targets, {}, "Stewardship: bounded presence simulation"))
         return proposals
 
     def _parse(self, text):
-        name = next((item for item in ("vacation", "away", "home", "custom") if item in text), "custom")
-        lights_off = name in {"away", "vacation"} or "lights off" in text or "keep the lights off" in text
+        name = next((item for item in ("vacation", "away", "sleep", "home", "custom") if item in text), "custom")
+        lights_off = name in {"away", "vacation", "sleep"} or "lights off" in text or "keep the lights off" in text
         match = re.search(r"(?:temperature|thermostat|climate)(?:\s+\w+){0,3}?\s+(?:to|at)\s+(-?\d+(?:\.\d+)?)", text)
         temperature = float(match.group(1)) if match else (20.0 if name == "vacation" else None)
         if temperature is not None and not 5 <= temperature <= 30: temperature = None
@@ -218,7 +256,63 @@ class StewardshipController:
             expires = (self._clock() + timedelta(days=delta)).replace(hour=23, minute=59, second=59, microsecond=0)
         expires_at = expires.isoformat() if hours or days or date_match or weekday is not None else None
         excluded = tuple(sorted(set(re.findall(r"\b(?:light|climate)\.[a-z0-9_]+", text)))) if "except" in text else ()
-        return StewardshipMode(token_urlsafe(12), name, self._clock().isoformat(), expires_at, lights_off, temperature, excluded)
+        presence = "presence simulation" in text or "simulate presence" in text
+        if presence: lights_off = False
+        return StewardshipMode(token_urlsafe(12), name, self._clock().isoformat(), expires_at, lights_off, temperature, excluded, (), True, presence)
+
+    @staticmethod
+    def _capture_restore_states(snapshot):
+        values = []
+        for entity in snapshot.entities:
+            if not entity.action_allowed or entity.domain not in {"light", "climate"}:
+                continue
+            value = {"entity_id": entity.entity_id, "domain": entity.domain, "state": entity.state}
+            if entity.domain == "climate" and entity.attributes.get("temperature") is not None:
+                value["temperature"] = entity.attributes["temperature"]
+            values.append(value)
+        return tuple(values)
+
+    async def _restore(self, mode):
+        succeeded = failed = 0
+        for item in mode.restore_states:
+            domain = str(item.get("domain", "")); entity_id = str(item.get("entity_id", ""))
+            if domain == "light" and item.get("state") in {"on", "off"}:
+                proposal = HomeAssistantActionProposal("light", "turn_on" if item["state"] == "on" else "turn_off", (entity_id,), {}, "Stewardship: restore prior light state")
+            elif domain == "climate" and item.get("temperature") is not None:
+                proposal = HomeAssistantActionProposal("climate", "set_temperature", (entity_id,), {"temperature": item["temperature"]}, "Stewardship: restore prior climate target")
+            else: continue
+            if self._gateway.request(proposal).get("status") != "immediate_action": failed += 1; continue
+            result = await self._gateway.execute_immediate(proposal)
+            succeeded += len(result.get("succeeded", ())); failed += len(result.get("failed", ()))
+        return succeeded, failed
+
+    @staticmethod
+    def _exceptions(mode, snapshot):
+        if not mode.monitor_exceptions: return ()
+        exceptions = []
+        safety = {"smoke", "gas", "moisture", "water", "carbon_monoxide"}
+        perimeter = {"door", "window", "garage_door", "opening"}
+        for entity in snapshot.entities:
+            if entity.entity_id in mode.excluded_entities: continue
+            if entity.state == "on" and entity.device_class in safety | perimeter:
+                exceptions.append((entity.entity_id, f"{entity.friendly_name} is active"))
+            elif entity.domain == "lock" and entity.state == "unlocked" and mode.name in {"away", "vacation", "sleep"}:
+                exceptions.append((entity.entity_id, f"{entity.friendly_name} is unlocked"))
+            elif entity.state == "unavailable" and entity.domain in {"binary_sensor", "lock", "climate", "light"}:
+                exceptions.append((entity.entity_id, f"{entity.friendly_name} is unavailable"))
+        return tuple(exceptions)
+
+    async def _notify_exceptions(self, mode, exceptions):
+        fresh = tuple(item for item in exceptions if self.store.claim_alert(f"{mode.mode_id}:{item[0]}:{item[1]}", self._clock()))
+        if not fresh: return 0
+        self.store.audit("exceptions_detected", {"mode": mode.name, "exceptions": [message for _entity, message in fresh]}, self._clock())
+        call_service = getattr(self._client, "call_service", None)
+        if callable(call_service):
+            try:
+                await call_service("persistent_notification", "create", {"title": "Jarvis stewardship alert", "message": "\n".join(message for _entity, message in fresh), "notification_id": f"jarvis_stewardship_{mode.mode_id}"})
+            except Exception:
+                self.store.audit("exception_notification_failed", {"mode": mode.name}, self._clock())
+        return len(fresh)
 
     @staticmethod
     def _temperature_differs(attributes, target):
@@ -227,7 +321,7 @@ class StewardshipController:
 
     @staticmethod
     def _is_mode_request(text):
-        return any(phrase in text for phrase in ("vacation mode", "away mode", "home mode", "stewardship mode", "going on vacation", "going on holiday", "i am travelling", "i'm travelling", "i am traveling", "i'm traveling", "watch the house while", "monitor the house while"))
+        return any(phrase in text for phrase in ("vacation mode", "away mode", "sleep mode", "home mode", "stewardship mode", "going on vacation", "going on holiday", "i am travelling", "i'm travelling", "i am traveling", "i'm traveling", "watch the house while", "monitor the house while"))
 
     @staticmethod
     def _chunks(values, size=20):
