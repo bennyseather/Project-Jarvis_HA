@@ -13,6 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Dashboard HACS Hotfix 0.36.1
+
+Version 0.36.1 restores every Jarvis custom card after the 0.36.0 HACS
+package omitted the root `Project-Jarvis_HA.js` resource expected by its
+manifest. Dashboard behaviour is otherwise identical to D4.
+
 ## Project Jarvis Dashboard Refinement and Expansion 0.36.0
 
 Version 0.36.0 completes D4. It improves touch controls, removes the cover Stop
