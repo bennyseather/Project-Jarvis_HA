@@ -181,7 +181,7 @@ class M30EpisodicContinuityTests(unittest.TestCase):
         roadmap = (root / "docs/roadmap.md").read_text()
         self.assertIn("voice activation", roadmap.casefold())
         config = (root / "home_assistant/addons/jarvis/config.yaml").read_text()
-        self.assertIn('version: "0.35.3"', config)
+        self.assertIn('version: "0.36.0"', config)
         self.assertIn("episodic_retention_days", config)
 
 

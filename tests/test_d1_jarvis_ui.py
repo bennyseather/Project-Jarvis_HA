@@ -66,7 +66,7 @@ class JarvisCommandCenterTests(unittest.TestCase):
         self.assertIn('event.key === "Enter"', design_system)
         self.assertIn('event.key === " "', design_system)
         self.assertIn("prefers-reduced-motion:reduce", design_system)
-        self.assertNotIn("callApi(", design_system)
+        self.assertIn('callApi("GET"', design_system)
         self.assertNotIn("callWS(", design_system)
         self.assertNotIn("fetch(", design_system)
 
@@ -79,7 +79,7 @@ class JarvisCommandCenterTests(unittest.TestCase):
         self.assertIn("show_in_sidebar: true", snippet)
         readme = (UI_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn(
-            "/local/jarvis/jarvis-ui.js?v=0.30.0",
+            "/local/jarvis/jarvis-ui.js?v=0.36.0",
             readme,
         )
 

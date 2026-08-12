@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.36.0
+
+- Refine light, cover, washing-machine, and sensor cards for touch use and real telemetry.
+- Add Calendar, Glance, Home Alerts, Network / NAS, Climate Overview, Security Perimeter, and Energy Flow cards.
+- Expand globally usable `jarvis:` icons and bound history/calendar loading for desktop and NSPanel performance.
+
 ## 0.35.3
 
 - Canonicalize preference scopes against every discovered Home Assistant area.

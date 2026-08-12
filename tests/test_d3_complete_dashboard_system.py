@@ -17,7 +17,7 @@ class CompleteJarvisDashboardSystemTests(unittest.TestCase):
         definitions = self.script.split("const CARD_DEFINITIONS = [", 1)[1].split(
             "];", 1
         )[0]
-        self.assertEqual(definitions.count('["jarvis-'), 34)
+        self.assertEqual(definitions.count('["jarvis-'), 41)
         for card in (
             "room", "presence", "weather", "energy", "fan", "vacuum", "lock",
             "alarm", "scene", "timer", "mower", "washer", "spotify",
