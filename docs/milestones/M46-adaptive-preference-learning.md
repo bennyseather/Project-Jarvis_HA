@@ -2,23 +2,23 @@
 
 M46 lets Jarvis learn stable household preferences without silently turning
 observations into control policy. Repeated explicit preference statements are
-stored locally as bounded evidence. Only a confidence-qualified suggestion that
-Benny confirms becomes available to Jarvis reasoning context.
+stored locally as bounded evidence. Three consistent, confidence-qualified
+observations automatically become available to Jarvis reasoning context.
 
 ## Architecture
 
 - Home Assistant remains authoritative for entities, state, permissions and
   service execution.
-- Jarvis owns the durable preference ledger, evidence, confidence, approval and
+- Jarvis owns the durable preference ledger, evidence, confidence, promotion and
   deletion lifecycle.
-- The language model may use approved preferences for reasoning, but cannot
-  write, approve or alter the ledger directly.
+- The language model may use promoted preferences for reasoning, but cannot
+  write or alter the ledger directly.
 
 ## Scope
 
 - Deterministic temperature and lighting preference observations.
 - Three observations by default before a suggestion is eligible.
-- Explicit confirmation before context use.
+- Automatic approval after three consistent safe observations.
 - SQLite persistence, bounded evidence and audit history.
 - Natural listing, provenance explanation, correction and hard deletion.
 - Confidence reset after contradiction and decay for stale unapproved evidence.

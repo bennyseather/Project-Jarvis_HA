@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.2
+
+- Automatically approve safe preferences after three consistent observations.
+- Keep observations inert until the threshold is reached and retain confidence, evidence, audit, correction, decay, and deletion controls.
+- Continue permanently blocking security, alarm, credential, unlocking, and spending preferences.
+
 ## 0.35.1
 
 - Keep equivalent preference wording such as “temperature to be 21 degrees” inside M46.

@@ -24,16 +24,14 @@ class M46AdaptivePreferenceLearningTests(unittest.TestCase):
         self.store.close()
         self.directory.cleanup()
 
-    def test_repetition_requires_approval_before_context_use(self):
+    def test_repetition_automatically_approves_on_third_observation(self):
         first = self.controller.handle("I prefer the office at 21 degrees", "c1")
         second = self.controller.handle("I prefer the office at 21 degrees", "c1")
         third = self.controller.handle("I prefer the office at 21 degrees", "c1")
         self.assertIn("1 of 3", first["message"])
         self.assertIn("2 of 3", second["message"])
-        self.assertEqual(third["status"], "requires_confirmation")
-        self.assertEqual(self.controller.context(), ())
-        approved = self.controller.confirm(third["token"], third["action_payload"])
-        self.assertEqual(approved["status"], "success")
+        self.assertEqual(third["status"], "success")
+        self.assertIn("automatically approved", third["message"])
         self.assertEqual(self.controller.context()[0]["value"], "21.0")
 
     def test_equivalent_temperature_wording_stays_in_adaptive_learning(self):
@@ -42,15 +40,14 @@ class M46AdaptivePreferenceLearningTests(unittest.TestCase):
         result = self.controller.handle(
             "I like the upstairs office temperature to be 21 degrees", "c1"
         )
-        self.assertEqual(result["status"], "requires_confirmation")
+        self.assertIn("automatically approved", result["message"])
         item = self.store.list()[0]
         self.assertEqual(item.evidence_count, 3)
         self.assertEqual(item.key, "temperature.upstairs_office")
 
     def test_restart_persistence_explanation_correction_and_deletion(self):
         for _ in range(3):
-            proposal = self.controller.handle("I prefer the lounge at 20 degrees", "c1")
-        self.controller.confirm(proposal["token"], proposal["action_payload"])
+            self.controller.handle("I prefer the lounge at 20 degrees", "c1")
         replacement = AdaptivePreferenceController(self.store, AdaptiveLearningPolicy(), clock=lambda: self.now)
         self.assertIn("lounge", replacement.handle("What have you learned?", "c2")["message"])
         self.assertIn("3 times", replacement.handle("Why did you learn lounge temperature?", "c2")["message"])
@@ -72,7 +69,7 @@ class M46AdaptivePreferenceLearningTests(unittest.TestCase):
         self.assertEqual(item.evidence_count, 0)
         self.assertEqual(item.status, "stale")
 
-    def test_repeated_successful_actions_can_propose_but_failures_cannot(self):
+    def test_repeated_successful_actions_auto_approve_but_failures_cannot(self):
         for _ in range(2):
             self.assertIsNone(self.controller.observe_outcome(
                 "Set the office temperature to 21 degrees",
@@ -84,8 +81,8 @@ class M46AdaptivePreferenceLearningTests(unittest.TestCase):
             {"status": "success"},
             "c1",
         )
-        self.assertEqual(proposal["status"], "requires_confirmation")
-        self.assertIn("action completed", proposal["summary"].casefold())
+        self.assertIsNone(proposal)
+        self.assertEqual(self.controller.context()[0]["value"], "21.0")
         before = len(self.store.list())
         self.controller.observe_outcome(
             "Set lounge lights to 40 percent", {"status": "unavailable"}, "c1"

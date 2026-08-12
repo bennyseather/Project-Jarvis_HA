@@ -13,13 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Adaptive Preference Learning 0.35.1
+## Project Jarvis Adaptive Preference Learning 0.35.2
 
-Version 0.35.1 adds approval-gated adaptive preference learning and keeps
-equivalent preference wording in the same evidence ledger. Jarvis can
-accumulate repeated temperature and lighting preferences, explain the evidence,
-and suggest a durable preference only after the configured confidence threshold.
-Nothing learned affects reasoning until Benny explicitly confirms it.
+Version 0.35.2 adds threshold-gated adaptive preference learning and keeps
+equivalent preference wording in the same evidence ledger. Jarvis accumulates
+repeated temperature and lighting preferences and automatically approves a safe
+preference after three consistent observations. Nothing learned affects
+reasoning before that threshold.
 
 Natural controls include “What have you learned?”, “Why did you learn office
 temperature?”, “That is wrong, use 21 degrees instead”, and “Forget the office
