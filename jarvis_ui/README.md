@@ -1,4 +1,4 @@
-# Project Jarvis UI 0.30.0
+# Project Jarvis UI 0.36.0
 
 Project Jarvis UI is a reusable Home Assistant theme, card library, icon set,
 and dashboard package. Cards use a squared technical HUD style and can be
@@ -29,7 +29,7 @@ Use Studio Code Server, File editor, or Samba to access `/config`.
    `/config/themes/jarvis-command-center.yaml`.
 3. Copy the `www/jarvis` folder into `/config/www/jarvis`.
 4. In Home Assistant, open **Settings -> Dashboards**, open the three-dot menu,
-   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.30.0`
+   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.36.0`
    as a **JavaScript module**.
 5. If you want the supplied dashboards, merge `configuration-snippet.yaml`
    into `/config/configuration.yaml`. Do not create a second `frontend:` or
@@ -61,6 +61,9 @@ editable through Home Assistant.
 - Scene / Script, Timer, Robot Mower, Washing Machine, and Spotify
 - EV Charger, universal Tile, and Markup
 - Car telemetry
+- Calendar with month, week, agenda, and upcoming appointments
+- Glance, Home Alerts, Network / NAS, Climate Overview, Security Perimeter,
+  and Energy Flow
 
 ## Included badges
 
@@ -75,6 +78,11 @@ configuration editors.
 All cards share hover/focus illumination, cyan/amber/green/red accent states,
 keyboard controls, responsive sizing, and reduced-motion support.
 Numeric sensor values displayed on Jarvis cards are limited to one decimal.
+Sensor cards request real Home Assistant history only while near the viewport,
+cache it for one minute, and cap rendered samples. Select 1, 6, 12, 24, or 48
+hours in the visual editor. Washing Machine cards interpret their configured
+remaining-time sensor as minutes and calculate completion when a total cycle
+duration is supplied.
 
 The Voice card dispatches Home Assistant's standard Assist action. The separate
 Voice Satellite card can use a browser microphone over HTTPS for wake-word or
@@ -86,7 +94,13 @@ track and releases the microphone.
 
 Use icons such as `jarvis:lightbulb`, `jarvis:spotlight`, `jarvis:plug`,
 `jarvis:thermostat`, `jarvis:cover`, `jarvis:speaker`, `jarvis:camera`,
-`jarvis:battery`, `jarvis:vehicle`, and `jarvis:automation`.
+`jarvis:battery`, `jarvis:vehicle`, `jarvis:calendar`, `jarvis:appointment`,
+`jarvis:storage`, `jarvis:leak`, `jarvis:smoke`, `jarvis:door`,
+`jarvis:window`, `jarvis:solar`, `jarvis:grid`, and `jarvis:automation`.
+
+These are global Home Assistant icons, not catalog-only artwork. Enter any
+`jarvis:` name in an ordinary Home Assistant card, entity customization, or
+Jarvis card icon selector. The Icon Catalog is only a browsable reference.
 
 Jarvis cards select an icon from the entity domain and device class
 automatically. A configured icon overrides it. The Icon Catalog card shows
@@ -122,7 +136,7 @@ complete Home Assistant configuration.
 ## Update from an earlier UI release
 
 Replace both dashboard files, the theme, and the `www/jarvis` folder. Replace
-the old resource with `/local/jarvis/jarvis-ui.js?v=0.30.0`, restart Home
+the old resource with `/local/jarvis/jarvis-ui.js?v=0.36.0`, restart Home
 Assistant, and hard-refresh every client. The old JavaScript resource remains
 a compatibility loader, but the new URL is recommended.
 

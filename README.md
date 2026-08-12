@@ -13,6 +13,16 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Dashboard Refinement and Expansion 0.36.0
+
+Version 0.36.0 completes D4. It improves touch controls, removes the cover Stop
+button, calculates washer completion from minutes remaining, and replaces
+decorative sensor traces with bounded Home Assistant history. It also adds
+Calendar, Glance, Home Alerts, Network / NAS, Climate Overview, Security
+Perimeter, and Energy Flow cards with visual editors and responsive NSPanel
+layouts. The expanded `jarvis:` icon set is globally available to ordinary
+Home Assistant cards and entity customizations.
+
 ## Project Jarvis Adaptive Preference Learning 0.35.3
 
 Version 0.35.3 adds threshold-gated adaptive preference learning and resolves

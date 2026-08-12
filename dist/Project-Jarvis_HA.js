@@ -1,4 +1,9 @@
-const JARVIS_UI_VERSION = "0.30.0";
+const JARVIS_UI_VERSION = "0.36.0";
+
+const HISTORY_CACHE = new Map();
+const CALENDAR_CACHE = new Map();
+const DATA_CACHE_TTL = 60000;
+const MAX_HISTORY_SAMPLES = 96;
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -33,6 +38,17 @@ const ICON_PATHS = {
   vacuum: "M12 4a8 8 0 1 1-7.75 10H2v-2h2.25A8 8 0 0 1 12 4m0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12m-3 5h6v2H9v-2Z",
   vehicle: "M5 4h14l2 7v8h-2v2h-3v-2H8v2H5v-2H3v-8l2-7m1.5 2-1.43 5h13.86L17.5 6h-11M6 13a2 2 0 1 0 0 4 2 2 0 0 0 0-4m12 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z",
   automation: "M4 4h6v6H4V4m10 0h6v6h-6V4M4 14h6v6H4v-6m13-2 5 5-5 5v-3h-5v-4h5v-3Z",
+  calendar: "M5 3h1V1h2v2h8V1h2v2h1a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2m0 6v10h14V9H5Z",
+  appointment: "M12 7v5l4 2-1 2-5-3V7h2m0-5a10 10 0 1 1 0 20 10 10 0 0 1 0-20Z",
+  storage: "M4 4c0-1.1 3.58-2 8-2s8 .9 8 2v16c0 1.1-3.58 2-8 2s-8-.9-8-2V4m2 0c0 .55 2.69 1 6 1s6-.45 6-1-2.69-1-6-1-6 .45-6 1m0 5v3c0 .55 2.69 1 6 1s6-.45 6-1V9c-1.45.66-3.6 1-6 1s-4.55-.34-6-1Z",
+  leak: "M12 2S5 10 5 15a7 7 0 0 0 14 0c0-5-7-13-7-13m-4 13h2a2 2 0 0 0 2 2v2a4 4 0 0 1-4-4Z",
+  smoke: "M12 4a7 7 0 0 1 7 7c1.76 0 3 1.24 3 3s-1.24 3-3 3H6a4 4 0 0 1 0-8c.44 0 .86.07 1.25.2A7 7 0 0 1 12 4m-5 15h10v2H7v-2Z",
+  door: "M5 2h14v20h-2V4H7v18H5V2m5 9h2v2h-2v-2Z",
+  window: "M3 3h18v18H3V3m2 2v6h6V5H5m8 0v6h6V5h-6M5 13v6h6v-6H5m8 0v6h6v-6h-6Z",
+  solar: "M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10m0-5h1v3h-2V2h1m0 17h1v3h-2v-3h1M2 11h3v2H2v-2m17 0h3v2h-3v-2M4.2 5.6l1.4-1.4 2.1 2.1-1.4 1.4-2.1-2.1m12.1 12.1 1.4-1.4 2.1 2.1-1.4 1.4-2.1-2.1Z",
+  grid: "M3 21 8 3h8l5 18h-2l-1-4H6l-1 4H3m4-6h10l-1-4H8l-1 4m2-6h6l-1-4h-4L9 9Z",
+  alert: "M12 2 1 21h22L12 2m-1 7h2v6h-2V9m0 8h2v2h-2v-2Z",
+  glance: "M12 5c5.5 0 9.5 4.5 10.5 7-1 2.5-5 7-10.5 7S2.5 14.5 1.5 12C2.5 9.5 6.5 5 12 5m0 2c-3.5 0-6.5 2.5-8.2 5 1.7 2.5 4.7 5 8.2 5s6.5-2.5 8.2-5C18.5 9.5 15.5 7 12 7m0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z",
 };
 
 const ICON_ALIASES = {
@@ -48,7 +64,7 @@ const ICON_ALIASES = {
   "garage-door": "garage", speaker: "media", "speaker-group": "media",
   media: "media", television: "tv", receiver: "media",
   camera: "camera", doorbell: "camera", lock: "lock", contact: "lock",
-  motion: "motion", occupancy: "motion", smoke: "sensor", leak: "sensor",
+  motion: "motion", occupancy: "motion", smoke: "smoke", leak: "leak",
   sensor: "sensor", battery: "battery", energy: "energy", power: "energy",
   network: "network", "air-quality": "sensor", room: "room", floor: "room",
   home: "room", house: "room",
@@ -61,6 +77,10 @@ const ICON_ALIASES = {
   "robot-mower": "vacuum", washer: "appliance", "washing-machine": "appliance",
   spotify: "media", "ev-charger": "energy", tile: "button",
   markup: "core", alarm: "lock", security: "lock",
+  calendar: "calendar", appointment: "appointment", schedule: "calendar",
+  nas: "storage", storage: "storage", disk: "storage", server: "network",
+  door: "door", window: "window", solar: "solar", grid: "grid",
+  alert: "alert", warning: "alert", glance: "glance",
 };
 
 window.customIconsets = window.customIconsets || {};
@@ -445,7 +465,7 @@ class JarvisLightCard extends JarvisBaseCard {
     const on = state?.state === "on";
     const brightness = Math.round(((state?.attributes?.brightness || 0) / 255) * 100);
     this.shell(`<div class="light-layout"><div class="top"><button class="icon-shell light-toggle ${on ? "primary" : ""}" aria-label="Turn ${on ? "off" : "on"} ${escapeHtml(friendlyName(state, this._config))}" aria-pressed="${on}"><ha-icon icon="${escapeHtml(entityIcon(state, this._config))}"></ha-icon></button><div class="copy"><div class="eyebrow">Lighting array</div><div class="name">${escapeHtml(friendlyName(state, this._config))}</div><div class="state">${escapeHtml(formatState(state, this._config))}</div></div></div><div class="meter"><span>OUTPUT</span><b>${brightness}%</b><input aria-label="Brightness" type="range" min="0" max="100" value="${brightness}"></div></div>
-      <style>.light-layout{min-height:160px;padding:18px}.top{display:grid;grid-template-columns:48px minmax(0,1fr);gap:14px;align-items:center}.light-toggle{width:46px;height:46px;min-width:46px;min-height:46px;padding:0}.light-toggle ha-icon{--mdc-icon-size:27px}.meter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:20px;font:700 10px monospace;color:var(--secondary-text-color)}.meter input{grid-column:1/-1}.meter b{grid-column:3;color:var(--j-accent)}@media(max-width:900px){.light-layout{padding:14px}.top{grid-template-columns:40px minmax(0,1fr);gap:8px}.light-toggle{width:38px;height:38px;min-width:38px;min-height:38px}.light-toggle ha-icon{--mdc-icon-size:23px}.eyebrow{font-size:8px;letter-spacing:.13em}.name{font-size:14px}.meter{margin-top:14px;gap:8px}}</style>`,
+      <style>.light-layout{min-height:160px;padding:18px}.top{display:grid;grid-template-columns:54px minmax(0,1fr);gap:14px;align-items:center}.light-toggle{width:52px;height:52px;min-width:52px;min-height:52px;padding:0;touch-action:manipulation}.light-toggle ha-icon{--mdc-icon-size:29px}.meter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:20px;font:700 10px monospace;color:var(--secondary-text-color)}.meter input{grid-column:1/-1}.meter b{grid-column:3;color:var(--j-accent)}@media(max-width:900px){.light-layout{padding:14px}.top{grid-template-columns:58px minmax(0,1fr);gap:10px}.light-toggle{width:56px;height:56px;min-width:56px;min-height:56px}.light-toggle ha-icon{--mdc-icon-size:30px}.eyebrow{font-size:8px;letter-spacing:.13em}.name{font-size:14px}.meter{margin-top:14px;gap:8px}}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this.shadowRoot.querySelector(".light-toggle").addEventListener("click", () => this.call("light", "toggle"));
     this.shadowRoot.querySelector("input").addEventListener("change", (event) => {
@@ -520,8 +540,8 @@ class JarvisCoverCard extends JarvisBaseCard {
     if (!this._config) return;
     const state = this.cardState();
     const pos = state?.attributes?.current_position;
-    this.shell(`<div class="cover-layout">${this.entityHeader("Aperture control")}<div class="controls"><button data-service="open_cover">OPEN</button><button data-service="stop_cover">STOP</button><button data-service="close_cover">CLOSE</button></div>${pos == null ? "" : `<div class="position"><span>POSITION</span><b>${pos}%</b><input aria-label="Cover position" type="range" min="0" max="100" value="${pos}"></div>`}</div>
-      <style>.cover-layout{min-height:164px;padding:18px;display:grid;grid-template-columns:48px 1fr;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.controls{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.position{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;gap:8px;font:700 10px monospace;color:var(--secondary-text-color)}.position b{color:var(--j-accent)}.position input{grid-column:1/-1}</style>`,
+    this.shell(`<div class="cover-layout">${this.entityHeader("Aperture control")}<div class="controls"><button data-service="open_cover">OPEN</button><button data-service="close_cover">CLOSE</button></div>${pos == null ? "" : `<div class="position"><span>POSITION</span><b>${pos}%</b><input aria-label="Cover position" type="range" min="0" max="100" value="${pos}"></div>`}</div>
+      <style>.cover-layout{min-height:164px;padding:18px;display:grid;grid-template-columns:48px 1fr;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.controls{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.position{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;gap:8px;font:700 10px monospace;color:var(--secondary-text-color)}.position b{color:var(--j-accent)}.position input{grid-column:1/-1}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this.shadowRoot.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => this.call("cover", button.dataset.service)));
     this.shadowRoot.querySelector("input")?.addEventListener("change", (event) => this.call("cover", "set_cover_position", { position: Number(event.target.value) }));
@@ -630,13 +650,59 @@ class JarvisCameraCard extends JarvisBaseCard {
 class JarvisSensorCard extends JarvisBaseCard {
   static cardName = "Jarvis Sensor";
   static domains = ["sensor", "binary_sensor", "sun", "weather"];
+  static getConfigForm() {
+    const form = commonForm(true);
+    form.schema.splice(1, 0, { name: "history_hours", selector: { select: { options: ["1", "6", "12", "24", "48"] } } });
+    return form;
+  }
+  connectedCallback() {
+    this._visible = false;
+    this._observer = new IntersectionObserver((entries) => {
+      this._visible = entries.some((entry) => entry.isIntersecting);
+      if (this._visible) this.loadHistory();
+    }, { rootMargin: "160px" });
+    this._observer.observe(this);
+  }
+  disconnectedCallback() { this._observer?.disconnect(); }
   render() {
     if (!this._config) return;
     const state = this.cardState();
     const value = formatState(state, this._config);
-    this.shell(`<div class="sensor-layout">${this.entityHeader("Telemetry")}<div class="value">${escapeHtml(value)}</div><div class="trace">${Array.from({ length: 18 }, (_, i) => `<i style="height:${15 + ((i * 23) % 65)}%"></i>`).join("")}</div></div>
-      <style>.sensor-layout{min-height:148px;padding:18px;display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.value{font:700 21px monospace;color:var(--j-accent)}.trace{grid-column:1/-1;height:30px;display:flex;gap:4px;align-items:end;border-bottom:1px solid var(--j-line)}.trace i{flex:1;background:var(--j-accent);opacity:.42;box-shadow:0 0 5px var(--j-accent)}</style>`,
+    this.shell(`<div class="sensor-layout">${this.entityHeader("Telemetry")}<div class="value">${escapeHtml(value)}</div><div class="trace"><span>HISTORY LOADING</span></div></div>
+      <style>.sensor-layout{min-height:148px;padding:18px;display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.value{font:700 21px monospace;color:var(--j-accent)}.trace{grid-column:1/-1;height:38px;border-bottom:1px solid var(--j-line);overflow:hidden;display:grid;align-items:end}.trace span{align-self:center;font:600 8px monospace;letter-spacing:.12em;color:var(--secondary-text-color)}.trace svg{width:100%;height:36px;overflow:visible}.trace polyline{fill:none;stroke:var(--j-accent);stroke-width:2;filter:drop-shadow(0 0 4px var(--j-accent))}.binary-trace{height:24px;display:flex;gap:2px;align-items:end}.binary-trace i{flex:1;height:100%;background:var(--j-accent);opacity:.15}.binary-trace i.on{opacity:.8}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
+    if (this._visible) this.loadHistory();
+  }
+  async loadHistory() {
+    const trace = this.shadowRoot?.querySelector(".trace");
+    if (!trace || !this._hass?.callApi || !this._config?.entity || this._loadingHistory) return;
+    const hours = [1, 6, 12, 24, 48].includes(Number(this._config.history_hours)) ? Number(this._config.history_hours) : 24;
+    const key = `${this._config.entity}:${hours}`;
+    let entry = HISTORY_CACHE.get(key);
+    if (!entry || Date.now() - entry.time > DATA_CACHE_TTL) {
+      this._loadingHistory = true;
+      try {
+        const end = new Date(); const start = new Date(end.getTime() - hours * 3600000);
+        const result = await this._hass.callApi("GET", `history/period/${start.toISOString()}?filter_entity_id=${encodeURIComponent(this._config.entity)}&end_time=${encodeURIComponent(end.toISOString())}&minimal_response&no_attributes`);
+        const all = Array.isArray(result?.[0]) ? result[0] : [];
+        const step = Math.max(1, Math.ceil(all.length / MAX_HISTORY_SAMPLES));
+        entry = { time: Date.now(), states: all.filter((_, index) => index % step === 0).slice(-MAX_HISTORY_SAMPLES) };
+        HISTORY_CACHE.set(key, entry);
+      } catch (_error) { entry = { time: Date.now(), states: [] }; }
+      finally { this._loadingHistory = false; }
+    }
+    if (!this.shadowRoot?.contains(trace)) return;
+    const states = entry.states || [];
+    if (!states.length) { trace.innerHTML = "<span>NO HISTORY AVAILABLE</span>"; return; }
+    if (entityDomain(this._config.entity) === "binary_sensor") {
+      trace.innerHTML = `<div class="binary-trace">${states.map((item) => `<i class="${item.state === "on" ? "on" : ""}"></i>`).join("")}</div>`;
+      return;
+    }
+    const numbers = states.map((item) => Number(item.state)).filter(Number.isFinite);
+    if (numbers.length < 2) { trace.innerHTML = "<span>NO NUMERIC HISTORY</span>"; return; }
+    const min = Math.min(...numbers), span = Math.max(0.001, Math.max(...numbers) - min);
+    const points = numbers.map((number, index) => `${(index / (numbers.length - 1) * 100).toFixed(1)},${(34 - ((number - min) / span * 30)).toFixed(1)}`).join(" ");
+    trace.innerHTML = `<svg viewBox="0 0 100 36" preserveAspectRatio="none" aria-label="${hours} hour history"><polyline points="${points}"></polyline></svg>`;
   }
 }
 
@@ -1272,15 +1338,22 @@ class JarvisWasherCard extends JarvisEntityCard {
   static domains = ["sensor", "switch"];
   static getConfigForm() {
     const form = commonForm(true);
-    form.schema.splice(1, 0, { name: "progress_entity", selector: { entity: { domain: "sensor" } } });
+    form.schema.splice(1, 0,
+      { name: "remaining_entity", selector: { entity: { domain: "sensor" } } },
+      { name: "total_cycle_entity", selector: { entity: { domain: "sensor" } } },
+      { name: "total_cycle_minutes", selector: { number: { min: 1, max: 1440, mode: "box" } } });
     return form;
   }
   render() {
     if (!this._config) return;
     const state = this.cardState();
-    const progress = stateObject(this._hass, this._config.progress_entity);
-    const value = Math.min(100, Math.max(0, Number(progress?.state) || 0));
-    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Laundry unit")}<div class="j-value">${progress ? `${formatValue(value)}%` : escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div><div class="energy-bar"><i style="width:${value}%"></i></div></div>
+    const remaining = stateObject(this._hass, this._config.remaining_entity || this._config.progress_entity);
+    const totalEntity = stateObject(this._hass, this._config.total_cycle_entity);
+    const minutes = Number(remaining?.state);
+    const total = Number(totalEntity?.state || this._config.total_cycle_minutes);
+    const value = Number.isFinite(minutes) && Number.isFinite(total) && total > 0 ? Math.min(100, Math.max(0, (total - minutes) / total * 100)) : null;
+    const readout = Number.isFinite(minutes) ? `${formatValue(minutes)} min` : escapeHtml(String(state?.state || "unknown").toUpperCase());
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Laundry unit")}<div class="j-value">${readout}</div></div>${value == null ? '<div class="state">Configure total cycle time to calculate progress.</div>' : `<div class="energy-bar" aria-label="${formatValue(value)} percent complete"><i style="width:${value}%"></i></div><div class="state">${formatValue(value)}% complete</div>`}</div>
       <style>.energy-bar{height:9px;border:1px solid var(--j-line);padding:2px}.energy-bar i{display:block;height:100%;background:var(--j-accent)}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
   }
@@ -1593,6 +1666,99 @@ class JarvisPresenceBadge extends JarvisBaseBadge {
   }
 }
 
+function multiEntityForm(extra = []) {
+  return { schema: [
+    { name: "name", selector: { text: {} } },
+    { name: "entities", required: true, selector: { entity: { multiple: true } } },
+    ...extra,
+    { name: "accent", selector: { select: { options: ["cyan", "amber", "green", "red"] } } },
+  ] };
+}
+
+class JarvisGlanceCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static cardName = "Jarvis Glance";
+  static getConfigForm() { return multiEntityForm([{ name: "columns", selector: { number: { min: 2, max: 6, mode: "slider" } } }]); }
+  static getStubConfig(hass) { return { name: "At a glance", entities: Object.keys(hass?.states || {}).slice(0, 4), columns: 4 }; }
+  render() {
+    if (!this._config) return;
+    const rows = (this._config.entities || []).slice(0, 12).map((id) => {
+      const state = stateObject(this._hass, id);
+      return `<button class="glance-item" data-entity="${escapeHtml(id)}"><ha-icon icon="${escapeHtml(entityIcon(state, { entity: id }))}"></ha-icon><span>${escapeHtml(state?.attributes?.friendly_name || id)}</span><b>${escapeHtml(formatState(state, { entity: id }))}</b></button>`;
+    }).join("");
+    this.shell(`<div class="panel"><div class="eyebrow">Glance matrix</div><div class="title">${escapeHtml(this._config.name || "At a glance")}</div><div class="glance" style="--columns:${Math.min(6, Math.max(2, Number(this._config.columns) || 4))}">${rows || "Select entities in the visual editor."}</div></div><style>.panel{padding:18px}.title{font-size:20px;font-weight:700;margin:5px 0 14px}.glance{display:grid;grid-template-columns:repeat(var(--columns),minmax(90px,1fr));gap:8px}.glance-item{min-height:86px;padding:9px;display:grid;place-items:center;gap:5px;text-transform:none;letter-spacing:0}.glance-item ha-icon{color:var(--j-accent)}.glance-item span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.glance-item b{font:700 11px monospace;color:var(--j-accent)}@container(max-width:430px){.glance{grid-template-columns:repeat(2,1fr)}}</style>`, { interactive: false });
+    this.shadowRoot.querySelectorAll(".glance-item").forEach((button) => button.addEventListener("click", () => fireEvent(this, "hass-more-info", { entityId: button.dataset.entity })));
+  }
+}
+
+class JarvisSummaryPanel extends JarvisBaseCard {
+  static requiresEntity = false;
+  static icon = "jarvis:core";
+  static kicker = "System overview";
+  static getConfigForm() { return multiEntityForm(); }
+  static getStubConfig(hass) { return { entities: Object.keys(hass?.states || {}).slice(0, 6) }; }
+  rowStatus(state) { return isUnavailable(state) ? "ALERT" : formatState(state, { entity: state?.entity_id }); }
+  render() {
+    if (!this._config) return;
+    const entities = (this._config.entities || []).slice(0, 16);
+    const rows = entities.map((id) => { const state = stateObject(this._hass, id); return `<button class="summary-row" data-entity="${escapeHtml(id)}"><ha-icon icon="${escapeHtml(entityIcon(state, { entity: id }))}"></ha-icon><span>${escapeHtml(state?.attributes?.friendly_name || id)}</span><b class="${isUnavailable(state) ? "bad" : ""}">${escapeHtml(this.rowStatus(state))}</b></button>`; }).join("");
+    this.shell(`<div class="summary"><div class="summary-head"><ha-icon icon="${this.constructor.icon}"></ha-icon><div><div class="eyebrow">${this.constructor.kicker}</div><div class="title">${escapeHtml(this._config.name || this.constructor.cardName)}</div></div></div><div class="summary-list">${rows || "Select entities in the visual editor."}</div></div><style>.summary{padding:18px}.summary-head{display:flex;gap:12px;align-items:center;margin-bottom:12px}.summary-head>ha-icon{--mdc-icon-size:34px;color:var(--j-accent)}.title{font-size:20px;font-weight:700}.summary-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px 14px}.summary-row{display:grid;grid-template-columns:24px 1fr auto;gap:8px;align-items:center;padding:8px;text-align:left;text-transform:none;letter-spacing:0}.summary-row ha-icon{--mdc-icon-size:18px;color:var(--j-accent)}.summary-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.summary-row b{font:700 10px monospace;color:var(--j-accent)}.summary-row b.bad{color:var(--j-red)}</style>`, { interactive: false });
+    this.shadowRoot.querySelectorAll(".summary-row").forEach((button) => button.addEventListener("click", () => fireEvent(this, "hass-more-info", { entityId: button.dataset.entity })));
+  }
+}
+
+class JarvisAlertsCard extends JarvisSummaryPanel { static cardName = "Jarvis Home Alerts"; static icon = "jarvis:alert"; static kicker = "Priority monitor"; rowStatus(state) { return isUnavailable(state) ? "UNAVAILABLE" : (isActive(state) || Number(state?.state) < Number(this._config.battery_threshold || 20) ? "ATTENTION" : "CLEAR"); } static getConfigForm() { return multiEntityForm([{ name: "battery_threshold", selector: { number: { min: 1, max: 100, mode: "slider" } } }]); } }
+class JarvisNetworkCard extends JarvisSummaryPanel { static cardName = "Jarvis Network / NAS"; static icon = "jarvis:storage"; static kicker = "Infrastructure telemetry"; }
+class JarvisClimateOverviewCard extends JarvisSummaryPanel { static cardName = "Jarvis Climate Overview"; static icon = "jarvis:climate"; static kicker = "Whole-home climate"; }
+class JarvisPerimeterCard extends JarvisSummaryPanel { static cardName = "Jarvis Security Perimeter"; static icon = "jarvis:security"; static kicker = "Doors, windows and locks"; }
+class JarvisEnergyFlowCard extends JarvisSummaryPanel { static cardName = "Jarvis Energy Flow"; static icon = "jarvis:solar"; static kicker = "Solar, grid and battery"; }
+
+class JarvisCalendarCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static cardName = "Jarvis Calendar";
+  static gridRows = 7;
+  static getConfigForm() { return { schema: [
+    { name: "name", selector: { text: {} } },
+    { name: "entities", required: true, selector: { entity: { domain: "calendar", multiple: true } } },
+    { name: "view", selector: { select: { options: ["month", "week", "agenda"] } } },
+    { name: "appointment_limit", selector: { number: { min: 1, max: 20, mode: "slider" } } },
+  ] }; }
+  static getStubConfig(hass) { return { name: "Calendar", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), view: "month", appointment_limit: 6 }; }
+  connectedCallback() { this._visible = false; this._observer = new IntersectionObserver((entries) => { this._visible = entries.some((entry) => entry.isIntersecting); if (this._visible) this.loadEvents(); }, { rootMargin: "160px" }); this._observer.observe(this); }
+  disconnectedCallback() { this._observer?.disconnect(); }
+  render() {
+    if (!this._config) return;
+    this._offset = this._offset || 0;
+    const view = this._config.view || "month";
+    this.shell(`<div class="calendar"><div class="calendar-head"><div><div class="eyebrow">Schedule channel</div><div class="title">${escapeHtml(this._config.name || "Calendar")}</div></div><div class="nav"><button data-nav="-1">&lt;</button><b>${view.toUpperCase()}</b><button data-nav="1">&gt;</button></div></div><div class="calendar-content"><span>CALENDAR LOADING</span></div></div><style>.calendar{padding:18px;min-height:300px}.calendar-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.title{font-size:21px;font-weight:700}.nav{display:flex;align-items:center;gap:7px}.nav b{font:700 9px monospace;color:var(--j-accent)}.nav button{min-width:36px}.calendar-content{margin-top:14px}.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.day{min-height:45px;padding:5px;border:1px solid rgba(32,216,255,.12);font:700 10px monospace}.day.has{border-color:var(--j-accent);background:rgba(32,216,255,.07)}.agenda{display:grid;gap:6px}.event{display:grid;grid-template-columns:70px 1fr;gap:9px;padding:8px;border-left:2px solid var(--j-accent);background:rgba(32,216,255,.04)}.event time{font:700 9px monospace;color:var(--j-accent)}.event span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@container(max-width:430px){.month-grid{display:none}.calendar{min-height:230px}}</style>`, { interactive: false });
+    this.shadowRoot.querySelectorAll("[data-nav]").forEach((button) => button.addEventListener("click", () => { this._offset += Number(button.dataset.nav); CALENDAR_CACHE.clear(); this.loadEvents(); }));
+    if (this._visible) this.loadEvents();
+  }
+  async loadEvents() {
+    const host = this.shadowRoot?.querySelector(".calendar-content");
+    const entities = this._config?.entities || [];
+    if (!host || !this._hass?.callApi || !entities.length || this._loadingEvents) return;
+    const view = this._config.view || "month", anchor = new Date();
+    if (view === "month") anchor.setMonth(anchor.getMonth() + this._offset); else anchor.setDate(anchor.getDate() + this._offset * 7);
+    const start = new Date(anchor); start.setHours(0, 0, 0, 0); const end = new Date(start);
+    if (view === "month") { start.setDate(1); end.setMonth(end.getMonth() + 1, 1); } else { start.setDate(start.getDate() - start.getDay() + 1); end.setDate(start.getDate() + (view === "agenda" ? 30 : 7)); }
+    const key = `${entities.join(",")}:${view}:${start.toISOString()}`; let cached = CALENDAR_CACHE.get(key);
+    if (!cached || Date.now() - cached.time > DATA_CACHE_TTL) {
+      this._loadingEvents = true;
+      try { const batches = await Promise.all(entities.map((id) => this._hass.callApi("GET", `calendars/${encodeURIComponent(id)}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`))); cached = { time: Date.now(), events: batches.flat().sort((a, b) => new Date(a.start?.dateTime || a.start?.date) - new Date(b.start?.dateTime || b.start?.date)) }; CALENDAR_CACHE.set(key, cached); }
+      catch (_error) { cached = { time: Date.now(), events: [] }; }
+      finally { this._loadingEvents = false; }
+    }
+    if (!this.shadowRoot?.contains(host)) return;
+    const limit = Number(this._config.appointment_limit) || 6;
+    const agenda = cached.events.slice(0, limit).map((event) => { const date = new Date(event.start?.dateTime || event.start?.date); return `<div class="event"><time>${date.toLocaleDateString([], { weekday: "short" })} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><span>${escapeHtml(event.summary || "Calendar event")}</span></div>`; }).join("") || "<span>NO UPCOMING APPOINTMENTS</span>";
+    if (view !== "month") { host.innerHTML = `<div class="agenda">${agenda}</div>`; return; }
+    const days = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate(); const first = (start.getDay() + 6) % 7;
+    const cells = Array.from({ length: first }, () => "<div></div>").concat(Array.from({ length: days }, (_, index) => { const day = index + 1; const has = cached.events.some((event) => new Date(event.start?.dateTime || event.start?.date).getDate() === day); return `<div class="day ${has ? "has" : ""}">${day}</div>`; })).join("");
+    host.innerHTML = `<div class="month-grid">${cells}</div><div class="agenda">${agenda}</div>`;
+  }
+}
+
 class JarvisIconCatalogCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Icon Catalog";
@@ -1667,6 +1833,13 @@ const CARD_DEFINITIONS = [
   ["jarvis-tile-card", JarvisTileCard, "Jarvis Tile", "Compact universal entity tile"],
   ["jarvis-markup-card", JarvisMarkupCard, "Jarvis Markup", "Editable Jarvis information panel"],
   ["jarvis-car-card", JarvisCarCard, "Jarvis Car", "Vehicle location, battery, range and status"],
+  ["jarvis-calendar-card", JarvisCalendarCard, "Jarvis Calendar", "Calendar views and upcoming appointments"],
+  ["jarvis-glance-card", JarvisGlanceCard, "Jarvis Glance", "Compact multi-entity overview"],
+  ["jarvis-alerts-card", JarvisAlertsCard, "Jarvis Home Alerts", "Leaks, smoke, batteries and availability"],
+  ["jarvis-network-card", JarvisNetworkCard, "Jarvis Network / NAS", "Network and storage telemetry"],
+  ["jarvis-climate-overview-card", JarvisClimateOverviewCard, "Jarvis Climate Overview", "Whole-home climate summary"],
+  ["jarvis-perimeter-card", JarvisPerimeterCard, "Jarvis Security Perimeter", "Doors, windows and locks"],
+  ["jarvis-energy-flow-card", JarvisEnergyFlowCard, "Jarvis Energy Flow", "Solar, grid, battery and consumption"],
   ["jarvis-icon-catalog-card", JarvisIconCatalogCard, "Jarvis Icon Catalog", "Browse every bundled Jarvis icon"],
   ["jarvis-coverage-card", JarvisCoverageCard, "Jarvis Entity Coverage", "Audit automatic icon coverage locally"],
 ];
@@ -1686,6 +1859,7 @@ const CARD_DOMAINS = new Map([
   [JarvisWasherCard, ["sensor", "switch"]],
   [JarvisSpotifyCard, ["media_player"]],
   [JarvisEvChargerCard, ["switch", "sensor"]],
+  [JarvisCalendarCard, ["calendar"]],
 ]);
 
 window.customCards = window.customCards || [];
