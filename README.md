@@ -13,6 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Cast-Compatible Briefings 0.34.4
+
+Version 0.34.4 makes generated Office Work Greeting blueprints request cached
+MP3 speech at 44.1 kHz stereo. Home Assistant completes and transcodes the Qwen
+audio into a Google Cast-compatible format before starting morning briefings
+or afternoon sign-offs.
+
 ## Project Jarvis Reliable Cast Voice 0.34.3
 
 Version 0.34.3 buffers the complete CPU-generated Qwen response before Home
