@@ -15,6 +15,11 @@ For the temporary CPU worker, retain `generation_timeout: 300`. The
 long TTS payloads at a sentence boundary. Qwen remains primary throughout the
 timeout; fallback voices are used only when Qwen genuinely fails.
 
+`qwen_buffer_before_playback` defaults to enabled. The proxy waits for the
+complete Qwen response before exposing `audio-start` to Home Assistant, so slow
+CPU generation does not start a Google Cast announcement and then leave the
+speaker waiting for audio. The bounded buffer defaults to 64 MiB.
+
 The Qwen worker, installation instructions, and example Docker Compose file are
 in `deployment/qwen_voice_worker`. Never expose its unauthenticated Wyoming port
 to the public internet. The private reference audio and transcript are mounted

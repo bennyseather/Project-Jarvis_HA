@@ -114,6 +114,12 @@ def load_config(path: Path = Path("/data/options.json")) -> VoiceProxyConfig:
         qwen_maximum_spoken_characters=int(
             options.get("qwen_maximum_spoken_characters", 420)
         ),
+        qwen_buffer_before_playback=bool(
+            options.get("qwen_buffer_before_playback", True)
+        ),
+        qwen_maximum_buffer_bytes=int(
+            options.get("qwen_maximum_buffer_megabytes", 64)
+        ) * 1024 * 1024,
     )
 
 

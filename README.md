@@ -13,6 +13,14 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Reliable Cast Voice 0.34.3
+
+Version 0.34.3 buffers the complete CPU-generated Qwen response before Home
+Assistant starts playback. Google Cast speakers therefore receive continuous
+audio after their announcement chime instead of timing out while Qwen is still
+generating later sentences. The buffer is bounded, Qwen remains the primary
+voice, and the existing fallback path is retained for genuine failures.
+
 ## Project Jarvis Blueprint Repair 0.34.2
 
 Version 0.34.2 corrects Jinja escaping in generated blueprint YAML, bounds

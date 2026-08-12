@@ -50,6 +50,8 @@ class VoiceProxyConfig:
     qwen_filter_strength: float = 0.55
     qwen_connect_timeout: float = 3.0
     qwen_maximum_spoken_characters: int = 420
+    qwen_buffer_before_playback: bool = True
+    qwen_maximum_buffer_bytes: int = 67108864
 
 
 class VoiceProxy:
@@ -206,23 +208,59 @@ class VoiceProxy:
         started = time.monotonic()
         try:
             await write_event(writer, event)
-            relay = (
-                self._relay_synthesis_streaming(reader, client)
-                if self.config.qwen_filter == "clean"
-                else self._relay_synthesis(
+            if self.config.qwen_filter == "clean":
+                relay = (
+                    self._relay_synthesis_buffered(reader, client)
+                    if self.config.qwen_buffer_before_playback
+                    else self._relay_synthesis_streaming(reader, client)
+                )
+            else:
+                relay = self._relay_synthesis(
                     reader,
                     client,
                     profile_name=self.config.qwen_filter,
                     strength=self.config.qwen_filter_strength,
                 )
-            )
             # The timeout is deliberately large on CPU. It prevents an abandoned
             # request from running forever without replacing Qwen merely for being slow.
             await asyncio.wait_for(relay, self.config.generation_timeout)
         finally:
             writer.close()
             await writer.wait_closed()
-        LOGGER.info("Qwen response relayed in %.2fs with filter=%s", time.monotonic() - started, self.config.qwen_filter)
+        LOGGER.info(
+            "Qwen response relayed in %.2fs with filter=%s delivery=%s",
+            time.monotonic() - started,
+            self.config.qwen_filter,
+            "buffered" if self.config.qwen_buffer_before_playback else "streaming",
+        )
+
+    async def _relay_synthesis_buffered(
+        self, upstream: asyncio.StreamReader, client: asyncio.StreamWriter
+    ) -> None:
+        """Expose Qwen audio only after the complete stream is locally buffered."""
+        start: Event | None = None
+        stop: Event | None = None
+        chunks: list[bytes] = []
+        total = 0
+        while response := await read_event(upstream):
+            if response.type == "audio-start":
+                start = response
+            elif response.type == "audio-chunk":
+                total += len(response.payload)
+                if total > self.config.qwen_maximum_buffer_bytes:
+                    raise RuntimeError("Qwen audio exceeded the configured buffer limit")
+                chunks.append(response.payload)
+            elif response.type == "audio-stop":
+                stop = response
+                break
+        if start is None or stop is None or not chunks:
+            raise RuntimeError("Qwen worker returned an incomplete buffered audio stream")
+        await write_event(client, start)
+        metadata = dict(start.data)
+        for pcm in chunks:
+            await write_event(client, Event({"type": "audio-chunk"}, metadata, pcm))
+        await write_event(client, stop)
+        LOGGER.info("Buffered %.2f MiB of Qwen audio before playback exposure", total / 1048576)
 
     async def _relay_synthesis_streaming(
         self, upstream: asyncio.StreamReader, client: asyncio.StreamWriter
@@ -442,7 +480,7 @@ def _kokoro_info() -> Event:
     return Event({"type": "info"}, {"tts": [{
         "name": "Project Jarvis Neural Voice",
         "description": "Local British neural voice with restrained synthetic character",
-        "version": "0.33.0",
+        "version": "0.34.3",
         "attribution": attribution,
         "installed": True,
         "voices": voices,
@@ -548,6 +586,8 @@ async def run_server(config: VoiceProxyConfig) -> None:
         raise ValueError(f"Unsupported articulation mode: {config.articulation_mode}")
     if config.qwen_filter not in {"clean", "refined", "synthesized", "synthetic", "metallic"}:
         raise ValueError(f"Unsupported Qwen filter: {config.qwen_filter}")
+    if not 1048576 <= config.qwen_maximum_buffer_bytes <= 268435456:
+        raise ValueError("qwen_maximum_buffer_bytes must be between 1 MiB and 256 MiB")
     proxy = VoiceProxy(config)
     await proxy.warmup()
     server = await asyncio.start_server(
