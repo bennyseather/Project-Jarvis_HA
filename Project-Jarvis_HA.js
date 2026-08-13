@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.43.4";
+const JARVIS_UI_VERSION = "0.44.0";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -612,7 +612,7 @@ class JarvisCameraCard extends JarvisBaseCard {
       { value: "tap_live", label: "Snapshot / tap to live" },
       { value: "always_live", label: "Always live while visible" },
     ] } } },
-    { name: "snapshot_interval", selector: { number: { min: 30, max: 300, step: 30, mode: "slider", unit_of_measurement: "s" } } },
+    { name: "snapshot_interval", selector: { number: { min: 10, max: 300, step: 5, mode: "slider", unit_of_measurement: "s" } } },
   ] }; }
   static getStubConfig(hass) { return { entity: Object.keys(hass?.states || {}).find((id) => entityDomain(id) === "camera") || "camera.camera", camera_mode: "auto", snapshot_interval: 60 }; }
   getCardSize() { return 5; }
@@ -652,6 +652,7 @@ class JarvisCameraCard extends JarvisBaseCard {
     return identity.includes("nest") || identity.includes("google") ? "tap_live" : "tap_live";
   }
   _supportsSnapshot() {
+    if (this.cardState()?.attributes?.jarvis_bridge) return true;
     const streamType = String(this.cardState()?.attributes?.frontend_stream_type || "").toLowerCase();
     return streamType !== "webrtc";
   }
@@ -684,7 +685,7 @@ class JarvisCameraCard extends JarvisBaseCard {
     image.addEventListener("load", () => { this._setCameraMessage(""); this._updateCameraStatus(); });
     image.addEventListener("error", () => { this._setCameraMessage("Snapshot unavailable"); this._updateCameraStatus("Snapshot unavailable"); });
     host.replaceChildren(image); this._snapshotImage = image; this._refreshSnapshot(true);
-    const interval = Math.max(30, Number(this._config.snapshot_interval) || 60) * 1000;
+    const interval = Math.max(10, Number(this._config.snapshot_interval) || 60) * 1000;
     this._snapshotTimer = setInterval(() => { if (this._visible && this._cameraView === "snapshot") this._refreshSnapshot(); }, interval);
     this._updateCameraStatus();
   }
@@ -752,9 +753,17 @@ class JarvisCameraCard extends JarvisBaseCard {
   }
   _setCameraMessage(message) { const node = this.shadowRoot.querySelector(".camera-message"); if (node) { node.textContent = message; node.hidden = !message; } }
   _updateCameraStatus(override) {
-    const unavailable = isUnavailable(this.cardState());
+    const state = this.cardState();
+    const bridged = Boolean(state?.attributes?.jarvis_bridge);
+    const bridgeAvailable = state?.attributes?.bridge_available !== false;
+    const snapshotStale = Boolean(state?.attributes?.snapshot_stale);
+    const unavailable = isUnavailable(state) || (bridged && !bridgeAvailable);
     const live = this._cameraView === "live";
-    const status = override || (unavailable ? `${live ? "Live stream" : "Snapshot"} unavailable` : (live ? "Live" : "Snapshot"));
+    const status = override || (bridged && !bridgeAvailable
+      ? "Bridge unavailable"
+      : (!live && bridged && snapshotStale)
+        ? "Snapshot stale"
+        : unavailable ? `${live ? "Live stream" : "Snapshot"} unavailable` : (live ? "Live" : "Snapshot"));
     const stateNode = this.shadowRoot.querySelector(".camera-status"); if (stateNode) stateNode.textContent = status.toUpperCase();
     const badge = this.shadowRoot.querySelector(".live-badge span"); if (badge) badge.textContent = status.toUpperCase();
     this.shadowRoot.querySelector(".camera-layout")?.classList.toggle("is-live", live && !unavailable);

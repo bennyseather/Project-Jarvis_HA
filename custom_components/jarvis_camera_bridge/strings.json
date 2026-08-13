@@ -1,0 +1,12 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Project Jarvis Camera Bridge",
+        "description": "The token must match the private add-on configuration.",
+        "data": {"url": "Bridge URL", "token": "Bridge token"}
+      }
+    },
+    "error": {"cannot_connect": "Unable to connect or authenticate", "no_cameras": "No cameras are configured"}
+  }
+}

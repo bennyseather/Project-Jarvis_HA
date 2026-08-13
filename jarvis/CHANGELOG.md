@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.44.0
+
+- Added the private Project Jarvis Camera Bridge add-on, using native go2rtc
+  Nest sources and one preloaded upstream session per wired camera.
+- Added 10-60 second locally cached snapshots with retained stale frames,
+  exponential reconnect cooldown, and protected bridge endpoints.
+- Added derived Home Assistant camera entities with local RTSP live streams,
+  bridge/stream connectivity, snapshot age, Nest errors, cooldown, and viewer
+  diagnostics.
+- Updated Jarvis Camera cards to report Snapshot, Live, Snapshot stale, or
+  Bridge unavailable without repeatedly calling Google.
+- Added persistent doorbell-event history. Spoken and push announcements remain
+  disabled pending the new voice hardware.
+
 ## 0.43.4
 
 - Detect WebRTC-only Nest cameras and stop requesting unsupported snapshots.

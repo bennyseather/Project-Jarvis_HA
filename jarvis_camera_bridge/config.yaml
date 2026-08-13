@@ -1,0 +1,33 @@
+name: "Project Jarvis Camera Bridge"
+version: "0.44.0"
+slug: "jarvis_camera_bridge"
+description: "Private Nest-to-go2rtc bridge with cached surveillance snapshots"
+url: "https://github.com/bennyseather/Project-Jarvis_HA"
+arch: [amd64, aarch64]
+startup: application
+boot: auto
+init: false
+ports:
+  10500/tcp: null
+ports_description:
+  10500/tcp: "Jarvis Camera Bridge API (normally left unexposed)"
+options:
+  project_id: ""
+  client_id: ""
+  client_secret: ""
+  refresh_token: ""
+  bridge_token: "change-this-private-token"
+  snapshot_interval: 15
+  stale_after: 60
+  cameras: []
+schema:
+  project_id: str
+  client_id: password
+  client_secret: password
+  refresh_token: password
+  bridge_token: password
+  snapshot_interval: int(10,60)
+  stale_after: int(30,600)
+  cameras:
+    - name: str
+      device_id: str
