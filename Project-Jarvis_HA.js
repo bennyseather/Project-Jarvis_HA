@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.43.3";
+const JARVIS_UI_VERSION = "0.43.4";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -651,11 +651,15 @@ class JarvisCameraCard extends JarvisBaseCard {
     const identity = `${this._config?.entity || ""} ${state?.attributes?.manufacturer || ""} ${state?.attributes?.model || ""}`.toLowerCase();
     return identity.includes("nest") || identity.includes("google") ? "tap_live" : "tap_live";
   }
+  _supportsSnapshot() {
+    const streamType = String(this.cardState()?.attributes?.frontend_stream_type || "").toLowerCase();
+    return streamType !== "webrtc";
+  }
   render() {
     if (!this._config) return;
     const state = this.cardState();
     this.shell(`<div class="camera-layout card-layout"><div class="camera-host" aria-label="Camera image"></div><button class="live-badge" data-camera-action><i></i><span>SNAPSHOT</span></button><div class="camera-message" hidden></div><div class="overlay"><div class="icon-shell"><ha-icon icon="${escapeHtml(this._config.icon || "jarvis:camera")}"></ha-icon></div><div><div class="eyebrow">Visual channel</div><div class="name">${escapeHtml(friendlyName(state, this._config))}</div><div class="state camera-status">SNAPSHOT</div></div></div></div>
-      <style>.camera-layout{min-height:230px;position:relative;background:#01070b}.camera-host{position:absolute;inset:0;overflow:hidden;cursor:pointer}.camera-host>*{display:block;width:100%;height:100%;--ha-card-border-radius:0;--ha-card-box-shadow:none;--ha-card-background:transparent}.camera-host img{width:100%;height:100%;object-fit:cover;opacity:.78}.live-badge{position:absolute;right:14px;top:13px;display:flex;gap:6px;align-items:center;padding:7px 9px;border:1px solid var(--j-line);background:rgba(2,13,22,.86);font:700 9px monospace;letter-spacing:.14em;color:var(--j-accent);z-index:3}.live-badge i{width:6px;height:6px;background:var(--j-accent);box-shadow:0 0 7px var(--j-accent)}.camera-layout.is-live .live-badge i{background:var(--j-red);box-shadow:0 0 7px var(--j-red);animation:live-pulse 1.4s ease-in-out infinite}.camera-message{position:absolute;inset:42% 12px auto;padding:9px;border:1px solid var(--j-line);background:rgba(2,13,22,.92);text-align:center;font:700 9px monospace;color:var(--j-accent);z-index:2}.overlay{position:absolute;left:0;right:0;bottom:0;padding:28px 18px 16px;display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center;background:linear-gradient(transparent,rgba(2,13,22,.96));pointer-events:none}.icon-shell{width:40px;height:40px}.state{color:#b8dce8}@keyframes live-pulse{50%{opacity:.35}}</style>`,
+      <style>.camera-layout{min-height:230px;position:relative;background:#01070b}.camera-host{position:absolute;inset:0;overflow:hidden;cursor:pointer}.camera-host>*{display:block;width:100%;height:100%;--ha-card-border-radius:0;--ha-card-box-shadow:none;--ha-card-background:transparent}.camera-host img{width:100%;height:100%;object-fit:cover;opacity:.78}.camera-host .webrtc-placeholder{display:grid;place-content:center;gap:10px;text-align:center;background:radial-gradient(circle,rgba(32,216,255,.08),transparent 52%)}.webrtc-placeholder ha-icon{margin:auto;--mdc-icon-size:42px;color:var(--j-accent);opacity:.55}.webrtc-placeholder span{font:700 9px monospace;line-height:1.6;letter-spacing:.12em;color:var(--secondary-text-color)}.live-badge{position:absolute;right:14px;top:13px;display:flex;gap:6px;align-items:center;padding:7px 9px;border:1px solid var(--j-line);background:rgba(2,13,22,.86);font:700 9px monospace;letter-spacing:.14em;color:var(--j-accent);z-index:3}.live-badge i{width:6px;height:6px;background:var(--j-accent);box-shadow:0 0 7px var(--j-accent)}.camera-layout.is-live .live-badge i{background:var(--j-red);box-shadow:0 0 7px var(--j-red);animation:live-pulse 1.4s ease-in-out infinite}.camera-message{position:absolute;inset:42% 12px auto;padding:9px;border:1px solid var(--j-line);background:rgba(2,13,22,.92);text-align:center;font:700 9px monospace;color:var(--j-accent);z-index:2}.overlay{position:absolute;left:0;right:0;bottom:0;padding:28px 18px 16px;display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center;background:linear-gradient(transparent,rgba(2,13,22,.96));pointer-events:none}.icon-shell{width:40px;height:40px}.state{color:#b8dce8}@keyframes live-pulse{50%{opacity:.35}}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this.shadowRoot.querySelectorAll("[data-camera-action],.camera-host").forEach((element) => element.addEventListener("click", () => this._toggleCameraMode()));
     this._cameraCard = undefined; this._cameraEntity = undefined;
@@ -669,6 +673,13 @@ class JarvisCameraCard extends JarvisBaseCard {
     this._liveObserver?.disconnect(); this._cameraCard = undefined; this._cameraView = "snapshot";
     const host = this.shadowRoot.querySelector(".camera-host"); if (!host || !this._config?.entity) return;
     clearInterval(this._snapshotTimer);
+    if (!this._supportsSnapshot()) {
+      this._snapshotImage = undefined;
+      const placeholder = document.createElement("div"); placeholder.className = "webrtc-placeholder";
+      placeholder.innerHTML = '<ha-icon icon="jarvis:camera"></ha-icon><span>WEBRTC CAMERA<br>TAP FOR LIVE VIEW</span>';
+      host.replaceChildren(placeholder); this._setCameraMessage(""); this._updateCameraStatus("Tap for live view");
+      return;
+    }
     const image = document.createElement("img"); image.alt = `${friendlyName(this.cardState(), this._config)} snapshot`;
     image.addEventListener("load", () => { this._setCameraMessage(""); this._updateCameraStatus(); });
     image.addEventListener("error", () => { this._setCameraMessage("Snapshot unavailable"); this._updateCameraStatus("Snapshot unavailable"); });
