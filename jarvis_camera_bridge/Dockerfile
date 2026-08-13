@@ -1,6 +1,6 @@
 FROM python:3.12-alpine
 ARG BUILD_ARCH
-ARG GO2RTC_VERSION=1.9.11
+ARG GO2RTC_VERSION=1.9.14
 RUN apk add --no-cache ca-certificates curl ffmpeg && \
     case "${BUILD_ARCH}" in \
       amd64) GO_ARCH=amd64 ;; \

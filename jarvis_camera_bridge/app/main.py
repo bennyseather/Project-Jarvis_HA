@@ -90,7 +90,12 @@ class Bridge:
     async def start(self) -> None:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         self.write_go2rtc_config()
-        self.session = ClientSession(timeout=ClientTimeout(total=20))
+        # A first Nest WebRTC session may take longer than 20 seconds while
+        # Google negotiates ICE or go2rtc performs a bounded retry. Cancelling
+        # that request early can leave go2rtc with a half-created producer.
+        self.session = ClientSession(
+            timeout=ClientTimeout(total=120, connect=20, sock_read=120)
+        )
         self.go2rtc = await asyncio.create_subprocess_exec(
             "/usr/local/bin/go2rtc", "-config", str(GO2RTC_CONFIG)
         )
@@ -134,10 +139,17 @@ class Bridge:
             except Exception as err:  # retain the last good frame
                 camera.failures += 1
                 camera.connected = False
-                camera.last_error = str(err)[:240]
+                detail = str(err).strip()
+                camera.last_error = (detail or type(err).__name__)[:240]
                 backoff = min(300, 5 * (2 ** min(camera.failures - 1, 6)))
                 camera.cooldown_until = time.time() + backoff
-                LOGGER.warning("Snapshot failed for %s; retry in %ss: %s", camera.slug, backoff, err)
+                LOGGER.warning(
+                    "Snapshot failed for %s; retry in %ss: %s: %s",
+                    camera.slug,
+                    backoff,
+                    type(err).__name__,
+                    detail or "no additional detail",
+                )
             await asyncio.sleep(camera.interval)
 
     async def refresh_viewers(self) -> None:
