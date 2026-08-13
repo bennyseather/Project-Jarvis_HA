@@ -13,6 +13,15 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Dashboard Visual Identity 0.43.0
+
+Version 0.43.0 adds per-calendar accent colours, matching agenda and month
+markers, and dedicated room icons in the graphical editor. Camera cards are
+now snapshot-first, only open live streams when configured or requested, stop
+streams when off-screen, and back off after Nest/WebRTC rate limits. Camera
+status now explicitly reports Live, Snapshot, Live stream unavailable, or
+Snapshot unavailable.
+
 ## Project Jarvis Contextual Routine Learning 0.42.0
 
 Version 0.42.0 adds bounded local learning of repeated Home Assistant event

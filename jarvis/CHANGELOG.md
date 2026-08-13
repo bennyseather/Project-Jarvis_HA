@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.43.0
+
+- Added per-calendar accent colours and matching agenda/month event markers.
+- Added dedicated Jarvis room icons to graphical icon selectors.
+- Made camera cards snapshot-first with configurable live modes and viewport-aware stream cleanup.
+- Added exponential Nest/WebRTC rate-limit cooldown and explicit retry behaviour.
+- Replaced generic camera availability text with Live, Snapshot, Live stream unavailable, or Snapshot unavailable.
+
 ## 0.42.1
 
 - Register the Learning Insights sensor before its first backend refresh.
