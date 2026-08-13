@@ -1,7 +1,7 @@
 {
   "domain": "jarvis_camera_bridge",
   "name": "Project Jarvis Camera Bridge",
-  "version": "0.44.1",
+  "version": "0.44.2",
   "config_flow": true,
   "documentation": "https://github.com/bennyseather/Project-Jarvis_HA",
   "iot_class": "local_polling",

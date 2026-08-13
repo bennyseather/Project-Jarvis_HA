@@ -13,9 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Camera Bridge 0.44.1
+## Project Jarvis Camera Bridge 0.44.2
 
-Version 0.44.1 adds a private go2rtc-based Nest Camera Bridge add-on, locally
+Version 0.44.2 lets Google Device Access negotiate each wired Nest camera's
+supported streaming protocol instead of forcing WebRTC. It retains the private
+go2rtc-based Nest Camera Bridge add-on, locally
 cached snapshots, derived Home Assistant camera entities, stream diagnostics,
 stale-frame handling, and a deferred doorbell-event foundation. Doorbell voice
 and push announcements remain disabled until the new voice hardware is ready.

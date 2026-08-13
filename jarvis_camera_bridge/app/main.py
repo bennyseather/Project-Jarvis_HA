@@ -77,7 +77,6 @@ class Bridge:
                     "client_secret": self.options["client_secret"],
                     "refresh_token": self.options["refresh_token"],
                     "device_id": camera.device_id,
-                    "protocols": "WEB_RTC",
                 }
             )
             lines.extend((f"  {camera.slug}:", f"    - nest:?{query}"))
