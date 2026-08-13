@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
+from urllib.parse import urlsplit
 
 
 class BridgeApi:
@@ -29,3 +30,9 @@ class BridgeApi:
         ) as response:
             response.raise_for_status()
             return await response.read()
+
+    def rtsp_url(self, camera_id: str) -> str:
+        host = urlsplit(self.url).hostname
+        if not host:
+            raise ValueError("Bridge URL has no hostname")
+        return f"rtsp://{host}:8554/{camera_id}"

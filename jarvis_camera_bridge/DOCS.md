@@ -12,7 +12,8 @@ add-on's private configuration.
    the Home Assistant Nest integration.
 2. Enter `project_id`, `client_id`, `client_secret`, and `refresh_token`.
 3. Set a long random `bridge_token`; the same token is entered when adding the
-   **Project Jarvis Camera Bridge** integration.
+   **Project Jarvis Camera Bridge** integration. Its default private URL is
+   `http://85a88fc0-jarvis-camera-bridge:10500` for this repository.
 4. Add each wired camera with a friendly `name` and its SDM `device_id`.
 5. Keep port 10500 unexposed unless troubleshooting. Home Assistant reaches the
    add-on over the private Supervisor network.

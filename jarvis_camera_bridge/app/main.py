@@ -172,7 +172,7 @@ class Bridge:
                     "last_error": camera.last_error,
                     "cooldown_seconds": max(0, round(camera.cooldown_until - now)),
                     "active_viewers": camera.active_viewers,
-                    "rtsp_url": f"rtsp://local-jarvis-camera-bridge:8554/{camera.slug}",
+                    "rtsp_path": f"/{camera.slug}",
                 }
             )
         return {"online": process_online, "uptime_seconds": round(now - self.started), "cameras": cameras}

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.44.1
+
+- Corrected the private Supervisor hostname used by repository-installed Camera
+  Bridge add-ons.
+- Derive the local RTSP stream hostname from the configured bridge URL so cached
+  snapshots and live playback always use the same add-on instance.
+
 ## 0.44.0
 
 - Added the private Project Jarvis Camera Bridge add-on, using native go2rtc

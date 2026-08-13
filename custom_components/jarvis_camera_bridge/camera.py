@@ -50,4 +50,4 @@ class JarvisBridgeCamera(CoordinatorEntity, Camera):
         return await self.coordinator.api.snapshot(self.camera_id)
 
     async def stream_source(self):
-        return self.coordinator.camera(self.camera_id).get("rtsp_url")
+        return self.coordinator.api.rtsp_url(self.camera_id)
