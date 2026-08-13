@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 
 
 class HomeAssistantEventSubscriber:
-    def __init__(self, client, policy, store):
+    def __init__(self, client, policy, store, observers=()):
         self._client, self._policy, self._store = client, policy, store
+        self._observers = tuple(observers)
 
     async def run(self) -> None:
         await self._client.connect()
@@ -35,5 +36,13 @@ class HomeAssistantEventSubscriber:
             return
         new_state = data.get("new_state") if isinstance(data.get("new_state"), dict) else {}
         state = new_state.get("state") if isinstance(new_state.get("state"), str) else None
+        old_state_value = data.get("old_state") if isinstance(data.get("old_state"), dict) else {}
+        old_state = old_state_value.get("state") if isinstance(old_state_value.get("state"), str) else None
         occurred_at = datetime.fromisoformat(event["time_fired"].replace("Z", "+00:00")) if isinstance(event.get("time_fired"), str) else datetime.now(timezone.utc)
         self._store.append(event_type, entity_id, occurred_at, state)
+        for observer in self._observers:
+            try:
+                observer(event_type, entity_id, occurred_at, state, old_state)
+            except Exception:
+                # Optional analysis must never interrupt the durable HA timeline.
+                continue

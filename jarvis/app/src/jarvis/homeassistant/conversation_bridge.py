@@ -209,6 +209,10 @@ class JarvisConversationBridge:
             result = self._application.container.adaptive_preferences.confirm(
                 token, payload
             )
+        elif payload.get("kind") == "routine_automation":
+            result = self._application.container.contextual_routines.confirm(
+                token, payload
+            )
         elif payload.get("kind") == "blueprint_install":
             result = self._application.container.blueprint_planner.confirm(
                 token, payload

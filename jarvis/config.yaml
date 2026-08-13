@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.41.0"
+version: "0.42.0"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]
@@ -30,6 +30,7 @@ options:
   stewardship_enabled: true
   stewardship_reconciliation_seconds: 300
   adaptive_learning_enabled: true
+  routine_learning_enabled: true
 schema:
   openai_api_key: password
   bridge_api_key: password
@@ -48,3 +49,4 @@ schema:
   stewardship_enabled: bool
   stewardship_reconciliation_seconds: int(30,3600)
   adaptive_learning_enabled: bool
+  routine_learning_enabled: bool

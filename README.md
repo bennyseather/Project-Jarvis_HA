@@ -13,6 +13,15 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Contextual Routine Learning 0.42.0
+
+Version 0.42.0 adds bounded local learning of repeated Home Assistant event
+sequences. Jarvis requires matching evidence across three separate days, keeps
+suggestions inspectable and forgettable, and only creates a disabled automation
+draft after explicit confirmation. A Learning Insights entity and editable
+Jarvis dashboard card expose observed, suggested, approved, and declining
+patterns without sending learning data outside the installation.
+
 ## Project Jarvis Dashboard Editor Expansion 0.41.0
 
 Version 0.41.0 adds a full-width, visual-editor-compatible Jarvis Heading card,

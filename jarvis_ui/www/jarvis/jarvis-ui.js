@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.41.0";
+const JARVIS_UI_VERSION = "0.42.0";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1968,6 +1968,29 @@ class JarvisRSSTickerCard extends JarvisBaseCard {
   }
 }
 
+class JarvisLearningInsightsCard extends JarvisBaseCard {
+  static cardName = "Jarvis Learning Insights";
+  static requiresEntity = true;
+  static gridRows = 5;
+  static getConfigForm() { return { schema: [
+    { name: "name", selector: { text: {} } },
+    { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
+    { name: "routine_limit", selector: { number: { min: 1, max: 20, mode: "slider" } } },
+    { name: "show_evidence", selector: { boolean: {} } },
+  ] }; }
+  static getStubConfig() { return { name: "Learning Insights", entity: "sensor.jarvis_learning_insights", routine_limit: 8, show_evidence: true }; }
+  render() {
+    if (!this._config || !this._hass) return;
+    const state = this._hass.states?.[this._config.entity];
+    const attributes = state?.attributes || {};
+    const routines = (attributes.routines || []).slice(0, Number(this._config.routine_limit) || 8);
+    const counts = ["observed", "suggested", "approved", "declining"].map((status) =>
+      `<div class="metric ${status}"><b>${Number(attributes[status] || 0)}</b><span>${status}</span></div>`).join("");
+    const rows = routines.map((routine) => `<article class="${escapeHtml(routine.status || "observed")}"><div><b>${escapeHtml(routine.description || "Routine insight")}</b><small>${escapeHtml(routine.day_type || "")}${routine.time_period ? ` · ${escapeHtml(routine.time_period)}` : ""}${routine.area ? ` · ${escapeHtml(routine.area)}` : ""}</small></div><em>${escapeHtml(routine.status || "observed")}</em>${this._config.show_evidence !== false ? `<footer><i style="width:${Math.round(Number(routine.confidence || 0) * 100)}%"></i><span>${(routine.evidence_days || []).length} DAYS · ${Math.round(Number(routine.confidence || 0) * 100)}%</span></footer>` : ""}</article>`).join("");
+    this.shell(`<div class="learning"><header><div><div class="eyebrow">Adaptive pattern ledger</div><div class="title">${escapeHtml(this._config.name || "Learning Insights")}</div></div><ha-icon icon="mdi:brain"></ha-icon></header><div class="metrics">${counts}</div><div class="routines">${rows || `<div class="empty">OBSERVING HOME ROUTINES // NO PATTERN READY</div>`}</div></div><style>.learning{padding:18px;min-height:260px}.learning header{display:flex;justify-content:space-between;align-items:center}.learning header ha-icon{--mdc-icon-size:34px;color:var(--j-accent)}.title{font-size:21px;font-weight:700}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:14px 0}.metric{padding:8px;border:1px solid rgba(32,216,255,.16);text-align:center}.metric b{display:block;font:800 20px monospace;color:var(--j-accent)}.metric span{font:700 8px monospace;text-transform:uppercase}.metric.suggested b{color:var(--j-amber)}.metric.approved b{color:var(--j-green)}.metric.declining b{color:var(--j-red)}.routines{display:grid;gap:7px;max-height:330px;overflow:auto}article{display:grid;grid-template-columns:1fr auto;gap:7px;padding:9px;border-left:2px solid var(--j-accent);background:rgba(32,216,255,.04)}article.suggested{border-color:var(--j-amber)}article.approved{border-color:var(--j-green)}article.declining{border-color:var(--j-red)}article b{font-size:12px;line-height:1.3}article small,article em,footer span{font:700 8px monospace;text-transform:uppercase;color:var(--secondary-text-color)}article em{color:var(--j-accent);font-style:normal}footer{grid-column:1/-1;height:11px;position:relative;border:1px solid rgba(32,216,255,.12)}footer i{display:block;height:100%;background:rgba(32,216,255,.35)}footer span{position:absolute;inset:1px 4px;text-align:right}.empty{padding:20px;font:700 9px monospace;color:var(--secondary-text-color)}@container(max-width:430px){.learning{padding:13px}.metrics{grid-template-columns:repeat(2,1fr)}article{grid-template-columns:1fr}}</style>`, { interactive: false });
+  }
+}
+
 class JarvisIconCatalogCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Icon Catalog";
@@ -2047,6 +2070,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-month-calendar-card", JarvisMonthCalendarCard, "Jarvis Month Calendar", "Dedicated monthly calendar grid"],
   ["jarvis-rss-card", JarvisRSSCard, "Jarvis RSS Intelligence", "Top RSS stories grouped by source or category"],
   ["jarvis-rss-ticker-card", JarvisRSSTickerCard, "Jarvis RSS News Ticker", "Full-width scrolling RSS headline wire"],
+  ["jarvis-learning-insights-card", JarvisLearningInsightsCard, "Jarvis Learning Insights", "Observed, suggested, approved and declining household routines"],
   ["jarvis-glance-card", JarvisGlanceCard, "Jarvis Glance", "Compact multi-entity overview"],
   ["jarvis-alerts-card", JarvisAlertsCard, "Jarvis Home Alerts", "Leaks, smoke, batteries and availability"],
   ["jarvis-network-card", JarvisNetworkCard, "Jarvis Network / NAS", "Network and storage telemetry"],
@@ -2076,6 +2100,7 @@ const CARD_DOMAINS = new Map([
   [JarvisMonthCalendarCard, ["calendar"]],
   [JarvisRSSCard, ["sensor"]],
   [JarvisRSSTickerCard, ["sensor"]],
+  [JarvisLearningInsightsCard, ["sensor"]],
 ]);
 
 window.customCards = window.customCards || [];

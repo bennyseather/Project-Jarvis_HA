@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.41.0"
+  version: "0.42.0"
 
 system:
   debug: false
@@ -118,6 +118,15 @@ adaptive_learning:
   maximum_preferences: 100
   audit_limit: 200
   routine_evidence_threshold: 5
+
+routine_learning:
+  enabled: true
+  evidence_threshold: 3
+  sequence_window_minutes: 10
+  stale_after_days: 45
+  maximum_events: 500
+  maximum_routines: 100
+  audit_limit: 200
 
 persona:
   name: "Jarvis"

@@ -14,6 +14,15 @@ class ConversationBridgeServer:
     def start(self, host="0.0.0.0", port=8099) -> None:
         outer = self
         class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path != "/v1/learning" or self.headers.get("Authorization") != f"Bearer {outer._api_key}":
+                    self.send_response(401); self.end_headers(); return
+                try:
+                    payload = outer._bridge._application.container.contextual_routines.insights()
+                    body = json.dumps(payload).encode()
+                    self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+                except Exception:
+                    self.send_response(503); self.end_headers()
             def do_POST(self):
                 if self.path != "/v1/conversation" or self.headers.get("Authorization") != f"Bearer {outer._api_key}":
                     self.send_response(401); self.end_headers(); return

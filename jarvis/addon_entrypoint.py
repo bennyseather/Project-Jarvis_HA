@@ -33,6 +33,8 @@ stewardship["reconciliation_seconds"] = int(
 )
 adaptive_learning = general.setdefault("adaptive_learning", {})
 adaptive_learning["enabled"] = bool(options.get("adaptive_learning_enabled", True))
+routine_learning = general.setdefault("routine_learning", {})
+routine_learning["enabled"] = bool(options.get("routine_learning_enabled", True))
 general_path.write_text(
     yaml.safe_dump(general, sort_keys=False, allow_unicode=True)
 )

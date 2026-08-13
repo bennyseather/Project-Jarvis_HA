@@ -156,6 +156,11 @@ views:
             name: Energy flow
             entities:
               - sensor.home_energy
+          - type: custom:jarvis-learning-insights-card
+            name: Learning Insights
+            entity: sensor.jarvis_learning_insights
+            routine_limit: 8
+            show_evidence: true
       - type: grid
         cards:
           - type: heading

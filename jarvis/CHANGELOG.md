@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.42.0
+
+- Added bounded, local routine learning from Home Assistant state-change events.
+- Require evidence on three separate days before suggesting a recurring routine.
+- Added inspect, explain, forget, decline detection, and confirmed disabled automation drafts.
+- Added the Jarvis Learning Insights sensor and visual-editor-compatible dashboard card.
+- Excluded security-sensitive, guest, purchase, charging, and credential activity from learning.
+
 ## 0.41.0
 
 - Added the full-width, editor-compatible Jarvis Heading card.

@@ -94,6 +94,11 @@ from jarvis.learning.adaptive_preferences import (
     AdaptivePreferenceController,
     SQLiteAdaptivePreferenceStore,
 )
+from jarvis.learning.contextual_routines import (
+    ContextualRoutineController,
+    RoutineLearningPolicy,
+    SQLiteRoutineLearningStore,
+)
 from jarvis.homeassistant.blueprint_planner import BlueprintPlanner
 from jarvis.rss import RSSIntelligence, RSSPolicy
 
@@ -191,6 +196,7 @@ class JarvisApplication:
                 self.container.proactive_store.close()
                 self.container.stewardship_store.close()
                 self.container.adaptive_preference_store.close()
+                self.container.routine_learning_store.close()
                 self.container.confirmed_action_audit_store.close()
                 self.container.ai_usage_ledger.close()
         else:
@@ -375,6 +381,18 @@ class JarvisApplication:
             self.container.adaptive_learning_policy,
             clock=clock,
         )
+        self.container.routine_learning_policy = RoutineLearningPolicy.from_config(
+            self.general.get("routine_learning", {})
+        )
+        self.container.routine_learning_store = SQLiteRoutineLearningStore(
+            database_file, self.container.routine_learning_policy
+        )
+        self.container.contextual_routines = ContextualRoutineController(
+            self.container.routine_learning_store,
+            self.container.routine_learning_policy,
+            blueprint_root=os.environ.get("JARVIS_BLUEPRINT_ROOT"),
+            clock=clock,
+        )
         self.container.stewardship_policy = StewardshipPolicy.from_config(
             self.general.get("stewardship", {})
         )
@@ -548,6 +566,13 @@ class JarvisApplication:
             area_members,
             ha_config.get("area_aliases", {}),
         )
+        self.container.contextual_routines.set_home_references(
+            area_members,
+            {
+                item.get("entity_id"): item.get("attributes", {}).get("friendly_name", item.get("entity_id"))
+                for item in entities if isinstance(item, dict) and item.get("entity_id")
+            },
+        )
         self.container.home_assistant_capability_context = HomeAssistantCapabilityContext(
             catalog,
             allowed_reads,
@@ -633,6 +658,7 @@ class JarvisApplication:
                 self.container.timeline_client,
                 self.container.timeline_policy,
                 self.container.timeline_store,
+                observers=(self.container.contextual_routines.observe_event,),
             )
             self.container.timeline_task = asyncio.create_task(
                 self.container.timeline_subscriber.run()
@@ -737,6 +763,10 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(goal_management)
             )
             return goal_management
+        routine_result = self.container.contextual_routines.handle(text, identifier)
+        if routine_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(routine_result))
+            return routine_result
         adaptive_result = self.container.adaptive_preferences.handle(text, identifier)
         if adaptive_result is not None:
             normalized_learning = " ".join(text.casefold().strip(" .?!").split())
@@ -847,6 +877,9 @@ class JarvisApplication:
                 text, self.container.reflection_context_limit
             ),
             "approved_preferences": self.container.adaptive_preferences.context(),
+            "approved_routines": tuple(
+                item.description for item in self.container.routine_learning_store.list("approved")
+            ),
             "proactive": self.container.proactive_manager.context_for(text),
             "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
@@ -1032,6 +1065,8 @@ class JarvisApplication:
                         result = await self.container.stewardship.confirm(token, payload)
                     elif payload.get("kind") == "adaptive_preference":
                         result = self.container.adaptive_preferences.confirm(token, payload)
+                    elif payload.get("kind") == "routine_automation":
+                        result = self.container.contextual_routines.confirm(token, payload)
                     elif payload.get("kind") == "blueprint_install":
                         result = self.container.blueprint_planner.confirm(token, payload)
                     else:
