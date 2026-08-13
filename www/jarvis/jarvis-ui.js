@@ -84,6 +84,17 @@ const ICON_ALIASES = {
   alert: "alert", warning: "alert", glance: "glance",
 };
 
+const JARVIS_ICON_OPTIONS = [...new Set([
+  ...Object.keys(ICON_PATHS), ...Object.keys(ICON_ALIASES),
+])].sort().map((name) => ({
+  label: `Jarvis — ${name.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}`,
+  value: `jarvis:${name}`,
+}));
+
+function jarvisIconSelector() {
+  return { select: { mode: "dropdown", sort: true, options: JARVIS_ICON_OPTIONS } };
+}
+
 window.customIconsets = window.customIconsets || {};
 window.customIconsets.jarvis = async (name) => ({
   path: ICON_PATHS[ICON_ALIASES[name] || name] || ICON_PATHS.core,
@@ -187,6 +198,7 @@ function commonForm(entityRequired = true) {
       {
         type: "grid", name: "", flatten: true, schema: [
           { name: "name", selector: { text: {} } },
+          { name: "jarvis_icon", selector: jarvisIconSelector() },
           { name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } },
           {
             name: "accent", selector: {
@@ -212,7 +224,7 @@ function commonForm(entityRequired = true) {
       },
     ],
     computeLabel: (schema) => ({
-      name: "Friendly name", icon: "Jarvis or Home Assistant icon",
+      name: "Friendly name", jarvis_icon: "Jarvis icon", icon: "Home Assistant icon",
       accent: "Accent colour", layout: "Card layout",
       tap_action: "Tap action", hold_action: "Hold action",
       double_tap_action: "Double-tap action",
@@ -313,12 +325,13 @@ class JarvisBaseCard extends HTMLElement {
     if (this.constructor.requiresEntity !== false && !config.entity) {
       throw new Error(`${this.constructor.cardName || "Jarvis card"} requires an entity`);
     }
+    const normalized = config.jarvis_icon ? { ...config, icon: config.jarvis_icon } : config;
     this._config = {
       accent: config.accent || config.color || "auto", layout: "standard",
       tap_action: { action: "more-info" },
       hold_action: { action: "none" },
       double_tap_action: { action: "none" },
-      ...config,
+      ...normalized,
     };
     this.render();
   }
@@ -1113,6 +1126,7 @@ function multiEntityForm(extra = []) {
   return {
     schema: [
       { name: "name", selector: { text: {} } },
+      { name: "jarvis_icon", selector: jarvisIconSelector() },
       { name: "icon", selector: { icon: {} } },
       { name: "entities", selector: { entity: { multiple: true } } },
       ...extra,
@@ -1453,6 +1467,7 @@ class JarvisCarCard extends JarvisBaseCard {
     return {
       schema: [
         { name: "name", selector: { text: {} } },
+        { name: "jarvis_icon", selector: jarvisIconSelector() },
         { name: "icon", selector: { icon: {} } },
         { name: "location_entity", selector: { entity: {} } },
         { name: "battery_entity", selector: { entity: { domain: "sensor" } } },
@@ -1493,6 +1508,7 @@ class JarvisMarkupCard extends JarvisBaseCard {
     return { schema: [
       { name: "title", selector: { text: {} } },
       { name: "content", required: true, selector: { text: { multiline: true } } },
+      { name: "jarvis_icon", selector: jarvisIconSelector() },
       { name: "icon", selector: { icon: {} } },
       { name: "accent", selector: { select: { options: ["cyan", "amber", "green", "red"] } } },
     ] };
@@ -1514,6 +1530,7 @@ class JarvisHeadingCard extends JarvisBaseCard {
     return { schema: [
       { name: "heading", required: true, selector: { text: {} } },
       { name: "subtitle", selector: { text: {} } },
+      { name: "jarvis_icon", selector: jarvisIconSelector() },
       { name: "icon", selector: { icon: {} } },
       { name: "size", selector: { select: { options: ["small", "medium", "large"] } } },
       { name: "alignment", selector: { select: { options: ["left", "center", "right"] } } },
@@ -1566,11 +1583,12 @@ class JarvisBaseBadge extends HTMLElement {
     this.attachShadow({ mode: "open" });
   }
   setConfig(config) {
+    const normalized = config.jarvis_icon ? { ...config, icon: config.jarvis_icon } : config;
     this._config = {
       accent: "auto",
       tap_action: { action: "more-info" },
       hold_action: { action: "none" },
-      ...config,
+      ...normalized,
     };
     this.render();
   }
@@ -1596,6 +1614,7 @@ class JarvisBaseBadge extends HTMLElement {
 function badgeFormSchema(kind) {
   const common = [
     { name: "name", selector: { text: {} } },
+    { name: "jarvis_icon", selector: jarvisIconSelector() },
     { name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } },
     { name: "accent", selector: { select: { options: ["auto", "cyan", "amber", "green", "red"] } } },
     { name: "tap_action", selector: { ui_action: {} } },
@@ -1643,7 +1662,7 @@ class JarvisBadgeEditor extends HTMLElement {
     form.data = this._config;
     form.schema = badgeFormSchema(this.constructor.kind);
     form.computeLabel = (schema) => ({
-      name: "Friendly name", icon: "Icon", accent: "Accent colour",
+      name: "Friendly name", jarvis_icon: "Jarvis icon", icon: "Home Assistant icon", accent: "Accent colour",
       tap_action: "Tap action", entity: "Entity", label: "Label",
       min: "Minimum", max: "Maximum", home_state: "Home state",
     }[schema.name] || schema.name);
