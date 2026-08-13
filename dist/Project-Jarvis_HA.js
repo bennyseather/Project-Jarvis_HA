@@ -1499,6 +1499,36 @@ class JarvisMarkupCard extends JarvisBaseCard {
   }
 }
 
+class JarvisHeadingCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static cardName = "Jarvis Heading";
+  static getConfigForm() {
+    return { schema: [
+      { name: "heading", required: true, selector: { text: {} } },
+      { name: "subtitle", selector: { text: {} } },
+      { name: "icon", selector: { icon: {} } },
+      { name: "size", selector: { select: { options: ["small", "medium", "large"] } } },
+      { name: "alignment", selector: { select: { options: ["left", "center", "right"] } } },
+      { name: "accent", selector: { select: { options: ["cyan", "amber", "green", "red"] } } },
+    ], computeLabel: (schema) => ({
+      heading: "Heading", subtitle: "Subtitle", icon: "Icon",
+      size: "Heading size", alignment: "Alignment", accent: "Accent colour",
+    }[schema.name]) };
+  }
+  static getStubConfig() { return { heading: "Jarvis Command Center", subtitle: "Home systems", icon: "jarvis:core", size: "medium", alignment: "left" }; }
+  getCardSize() { return this._config?.subtitle ? 2 : 1; }
+  getGridOptions() { return { rows: this._config?.subtitle ? 2 : 1, columns: 12, min_rows: 1, min_columns: 3 }; }
+  render() {
+    if (!this._config) return;
+    const size = ["small", "medium", "large"].includes(this._config.size) ? this._config.size : "medium";
+    const alignment = ["left", "center", "right"].includes(this._config.alignment) ? this._config.alignment : "left";
+    const subtitle = this._config.subtitle ? `<div class="heading-subtitle">${escapeHtml(this._config.subtitle)}</div>` : "";
+    this.shell(`<div class="heading-layout ${size} ${alignment}"><div class="heading-rule before"></div><div class="heading-copy">${this._config.icon ? `<ha-icon icon="${escapeHtml(this._config.icon)}"></ha-icon>` : ""}<div><div class="heading-title">${escapeHtml(this._config.heading || "Jarvis")}</div>${subtitle}</div></div><div class="heading-rule after"></div></div>
+      <style>:host{padding:3px}.heading-layout{min-height:58px;padding:8px 16px;display:grid;grid-template-columns:minmax(18px,1fr) auto minmax(18px,1fr);align-items:center;gap:13px}.heading-copy{display:flex;align-items:center;gap:10px;min-width:0}.heading-copy ha-icon{color:var(--j-accent);--mdc-icon-size:22px;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--j-accent) 55%,transparent))}.heading-title{font:750 18px/1.1 var(--primary-font-family,sans-serif);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.heading-subtitle{margin-top:4px;font:700 8px/1.1 ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--secondary-text-color)}.heading-rule{height:1px;background:linear-gradient(90deg,transparent,var(--j-line))}.heading-rule.after{background:linear-gradient(90deg,var(--j-line),transparent)}.small .heading-title{font-size:14px}.large .heading-title{font-size:24px}.left{grid-template-columns:0 auto minmax(18px,1fr)}.left .before,.right .after{display:none}.right{grid-template-columns:minmax(18px,1fr) auto 0}.right .heading-copy{text-align:right;flex-direction:row-reverse}@container(max-width:430px){.heading-layout{padding:7px 10px;gap:8px}.heading-title{font-size:15px}.large .heading-title{font-size:19px}.heading-subtitle{font-size:7px}.heading-copy ha-icon{--mdc-icon-size:18px}}</style>`,
+      { interactive: false, ariaLabel: this._config.heading || "Jarvis heading" });
+  }
+}
+
 const BADGE_STYLE = `
   :host{display:inline-block;--jb-cyan:var(--jarvis-cyan,#20d8ff);--jb-amber:var(--jarvis-amber,#ffc247);--jb-red:var(--jarvis-red,#ff6572);--jb-green:var(--jarvis-green,#55e6a5);font-family:var(--jarvis-font,var(--primary-font-family,sans-serif))}
   .badge{--jb-accent:var(--jb-cyan);height:42px;max-width:230px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:5px 11px 5px 7px;color:var(--primary-text-color,#eafaff);background:linear-gradient(145deg,rgba(5,25,39,.96),rgba(3,16,27,.92));border:1px solid color-mix(in srgb,var(--jb-accent) 50%,transparent);clip-path:polygon(0 7px,7px 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px));box-shadow:inset 0 0 18px color-mix(in srgb,var(--jb-accent) 8%,transparent),0 0 12px rgba(0,0,0,.22);cursor:pointer;transition:border-color 160ms ease,box-shadow 160ms ease,transform 160ms ease}
@@ -1984,6 +2014,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-ev-charger-card", JarvisEvChargerCard, "Jarvis EV Charger", "EV charging state and power"],
   ["jarvis-tile-card", JarvisTileCard, "Jarvis Tile", "Compact universal entity tile"],
   ["jarvis-markup-card", JarvisMarkupCard, "Jarvis Markup", "Editable Jarvis information panel"],
+  ["jarvis-heading-card", JarvisHeadingCard, "Jarvis Heading", "Full-width Jarvis dashboard section heading"],
   ["jarvis-car-card", JarvisCarCard, "Jarvis Car", "Vehicle location, battery, range and status"],
   ["jarvis-calendar-card", JarvisCalendarCard, "Jarvis Calendar", "Calendar views and upcoming appointments"],
   ["jarvis-month-calendar-card", JarvisMonthCalendarCard, "Jarvis Month Calendar", "Dedicated monthly calendar grid"],
