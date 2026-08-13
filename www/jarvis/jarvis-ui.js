@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.43.2";
+const JARVIS_UI_VERSION = "0.43.3";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -679,7 +679,9 @@ class JarvisCameraCard extends JarvisBaseCard {
   }
   _refreshSnapshot(force = false) {
     if (!this._snapshotImage || (!this._visible && !force)) return;
-    this._snapshotImage.src = `/api/camera_proxy/${this._config.entity}?jarvis=${Date.now()}`;
+    const supplied = this.cardState()?.attributes?.entity_picture;
+    const base = supplied || `/api/camera_proxy/${this._config.entity}`;
+    this._snapshotImage.src = `${base}${base.includes("?") ? "&" : "?"}jarvis=${Date.now()}`;
   }
   async _showLive(explicit = false) {
     const host = this.shadowRoot.querySelector(".camera-host");
