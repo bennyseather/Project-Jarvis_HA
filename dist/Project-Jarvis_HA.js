@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.43.0";
+const JARVIS_UI_VERSION = "0.43.1";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1880,10 +1880,11 @@ class JarvisCalendarCard extends JarvisBaseCard {
   static getConfigForm() { return { schema: [
     { name: "name", selector: { text: {} } },
     { name: "entities", required: true, selector: { entity: { domain: "calendar", multiple: true } } },
+    { name: "accent", selector: { select: { mode: "dropdown", options: ["cyan", "amber", "green", "red"] } } },
     { name: "appointment_limit", selector: { number: { min: 1, max: 20, mode: "slider" } } },
     ...Array.from({ length: 6 }, (_, index) => ({ name: `calendar_${index + 1}_accent`, selector: { select: { options: ["automatic", "cyan", "blue", "green", "amber", "purple", "red"] } } })),
   ] }; }
-  static getStubConfig(hass) { return { name: "Calendar Agenda", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), appointment_limit: 10 }; }
+  static getStubConfig(hass) { return { name: "Calendar Agenda", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), accent: "cyan", appointment_limit: 10 }; }
   calendarView() { return "agenda"; }
   connectedCallback() { this._visible = false; this._observer = new IntersectionObserver((entries) => { this._visible = entries.some((entry) => entry.isIntersecting); if (this._visible) this.loadEvents(); }, { rootMargin: "160px" }); this._observer.observe(this); }
   disconnectedCallback() { this._observer?.disconnect(); }
@@ -1930,7 +1931,7 @@ class JarvisCalendarCard extends JarvisBaseCard {
 
 class JarvisMonthCalendarCard extends JarvisCalendarCard {
   static cardName = "Jarvis Month Calendar";
-  static getStubConfig(hass) { return { name: "Month Calendar", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), appointment_limit: 6 }; }
+  static getStubConfig(hass) { return { name: "Month Calendar", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), accent: "cyan", appointment_limit: 6 }; }
   calendarView() { return "month"; }
 }
 
