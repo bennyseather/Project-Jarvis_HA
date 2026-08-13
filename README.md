@@ -13,6 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Climate Display Compatibility 0.40.6
+
+Version 0.40.6 fixes corrupted temperature units on Jarvis climate cards,
+including Mill heaters. Climate cards now use the unit supplied by Home
+Assistant, fall back safely to Celsius, and preserve readable responsive layout.
+
 ## Project Jarvis Mobile Talk Animation Performance 0.40.5
 
 Version 0.40.5 optimizes the Jarvis press-to-talk animation for phone and panel

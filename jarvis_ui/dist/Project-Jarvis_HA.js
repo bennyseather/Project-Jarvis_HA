@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.40.5";
+const JARVIS_UI_VERSION = "0.40.6";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -526,8 +526,10 @@ class JarvisClimateCard extends JarvisBaseCard {
     const state = this.cardState();
     const attrs = state?.attributes || {};
     const temp = attrs.temperature ?? attrs.current_temperature ?? 20;
-    this.shell(`<div class="climate-layout">${this.entityHeader("Climate regulation")}<div class="temp">${escapeHtml(formatValue(attrs.current_temperature))}ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°<small>CURRENT</small></div><div class="target"><span>TARGET ${escapeHtml(formatValue(temp))}ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°</span><input aria-label="Target temperature" type="range" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 35}" step="${attrs.target_temp_step ?? .5}" value="${temp}"></div></div>
-      <style>.climate-layout{min-height:168px;padding:18px;display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.temp{font:700 28px monospace;color:var(--j-accent);text-align:right}.temp small{display:block;font-size:8px;letter-spacing:.16em}.target{grid-column:1/-1;display:grid;gap:9px;font:700 10px monospace;color:var(--secondary-text-color)}</style>`,
+    const unit = attrs.temperature_unit || this._hass?.config?.unit_system?.temperature || "\u00B0C";
+    const current = Number.isFinite(Number(attrs.current_temperature)) ? formatValue(attrs.current_temperature) : "--";
+    this.shell(`<div class="climate-layout">${this.entityHeader("Climate regulation")}<div class="temp">${escapeHtml(current)}<span>${escapeHtml(unit)}</span><small>CURRENT</small></div><div class="target"><span>TARGET ${escapeHtml(formatValue(temp))}${escapeHtml(unit)}</span><input aria-label="Target temperature" type="range" min="${attrs.min_temp ?? 5}" max="${attrs.max_temp ?? 35}" step="${attrs.target_temp_step ?? .5}" value="${temp}"></div></div>
+      <style>.climate-layout{min-height:168px;padding:18px;display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:14px;align-items:center}.icon-shell{width:46px;height:46px}.temp{font:700 28px monospace;color:var(--j-accent);text-align:right;white-space:nowrap}.temp>span{font-size:.55em;margin-left:2px}.temp small{display:block;font-size:8px;letter-spacing:.16em}.target{grid-column:1/-1;display:grid;gap:9px;font:700 10px monospace;color:var(--secondary-text-color)}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
     this.shadowRoot.querySelector("input").addEventListener("change", (event) => this.call("climate", "set_temperature", { temperature: Number(event.target.value) }));
   }

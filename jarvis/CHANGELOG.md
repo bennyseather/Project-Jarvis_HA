@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.40.6
+
+- Fixed corrupted degree symbols and temperature labels on climate cards.
+- Use Home Assistant's configured Celsius or Fahrenheit unit for Mill heaters.
+- Improved climate readout spacing and unavailable-temperature handling.
+
 ## 0.40.5
 
 - Optimized the Jarvis press-to-talk animation for mobile and panel browsers.
