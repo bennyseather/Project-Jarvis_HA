@@ -25,8 +25,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
         name="Project Jarvis learning insights", update_method=update,
         update_interval=timedelta(minutes=2),
     )
-    await coordinator.async_config_entry_first_refresh()
     async_add_entities([JarvisLearningInsightsSensor(coordinator, entry)])
+    await coordinator.async_refresh()
 
 
 class JarvisLearningInsightsSensor(CoordinatorEntity, SensorEntity):
@@ -39,8 +39,8 @@ class JarvisLearningInsightsSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        return self.coordinator.data.get("state", 0)
+        return (self.coordinator.data or {}).get("state", 0)
 
     @property
     def extra_state_attributes(self):
-        return dict(self.coordinator.data)
+        return dict(self.coordinator.data or {})

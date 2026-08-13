@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.42.1
+
+- Register the Learning Insights sensor before its first backend refresh.
+- Keep the entity visible but unavailable while the Jarvis learning endpoint is starting or still being updated.
+
 ## 0.42.0
 
 - Added bounded, local routine learning from Home Assistant state-change events.
