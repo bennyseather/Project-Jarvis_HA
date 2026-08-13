@@ -13,6 +13,13 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Dashboard Editor Expansion 0.41.0
+
+Version 0.41.0 adds a full-width, visual-editor-compatible Jarvis Heading card,
+an optional entity selector with sensible toggle behavior for Jarvis Button
+cards, and searchable Jarvis icon catalogues throughout card and badge editors.
+The standard Home Assistant icon selector remains available for MDI icons.
+
 ## Project Jarvis Climate Display Compatibility 0.40.6
 
 Version 0.40.6 fixes corrupted temperature units on Jarvis climate cards,

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.41.0
+
+- Added the full-width, editor-compatible Jarvis Heading card.
+- Added an optional entity selector and default toggle behavior to Jarvis Button.
+- Added searchable Jarvis icon catalogues to card and badge editors.
+- Preserved the Home Assistant icon selector for MDI icon choices.
+
 ## 0.40.6
 
 - Fixed corrupted degree symbols and temperature labels on climate cards.
