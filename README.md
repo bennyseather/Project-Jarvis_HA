@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis WebRTC Camera Handling 0.43.4
+
+Version 0.43.4 detects WebRTC-only Nest cameras, avoids unsupported snapshot
+requests, and presents an explicit tap-for-live placeholder.
+
 ## Project Jarvis Signed Camera Snapshots 0.43.3
 
 Version 0.43.3 uses Home Assistant's signed entity-picture URL for Nest camera

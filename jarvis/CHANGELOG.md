@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.43.4
+
+- Detect WebRTC-only Nest cameras and stop requesting unsupported snapshots.
+- Show a clear tap-for-live placeholder before explicitly starting the stream.
+
 ## 0.43.3
 
 - Prefer Home Assistant's signed camera entity-picture URL for Nest snapshots.
