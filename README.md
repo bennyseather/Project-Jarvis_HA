@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Calendar Frame Accents 0.43.1
+
+Version 0.43.1 adds the standard Jarvis frame accent selector to both calendar
+cards while retaining independent colours for each calendar's events.
+
 ## Project Jarvis Dashboard Visual Identity 0.43.0
 
 Version 0.43.0 adds per-calendar accent colours, matching agenda and month

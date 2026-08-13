@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.43.1
+
+- Added the standard Jarvis frame accent selector to agenda and month calendar cards.
+
 ## 0.43.0
 
 - Added per-calendar accent colours and matching agenda/month event markers.
