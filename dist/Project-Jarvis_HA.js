@@ -422,10 +422,18 @@ class JarvisButtonCard extends JarvisBaseCard {
   static gridRows = 3;
   static getConfigForm() {
     const form = commonForm(false);
-    form.schema.unshift({ name: "label", required: true, selector: { text: {} } });
+    form.schema.unshift(
+      { name: "label", selector: { text: {} } },
+      { name: "entity", selector: { entity: {} } },
+    );
     return form;
   }
-  static getStubConfig() { return { label: "Jarvis Command", icon: "jarvis:button", tap_action: { action: "none" } }; }
+  static getStubConfig() { return { label: "Jarvis Command", icon: "jarvis:button" }; }
+  setConfig(config) {
+    super.setConfig(config.entity && !config.tap_action
+      ? { ...config, tap_action: { action: "toggle" } }
+      : config);
+  }
   render() {
     if (!this._config) return;
     const label = this._config.label || this._config.name || "Jarvis Command";
