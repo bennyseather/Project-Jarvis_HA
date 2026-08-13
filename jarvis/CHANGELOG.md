@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.43.2
+
+- Fixed camera cards failing to render because of an invalid icon helper reference.
+
 ## 0.43.1
 
 - Added the standard Jarvis frame accent selector to agenda and month calendar cards.

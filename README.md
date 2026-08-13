@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Camera Rendering Hotfix 0.43.2
+
+Version 0.43.2 fixes camera cards failing to render because of an invalid icon
+helper reference introduced in 0.43.0.
+
 ## Project Jarvis Calendar Frame Accents 0.43.1
 
 Version 0.43.1 adds the standard Jarvis frame accent selector to both calendar
