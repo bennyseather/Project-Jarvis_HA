@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.43.3
+
+- Prefer Home Assistant's signed camera entity-picture URL for Nest snapshots.
+- Retain the authenticated camera proxy as the fallback snapshot source.
+
 ## 0.43.2
 
 - Fixed camera cards failing to render because of an invalid icon helper reference.

@@ -13,6 +13,11 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Signed Camera Snapshots 0.43.3
+
+Version 0.43.3 uses Home Assistant's signed entity-picture URL for Nest camera
+snapshots and retains the authenticated camera proxy as a fallback.
+
 ## Project Jarvis Camera Rendering Hotfix 0.43.2
 
 Version 0.43.2 fixes camera cards failing to render because of an invalid icon
