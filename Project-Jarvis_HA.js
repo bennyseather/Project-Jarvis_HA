@@ -1,10 +1,11 @@
-const JARVIS_UI_VERSION = "0.42.1";
+const JARVIS_UI_VERSION = "0.43.0";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
 const CALENDAR_CACHE = new Map();
 const DATA_CACHE_TTL = 60000;
 const MAX_HISTORY_SAMPLES = 96;
+const CAMERA_STREAM_BACKOFF = new Map();
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -33,6 +34,16 @@ const ICON_PATHS = {
   energy: "M13 2 4 14h7l-1 8 9-12h-7l1-8Z",
   network: "M12 3a16 16 0 0 1 10.6 4L21 8.8a13.5 13.5 0 0 0-18 0L1.4 7A16 16 0 0 1 12 3m0 5a11 11 0 0 1 7.4 2.8l-1.7 1.8a8.5 8.5 0 0 0-11.4 0l-1.7-1.8A11 11 0 0 1 12 8m0 5a6 6 0 0 1 4.1 1.6L12 19l-4.1-4.4A6 6 0 0 1 12 13Z",
   room: "M3 3h18v18H3V3m2 2v14h14V5H5m7 7h5v5h-5v-5m-5-5h3v10H7V7Z",
+  "living-room": "M4 11h16v9h-2v-2H6v2H4v-9m2-5h12a2 2 0 0 1 2 2v3H4V8a2 2 0 0 1 2-2m0 2v3h12V8H6Z",
+  kitchen: "M4 3h16v18H4V3m2 2v6h12V5H6m0 8v6h5v-6H6m7 0v2h5v-2h-5m0 4v2h5v-2h-5Z",
+  bedroom: "M3 5h2v8h14V8h-7a3 3 0 0 0-3 3H5V5m9 5h5v3h-7v-1a2 2 0 0 1 2-2M3 15h18v5h-2v-2H5v2H3v-5Z",
+  bathroom: "M7 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4m-3 7h16v5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6v-5m2 2v3a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4v-3H6Z",
+  office: "M8 3h8l2 4h3v13H3V7h3l2-4m1.2 2L8.5 7h7l-.7-2H9.2M5 9v9h14V9H5m5 2h4v2h-4v-2Z",
+  hallway: "M5 2h14v20h-2V4H7v18H5V2m5 9h5v2h-5v-2Z",
+  laundry: "M5 2h14v20H5V2m2 2v3h10V4H7m5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10m0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z",
+  garden: "M12 22v-8c-4 0-7-3-7-7 4 0 7 3 7 7 0-6 3-10 8-10 0 5-3 10-8 10v8h-2Z",
+  dining: "M7 2v8a3 3 0 0 0 2 2.83V22h2v-9.17A3 3 0 0 0 13 10V2h-2v6H9V2H7m9 0v20h2v-8h2V6a4 4 0 0 0-4-4Z",
+  cinema: "M3 5h18v14H3V5m2 2v10h14V7H5m3 2 7 3-7 3V9Z",
   person: "M12 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8m0 10c4.42 0 8 1.79 8 4v4H4v-4c0-2.21 3.58-4 8-4Z",
   weather: "M7 18a5 5 0 1 1 1.5-9.77A6 6 0 0 1 20 10.5 3.75 3.75 0 0 1 19.25 18H7m0-2h12.25a1.75 1.75 0 1 0-.35-3.46l-1.4-.28.07-1.43A4 4 0 0 0 10 8.7l-.42 1.18-1.25.14A3 3 0 0 0 7 16Z",
   appliance: "M5 2h14v20H5V2m2 2v4h10V4H7m5 6a5 5 0 1 0 0 10 5 5 0 0 0 0-10m0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z",
@@ -68,7 +79,9 @@ const ICON_ALIASES = {
   motion: "motion", occupancy: "motion", smoke: "smoke", leak: "leak",
   sensor: "sensor", battery: "battery", energy: "energy", power: "energy",
   network: "network", "air-quality": "sensor", room: "room", floor: "room",
-  home: "room", house: "room",
+  home: "room", house: "room", lounge: "living-room", livingroom: "living-room",
+  utility: "laundry", "utility-room": "laundry", "dining-room": "dining",
+  "media-room": "cinema", theater: "cinema", theatre: "cinema", pantry: "storage",
   person: "person", presence: "person", weather: "weather", sun: "weather",
   vacuum: "vacuum", washer: "appliance", dryer: "appliance",
   dishwasher: "appliance", appliance: "appliance",
@@ -591,45 +604,95 @@ class JarvisMediaCard extends JarvisBaseCard {
 class JarvisCameraCard extends JarvisBaseCard {
   static cardName = "Jarvis Camera";
   static domains = ["camera"];
+  static getConfigForm() { return { schema: [
+    ...commonForm(true).schema,
+    { name: "camera_mode", selector: { select: { options: [
+      { value: "auto", label: "Automatic (Nest uses tap to live)" },
+      { value: "snapshot", label: "Snapshot only" },
+      { value: "tap_live", label: "Snapshot / tap to live" },
+      { value: "always_live", label: "Always live while visible" },
+    ] } } },
+    { name: "snapshot_interval", selector: { number: { min: 30, max: 300, step: 30, mode: "slider", unit_of_measurement: "s" } } },
+  ] }; }
+  static getStubConfig(hass) { return { entity: Object.keys(hass?.states || {}).find((id) => entityDomain(id) === "camera") || "camera.camera", camera_mode: "auto", snapshot_interval: 60 }; }
   getCardSize() { return 5; }
   getGridOptions() {
     return { rows: 5, columns: 6, min_rows: 5, min_columns: 3 };
   }
   constructor() {
     super();
-    this._cameraCard = undefined;
-    this._cameraEntity = undefined;
-    this._cameraMounting = undefined;
-    this._fallbackTimer = undefined;
+    this._cameraCard = undefined; this._cameraEntity = undefined; this._cameraMounting = undefined;
+    this._snapshotTimer = undefined; this._cameraView = "snapshot"; this._visible = true;
+  }
+  connectedCallback() {
+    this._intersectionObserver?.disconnect();
+    this._intersectionObserver = new IntersectionObserver((entries) => {
+      this._visible = entries.some((entry) => entry.isIntersecting);
+      if (!this._visible) this._showSnapshot();
+      else if (this._resolvedCameraMode() === "always_live") this._showLive();
+      else this._refreshSnapshot();
+    }, { rootMargin: "80px" });
+    this._intersectionObserver.observe(this);
   }
   set hass(value) {
     this._hass = value;
     if (!this.shadowRoot.querySelector(".camera-host")) this.render();
-    this._mountCamera();
+    if (this._cameraCard && this._cameraView === "live") this._cameraCard.hass = value;
+    this._updateCameraStatus();
   }
   disconnectedCallback() {
-    clearInterval(this._fallbackTimer);
+    clearInterval(this._snapshotTimer); this._intersectionObserver?.disconnect(); this._liveObserver?.disconnect();
+    this._cameraCard = undefined;
+  }
+  _resolvedCameraMode() {
+    const requested = this._config?.camera_mode || "auto";
+    if (requested !== "auto") return requested;
+    const state = this.cardState();
+    const identity = `${this._config?.entity || ""} ${state?.attributes?.manufacturer || ""} ${state?.attributes?.model || ""}`.toLowerCase();
+    return identity.includes("nest") || identity.includes("google") ? "tap_live" : "tap_live";
   }
   render() {
     if (!this._config) return;
     const state = this.cardState();
-    this.shell(`<div class="camera-layout card-layout"><div class="camera-host" aria-label="Live camera stream"></div><div class="live-badge"><i></i>LIVE</div><div class="overlay">${this.entityHeader("Visual channel")}</div></div>
-      <style>.camera-layout{min-height:230px;position:relative;background:#01070b}.camera-host{position:absolute;inset:0;overflow:hidden}.camera-host>*{display:block;width:100%;height:100%;--ha-card-border-radius:0;--ha-card-box-shadow:none;--ha-card-background:transparent}.camera-host img{width:100%;height:100%;object-fit:cover;opacity:.78}.live-badge{position:absolute;right:14px;top:13px;display:flex;gap:6px;align-items:center;padding:5px 7px;border:1px solid var(--j-line);background:rgba(2,13,22,.82);font:700 9px monospace;letter-spacing:.14em;color:var(--j-accent)}.live-badge i{width:6px;height:6px;background:var(--j-red);box-shadow:0 0 7px var(--j-red);animation:live-pulse 1.4s ease-in-out infinite}.overlay{position:absolute;left:0;right:0;bottom:0;padding:28px 18px 16px;display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center;background:linear-gradient(transparent,rgba(2,13,22,.96));pointer-events:none}.icon-shell{width:40px;height:40px}.state{color:#b8dce8}@keyframes live-pulse{50%{opacity:.35}}</style>`,
+    this.shell(`<div class="camera-layout card-layout"><div class="camera-host" aria-label="Camera image"></div><button class="live-badge" data-camera-action><i></i><span>SNAPSHOT</span></button><div class="camera-message" hidden></div><div class="overlay"><div class="icon-shell">${iconHtml(this._config.icon || "jarvis:camera")}</div><div><div class="eyebrow">Visual channel</div><div class="name">${escapeHtml(friendlyName(state, this._config))}</div><div class="state camera-status">SNAPSHOT</div></div></div></div>
+      <style>.camera-layout{min-height:230px;position:relative;background:#01070b}.camera-host{position:absolute;inset:0;overflow:hidden;cursor:pointer}.camera-host>*{display:block;width:100%;height:100%;--ha-card-border-radius:0;--ha-card-box-shadow:none;--ha-card-background:transparent}.camera-host img{width:100%;height:100%;object-fit:cover;opacity:.78}.live-badge{position:absolute;right:14px;top:13px;display:flex;gap:6px;align-items:center;padding:7px 9px;border:1px solid var(--j-line);background:rgba(2,13,22,.86);font:700 9px monospace;letter-spacing:.14em;color:var(--j-accent);z-index:3}.live-badge i{width:6px;height:6px;background:var(--j-accent);box-shadow:0 0 7px var(--j-accent)}.camera-layout.is-live .live-badge i{background:var(--j-red);box-shadow:0 0 7px var(--j-red);animation:live-pulse 1.4s ease-in-out infinite}.camera-message{position:absolute;inset:42% 12px auto;padding:9px;border:1px solid var(--j-line);background:rgba(2,13,22,.92);text-align:center;font:700 9px monospace;color:var(--j-accent);z-index:2}.overlay{position:absolute;left:0;right:0;bottom:0;padding:28px 18px 16px;display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center;background:linear-gradient(transparent,rgba(2,13,22,.96));pointer-events:none}.icon-shell{width:40px;height:40px}.state{color:#b8dce8}@keyframes live-pulse{50%{opacity:.35}}</style>`,
       { ariaLabel: friendlyName(state, this._config) });
-    this._cameraCard = undefined;
-    this._cameraEntity = undefined;
-    this._mountCamera();
+    this.shadowRoot.querySelectorAll("[data-camera-action],.camera-host").forEach((element) => element.addEventListener("click", () => this._toggleCameraMode()));
+    this._cameraCard = undefined; this._cameraEntity = undefined;
+    if (this._resolvedCameraMode() === "always_live" && this._visible) this._showLive(); else this._showSnapshot();
   }
-  async _mountCamera() {
+  _toggleCameraMode() {
+    if (this._resolvedCameraMode() === "snapshot") { this._refreshSnapshot(true); return; }
+    if (this._cameraView === "live") this._showSnapshot(); else this._showLive(true);
+  }
+  _showSnapshot() {
+    this._liveObserver?.disconnect(); this._cameraCard = undefined; this._cameraView = "snapshot";
+    const host = this.shadowRoot.querySelector(".camera-host"); if (!host || !this._config?.entity) return;
+    clearInterval(this._snapshotTimer);
+    const image = document.createElement("img"); image.alt = `${friendlyName(this.cardState(), this._config)} snapshot`;
+    image.addEventListener("load", () => { this._setCameraMessage(""); this._updateCameraStatus(); });
+    image.addEventListener("error", () => { this._setCameraMessage("Snapshot unavailable"); this._updateCameraStatus("Snapshot unavailable"); });
+    host.replaceChildren(image); this._snapshotImage = image; this._refreshSnapshot(true);
+    const interval = Math.max(30, Number(this._config.snapshot_interval) || 60) * 1000;
+    this._snapshotTimer = setInterval(() => { if (this._visible && this._cameraView === "snapshot") this._refreshSnapshot(); }, interval);
+    this._updateCameraStatus();
+  }
+  _refreshSnapshot(force = false) {
+    if (!this._snapshotImage || (!this._visible && !force)) return;
+    this._snapshotImage.src = `/api/camera_proxy/${this._config.entity}?jarvis=${Date.now()}`;
+  }
+  async _showLive(explicit = false) {
     const host = this.shadowRoot.querySelector(".camera-host");
-    if (!host || !this._hass || !this._config?.entity) return;
+    if (!host || !this._hass || !this._config?.entity || (!this._visible && !explicit)) return;
+    const blockedUntil = CAMERA_STREAM_BACKOFF.get(this._config.entity)?.until || 0;
+    if (!explicit && blockedUntil > Date.now()) { this._showSnapshot(); this._setCameraMessage("Stream rate limited — tap to retry"); return; }
     if (this._cameraCard && this._cameraEntity === this._config.entity) {
       this._cameraCard.hass = this._hass;
       return;
     }
     if (this._cameraMounting === this._config.entity) return;
     this._cameraMounting = this._config.entity;
-    clearInterval(this._fallbackTimer);
+    clearInterval(this._snapshotTimer); this._cameraView = "live"; this._setCameraMessage(""); this._updateCameraStatus();
     try {
       const helpers = await window.loadCardHelpers();
       if (!this.shadowRoot.contains(host)) return;
@@ -653,21 +716,35 @@ class JarvisCameraCard extends JarvisBaseCard {
       });
       this._cameraCard = card;
       this._cameraEntity = this._config.entity;
+      this._watchLiveErrors(host);
     } catch (_error) {
-      this._mountSnapshotFallback(host);
+      this._handleLiveFailure();
     } finally {
       this._cameraMounting = undefined;
     }
   }
-  _mountSnapshotFallback(host) {
-    const image = document.createElement("img");
-    image.alt = "";
-    const refresh = () => {
-      image.src = `/api/camera_proxy/${this._config.entity}?jarvis=${Date.now()}`;
-    };
-    refresh();
-    host.replaceChildren(image);
-    this._fallbackTimer = setInterval(refresh, 5000);
+  _watchLiveErrors(host) {
+    this._liveObserver?.disconnect();
+    this._liveObserver = new MutationObserver(() => {
+      const text = host.textContent?.toLowerCase() || "";
+      if (text.includes("429") || text.includes("resource exhausted") || text.includes("too many requests") || text.includes("failed to start webrtc")) this._handleLiveFailure();
+    });
+    this._liveObserver.observe(host, { childList: true, subtree: true, characterData: true });
+  }
+  _handleLiveFailure() {
+    const previous = CAMERA_STREAM_BACKOFF.get(this._config.entity)?.delay || 15000;
+    const delay = Math.min(previous * 2, 15 * 60 * 1000);
+    CAMERA_STREAM_BACKOFF.set(this._config.entity, { delay, until: Date.now() + delay });
+    this._showSnapshot(); this._setCameraMessage("Stream rate limited — tap to retry");
+  }
+  _setCameraMessage(message) { const node = this.shadowRoot.querySelector(".camera-message"); if (node) { node.textContent = message; node.hidden = !message; } }
+  _updateCameraStatus(override) {
+    const unavailable = isUnavailable(this.cardState());
+    const live = this._cameraView === "live";
+    const status = override || (unavailable ? `${live ? "Live stream" : "Snapshot"} unavailable` : (live ? "Live" : "Snapshot"));
+    const stateNode = this.shadowRoot.querySelector(".camera-status"); if (stateNode) stateNode.textContent = status.toUpperCase();
+    const badge = this.shadowRoot.querySelector(".live-badge span"); if (badge) badge.textContent = status.toUpperCase();
+    this.shadowRoot.querySelector(".camera-layout")?.classList.toggle("is-live", live && !unavailable);
   }
 }
 
@@ -1804,6 +1881,7 @@ class JarvisCalendarCard extends JarvisBaseCard {
     { name: "name", selector: { text: {} } },
     { name: "entities", required: true, selector: { entity: { domain: "calendar", multiple: true } } },
     { name: "appointment_limit", selector: { number: { min: 1, max: 20, mode: "slider" } } },
+    ...Array.from({ length: 6 }, (_, index) => ({ name: `calendar_${index + 1}_accent`, selector: { select: { options: ["automatic", "cyan", "blue", "green", "amber", "purple", "red"] } } })),
   ] }; }
   static getStubConfig(hass) { return { name: "Calendar Agenda", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), appointment_limit: 10 }; }
   calendarView() { return "agenda"; }
@@ -1813,7 +1891,7 @@ class JarvisCalendarCard extends JarvisBaseCard {
     if (!this._config) return;
     this._offset = this._offset || 0;
     const view = this.calendarView();
-    this.shell(`<div class="calendar"><div class="calendar-head"><div><div class="eyebrow">Schedule channel</div><div class="title">${escapeHtml(this._config.name || "Calendar")}</div></div><div class="nav"><button data-nav="-1">&lt;</button><b>${view.toUpperCase()}</b><button data-nav="1">&gt;</button></div></div><div class="calendar-content"><span>CALENDAR LOADING</span></div></div><style>.calendar{padding:18px;min-height:300px}.calendar-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.title{font-size:21px;font-weight:700}.nav{display:flex;align-items:center;gap:7px}.nav b{font:700 9px monospace;color:var(--j-accent)}.nav button{min-width:36px}.calendar-content{margin-top:14px}.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.day{min-height:45px;padding:5px;border:1px solid rgba(32,216,255,.12);font:700 10px monospace}.day.has{border-color:var(--j-accent);background:rgba(32,216,255,.07)}.agenda{display:grid;gap:10px}.agenda-day h3{margin:6px 0;font:700 10px monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--j-accent)}.event{display:grid;grid-template-columns:70px 1fr;gap:9px;padding:8px;border-left:2px solid var(--j-accent);background:rgba(32,216,255,.04)}.event time{font:700 9px monospace;color:var(--j-accent)}.event span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@container(max-width:430px){.month-grid{display:none}.calendar{min-height:230px}}</style>`, { interactive: false });
+    this.shell(`<div class="calendar"><div class="calendar-head"><div><div class="eyebrow">Schedule channel</div><div class="title">${escapeHtml(this._config.name || "Calendar")}</div></div><div class="nav"><button data-nav="-1">&lt;</button><b>${view.toUpperCase()}</b><button data-nav="1">&gt;</button></div></div><div class="calendar-content"><span>CALENDAR LOADING</span></div></div><style>.calendar{padding:18px;min-height:300px}.calendar-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.title{font-size:21px;font-weight:700}.nav{display:flex;align-items:center;gap:7px}.nav b{font:700 9px monospace;color:var(--j-accent)}.nav button{min-width:36px}.calendar-content{margin-top:14px}.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.day{min-height:45px;padding:5px;border:1px solid rgba(32,216,255,.12);font:700 10px monospace}.day.has{border-color:var(--day-accent,var(--j-accent));background:color-mix(in srgb,var(--day-accent,var(--j-accent)) 10%,transparent)}.event-dots{display:flex;gap:2px;flex-wrap:wrap;margin-top:5px}.event-dot{width:5px;height:5px;background:var(--event-accent,var(--j-accent));box-shadow:0 0 5px var(--event-accent,var(--j-accent))}.agenda{display:grid;gap:10px}.agenda-day h3{margin:6px 0;font:700 10px monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--j-accent)}.event{display:grid;grid-template-columns:70px 1fr;gap:9px;padding:8px;border-left:3px solid var(--event-accent,var(--j-accent));background:color-mix(in srgb,var(--event-accent,var(--j-accent)) 7%,transparent)}.event time{font:700 9px monospace;color:var(--event-accent,var(--j-accent))}.event span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@container(max-width:430px){.month-grid{display:none}.calendar{min-height:230px}}</style>`, { interactive: false });
     this.shadowRoot.querySelectorAll("[data-nav]").forEach((button) => button.addEventListener("click", () => { this._offset += Number(button.dataset.nav); CALENDAR_CACHE.clear(); this.loadEvents(); }));
     if (this._visible) this.loadEvents();
   }
@@ -1825,10 +1903,11 @@ class JarvisCalendarCard extends JarvisBaseCard {
     if (view === "month") anchor.setMonth(anchor.getMonth() + this._offset); else anchor.setDate(anchor.getDate() + this._offset * 7);
     const start = new Date(anchor); start.setHours(0, 0, 0, 0); const end = new Date(start);
     if (view === "month") { start.setDate(1); end.setMonth(end.getMonth() + 1, 1); } else { start.setDate(start.getDate() - start.getDay() + 1); end.setDate(start.getDate() + (view === "agenda" ? 30 : 7)); }
-    const key = `${entities.join(",")}:${view}:${start.toISOString()}`; let cached = CALENDAR_CACHE.get(key);
+    const accents = entities.map((_, index) => this._config?.[`calendar_${index + 1}_accent`] || "automatic").join(",");
+    const key = `${entities.join(",")}:${accents}:${view}:${start.toISOString()}`; let cached = CALENDAR_CACHE.get(key);
     if (!cached || Date.now() - cached.time > DATA_CACHE_TTL) {
       this._loadingEvents = true;
-      try { const batches = await Promise.all(entities.map((id) => this._hass.callApi("GET", `calendars/${encodeURIComponent(id)}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`))); cached = { time: Date.now(), events: batches.flat().sort((a, b) => new Date(a.start?.dateTime || a.start?.date) - new Date(b.start?.dateTime || b.start?.date)) }; CALENDAR_CACHE.set(key, cached); }
+      try { const batches = await Promise.all(entities.map(async (id, index) => (await this._hass.callApi("GET", `calendars/${encodeURIComponent(id)}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`)).map((event) => ({ ...event, _jarvisCalendar: id, _jarvisAccent: this._calendarAccent(index) })))); cached = { time: Date.now(), events: batches.flat().sort((a, b) => new Date(a.start?.dateTime || a.start?.date) - new Date(b.start?.dateTime || b.start?.date)) }; CALENDAR_CACHE.set(key, cached); }
       catch (_error) { cached = { time: Date.now(), events: [] }; }
       finally { this._loadingEvents = false; }
     }
@@ -1836,11 +1915,16 @@ class JarvisCalendarCard extends JarvisBaseCard {
     const limit = Number(this._config.appointment_limit) || 6;
     const grouped = new Map();
     cached.events.slice(0, limit).forEach((event) => { const date = new Date(event.start?.dateTime || event.start?.date); const key = date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }); if (!grouped.has(key)) grouped.set(key, []); grouped.get(key).push({ event, date }); });
-    const agenda = [...grouped.entries()].map(([day, events]) => `<section class="agenda-day"><h3>${escapeHtml(day)}</h3>${events.map(({ event, date }) => `<div class="event"><time>${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><span>${escapeHtml(event.summary || "Calendar event")}</span></div>`).join("")}</section>`).join("") || "<span>NO UPCOMING APPOINTMENTS</span>";
+    const agenda = [...grouped.entries()].map(([day, events]) => `<section class="agenda-day"><h3>${escapeHtml(day)}</h3>${events.map(({ event, date }) => `<div class="event" style="--event-accent:${event._jarvisAccent}"><time>${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><span>${escapeHtml(event.summary || "Calendar event")}</span></div>`).join("")}</section>`).join("") || "<span>NO UPCOMING APPOINTMENTS</span>";
     if (view !== "month") { host.innerHTML = `<div class="agenda">${agenda}</div>`; return; }
     const days = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate(); const first = (start.getDay() + 6) % 7;
-    const cells = Array.from({ length: first }, () => "<div></div>").concat(Array.from({ length: days }, (_, index) => { const day = index + 1; const has = cached.events.some((event) => new Date(event.start?.dateTime || event.start?.date).getDate() === day); return `<div class="day ${has ? "has" : ""}">${day}</div>`; })).join("");
+    const cells = Array.from({ length: first }, () => "<div></div>").concat(Array.from({ length: days }, (_, index) => { const day = index + 1; const events = cached.events.filter((event) => new Date(event.start?.dateTime || event.start?.date).getDate() === day); const dots = events.slice(0, 5).map((event) => `<i class="event-dot" style="--event-accent:${event._jarvisAccent}"></i>`).join(""); return `<div class="day ${events.length ? "has" : ""}" style="--day-accent:${events[0]?._jarvisAccent || "var(--j-accent)"}">${day}<div class="event-dots">${dots}</div></div>`; })).join("");
     host.innerHTML = `<div class="month-grid">${cells}</div><div class="agenda">${agenda}</div>`;
+  }
+  _calendarAccent(index) {
+    const palette = { cyan: "#20d8ff", blue: "#4d8dff", green: "#49e59a", amber: "#ffbd45", purple: "#b985ff", red: "#ff5a6f" };
+    const selected = this._config?.[`calendar_${index + 1}_accent`] || "automatic";
+    return palette[selected] || Object.values(palette)[index % Object.keys(palette).length];
   }
 }
 
