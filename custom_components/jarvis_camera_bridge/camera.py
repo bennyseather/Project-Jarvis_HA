@@ -32,8 +32,7 @@ class JarvisBridgeCamera(CoordinatorEntity, Camera):
     def available(self):
         camera = self.coordinator.camera(self.camera_id)
         return (
-            self.coordinator.last_update_success
-            and camera.get("snapshot_available", False)
+            camera.get("snapshot_available", False)
             and not camera.get("snapshot_stale", True)
         )
 
