@@ -622,7 +622,7 @@ class JarvisCameraCard extends JarvisBaseCard {
   constructor() {
     super();
     this._cameraCard = undefined; this._cameraEntity = undefined; this._cameraMounting = undefined;
-    this._snapshotTimer = undefined; this._cameraView = "snapshot"; this._visible = true;
+    this._snapshotTimer = undefined; this._cameraView = "snapshot"; this._visible = true; this._snapshotLoaded = false;
   }
   connectedCallback() {
     this._intersectionObserver?.disconnect();
@@ -682,8 +682,9 @@ class JarvisCameraCard extends JarvisBaseCard {
       return;
     }
     const image = document.createElement("img"); image.alt = `${friendlyName(this.cardState(), this._config)} snapshot`;
-    image.addEventListener("load", () => { this._setCameraMessage(""); this._updateCameraStatus(); });
-    image.addEventListener("error", () => { this._setCameraMessage("Snapshot unavailable"); this._updateCameraStatus("Snapshot unavailable"); });
+    image.addEventListener("load", () => { this._snapshotLoaded = true; this._setCameraMessage(""); this._updateCameraStatus(); });
+    image.addEventListener("error", () => { this._snapshotLoaded = false; this._setCameraMessage("Snapshot unavailable"); this._updateCameraStatus("Snapshot unavailable"); });
+    this._snapshotLoaded = false;
     host.replaceChildren(image); this._snapshotImage = image; this._refreshSnapshot(true);
     const interval = Math.max(10, Number(this._config.snapshot_interval) || 60) * 1000;
     this._snapshotTimer = setInterval(() => { if (this._visible && this._cameraView === "snapshot") this._refreshSnapshot(); }, interval);
@@ -757,7 +758,7 @@ class JarvisCameraCard extends JarvisBaseCard {
     const bridged = Boolean(state?.attributes?.jarvis_bridge);
     const bridgeAvailable = state?.attributes?.bridge_available !== false;
     const snapshotStale = Boolean(state?.attributes?.snapshot_stale);
-    const unavailable = isUnavailable(state) || (bridged && !bridgeAvailable);
+    const unavailable = (isUnavailable(state) && !(this._cameraView === "snapshot" && this._snapshotLoaded)) || (bridged && !bridgeAvailable);
     const live = this._cameraView === "live";
     const status = override || (bridged && !bridgeAvailable
       ? "Bridge unavailable"

@@ -13,10 +13,12 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Camera Bridge 0.44.5
+## Project Jarvis Camera Bridge 0.44.6
 
-Version 0.44.5 keeps camera entities available from a fresh cached snapshot
-even when a transient coordinator refresh briefly fails, and correctly initialises
+Version 0.44.6 keeps camera entities available from a fresh cached snapshot
+even when a transient coordinator refresh briefly fails, and makes the Jarvis
+camera card report a successfully displayed cached frame as a snapshot rather
+than inheriting a transient unavailable entity label. It correctly initialises
 the Home Assistant camera base class. It retains the private
 go2rtc-based Nest Camera Bridge add-on, locally
 cached snapshots, derived Home Assistant camera entities, stream diagnostics,
