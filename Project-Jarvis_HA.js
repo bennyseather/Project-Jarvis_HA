@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.44.1";
+const JARVIS_UI_VERSION = "0.45.0";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -6,6 +6,57 @@ const CALENDAR_CACHE = new Map();
 const DATA_CACHE_TTL = 60000;
 const MAX_HISTORY_SAMPLES = 96;
 const CAMERA_STREAM_BACKOFF = new Map();
+let DOORBELL_EVENT_CONNECTION;
+let DOORBELL_EVENT_UNSUBSCRIBE;
+let DOORBELL_POPUP;
+
+async function ensureDoorbellEventListener(hass) {
+  const connection = hass?.connection;
+  if (!connection || connection === DOORBELL_EVENT_CONNECTION) return;
+  DOORBELL_EVENT_CONNECTION = connection;
+  try { (await DOORBELL_EVENT_UNSUBSCRIBE)?.(); } catch (_error) { /* prior connection is already closed */ }
+  DOORBELL_EVENT_UNSUBSCRIBE = connection.subscribeEvents(
+    (event) => showJarvisDoorbellPopup(hass, event?.data || {}),
+    "jarvis_camera_bridge_doorbell",
+  );
+}
+
+async function showJarvisDoorbellPopup(hass, detail) {
+  const entity = detail.camera_entity_id;
+  if (!entity) return;
+  DOORBELL_POPUP?.remove();
+  const overlay = document.createElement("div");
+  overlay.dataset.jarvisDoorbellPopup = "true";
+  const root = overlay.attachShadow({ mode: "open" });
+  const requested = Number(detail.session_seconds) || 45;
+  let remaining = Math.max(20, Math.min(60, requested));
+  root.innerHTML = `<style>
+    :host{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:18px;background:rgba(0,6,12,.82);backdrop-filter:blur(7px)}
+    .panel{width:min(920px,100%);height:min(680px,calc(100vh - 36px));display:grid;grid-template-rows:auto 1fr;border:1px solid #11d9ff;background:#01090f;box-shadow:0 0 42px rgba(17,217,255,.25);clip-path:polygon(0 14px,14px 0,70% 0,calc(70% + 10px) 10px,100% 10px,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%)}
+    header{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(17,217,255,.45);color:#e8fbff}
+    .eyebrow{font:700 10px ui-monospace,monospace;letter-spacing:.18em;color:#11d9ff;text-transform:uppercase}.title{font:700 20px system-ui,sans-serif}
+    .count{font:700 11px ui-monospace,monospace;color:#9ed7e5}button{min-width:72px;min-height:38px;border:1px solid #11d9ff;background:#071c28;color:#e8fbff;font:700 10px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}
+    .camera{min-height:0;overflow:hidden}.camera>*{width:100%;height:100%;display:block;--ha-card-border-radius:0;--ha-card-box-shadow:none;--ha-card-background:#01090f}
+    @media(max-width:680px){:host{padding:8px}.panel{height:calc(100vh - 16px)}header{grid-template-columns:1fr auto}.count{display:none}.title{font-size:16px}}
+  </style><section class="panel" role="dialog" aria-modal="true" aria-label="Doorbell camera"><header><div><div class="eyebrow">Doorbell event</div><div class="title">${escapeHtml(detail.camera_name || "Front Door")}</div></div><div class="count">LIVE // <span>${remaining}</span>S</div><button type="button">Close</button></header><div class="camera"></div></section>`;
+  document.body.appendChild(overlay); DOORBELL_POPUP = overlay;
+  const close = () => { clearInterval(timer); if (DOORBELL_POPUP === overlay) DOORBELL_POPUP = undefined; overlay.remove(); };
+  root.querySelector("button").addEventListener("click", close);
+  overlay.addEventListener("click", (event) => { if (event.composedPath()[0] === overlay) close(); });
+  const timer = setInterval(() => {
+    remaining -= 1;
+    const node = root.querySelector(".count span"); if (node) node.textContent = String(Math.max(0, remaining));
+    if (remaining <= 0) close();
+  }, 1000);
+  try {
+    const helpers = await window.loadCardHelpers();
+    if (!overlay.isConnected) return;
+    const card = await helpers.createCardElement({ type: "picture-entity", entity, camera_view: "live", show_name: false, show_state: false });
+    root.querySelector(".camera").replaceChildren(card); card.hass = hass;
+  } catch (_error) {
+    const host = root.querySelector(".camera"); if (host) host.textContent = "Live doorbell stream unavailable";
+  }
+}
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -351,6 +402,7 @@ class JarvisBaseCard extends HTMLElement {
 
   set hass(value) {
     this._hass = value;
+    ensureDoorbellEventListener(value);
     this.render();
   }
 
@@ -636,6 +688,7 @@ class JarvisCameraCard extends JarvisBaseCard {
   }
   set hass(value) {
     this._hass = value;
+    ensureDoorbellEventListener(value);
     if (!this.shadowRoot.querySelector(".camera-host")) this.render();
     if (this._cameraCard && this._cameraView === "live") this._cameraCard.hass = value;
     this._updateCameraStatus();

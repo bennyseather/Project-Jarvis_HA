@@ -31,6 +31,15 @@ class BridgeApi:
             response.raise_for_status()
             return await response.read()
 
+    async def activate(self, camera_id: str) -> dict:
+        async with self.session.post(
+            f"{self.url}/v1/cameras/{camera_id}/activate",
+            headers=self.headers,
+            timeout=ClientTimeout(total=15),
+        ) as response:
+            response.raise_for_status()
+            return await response.json()
+
     def rtsp_url(self, camera_id: str) -> str:
         host = urlsplit(self.url).hostname
         if not host:

@@ -1,5 +1,5 @@
 name: "Project Jarvis Camera Bridge"
-version: "0.44.6"
+version: "0.45.0"
 slug: "jarvis_camera_bridge"
 description: "Private Nest-to-go2rtc bridge with cached surveillance snapshots"
 url: "https://github.com/bennyseather/Project-Jarvis_HA"
@@ -19,7 +19,9 @@ options:
   bridge_token: "change-this-private-token"
   snapshot_interval: 15
   stale_after: 60
+  doorbell_session_seconds: 45
   cameras: []
+  event_cameras: []
 schema:
   project_id: str
   client_id: password
@@ -28,6 +30,11 @@ schema:
   bridge_token: password
   snapshot_interval: int(10,60)
   stale_after: int(30,600)
+  doorbell_session_seconds: int(20,60)
   cameras:
     - name: str
       device_id: str
+  event_cameras:
+    - name: str
+      device_id: str
+      trigger_entity: str

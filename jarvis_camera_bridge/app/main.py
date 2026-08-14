@@ -32,6 +32,9 @@ class CameraRuntime:
     slug: str
     device_id: str
     interval: int
+    mode: str = "continuous"
+    trigger_entity: str = ""
+    session_until: float = 0.0
     last_success: float = 0.0
     last_attempt: float = 0.0
     last_error: str = ""
@@ -40,6 +43,7 @@ class CameraRuntime:
     connected: bool = False
     active_viewers: int = 0
     snapshot: Path = field(default_factory=Path)
+    warmup_task: asyncio.Task | None = field(default=None, repr=False)
 
 
 class Bridge:
@@ -48,8 +52,8 @@ class Bridge:
         self.token = str(options["bridge_token"])
         self.stale_after = int(options.get("stale_after", 60))
         default_interval = int(options.get("snapshot_interval", 15))
-        self.cameras = {
-            slugify(item["name"]): CameraRuntime(
+        continuous = [
+            CameraRuntime(
                 name=item["name"],
                 slug=slugify(item["name"]),
                 device_id=item["device_id"],
@@ -57,7 +61,21 @@ class Bridge:
                 snapshot=CACHE_DIR / f"{slugify(item['name'])}.jpg",
             )
             for item in options.get("cameras", [])
-        }
+        ]
+        event_driven = [
+            CameraRuntime(
+                name=item["name"],
+                slug=slugify(item["name"]),
+                device_id=item["device_id"],
+                interval=0,
+                mode="event_driven",
+                trigger_entity=str(item.get("trigger_entity", "")),
+                snapshot=CACHE_DIR / f"{slugify(item['name'])}.jpg",
+            )
+            for item in options.get("event_cameras", [])
+        ]
+        self.cameras = {camera.slug: camera for camera in continuous + event_driven}
+        self.doorbell_session_seconds = max(20, min(60, int(options.get("doorbell_session_seconds", 45))))
         self.session: ClientSession | None = None
         self.go2rtc: asyncio.subprocess.Process | None = None
         self.started = time.time()
@@ -80,7 +98,8 @@ class Bridge:
                 }
             )
             lines.extend((f"  {camera.slug}:", f"    - nest:?{query}"))
-            preload.append(camera.slug)
+            if camera.mode == "continuous":
+                preload.append(camera.slug)
         if preload:
             lines.append("preload:")
             lines.extend(f"  {slug}:" for slug in preload)
@@ -101,7 +120,10 @@ class Bridge:
         )
         await asyncio.sleep(2)
         for camera in self.cameras.values():
-            asyncio.create_task(self.snapshot_loop(camera))
+            if camera.mode == "continuous":
+                asyncio.create_task(self.snapshot_loop(camera))
+            else:
+                asyncio.create_task(self.session_expiry_loop(camera))
 
     async def close(self) -> None:
         if self.session:
@@ -152,6 +174,57 @@ class Bridge:
                 )
             await asyncio.sleep(camera.interval)
 
+    async def capture_once(self, camera: CameraRuntime) -> None:
+        camera.last_attempt = time.time()
+        try:
+            assert self.session
+            async with self.session.get(
+                f"{GO2RTC_API}/api/frame.jpeg",
+                params={"src": camera.slug, "cache": "0s"},
+            ) as response:
+                response.raise_for_status()
+                image = await response.read()
+                if len(image) < 1024:
+                    raise RuntimeError("Snapshot response was unexpectedly small")
+                temp = camera.snapshot.with_suffix(".tmp")
+                temp.write_bytes(image)
+                temp.replace(camera.snapshot)
+            camera.last_success = time.time()
+            camera.last_error = ""
+            camera.failures = 0
+            camera.connected = True
+        except Exception as err:
+            camera.failures += 1
+            camera.connected = False
+            detail = str(err).strip()
+            camera.last_error = (detail or type(err).__name__)[:240]
+            LOGGER.warning("Event camera warm-up failed for %s: %s", camera.slug, camera.last_error)
+
+    async def activate(self, camera: CameraRuntime) -> dict:
+        if camera.mode != "event_driven":
+            raise web.HTTPConflict(text="Camera is not event driven")
+        camera.session_until = time.time() + self.doorbell_session_seconds
+        if camera.warmup_task and not camera.warmup_task.done():
+            camera.warmup_task.cancel()
+        camera.warmup_task = asyncio.create_task(self.capture_once(camera))
+        LOGGER.info("Activated event camera %s for %ss", camera.slug, self.doorbell_session_seconds)
+        return {
+            "camera_id": camera.slug,
+            "session_seconds": self.doorbell_session_seconds,
+            "session_until": camera.session_until,
+        }
+
+    async def session_expiry_loop(self, camera: CameraRuntime) -> None:
+        while True:
+            await asyncio.sleep(2)
+            if not camera.session_until or time.time() < camera.session_until:
+                continue
+            camera.session_until = 0
+            camera.connected = False
+            if camera.warmup_task and not camera.warmup_task.done():
+                camera.warmup_task.cancel()
+            LOGGER.info("Closed event camera session %s", camera.slug)
+
     async def refresh_viewers(self) -> None:
         if not self.session:
             return
@@ -161,7 +234,8 @@ class Bridge:
                     payload = await response.json()
                 stream = payload.get(camera.slug, payload) if isinstance(payload, dict) else {}
                 consumers = stream.get("consumers", []) if isinstance(stream, dict) else []
-                camera.active_viewers = max(0, len(consumers) - 1)  # discount preload
+                preload_consumers = 1 if camera.mode == "continuous" else 0
+                camera.active_viewers = max(0, len(consumers) - preload_consumers)
             except Exception:
                 camera.active_viewers = 0
 
@@ -183,6 +257,10 @@ class Bridge:
                     "last_error": camera.last_error,
                     "cooldown_seconds": max(0, round(camera.cooldown_until - now)),
                     "active_viewers": camera.active_viewers,
+                    "mode": camera.mode,
+                    "trigger_entity": camera.trigger_entity,
+                    "session_active": camera.mode == "continuous" or camera.session_until > now,
+                    "session_seconds_remaining": max(0, round(camera.session_until - now)),
                     "rtsp_path": f"/{camera.slug}",
                 }
             )
@@ -211,6 +289,14 @@ async def snapshot_handler(request: web.Request) -> web.Response:
     return web.FileResponse(camera.snapshot, headers={"Cache-Control": "no-store"})
 
 
+async def activate_handler(request: web.Request) -> web.Response:
+    bridge: Bridge = request.app["bridge"]
+    camera = bridge.cameras.get(request.match_info["camera_id"])
+    if not camera:
+        raise web.HTTPNotFound(text="Unknown camera")
+    return web.json_response(await bridge.activate(camera))
+
+
 async def create_app() -> web.Application:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     options = json.loads(OPTIONS.read_text(encoding="utf-8"))
@@ -220,6 +306,7 @@ async def create_app() -> web.Application:
     app["bridge"] = bridge
     app.router.add_get("/v1/status", status_handler)
     app.router.add_get("/v1/cameras/{camera_id}/snapshot.jpg", snapshot_handler)
+    app.router.add_post("/v1/cameras/{camera_id}/activate", activate_handler)
     app.on_cleanup.append(lambda _: bridge.close())
     return app
 

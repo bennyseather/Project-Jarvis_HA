@@ -31,6 +31,8 @@ class JarvisBridgeCamera(CoordinatorEntity, Camera):
     @property
     def available(self):
         camera = self.coordinator.camera(self.camera_id)
+        if camera.get("mode") == "event_driven" and camera.get("session_active"):
+            return True
         return (
             camera.get("snapshot_available", False)
             and not camera.get("snapshot_stale", True)
@@ -49,10 +51,17 @@ class JarvisBridgeCamera(CoordinatorEntity, Camera):
             "last_bridge_error": camera.get("last_error", ""),
             "cooldown_seconds": camera.get("cooldown_seconds", 0),
             "active_viewers": camera.get("active_viewers", 0),
+            "camera_id": self.camera_id,
+            "camera_mode": camera.get("mode", "continuous"),
+            "session_active": camera.get("session_active", True),
+            "session_seconds_remaining": camera.get("session_seconds_remaining", 0),
         }
 
     async def async_camera_image(self, width=None, height=None):
         return await self.coordinator.api.snapshot(self.camera_id)
 
     async def stream_source(self):
+        camera = self.coordinator.camera(self.camera_id)
+        if camera.get("mode") == "event_driven" and not camera.get("session_active"):
+            return None
         return self.coordinator.api.rtsp_url(self.camera_id)

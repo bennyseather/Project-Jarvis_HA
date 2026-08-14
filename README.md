@@ -13,17 +13,15 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
-## Project Jarvis Camera Bridge 0.44.6
+## Project Jarvis Event-Driven Doorbell Camera 0.45.0
 
-Version 0.44.6 keeps camera entities available from a fresh cached snapshot
-even when a transient coordinator refresh briefly fails, and makes the Jarvis
-camera card report a successfully displayed cached frame as a snapshot rather
-than inheriting a transient unavailable entity label. It correctly initialises
-the Home Assistant camera base class. It retains the private
-go2rtc-based Nest Camera Bridge add-on, locally
-cached snapshots, derived Home Assistant camera entities, stream diagnostics,
-stale-frame handling, and a deferred doorbell-event foundation. Doorbell voice
-and push announcements remain disabled until the new voice hardware is ready.
+Version 0.45.0 adds a battery-safe event-driven doorbell path. Wired cameras
+retain continuous cached snapshots, while configured battery doorbells are not
+preloaded or polled. A matching Home Assistant doorbell event opens a bounded
+20–60 second bridge session, publishes a local Jarvis event, displays a live
+popup on currently open Jarvis dashboards, and disposes the viewer
+automatically. Doorbell voice and push announcements remain disabled until the
+new voice hardware is ready.
 
 Install **Project Jarvis Camera Bridge** from the Project Jarvis add-on
 repository, then copy/install `custom_components/jarvis_camera_bridge` and add
