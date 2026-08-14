@@ -17,7 +17,8 @@ class JarvisBridgeCamera(CoordinatorEntity, Camera):
     _attr_supported_features = CameraEntityFeature.STREAM
 
     def __init__(self, coordinator, camera):
-        super().__init__(coordinator)
+        Camera.__init__(self)
+        CoordinatorEntity.__init__(self, coordinator)
         self.camera_id = camera["id"]
         self._attr_unique_id = f"jarvis_camera_{self.camera_id}"
         self._attr_device_info = {
@@ -29,7 +30,12 @@ class JarvisBridgeCamera(CoordinatorEntity, Camera):
 
     @property
     def available(self):
-        return self.coordinator.last_update_success and bool(self.coordinator.camera(self.camera_id))
+        camera = self.coordinator.camera(self.camera_id)
+        return (
+            self.coordinator.last_update_success
+            and camera.get("snapshot_available", False)
+            and not camera.get("snapshot_stale", True)
+        )
 
     @property
     def extra_state_attributes(self):
