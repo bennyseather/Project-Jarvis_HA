@@ -13,6 +13,17 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis AI Node Monitoring 0.46.0
+
+Version 0.46.0 adds a private local integration for the dedicated Jarvis AI
+node. It creates Home Assistant entities for CPU, memory, NVMe, both NVIDIA
+GPUs, Qwen, Ollama, uptime and overall health, polling the token-protected
+read-only endpoint every 15 seconds. The new visual-editor-compatible
+**Jarvis AI Node** card combines live values with Home Assistant recorder
+history. Copy `custom_components/jarvis_node` to `/config/custom_components`,
+restart Home Assistant, and add **Project Jarvis AI Node** under
+**Settings → Devices & services**.
+
 ## Project Jarvis Event-Driven Doorbell Camera 0.45.0
 
 Version 0.45.0 adds a battery-safe event-driven doorbell path. Wired cameras

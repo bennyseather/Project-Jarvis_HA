@@ -1,0 +1,3 @@
+{
+  "config": {"step": {"user": {"title": "Connect Project Jarvis AI Node", "description": "Enter the private local metrics endpoint and token.", "data": {"url": "Metrics URL", "token": "Metrics token"}}}, "error": {"cannot_connect": "Unable to connect or authenticate"}}
+}

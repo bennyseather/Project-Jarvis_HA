@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.45.0";
+const JARVIS_UI_VERSION = "0.46.0";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -888,6 +888,55 @@ class JarvisSensorCard extends JarvisBaseCard {
     const start = new Date(states[0]?.last_changed || end.getTime() - hours * 3600000);
     const mid = new Date((start.getTime() + end.getTime()) / 2);
     return [start, mid, end].map((date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  }
+}
+
+class JarvisNodeCard extends JarvisSensorCard {
+  static cardName = "Jarvis AI Node";
+  static domains = ["sensor"];
+  static gridRows = 5;
+  static getConfigForm() {
+    return {
+      schema: [
+        { name: "entity", required: true, selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "cpu_temperature", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "memory_usage", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "gpu_1_usage", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "gpu_1_temperature", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "gpu_2_usage", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "gpu_2_temperature", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "qwen_status", selector: { entity: { filter: [{ domain: "binary_sensor" }] } } },
+        { name: "ollama_status", selector: { entity: { filter: [{ domain: "binary_sensor" }] } } },
+        { name: "history_hours", selector: { select: { options: ["1", "6", "12", "24", "48"] } } },
+        { name: "accent", selector: { select: { options: ["cyan", "amber", "green", "red"] } } },
+      ],
+    };
+  }
+  static getStubConfig(hass) {
+    const find = (fragment, domain = "sensor") => Object.keys(hass?.states || {}).find((id) => entityDomain(id) === domain && id.includes(fragment));
+    return {
+      entity: find("jarvis_ai_node_cpu_usage") || find("cpu_usage"),
+      cpu_temperature: find("jarvis_ai_node_cpu_temperature"), memory_usage: find("jarvis_ai_node_memory_usage"),
+      gpu_1_usage: find("rtx_2080_super_gpu_usage"), gpu_1_temperature: find("rtx_2080_super_gpu_temperature"),
+      gpu_2_usage: find("rtx_3060_ti_gpu_usage"), gpu_2_temperature: find("rtx_3060_ti_gpu_temperature"),
+      qwen_status: find("qwen_voice", "binary_sensor"), ollama_status: find("ollama", "binary_sensor"),
+    };
+  }
+  render() {
+    if (!this._config) return;
+    const primary = this.cardState();
+    const value = formatState(primary, this._config);
+    const metric = (id, label) => {
+      const state = stateObject(this._hass, id);
+      return `<div class="node-metric"><span>${label}</span><b class="${isUnavailable(state) ? "bad" : ""}">${escapeHtml(state ? formatState(state, { entity: id }) : "—")}</b></div>`;
+    };
+    const service = (id, label) => {
+      const state = stateObject(this._hass, id); const online = state?.state === "on";
+      return `<div class="node-service ${online ? "online" : "offline"}"><i></i><span>${label}</span><b>${online ? "ONLINE" : "OFFLINE"}</b></div>`;
+    };
+    this.shell(`<div class="node-layout"><div class="node-head"><div class="icon-shell"><ha-icon icon="jarvis:server"></ha-icon></div><div><div class="eyebrow">Dedicated intelligence hardware</div><div class="name">Jarvis AI Node</div><div class="state">DUAL GPU // LOCAL COMPUTE</div></div><div class="j-value">${escapeHtml(value)}</div></div><div class="node-grid">${metric(this._config.cpu_temperature, "CPU TEMP")}${metric(this._config.memory_usage, "MEMORY")}${metric(this._config.gpu_1_usage, "RTX 2080 LOAD")}${metric(this._config.gpu_1_temperature, "RTX 2080 TEMP")}${metric(this._config.gpu_2_usage, "RTX 3060 LOAD")}${metric(this._config.gpu_2_temperature, "RTX 3060 TEMP")}</div><div class="services">${service(this._config.qwen_status, "QWEN VOICE")}${service(this._config.ollama_status, "OLLAMA")}</div><div class="trace"><span>HISTORY LOADING</span></div></div>
+      <style>.node-layout{min-height:250px;padding:18px;display:grid;gap:13px}.node-head{display:grid;grid-template-columns:48px 1fr auto;gap:13px;align-items:center}.node-head .icon-shell{width:46px;height:46px}.node-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.node-metric{border:1px solid rgba(32,216,255,.14);padding:8px;display:grid;gap:3px}.node-metric span{font:600 8px monospace;letter-spacing:.1em;color:var(--secondary-text-color)}.node-metric b{font:700 13px monospace;color:var(--j-accent)}.node-metric b.bad{color:var(--j-red)}.services{display:grid;grid-template-columns:1fr 1fr;gap:8px}.node-service{display:grid;grid-template-columns:8px 1fr auto;gap:7px;align-items:center;font:700 9px monospace}.node-service i{width:7px;height:7px;border-radius:50%;background:var(--j-red);box-shadow:0 0 6px var(--j-red)}.node-service.online i{background:var(--j-green);box-shadow:0 0 6px var(--j-green)}.node-service b{color:var(--secondary-text-color)}.trace{height:64px;overflow:hidden;display:grid;align-items:end}.trace>span{align-self:center;font:600 8px monospace;letter-spacing:.12em;color:var(--secondary-text-color)}.history-chart{height:64px;display:grid;grid-template-columns:34px 1fr;grid-template-rows:46px 16px}.y-axis{display:flex;flex-direction:column;justify-content:space-between;font:600 8px monospace;color:var(--secondary-text-color);padding-right:5px;text-align:right}.plot{border-left:1px solid var(--j-line);border-bottom:1px solid var(--j-line);overflow:hidden}.plot svg{width:100%;height:45px}.plot polyline{fill:none;stroke:var(--j-accent);stroke-width:2;filter:drop-shadow(0 0 4px var(--j-accent))}.x-axis{grid-column:2;display:flex;justify-content:space-between;padding-top:3px;font:600 8px monospace;color:var(--secondary-text-color)}@container(max-width:430px){.node-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>`, { interactive: false });
+    if (this._visible) this.loadHistory();
   }
 }
 
@@ -2205,6 +2254,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-media-card", JarvisMediaCard, "Jarvis Media", "Playback and volume control"],
   ["jarvis-camera-card", JarvisCameraCard, "Jarvis Camera", "Camera view in the Jarvis HUD"],
   ["jarvis-sensor-card", JarvisSensorCard, "Jarvis Sensor", "Sensor telemetry and state"],
+  ["jarvis-node-card", JarvisNodeCard, "Jarvis AI Node", "CPU, memory, storage, dual-GPU and local AI telemetry"],
   ["jarvis-security-card", JarvisSecurityCard, "Jarvis Security", "Lock and safety entity display"],
   ["jarvis-status-card", JarvisStatusCard, "Jarvis Status", "Multi-entity system summary"],
   ["jarvis-voice-card", JarvisVoiceCard, "Jarvis Voice", "Animated Project Jarvis Assist launcher"],
@@ -2247,6 +2297,7 @@ const CARD_DOMAINS = new Map([
   [JarvisClimateCard, ["climate"]], [JarvisCoverCard, ["cover"]],
   [JarvisMediaCard, ["media_player"]], [JarvisCameraCard, ["camera"]],
   [JarvisSensorCard, ["sensor", "binary_sensor", "sun", "weather"]],
+  [JarvisNodeCard, ["sensor"]],
   [JarvisSecurityCard, ["lock", "alarm_control_panel"]],
   [JarvisPresenceCard, ["person", "device_tracker", "binary_sensor"]],
   [JarvisWeatherCard, ["weather"]], [JarvisEnergyCard, ["sensor"]],

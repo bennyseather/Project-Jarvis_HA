@@ -1,0 +1,9 @@
+{
+  "domain": "jarvis_node",
+  "name": "Project Jarvis AI Node",
+  "version": "0.46.0",
+  "config_flow": true,
+  "documentation": "https://github.com/bennyseather/Project-Jarvis_HA",
+  "iot_class": "local_polling",
+  "requirements": []
+}
