@@ -19,7 +19,7 @@ class QwenConfig:
     reference_text_file: str = "/data/reference.txt"
     cache_dir: str = "/data/models"
     device: str = "cuda:0"
-    dtype: str = "bfloat16"
+    dtype: str = "float16"
     cpu_threads: int = 6
     maximum_segment_characters: int = 180
     response_cache_entries: int = 24

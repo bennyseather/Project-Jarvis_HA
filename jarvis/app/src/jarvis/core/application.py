@@ -17,6 +17,7 @@ from jarvis.core.context_builder import ContextBuilder
 from jarvis.homeassistant.client import HomeAssistantClient
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
+from jarvis.providers.local_first_provider import LocalFirstReasoningProvider, LocalReasoningPolicy
 from jarvis.core.assistant_factory import create_read_only_assistant
 from jarvis.context.context_assembler import ContextAssembler
 from jarvis.context.providers import MemoryContextProvider, KnowledgeContextProvider
@@ -369,6 +370,14 @@ class JarvisApplication:
                 self.general.get("compound_orchestration", {})
             )
         )
+        self.container.local_reasoning_policy = LocalReasoningPolicy.from_config(
+            self.general.get("local_reasoning", {})
+        )
+        if self.container.local_reasoning_policy.enabled:
+            self.container.openai = LocalFirstReasoningProvider(
+                self.container.local_reasoning_policy, self.container.logger,
+                fallback=self.container.openai,
+            )
         self.container.adaptive_learning_policy = AdaptiveLearningPolicy.from_config(
             self.general.get("adaptive_learning", {})
         )

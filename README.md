@@ -13,6 +13,17 @@ Install **Project Jarvis**, configure its OpenAI and bridge API keys, and then
 install the companion files from `custom_components/jarvis_conversation`.
 Detailed instructions are in `jarvis/DOCS.md`.
 
+## Project Jarvis Intelligence Node 0.47.0
+
+Version 0.47.0 routes ordinary Jarvis language reasoning to the dedicated
+local Qwen3 8B model, keeps approved Home Assistant actions inside the existing
+authorization boundaries, and retains OpenAI as an explicit availability and
+high-complexity fallback. Local SearXNG evidence can now be synthesised without
+consuming the external AI budget, while Qwen3 Embedding provides a local
+embedding endpoint for the next memory-indexing stage. The companion voice
+release preserves complete spoken replies, removes source addresses from
+speech, and runs Qwen3-TTS in GPU-efficient float16 mode.
+
 ## Project Jarvis AI Node Monitoring 0.46.0
 
 Version 0.46.0 adds a private local integration for the dedicated Jarvis AI

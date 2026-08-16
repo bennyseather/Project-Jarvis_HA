@@ -1,5 +1,5 @@
 name: "Project Jarvis Voice"
-version: "0.34.4"
+version: "0.34.5"
 slug: "jarvis_voice"
 description: "High-quality local streaming Jarvis neural voice"
 arch: [amd64]
@@ -19,7 +19,7 @@ options:
   qwen_filter: "clean"
   qwen_filter_strength: 0.55
   qwen_connect_timeout: 3.0
-  qwen_maximum_spoken_characters: 260
+  qwen_maximum_spoken_characters: 4000
   qwen_buffer_before_playback: false
   qwen_maximum_buffer_megabytes: 64
   model_package: "/share/jarvis_voice/jarvis-piper-m40.zip"
@@ -40,7 +40,7 @@ options:
   darkness: 0.12
   articulation_mode: "crisp"
   maximum_segment_characters: 105
-  voice_revision: 10
+  voice_revision: 11
   piper_fallback: true
   reference_path: "/app/jarvis-reference.wav"
   generation_timeout: 300.0
@@ -52,7 +52,7 @@ schema:
   qwen_filter: list(clean|refined|synthesized|synthetic|metallic)
   qwen_filter_strength: float(0.0,1.0)
   qwen_connect_timeout: float(1.0,30.0)
-  qwen_maximum_spoken_characters: int(120,1000)
+  qwen_maximum_spoken_characters: int(500,16000)
   qwen_buffer_before_playback: bool
   qwen_maximum_buffer_megabytes: int(1,256)
   model_package: str
@@ -73,7 +73,7 @@ schema:
   darkness: float(0.0,0.25)
   articulation_mode: list(crisp|balanced)
   maximum_segment_characters: int(60,180)
-  voice_revision: int(0,10)
+  voice_revision: int(0,11)
   piper_fallback: bool
   reference_path: str
   generation_timeout: float(5.0,600.0)

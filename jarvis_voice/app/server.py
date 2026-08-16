@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import logging
+import re
 import time
 
 from chatterbox_engine import ChatterboxConfig, ChatterboxNanoEngine
@@ -49,7 +50,7 @@ class VoiceProxyConfig:
     qwen_filter: str = "clean"
     qwen_filter_strength: float = 0.55
     qwen_connect_timeout: float = 3.0
-    qwen_maximum_spoken_characters: int = 260
+    qwen_maximum_spoken_characters: int = 4000
     qwen_buffer_before_playback: bool = False
     qwen_maximum_buffer_bytes: int = 67108864
 
@@ -195,7 +196,7 @@ class VoiceProxy:
             await upstream_writer.wait_closed()
 
     async def _synthesize_qwen(self, event: Event, client: asyncio.StreamWriter) -> None:
-        text = _bounded_spoken_text(
+        text = _prepare_spoken_text(
             str(event.data.get("text", "")), self.config.qwen_maximum_spoken_characters
         )
         if not text:
@@ -452,10 +453,17 @@ def _refine_info(event: Event) -> Event:
     return Event(dict(event.header), data, event.payload)
 
 
-def _bounded_spoken_text(text: str, maximum: int) -> str:
-    """Bound unusually long TTS payloads at a natural sentence boundary."""
-    normalized = " ".join(str(text).split())
-    maximum = max(120, min(1000, int(maximum)))
+def _prepare_spoken_text(text: str, maximum: int = 4000) -> str:
+    """Remove visual-only citations while retaining complete spoken replies."""
+    value = str(text)
+    value = re.split(
+        r"(?im)^\s*(?:sources?|references?|citations?)\s*:\s*", value, maxsplit=1
+    )[0]
+    value = re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", value)
+    value = re.sub(r"https?://\S+", "", value)
+    value = re.sub(r"\s*\[(?:\d+(?:\s*[-,]\s*\d+)*)\]", "", value)
+    normalized = " ".join(value.split()).strip()
+    maximum = max(120, min(16000, int(maximum)))
     if len(normalized) <= maximum:
         return normalized
     candidate = normalized[: maximum + 1]
@@ -464,6 +472,11 @@ def _bounded_spoken_text(text: str, maximum: int) -> str:
         return candidate[: boundary + 1]
     boundary = candidate.rfind(" ", 0, maximum + 1)
     return candidate[:boundary].rstrip(" ,;:") + "."
+
+
+def _bounded_spoken_text(text: str, maximum: int) -> str:
+    """Backward-compatible alias for the final spoken-text boundary."""
+    return _prepare_spoken_text(text, maximum)
 
 
 def _kokoro_info() -> Event:

@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.44.1"
+version: "0.45.0"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]
@@ -31,6 +31,13 @@ options:
   stewardship_reconciliation_seconds: 300
   adaptive_learning_enabled: true
   routine_learning_enabled: true
+  local_reasoning_enabled: true
+  local_reasoning_url: "http://192.168.1.105:10550"
+  local_reasoning_token: ""
+  local_reasoning_model: "qwen3:8b"
+  local_embedding_model: "qwen3-embedding:0.6b"
+  local_reasoning_timeout: 90
+  openai_fallback_enabled: true
 schema:
   openai_api_key: password
   bridge_api_key: password
@@ -50,3 +57,10 @@ schema:
   stewardship_reconciliation_seconds: int(30,3600)
   adaptive_learning_enabled: bool
   routine_learning_enabled: bool
+  local_reasoning_enabled: bool
+  local_reasoning_url: str
+  local_reasoning_token: password
+  local_reasoning_model: str
+  local_embedding_model: str
+  local_reasoning_timeout: int(5,300)
+  openai_fallback_enabled: bool

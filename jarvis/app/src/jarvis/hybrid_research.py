@@ -159,7 +159,8 @@ profile belongs to the user without disambiguating evidence."""
             "highest quality", "best model", "use premium reasoning",
         ))
         model = self.policy.premium_model if premium else self.policy.normal_model
-        if not self.ledger.permitted(0.02):
+        local_reasoning = bool(getattr(self.reasoning, "local_first", False))
+        if not local_reasoning and not self.ledger.permitted(0.02):
             return {
                 "status": "budget_exceeded",
                 "message": "The monthly external AI budget has been reached.",
@@ -184,7 +185,11 @@ profile belongs to the user without disambiguating evidence."""
             model=model,
             timeout_seconds=45,
         )
-        if result.get("status") != "success" and not premium and self.ledger.permitted(0.05):
+        if (
+            result.get("status") != "success"
+            and not premium
+            and (local_reasoning or self.ledger.permitted(0.05))
+        ):
             result = self.reasoning.reason(
                 instructions=self.INSTRUCTIONS,
                 input_messages=messages,
@@ -196,7 +201,7 @@ profile belongs to the user without disambiguating evidence."""
         result["sources"] = sources
         result["researched"] = bool(sources)
         budget = self.ledger.status()
-        if budget.get("warning_threshold") is not None:
+        if not local_reasoning and budget.get("warning_threshold") is not None:
             result["budget_warning"] = budget
             if result.get("status") == "success":
                 percent = round(float(budget["ratio"]) * 100)

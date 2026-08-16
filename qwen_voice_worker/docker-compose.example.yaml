@@ -11,6 +11,7 @@ services:
       QWEN_REFERENCE_AUDIO: /data/private/reference.wav
       QWEN_REFERENCE_TEXT_FILE: /data/private/reference.txt
       QWEN_DEVICE: cuda:0
+      QWEN_DTYPE: float16
     deploy:
       resources:
         reservations:

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.45.0
+
+- Route ordinary language planning and bounded evidence synthesis through local Qwen3 8B on the Intelligence Node.
+- Retain OpenAI only as a configurable availability fallback and for its native web-search path.
+- Add local Qwen3 0.6B embedding access, health checks, bounded timeouts, and model keep-alive.
+- Preserve all Home Assistant action authorization, confirmation, entity, and service boundaries.
+
+## 0.44.2
+
+- Preserve complete spoken replies instead of silently cutting them at 260 characters.
+- Remove source headings, citation markers, Markdown destinations, and raw URLs at the final voice boundary.
+- Use float16 Qwen voice inference on the RTX 2080 Super.
+
 ## 0.44.1
 
 - Corrected the private Supervisor hostname used by repository-installed Camera

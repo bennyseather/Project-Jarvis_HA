@@ -31,6 +31,7 @@ class ServiceContainer:
 
         self.home_assistant: HomeAssistantClient | None = None
         self.openai: OpenAIProvider | None = None
+        self.local_reasoning_policy = None
 
         self.context_builder: ContextBuilder | None = None
         self.assistant: Assistant | None = None

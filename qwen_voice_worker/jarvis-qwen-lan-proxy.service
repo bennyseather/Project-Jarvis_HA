@@ -1,0 +1,18 @@
+[Unit]
+Description=Project Jarvis Qwen Wyoming LAN relay
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/socat TCP4-LISTEN:10400,bind=192.168.1.105,reuseaddr,fork TCP4:127.0.0.1:10400
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

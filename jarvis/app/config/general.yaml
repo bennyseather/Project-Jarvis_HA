@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.44.1"
+  version: "0.45.0"
 
 system:
   debug: false
@@ -64,6 +64,15 @@ ai_budget:
   monthly_limit_usd: 10.0
   warning_thresholds: [0.7, 0.9]
   hard_limit: true
+
+local_reasoning:
+  enabled: true
+  url: "http://192.168.1.105:10550"
+  model: "qwen3:8b"
+  embedding_model: "qwen3-embedding:0.6b"
+  timeout_seconds: 90
+  fallback_to_openai: true
+  token: ""
 
 reflection:
   context_limit: 5
