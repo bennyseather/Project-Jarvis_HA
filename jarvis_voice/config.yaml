@@ -1,5 +1,5 @@
 name: "Project Jarvis Voice"
-version: "0.34.5"
+version: "0.34.6"
 slug: "jarvis_voice"
 description: "High-quality local streaming Jarvis neural voice"
 arch: [amd64]
@@ -52,7 +52,7 @@ schema:
   qwen_filter: list(clean|refined|synthesized|synthetic|metallic)
   qwen_filter_strength: float(0.0,1.0)
   qwen_connect_timeout: float(1.0,30.0)
-  qwen_maximum_spoken_characters: int(500,16000)
+  qwen_maximum_spoken_characters: int(1,16000)
   qwen_buffer_before_playback: bool
   qwen_maximum_buffer_megabytes: int(1,256)
   model_package: str
