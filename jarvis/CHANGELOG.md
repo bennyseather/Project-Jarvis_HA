@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.12
+
+- Run deterministic official-source retrieval concurrently with local search.
+- Include Home Assistant device names in the bounded topology for generic sensor entities.
+- Prefer device-aware temperature matching over ambiguous generic `Temperature` entity labels.
+
 ## 0.45.11
 
 - Use a resilient local metasearch engine mix instead of relying on CAPTCHA-blocked defaults.

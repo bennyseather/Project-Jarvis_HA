@@ -60,6 +60,13 @@ class HomeTopologyAssembler:
             for item in devices
             if item.get("id")
         }
+        self._device_names = {
+            str(item.get("id")): str(
+                item.get("name_by_user") or item.get("name") or ""
+            )
+            for item in devices
+            if item.get("id")
+        }
         self._registry = {}
         for item in registry:
             entity_id = item.get("entity_id", item.get("ei"))
@@ -110,6 +117,10 @@ class HomeTopologyAssembler:
                 floor_id=floor_id,
                 floor_name=floor_name,
                 device_id=None if device_id is None else str(device_id),
+                device_name=(
+                    None if device_id is None
+                    else self._device_names.get(str(device_id)) or None
+                ),
                 device_class=(
                     None
                     if attributes.get("device_class") is None

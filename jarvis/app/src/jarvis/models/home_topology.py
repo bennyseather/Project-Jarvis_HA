@@ -19,6 +19,7 @@ class HomeTopologyEntity:
     floor_id: str | None = None
     floor_name: str | None = None
     device_id: str | None = None
+    device_name: str | None = None
     device_class: str | None = None
     action_allowed: bool = False
 

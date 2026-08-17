@@ -159,11 +159,15 @@ class WholeHomeSituationalIntelligence:
             }
         snapshot = self._assembler.assemble(states, captured_at=self._clock())
         references = self._references(snapshot)
-        scope = self._select_scope(
-            normalized, snapshot, references, scope_key
+        temperature_question = self.is_temperature_question(normalized)
+        scope = (
+            self._temperature_reference(normalized, snapshot)
+            if temperature_question else None
         )
-        if scope is None and self.is_temperature_question(normalized):
-            scope = self._temperature_reference(normalized, snapshot)
+        if scope is None:
+            scope = self._select_scope(
+                normalized, snapshot, references, scope_key
+            )
         if scope is None:
             return None
         label, base_ids = scope
@@ -264,6 +268,7 @@ class WholeHomeSituationalIntelligence:
                     item.entity_id.replace("_", " "),
                     item.friendly_name.replace("_", " "),
                     item.area_name,
+                    item.device_name,
                 )))
             )
             if requested <= set(searchable.split()):

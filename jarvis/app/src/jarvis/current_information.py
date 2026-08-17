@@ -12,6 +12,21 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 
+def fetch_official_document(url, timeout):
+    """Fetch one bounded document from an adapter-owned official endpoint."""
+
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/json,text/html,text/plain",
+            "User-Agent": "Project-Jarvis/0.45",
+        },
+    )
+    with urlopen(request, timeout=timeout) as response:
+        content = response.read(262_144).decode("utf-8", errors="replace")
+        return {"url": response.geturl(), "content": content}
+
+
 @dataclass(frozen=True, slots=True)
 class CurrentInformationPolicy:
     total_timeout_seconds: float = 3.0
@@ -279,12 +294,21 @@ class CurrentInformationIntelligence:
         "pinterest.", "quora.com",
     )
 
-    def __init__(self, search, reasoning, policy=None, logger=None, clock=time.monotonic):
+    def __init__(
+        self,
+        search,
+        reasoning,
+        policy=None,
+        logger=None,
+        clock=time.monotonic,
+        official_fetcher=None,
+    ):
         self.search = search
         self.reasoning = reasoning
         self.policy = policy or CurrentInformationPolicy()
         self.logger = logger
         self.clock = clock
+        self.official_fetcher = official_fetcher
         self.adapters = (
             HomeAssistantReleaseAdapter(),
             AndroidReleaseAdapter(),
@@ -335,6 +359,11 @@ class CurrentInformationIntelligence:
         search_task = asyncio.create_task(
             asyncio.to_thread(self.search.search_results, query)
         )
+        direct_task = (
+            asyncio.create_task(self._direct_documents(adapter))
+            if adapter and self.official_fetcher is not None
+            else None
+        )
         search_timed_out = False
         try:
             raw = await asyncio.wait_for(
@@ -348,9 +377,11 @@ class CurrentInformationIntelligence:
         if adapter:
             extracted = adapter.extract(ranked)
             if extracted:
+                if direct_task:
+                    direct_task.cancel()
                 return self._success(extracted, started, search_ms, synthesis_ms=0)
-            if hasattr(adapter, "direct_urls"):
-                direct = await self._direct_documents(adapter)
+            if direct_task:
+                direct = await direct_task
                 extracted = adapter.extract_direct(direct) if direct else None
                 if extracted:
                     return self._success(
@@ -382,18 +413,7 @@ class CurrentInformationIntelligence:
         return tuple(item for item in results if isinstance(item, dict))
 
     def _fetch_official(self, url):
-        request = Request(
-            url,
-            headers={
-                "Accept": "application/json,text/html,text/plain",
-                "User-Agent": "Project-Jarvis/0.45",
-            },
-        )
-        with urlopen(
-            request, timeout=self.policy.search_timeout_seconds
-        ) as response:
-            content = response.read(262_144).decode("utf-8", errors="replace")
-            return {"url": response.geturl(), "content": content}
+        return self.official_fetcher(url, self.policy.search_timeout_seconds)
 
     async def _synthesise(self, question, evidence, voice_mode):
         evidence_text = "\n".join(

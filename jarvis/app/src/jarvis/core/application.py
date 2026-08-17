@@ -19,6 +19,7 @@ from jarvis.homeassistant.weather_intelligence import LocalWeatherIntelligence
 from jarvis.current_information import (
     CurrentInformationIntelligence,
     CurrentInformationPolicy,
+    fetch_official_document,
 )
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
@@ -474,6 +475,7 @@ class JarvisApplication:
             self.container.openai,
             self.container.current_information_policy,
             self.container.logger,
+            official_fetcher=fetch_official_document,
         )
         self.container.research_provider = HybridResearchProvider(
             self.container.openai,
