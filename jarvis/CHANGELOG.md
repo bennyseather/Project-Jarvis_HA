@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.17
+
+- Add an explicit `development_computer` follow-up target for the current browser satellite, which has no Home Assistant device ID.
+- Keep target selection configurable so later room satellites can receive only their own delayed answers.
+
 ## 0.45.16
 
 - Route delayed answers back to the originating development-computer voice card through a source-scoped Home Assistant event.

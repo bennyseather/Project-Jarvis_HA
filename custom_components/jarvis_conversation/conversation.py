@@ -84,6 +84,11 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             proactive_voice_route = {
                 "event_type": "jarvis_voice_follow_up",
                 "source_id": source_id,
+                "target_id": (
+                    source_id
+                    if user_input.device_id or satellite_device_id or user_input.satellite_id
+                    else "development_computer"
+                ),
             }
         async with session.post(
             self.entry.data["bridge_url"] + "/v1/conversation",
