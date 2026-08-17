@@ -30,13 +30,20 @@ class LocalKnowledgeRouter:
     def __init__(self, reasoning) -> None:
         self._reasoning = reasoning
 
+    def requires_live_research(self, text: str) -> bool:
+        """Return whether the wording requires fresh public information."""
+        normalized = " ".join(text.casefold().strip(" .?!").split())
+        return bool(normalized) and (
+            any(marker in normalized for marker in self._EXPLICIT_RESEARCH)
+            or any(marker in normalized for marker in self._FRESHNESS)
+        )
+
     def handle(self, text, context, *, voice_mode=False):
         normalized = " ".join(text.casefold().strip(" .?!").split())
         words = set(normalized.split())
         if (
             not normalized
-            or any(marker in normalized for marker in self._EXPLICIT_RESEARCH)
-            or any(marker in normalized for marker in self._FRESHNESS)
+            or self.requires_live_research(text)
             or words & self._HOME_TERMS
         ):
             return None

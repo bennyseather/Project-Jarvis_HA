@@ -912,6 +912,32 @@ class JarvisApplication:
         context["home_assistant"]["situational"] = (
             self.container.situational_intelligence.context(identifier)
         )
+        if (
+            self.container.local_knowledge_router is not None
+            and self.container.local_knowledge_router.requires_live_research(text)
+            and self.container.research_controller.enabled(identifier)
+        ):
+            research_result = await asyncio.to_thread(
+                self.container.research_provider.answer,
+                text,
+                context,
+                force_search=True,
+            )
+            self.container.research_controller.record(identifier, research_result)
+            message = self._user_message(research_result)
+            if message:
+                conversation_store.add_message(identifier, "assistant", message)
+            if research_result.get("sources") and not voice_mode:
+                research_result = dict(research_result)
+                research_result["message"] = (
+                    str(research_result.get("message", "")).rstrip()
+                    + "\n\nSources:\n"
+                    + "\n".join(
+                        f"- {source['title']} — {source['url']}"
+                        for source in research_result["sources"]
+                    )
+                )
+            return research_result
         if self.container.local_knowledge_router is not None:
             local_result = self.container.local_knowledge_router.handle(
                 text, context, voice_mode=voice_mode

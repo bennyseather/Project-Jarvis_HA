@@ -169,6 +169,9 @@ class WholeHomeSituationalIntelligence:
         selected = [
             entities[entity_id] for entity_id in base_ids if entity_id in entities
         ]
+        if "temperature" in normalized.split() and not self._is_action(normalized):
+            self._remember(scope_key, label, base_ids, base_ids, "temperature")
+            return self._temperature_response(label, selected)
         category = self._category(normalized)
         group_entity_ids = frozenset(
             name for name in snapshot.groups if "." in name
@@ -550,6 +553,57 @@ class WholeHomeSituationalIntelligence:
         )
         lead = f"{len(matching)} {noun} in {label}: {count_text}"
         return self._summary(matching, lead, voice_mode)
+
+    @staticmethod
+    def _temperature_response(label, entities):
+        readings = []
+        for item in entities:
+            value = None
+            priority = 9
+            if item.domain == "climate":
+                value = item.attributes.get("current_temperature")
+                priority = 0
+            elif item.domain == "sensor" and (
+                item.device_class == "temperature"
+                or "temperature" in (item.entity_id + " " + item.friendly_name).casefold()
+            ):
+                value = item.state
+                priority = 1 if item.device_class == "temperature" else 2
+            try:
+                readings.append((priority, item.friendly_name, float(value), item.entity_id))
+            except (TypeError, ValueError):
+                continue
+        if not readings:
+            return {
+                "status": "unavailable",
+                "message": f"No available temperature reading was found in {label}.",
+                "entity_ids": (),
+            }
+        area_names = {
+            item.area_name.casefold(): item.area_name
+            for item in entities
+            if item.area_name
+        }
+        display_label = (
+            next(iter(area_names.values())) if len(area_names) == 1 else label
+        )
+        best_priority = min(item[0] for item in readings)
+        best = sorted(item for item in readings if item[0] == best_priority)
+        if len(best) == 1:
+            _, _, value, entity_id = best[0]
+            return {
+                "status": "success",
+                "message": f"The temperature in {display_label} is {value:g} degrees.",
+                "entity_ids": (entity_id,),
+            }
+        details = ", ".join(
+            f"{name} reports {value:g} degrees" for _, name, value, _ in best[:3]
+        )
+        return {
+            "status": "success",
+            "message": f"Temperature readings in {display_label}: {details}.",
+            "entity_ids": tuple(item[3] for item in best),
+        }
 
     def _summary(self, entities, lead, voice_mode):
         detail_limit = min(5, self.policy.maximum_details) if voice_mode else self.policy.maximum_details

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.6
+
+- Route current and explicitly researched questions directly through bounded research.
+- Cap ordinary Ollama replies to prevent intent timeouts from runaway generation.
+- Return actual permitted climate or temperature readings for room-temperature questions.
+
 ## 0.45.5
 
 - Answer stable general-knowledge questions with exactly one local Ollama pass.
