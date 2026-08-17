@@ -146,8 +146,10 @@ class WholeHomeSituationalIntelligence:
                 "message": "No device failed in the most recent action.",
                 "entity_ids": (),
             }
-        if not self.policy.enabled or not self._looks_relevant(
-            normalized, scope_key
+        temperature_candidate = self.is_temperature_question(normalized)
+        if not self.policy.enabled or (
+            not temperature_candidate
+            and not self._looks_relevant(normalized, scope_key)
         ):
             return None
         try:
@@ -159,7 +161,7 @@ class WholeHomeSituationalIntelligence:
             }
         snapshot = self._assembler.assemble(states, captured_at=self._clock())
         references = self._references(snapshot)
-        temperature_question = self.is_temperature_question(normalized)
+        temperature_question = temperature_candidate
         scope = (
             self._temperature_reference(normalized, snapshot)
             if temperature_question else None
@@ -175,7 +177,7 @@ class WholeHomeSituationalIntelligence:
         selected = [
             entities[entity_id] for entity_id in base_ids if entity_id in entities
         ]
-        if "temperature" in normalized.split() and not self._is_action(normalized):
+        if temperature_question:
             self._remember(scope_key, label, base_ids, base_ids, "temperature")
             return self._temperature_response(label, selected)
         category = self._category(normalized)
@@ -241,8 +243,11 @@ class WholeHomeSituationalIntelligence:
 
         normalized = self._norm(text)
         words = set(normalized.split())
+        asks_temperature = bool(words & {"temperature", "temp", "degree", "degrees"}) or (
+            "how warm" in normalized
+        )
         return (
-            "temperature" in words
+            asks_temperature
             and not self._is_action(normalized)
             and not bool(words & self._EXTERNAL_TOPIC_WORDS)
             and bool(words & self._HOME_WORDS)
@@ -253,8 +258,9 @@ class WholeHomeSituationalIntelligence:
         """Recover room scope from entity metadata when registry areas are absent."""
 
         ignored = {
-            "what", "is", "the", "temperature", "current", "in", "of", "at",
-            "home", "house", "here", "please", "tell", "me",
+            "what", "is", "the", "temperature", "temp", "degree", "degrees",
+            "how", "warm", "current", "in", "of", "at", "home", "house",
+            "here", "please", "tell", "me", "what's",
         }
         requested = set(text.split()) - ignored
         if not requested:
@@ -904,6 +910,8 @@ class WholeHomeSituationalIntelligence:
     def _norm(value):
         return " ".join(
             str(value).casefold()
+            .replace("'s", "")
+            .replace("’s", "")
             .replace("?", " ")
             .replace(",", " ")
             .replace("_", " ")

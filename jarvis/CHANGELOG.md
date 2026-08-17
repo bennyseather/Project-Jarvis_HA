@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.14
+
+- Recognise `USA` and `U.S.A.` as deterministic US-president adapter aliases.
+- Normalise possessive room names from voice transcription.
+- Route `temp`, `degrees`, and “how warm” variants through deterministic HA temperature reads.
+
 ## 0.45.13
 
 - Probe Android release redirects without downloading the full destination page.

@@ -253,7 +253,10 @@ class UnitedStatesPresidentAdapter:
     def matches(self, text: str) -> bool:
         normalized = text.casefold()
         return "president" in normalized and any(
-            country in normalized for country in ("united states", " u.s.", " us ", "america")
+            country in normalized
+            for country in (
+                "united states", " u.s.", " us ", " usa", "u.s.a", "america",
+            )
         )
 
     def query(self, text: str) -> str:
@@ -307,7 +310,7 @@ class CurrentInformationIntelligence:
     )
     _LOCAL_HOME = re.compile(
         r"\b(living room|bedroom|kitchen|bathroom|garage|home|house|here|"
-        r"temperature|humidity|light|lights|lock|door|window|thermostat|sensor|"
+        r"temperature|temp|degrees?|how warm|humidity|light|lights|lock|door|window|thermostat|sensor|"
         r"camera|vacuum|mower|washing machine)\b",
         re.IGNORECASE,
     )
