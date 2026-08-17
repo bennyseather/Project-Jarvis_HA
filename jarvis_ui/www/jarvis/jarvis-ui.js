@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.46.6";
+const JARVIS_UI_VERSION = "0.46.7";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -402,15 +402,6 @@ class JarvisBaseCard extends HTMLElement {
 
   set hass(value) {
     this._hass = value;
-    if (!this._followUpEventSubscription && value?.connection?.subscribeEvents) {
-      this._followUpEventSubscription = value.connection.subscribeEvents(
-        (event) => this._receiveFollowUp(event?.data || {}).catch((error) => {
-          this._status = `Follow-up error // ${error?.message || "playback failed"}`;
-          this._paintStatus();
-        }),
-        "jarvis_voice_follow_up",
-      );
-    }
     ensureDoorbellEventListener(value);
     this.render();
   }
@@ -1092,6 +1083,15 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
   set hass(value) {
     this._hass = value;
+    if (!this._followUpEventSubscription && value?.connection?.subscribeEvents) {
+      this._followUpEventSubscription = value.connection.subscribeEvents(
+        (event) => this._receiveFollowUp(event?.data || {}).catch((error) => {
+          this._status = `Follow-up error // ${error?.message || "playback failed"}`;
+          this._paintStatus();
+        }),
+        "jarvis_voice_follow_up",
+      );
+    }
     const entity = stateObject(value, this._config?.satellite_entity);
     const signature = JSON.stringify([entity?.state, entity?.attributes?.friendly_name]);
     if (this._mode === "idle" && (!this.shadowRoot.querySelector("ha-card") || signature !== this._satelliteSignature)) {
