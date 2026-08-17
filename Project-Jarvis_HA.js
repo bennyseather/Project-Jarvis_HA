@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.46.3";
+const JARVIS_UI_VERSION = "0.46.4";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1101,6 +1101,10 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
   disconnectedCallback() {
     this._stop(false);
+    if (this._playbackContext) {
+      this._playbackContext.close();
+      this._playbackContext = undefined;
+    }
     Promise.resolve(this._followUpEventSubscription).then((unsubscribe) => unsubscribe?.());
     this._followUpEventSubscription = undefined;
   }
@@ -1323,8 +1327,6 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
   }
   async _speakFollowUpText(text) {
-    if (!this._audioContext || this._audioContext.state === "closed") this._audioContext = new AudioContext();
-    await this._audioContext.resume();
     return new Promise(async (resolve, reject) => {
       let playback;
       let unsubscribe;
@@ -1357,14 +1359,17 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
     const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
     try {
-      if (!this._audioContext || this._audioContext.state === "closed") this._audioContext = new AudioContext();
-      await this._audioContext.resume();
+      if (!this._playbackContext || this._playbackContext.state === "closed") {
+        this._playbackContext = new AudioContext();
+      }
+      const playbackContext = this._playbackContext;
+      await playbackContext.resume();
       const response = await window.fetch.call(window, target, { credentials: "same-origin" });
       if (!response.ok) throw new Error(`audio request ${response.status}`);
-      const buffer = await this._audioContext.decodeAudioData(await response.arrayBuffer());
-      const source = this._audioContext.createBufferSource();
+      const buffer = await playbackContext.decodeAudioData(await response.arrayBuffer());
+      const source = playbackContext.createBufferSource();
       source.buffer = buffer;
-      source.connect(this._audioContext.destination);
+      source.connect(playbackContext.destination);
       await new Promise((resolve) => { source.onended = resolve; source.start(); });
     } catch (error) {
       this._status = `Playback error // ${error?.message || "audio blocked"}`;
