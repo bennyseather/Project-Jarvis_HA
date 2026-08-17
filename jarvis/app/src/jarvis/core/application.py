@@ -16,6 +16,7 @@ from jarvis.core.container import ServiceContainer
 from jarvis.core.context_builder import ContextBuilder
 from jarvis.homeassistant.client import HomeAssistantClient
 from jarvis.homeassistant.weather_intelligence import LocalWeatherIntelligence
+from jarvis.homeassistant.release_intelligence import HomeAssistantReleaseIntelligence
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
 from jarvis.providers.local_first_provider import LocalFirstReasoningProvider, LocalReasoningPolicy
@@ -575,6 +576,9 @@ class JarvisApplication:
             groups,
             floor_members,
         )
+        self.container.home_assistant_release_intelligence = (
+            HomeAssistantReleaseIntelligence(self.container.searxng_research)
+        )
         self.container.read_only_assistant._resolver = reference_resolver
         self.container.adaptive_preferences.set_area_references(
             area_members,
@@ -818,6 +822,13 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(weather_result)
             )
             return weather_result
+        release_result = await self.container.home_assistant_release_intelligence.handle(text)
+        if release_result is not None:
+            self.container.research_controller.record(identifier, release_result)
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(release_result)
+            )
+            return release_result
         rss_result = self.container.rss_intelligence.handle(
             text, identifier, voice_mode=voice_mode
         )

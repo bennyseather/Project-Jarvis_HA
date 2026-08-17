@@ -33,6 +33,7 @@ class ServiceContainer:
         self.openai: OpenAIProvider | None = None
         self.local_reasoning_policy = None
         self.local_knowledge_router = None
+        self.home_assistant_release_intelligence = None
 
         self.context_builder: ContextBuilder | None = None
         self.assistant: Assistant | None = None

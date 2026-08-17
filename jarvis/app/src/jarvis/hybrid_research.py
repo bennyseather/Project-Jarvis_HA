@@ -67,6 +67,18 @@ class SearXNGResearchClient:
         self.policy, self.logger = policy, logger
 
     def research(self, query):
+        candidates = list(self.search_results(query))
+        for item in candidates[:self.policy.maximum_pages]:
+            try:
+                text = self._page_text(item["url"])
+                if text:
+                    item["content"] = text[:12_000]
+            except Exception as exc:
+                self.logger.info(f"Research page skipped safely: {exc}")
+        return tuple(candidates)
+
+    def search_results(self, query):
+        """Return bounded search metadata without fetching result pages."""
         search_url = self.policy.searxng_url + (
             "&" if "?" in self.policy.searxng_url else "?"
         ) + urlencode({"q": query, "format": "json", "language": "auto"})
@@ -88,13 +100,6 @@ class SearXNGResearchClient:
             })
             if len(candidates) >= self.policy.maximum_results:
                 break
-        for item in candidates[:self.policy.maximum_pages]:
-            try:
-                text = self._page_text(item["url"])
-                if text:
-                    item["content"] = text[:12_000]
-            except Exception as exc:
-                self.logger.info(f"Research page skipped safely: {exc}")
         return tuple(candidates)
 
     def _json(self, url):

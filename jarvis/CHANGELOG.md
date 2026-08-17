@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.7
+
+- Resolve the latest official Home Assistant release without an LLM pass.
+- Select the newest authoritative Home Assistant release URL deterministically.
+- Return one concise sentence suitable for low-latency speech.
+
 ## 0.45.6
 
 - Route current and explicitly researched questions directly through bounded research.
