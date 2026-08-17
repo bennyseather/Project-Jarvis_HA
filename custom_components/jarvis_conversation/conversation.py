@@ -53,6 +53,13 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             or user_input.device_id
             or user_input.satellite_id
         )
+        source_id = (
+            user_input.device_id
+            or satellite_device_id
+            or user_input.satellite_id
+            or getattr(user_input.context, "user_id", None)
+            or f"entry:{self.entry.entry_id}"
+        )
         if self.entry.options.get("external_voice_output") and not external_voice:
             LOGGER.warning(
                 "Jarvis external voice source did not match: configured=%s, "
@@ -73,18 +80,17 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                 "language": self.entry.options.get("tts_language", ""),
                 "voice": self.entry.options.get("tts_voice", ""),
             }
+        elif voice_mode:
+            proactive_voice_route = {
+                "event_type": "jarvis_voice_follow_up",
+                "source_id": source_id,
+            }
         async with session.post(
             self.entry.data["bridge_url"] + "/v1/conversation",
             json={
                 "text": user_input.text,
                 "conversation_id": conversation_id,
-                "source_id": (
-                    user_input.device_id
-                    or satellite_device_id
-                    or user_input.satellite_id
-                    or getattr(user_input.context, "user_id", None)
-                    or f"entry:{self.entry.entry_id}"
-                ),
+                "source_id": source_id,
                 "voice_mode": voice_mode,
                 "device_id": user_input.device_id,
                 "satellite_id": user_input.satellite_id,

@@ -256,6 +256,26 @@ class HomeAssistantClient:
         task.add_done_callback(self._background_tasks.discard)
         return task
 
+    async def dispatch_event(self, event_type: str, event_data: dict) -> bool:
+        """Fire a bounded HA event on an isolated authenticated socket."""
+        dispatcher = HomeAssistantClient(self.url, self.token, self.logger)
+        await dispatcher._connect_socket()
+        await dispatcher.send_json({
+            "id": dispatcher.get_next_message_id(),
+            "type": "fire_event",
+            "event_type": event_type,
+            "event_data": event_data,
+        })
+        try:
+            response = await dispatcher.receive_json()
+            if response.get("type") != "result" or not response.get("success", False):
+                raise RuntimeError(
+                    f"Home Assistant reported a failed event dispatch: {response}"
+                )
+            return True
+        finally:
+            await dispatcher.disconnect()
+
     async def _receive_dispatched_service_result(self):
         try:
             response = await self.receive_json()

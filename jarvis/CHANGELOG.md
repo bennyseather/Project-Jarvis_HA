@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.16
+
+- Route delayed answers back to the originating development-computer voice card through a source-scoped Home Assistant event.
+- Run only the configured local TTS stage for the final answer and play it in the browser, without enabling the stored cloud/external-speaker route.
+- Preserve source identity as the foundation for future room-specific microphone and speaker routing.
+
 ## 0.45.15
 
 - Add deadline-aware voice orchestration: fast answers return normally, while slow work produces a natural progress response and continues in the background.

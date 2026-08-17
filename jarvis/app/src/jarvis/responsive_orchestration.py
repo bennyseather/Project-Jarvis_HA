@@ -120,10 +120,20 @@ class ResponsiveVoiceCoordinator:
             self._remove(job)
 
     async def _speak(self, route, message):
+        spoken = self._spoken(message)
+        if route.get("event_type"):
+            await self.client.dispatch_event(
+                route["event_type"],
+                {
+                    "message": spoken,
+                    "source_id": str(route.get("source_id", ""))[:200],
+                },
+            )
+            return
         data = {
             "entity_id": route["tts_entity_id"],
             "media_player_entity_id": route["media_player_entity_id"],
-            "message": self._spoken(message),
+            "message": spoken,
             "cache": True,
         }
         if route.get("language"):
@@ -186,8 +196,13 @@ class ResponsiveVoiceCoordinator:
     def _valid_route(route):
         return bool(
             isinstance(route, dict)
-            and route.get("tts_entity_id")
-            and route.get("media_player_entity_id")
+            and (
+                route.get("event_type")
+                or (
+                    route.get("tts_entity_id")
+                    and route.get("media_player_entity_id")
+                )
+            )
         )
 
     def _remove(self, job):

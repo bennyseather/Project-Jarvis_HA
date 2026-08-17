@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.46.0";
+const JARVIS_UI_VERSION = "0.46.1";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -402,6 +402,15 @@ class JarvisBaseCard extends HTMLElement {
 
   set hass(value) {
     this._hass = value;
+    if (!this._followUpEventSubscription && value?.connection?.subscribeEvents) {
+      this._followUpEventSubscription = value.connection.subscribeEvents(
+        (event) => this._receiveFollowUp(event?.data || {}).catch((error) => {
+          this._status = `Follow-up error // ${error?.message || "playback failed"}`;
+          this._paintStatus();
+        }),
+        "jarvis_voice_follow_up",
+      );
+    }
     ensureDoorbellEventListener(value);
     this.render();
   }
@@ -1084,7 +1093,11 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this.render();
     } else this._paintStatus();
   }
-  disconnectedCallback() { this._stop(false); }
+  disconnectedCallback() {
+    this._stop(false);
+    Promise.resolve(this._followUpEventSubscription).then((unsubscribe) => unsubscribe?.());
+    this._followUpEventSubscription = undefined;
+  }
   render() {
     if (!this._config) return;
     const entity = stateObject(this._hass, this._config.satellite_entity);
@@ -1287,6 +1300,49 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._status = `Pipeline error // ${error.message}`; this._paintStatus();
     }), 400);
   }
+  async _receiveFollowUp(data) {
+    const configuredSource = this._config?.device_id;
+    if (!configuredSource || data?.source_id !== configuredSource) return;
+    const message = String(data?.message || "").trim().slice(0, 700);
+    if (!message) return;
+    const restartWake = this._mode === "wake";
+    await this._stop(false);
+    this._status = "Follow-up answer ready // speaking";
+    this._paintStatus();
+    await this._speakFollowUpText(message);
+    if (restartWake) await this._start("wake");
+    else {
+      this._status = "Follow-up delivered // microphone offline";
+      this._paintStatus();
+    }
+  }
+  async _speakFollowUpText(text) {
+    if (!this._audioContext || this._audioContext.state === "closed") this._audioContext = new AudioContext();
+    await this._audioContext.resume();
+    return new Promise(async (resolve, reject) => {
+      let playback;
+      let unsubscribe;
+      const message = {
+        type: "assist_pipeline/run", start_stage: "tts", end_stage: "tts",
+        input: { text }, timeout: 300,
+      };
+      if (this._config.pipeline_id && this._config.pipeline_id !== "preferred") message.pipeline = this._config.pipeline_id;
+      if (this._config.device_id) message.device_id = this._config.device_id;
+      try {
+        unsubscribe = await this._hass.connection.subscribeMessage((payload) => {
+          const event = payload?.event || payload;
+          const data = event?.data || {};
+          if (event?.type === "tts-end") playback = this._playTts(data.url || data.tts_output?.url);
+          else if (event?.type === "error") {
+            unsubscribe?.();
+            reject(new Error(data.message || data.code || "TTS pipeline failed"));
+          } else if (event?.type === "run-end") {
+            Promise.resolve(playback).then(resolve, reject).finally(() => unsubscribe?.());
+          }
+        }, message);
+      } catch (error) { reject(error); }
+    });
+  }
   async _playTts(url) {
     if (!url) {
       this._status = "Response audio unavailable";
@@ -1295,6 +1351,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
     const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
     try {
+      if (!this._audioContext || this._audioContext.state === "closed") this._audioContext = new AudioContext();
+      await this._audioContext.resume();
       const response = await window.fetch.call(window, target, { credentials: "same-origin" });
       if (!response.ok) throw new Error(`audio request ${response.status}`);
       const buffer = await this._audioContext.decodeAudioData(await response.arrayBuffer());

@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.44.1";
+const JARVIS_UI_VERSION = "0.46.1";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -6,6 +6,57 @@ const CALENDAR_CACHE = new Map();
 const DATA_CACHE_TTL = 60000;
 const MAX_HISTORY_SAMPLES = 96;
 const CAMERA_STREAM_BACKOFF = new Map();
+let DOORBELL_EVENT_CONNECTION;
+let DOORBELL_EVENT_UNSUBSCRIBE;
+let DOORBELL_POPUP;
+
+async function ensureDoorbellEventListener(hass) {
+  const connection = hass?.connection;
+  if (!connection || connection === DOORBELL_EVENT_CONNECTION) return;
+  DOORBELL_EVENT_CONNECTION = connection;
+  try { (await DOORBELL_EVENT_UNSUBSCRIBE)?.(); } catch (_error) { /* prior connection is already closed */ }
+  DOORBELL_EVENT_UNSUBSCRIBE = connection.subscribeEvents(
+    (event) => showJarvisDoorbellPopup(hass, event?.data || {}),
+    "jarvis_camera_bridge_doorbell",
+  );
+}
+
+async function showJarvisDoorbellPopup(hass, detail) {
+  const entity = detail.camera_entity_id;
+  if (!entity) return;
+  DOORBELL_POPUP?.remove();
+  const overlay = document.createElement("div");
+  overlay.dataset.jarvisDoorbellPopup = "true";
+  const root = overlay.attachShadow({ mode: "open" });
+  const requested = Number(detail.session_seconds) || 45;
+  let remaining = Math.max(20, Math.min(60, requested));
+  root.innerHTML = `<style>
+    :host{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:18px;background:rgba(0,6,12,.82);backdrop-filter:blur(7px)}
+    .panel{width:min(920px,100%);height:min(680px,calc(100vh - 36px));display:grid;grid-template-rows:auto 1fr;border:1px solid #11d9ff;background:#01090f;box-shadow:0 0 42px rgba(17,217,255,.25);clip-path:polygon(0 14px,14px 0,70% 0,calc(70% + 10px) 10px,100% 10px,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%)}
+    header{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(17,217,255,.45);color:#e8fbff}
+    .eyebrow{font:700 10px ui-monospace,monospace;letter-spacing:.18em;color:#11d9ff;text-transform:uppercase}.title{font:700 20px system-ui,sans-serif}
+    .count{font:700 11px ui-monospace,monospace;color:#9ed7e5}button{min-width:72px;min-height:38px;border:1px solid #11d9ff;background:#071c28;color:#e8fbff;font:700 10px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}
+    .camera{min-height:0;overflow:hidden}.camera>*{width:100%;height:100%;display:block;--ha-card-border-radius:0;--ha-card-box-shadow:none;--ha-card-background:#01090f}
+    @media(max-width:680px){:host{padding:8px}.panel{height:calc(100vh - 16px)}header{grid-template-columns:1fr auto}.count{display:none}.title{font-size:16px}}
+  </style><section class="panel" role="dialog" aria-modal="true" aria-label="Doorbell camera"><header><div><div class="eyebrow">Doorbell event</div><div class="title">${escapeHtml(detail.camera_name || "Front Door")}</div></div><div class="count">LIVE // <span>${remaining}</span>S</div><button type="button">Close</button></header><div class="camera"></div></section>`;
+  document.body.appendChild(overlay); DOORBELL_POPUP = overlay;
+  const close = () => { clearInterval(timer); if (DOORBELL_POPUP === overlay) DOORBELL_POPUP = undefined; overlay.remove(); };
+  root.querySelector("button").addEventListener("click", close);
+  overlay.addEventListener("click", (event) => { if (event.composedPath()[0] === overlay) close(); });
+  const timer = setInterval(() => {
+    remaining -= 1;
+    const node = root.querySelector(".count span"); if (node) node.textContent = String(Math.max(0, remaining));
+    if (remaining <= 0) close();
+  }, 1000);
+  try {
+    const helpers = await window.loadCardHelpers();
+    if (!overlay.isConnected) return;
+    const card = await helpers.createCardElement({ type: "picture-entity", entity, camera_view: "live", show_name: false, show_state: false });
+    root.querySelector(".camera").replaceChildren(card); card.hass = hass;
+  } catch (_error) {
+    const host = root.querySelector(".camera"); if (host) host.textContent = "Live doorbell stream unavailable";
+  }
+}
 
 const ICON_PATHS = {
   core: "M12 2 20.66 7v10L12 22 3.34 17V7L12 2m0 2.31L5.34 8.15v7.7L12 19.69l6.66-3.84v-7.7L12 4.31m0 2.19 4.75 2.74v5.52L12 17.5l-4.75-2.74V9.24L12 6.5m0 2.25-2.8 1.62v3.26l2.8 1.62 2.8-1.62v-3.26L12 8.75Z",
@@ -351,6 +402,16 @@ class JarvisBaseCard extends HTMLElement {
 
   set hass(value) {
     this._hass = value;
+    if (!this._followUpEventSubscription && value?.connection?.subscribeEvents) {
+      this._followUpEventSubscription = value.connection.subscribeEvents(
+        (event) => this._receiveFollowUp(event?.data || {}).catch((error) => {
+          this._status = `Follow-up error // ${error?.message || "playback failed"}`;
+          this._paintStatus();
+        }),
+        "jarvis_voice_follow_up",
+      );
+    }
+    ensureDoorbellEventListener(value);
     this.render();
   }
 
@@ -622,7 +683,7 @@ class JarvisCameraCard extends JarvisBaseCard {
   constructor() {
     super();
     this._cameraCard = undefined; this._cameraEntity = undefined; this._cameraMounting = undefined;
-    this._snapshotTimer = undefined; this._cameraView = "snapshot"; this._visible = true;
+    this._snapshotTimer = undefined; this._cameraView = "snapshot"; this._visible = true; this._snapshotLoaded = false;
   }
   connectedCallback() {
     this._intersectionObserver?.disconnect();
@@ -636,6 +697,7 @@ class JarvisCameraCard extends JarvisBaseCard {
   }
   set hass(value) {
     this._hass = value;
+    ensureDoorbellEventListener(value);
     if (!this.shadowRoot.querySelector(".camera-host")) this.render();
     if (this._cameraCard && this._cameraView === "live") this._cameraCard.hass = value;
     this._updateCameraStatus();
@@ -682,8 +744,9 @@ class JarvisCameraCard extends JarvisBaseCard {
       return;
     }
     const image = document.createElement("img"); image.alt = `${friendlyName(this.cardState(), this._config)} snapshot`;
-    image.addEventListener("load", () => { this._setCameraMessage(""); this._updateCameraStatus(); });
-    image.addEventListener("error", () => { this._setCameraMessage("Snapshot unavailable"); this._updateCameraStatus("Snapshot unavailable"); });
+    image.addEventListener("load", () => { this._snapshotLoaded = true; this._setCameraMessage(""); this._updateCameraStatus(); });
+    image.addEventListener("error", () => { this._snapshotLoaded = false; this._setCameraMessage("Snapshot unavailable"); this._updateCameraStatus("Snapshot unavailable"); });
+    this._snapshotLoaded = false;
     host.replaceChildren(image); this._snapshotImage = image; this._refreshSnapshot(true);
     const interval = Math.max(10, Number(this._config.snapshot_interval) || 60) * 1000;
     this._snapshotTimer = setInterval(() => { if (this._visible && this._cameraView === "snapshot") this._refreshSnapshot(); }, interval);
@@ -757,7 +820,7 @@ class JarvisCameraCard extends JarvisBaseCard {
     const bridged = Boolean(state?.attributes?.jarvis_bridge);
     const bridgeAvailable = state?.attributes?.bridge_available !== false;
     const snapshotStale = Boolean(state?.attributes?.snapshot_stale);
-    const unavailable = isUnavailable(state) || (bridged && !bridgeAvailable);
+    const unavailable = (isUnavailable(state) && !(this._cameraView === "snapshot" && this._snapshotLoaded)) || (bridged && !bridgeAvailable);
     const live = this._cameraView === "live";
     const status = override || (bridged && !bridgeAvailable
       ? "Bridge unavailable"
@@ -834,6 +897,55 @@ class JarvisSensorCard extends JarvisBaseCard {
     const start = new Date(states[0]?.last_changed || end.getTime() - hours * 3600000);
     const mid = new Date((start.getTime() + end.getTime()) / 2);
     return [start, mid, end].map((date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  }
+}
+
+class JarvisNodeCard extends JarvisSensorCard {
+  static cardName = "Jarvis AI Node";
+  static domains = ["sensor"];
+  static gridRows = 5;
+  static getConfigForm() {
+    return {
+      schema: [
+        { name: "entity", required: true, selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "cpu_temperature", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "memory_usage", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "gpu_1_usage", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "gpu_1_temperature", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "gpu_2_usage", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "gpu_2_temperature", selector: { entity: { filter: [{ domain: "sensor" }] } } },
+        { name: "qwen_status", selector: { entity: { filter: [{ domain: "binary_sensor" }] } } },
+        { name: "ollama_status", selector: { entity: { filter: [{ domain: "binary_sensor" }] } } },
+        { name: "history_hours", selector: { select: { options: ["1", "6", "12", "24", "48"] } } },
+        { name: "accent", selector: { select: { options: ["cyan", "amber", "green", "red"] } } },
+      ],
+    };
+  }
+  static getStubConfig(hass) {
+    const find = (fragment, domain = "sensor") => Object.keys(hass?.states || {}).find((id) => entityDomain(id) === domain && id.includes(fragment));
+    return {
+      entity: find("jarvis_ai_node_cpu_usage") || find("cpu_usage"),
+      cpu_temperature: find("jarvis_ai_node_cpu_temperature"), memory_usage: find("jarvis_ai_node_memory_usage"),
+      gpu_1_usage: find("rtx_2080_super_gpu_usage"), gpu_1_temperature: find("rtx_2080_super_gpu_temperature"),
+      gpu_2_usage: find("rtx_3060_ti_gpu_usage"), gpu_2_temperature: find("rtx_3060_ti_gpu_temperature"),
+      qwen_status: find("qwen_voice", "binary_sensor"), ollama_status: find("ollama", "binary_sensor"),
+    };
+  }
+  render() {
+    if (!this._config) return;
+    const primary = this.cardState();
+    const value = formatState(primary, this._config);
+    const metric = (id, label) => {
+      const state = stateObject(this._hass, id);
+      return `<div class="node-metric"><span>${label}</span><b class="${isUnavailable(state) ? "bad" : ""}">${escapeHtml(state ? formatState(state, { entity: id }) : "—")}</b></div>`;
+    };
+    const service = (id, label) => {
+      const state = stateObject(this._hass, id); const online = state?.state === "on";
+      return `<div class="node-service ${online ? "online" : "offline"}"><i></i><span>${label}</span><b>${online ? "ONLINE" : "OFFLINE"}</b></div>`;
+    };
+    this.shell(`<div class="node-layout"><div class="node-head"><div class="icon-shell"><ha-icon icon="jarvis:server"></ha-icon></div><div><div class="eyebrow">Dedicated intelligence hardware</div><div class="name">Jarvis AI Node</div><div class="state">DUAL GPU // LOCAL COMPUTE</div></div><div class="j-value">${escapeHtml(value)}</div></div><div class="node-grid">${metric(this._config.cpu_temperature, "CPU TEMP")}${metric(this._config.memory_usage, "MEMORY")}${metric(this._config.gpu_1_usage, "RTX 2080 LOAD")}${metric(this._config.gpu_1_temperature, "RTX 2080 TEMP")}${metric(this._config.gpu_2_usage, "RTX 3060 LOAD")}${metric(this._config.gpu_2_temperature, "RTX 3060 TEMP")}</div><div class="services">${service(this._config.qwen_status, "QWEN VOICE")}${service(this._config.ollama_status, "OLLAMA")}</div><div class="trace"><span>HISTORY LOADING</span></div></div>
+      <style>.node-layout{min-height:250px;padding:18px;display:grid;gap:13px}.node-head{display:grid;grid-template-columns:48px 1fr auto;gap:13px;align-items:center}.node-head .icon-shell{width:46px;height:46px}.node-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.node-metric{border:1px solid rgba(32,216,255,.14);padding:8px;display:grid;gap:3px}.node-metric span{font:600 8px monospace;letter-spacing:.1em;color:var(--secondary-text-color)}.node-metric b{font:700 13px monospace;color:var(--j-accent)}.node-metric b.bad{color:var(--j-red)}.services{display:grid;grid-template-columns:1fr 1fr;gap:8px}.node-service{display:grid;grid-template-columns:8px 1fr auto;gap:7px;align-items:center;font:700 9px monospace}.node-service i{width:7px;height:7px;border-radius:50%;background:var(--j-red);box-shadow:0 0 6px var(--j-red)}.node-service.online i{background:var(--j-green);box-shadow:0 0 6px var(--j-green)}.node-service b{color:var(--secondary-text-color)}.trace{height:64px;overflow:hidden;display:grid;align-items:end}.trace>span{align-self:center;font:600 8px monospace;letter-spacing:.12em;color:var(--secondary-text-color)}.history-chart{height:64px;display:grid;grid-template-columns:34px 1fr;grid-template-rows:46px 16px}.y-axis{display:flex;flex-direction:column;justify-content:space-between;font:600 8px monospace;color:var(--secondary-text-color);padding-right:5px;text-align:right}.plot{border-left:1px solid var(--j-line);border-bottom:1px solid var(--j-line);overflow:hidden}.plot svg{width:100%;height:45px}.plot polyline{fill:none;stroke:var(--j-accent);stroke-width:2;filter:drop-shadow(0 0 4px var(--j-accent))}.x-axis{grid-column:2;display:flex;justify-content:space-between;padding-top:3px;font:600 8px monospace;color:var(--secondary-text-color)}@container(max-width:430px){.node-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>`, { interactive: false });
+    if (this._visible) this.loadHistory();
   }
 }
 
@@ -981,7 +1093,11 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this.render();
     } else this._paintStatus();
   }
-  disconnectedCallback() { this._stop(false); }
+  disconnectedCallback() {
+    this._stop(false);
+    Promise.resolve(this._followUpEventSubscription).then((unsubscribe) => unsubscribe?.());
+    this._followUpEventSubscription = undefined;
+  }
   render() {
     if (!this._config) return;
     const entity = stateObject(this._hass, this._config.satellite_entity);
@@ -1184,6 +1300,49 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._status = `Pipeline error // ${error.message}`; this._paintStatus();
     }), 400);
   }
+  async _receiveFollowUp(data) {
+    const configuredSource = this._config?.device_id;
+    if (!configuredSource || data?.source_id !== configuredSource) return;
+    const message = String(data?.message || "").trim().slice(0, 700);
+    if (!message) return;
+    const restartWake = this._mode === "wake";
+    await this._stop(false);
+    this._status = "Follow-up answer ready // speaking";
+    this._paintStatus();
+    await this._speakFollowUpText(message);
+    if (restartWake) await this._start("wake");
+    else {
+      this._status = "Follow-up delivered // microphone offline";
+      this._paintStatus();
+    }
+  }
+  async _speakFollowUpText(text) {
+    if (!this._audioContext || this._audioContext.state === "closed") this._audioContext = new AudioContext();
+    await this._audioContext.resume();
+    return new Promise(async (resolve, reject) => {
+      let playback;
+      let unsubscribe;
+      const message = {
+        type: "assist_pipeline/run", start_stage: "tts", end_stage: "tts",
+        input: { text }, timeout: 300,
+      };
+      if (this._config.pipeline_id && this._config.pipeline_id !== "preferred") message.pipeline = this._config.pipeline_id;
+      if (this._config.device_id) message.device_id = this._config.device_id;
+      try {
+        unsubscribe = await this._hass.connection.subscribeMessage((payload) => {
+          const event = payload?.event || payload;
+          const data = event?.data || {};
+          if (event?.type === "tts-end") playback = this._playTts(data.url || data.tts_output?.url);
+          else if (event?.type === "error") {
+            unsubscribe?.();
+            reject(new Error(data.message || data.code || "TTS pipeline failed"));
+          } else if (event?.type === "run-end") {
+            Promise.resolve(playback).then(resolve, reject).finally(() => unsubscribe?.());
+          }
+        }, message);
+      } catch (error) { reject(error); }
+    });
+  }
   async _playTts(url) {
     if (!url) {
       this._status = "Response audio unavailable";
@@ -1192,6 +1351,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
     const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
     try {
+      if (!this._audioContext || this._audioContext.state === "closed") this._audioContext = new AudioContext();
+      await this._audioContext.resume();
       const response = await window.fetch.call(window, target, { credentials: "same-origin" });
       if (!response.ok) throw new Error(`audio request ${response.status}`);
       const buffer = await this._audioContext.decodeAudioData(await response.arrayBuffer());
@@ -2151,6 +2312,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-media-card", JarvisMediaCard, "Jarvis Media", "Playback and volume control"],
   ["jarvis-camera-card", JarvisCameraCard, "Jarvis Camera", "Camera view in the Jarvis HUD"],
   ["jarvis-sensor-card", JarvisSensorCard, "Jarvis Sensor", "Sensor telemetry and state"],
+  ["jarvis-node-card", JarvisNodeCard, "Jarvis AI Node", "CPU, memory, storage, dual-GPU and local AI telemetry"],
   ["jarvis-security-card", JarvisSecurityCard, "Jarvis Security", "Lock and safety entity display"],
   ["jarvis-status-card", JarvisStatusCard, "Jarvis Status", "Multi-entity system summary"],
   ["jarvis-voice-card", JarvisVoiceCard, "Jarvis Voice", "Animated Project Jarvis Assist launcher"],
@@ -2193,6 +2355,7 @@ const CARD_DOMAINS = new Map([
   [JarvisClimateCard, ["climate"]], [JarvisCoverCard, ["cover"]],
   [JarvisMediaCard, ["media_player"]], [JarvisCameraCard, ["camera"]],
   [JarvisSensorCard, ["sensor", "binary_sensor", "sun", "weather"]],
+  [JarvisNodeCard, ["sensor"]],
   [JarvisSecurityCard, ["lock", "alarm_control_panel"]],
   [JarvisPresenceCard, ["person", "device_tracker", "binary_sensor"]],
   [JarvisWeatherCard, ["weather"]], [JarvisEnergyCard, ["sensor"]],
