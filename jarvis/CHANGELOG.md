@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.45.20
+
+- Shorten delayed voice acknowledgements to rotating synthetic phrases such as “Searching sources”, “Calculating”, and “Processing”.
+
 ## 0.45.19
 
 - Mark browser-satellite conversations explicitly so HA requests without a device entity still enter the voice deadline coordinator.

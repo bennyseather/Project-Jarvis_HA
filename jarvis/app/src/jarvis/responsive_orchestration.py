@@ -45,6 +45,7 @@ class ResponsiveVoiceCoordinator:
         self._jobs: dict[str, dict[str, object]] = {}
         self._job_by_source: dict[str, str] = {}
         self._job_by_request: dict[tuple[str, str], str] = {}
+        self._progress_sequence = 0
 
     async def execute(self, operation, *, text, conversation_id, source_id, route):
         if not self._valid_route(route) or self.client is None:
@@ -169,12 +170,16 @@ class ResponsiveVoiceCoordinator:
 
     def _progress(self, text, job_id, duplicate=False):
         lower = text.casefold()
+        self._progress_sequence += 1
         if any(word in lower for word in ("latest", "current", "today", "search", "release")):
-            message = "I'm still checking the authoritative sources. I'll report back here when I have the answer."
+            messages = ("Searching sources.", "Verifying data.", "Querying databases.")
+        elif any(word in lower for word in ("calculate", "compute", "count", "convert", "equation")):
+            messages = ("Calculating.", "Computing.", "Processing figures.")
         elif any(word in lower for word in ("why", "explain", "compare", "plan", "analyse", "analyze")):
-            message = "I'm working through that. I'll report back here when the answer is ready."
+            messages = ("Analyzing.", "Processing.", "Working.")
         else:
-            message = "I'm still working on that. I'll report back here when it is ready."
+            messages = ("Processing.", "Working.", "One moment.")
+        message = messages[(self._progress_sequence - 1) % len(messages)]
         return {
             "status": "in_progress",
             "message": message,
