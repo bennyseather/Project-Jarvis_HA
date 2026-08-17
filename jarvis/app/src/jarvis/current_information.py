@@ -359,7 +359,12 @@ class CurrentInformationIntelligence:
     async def handle(self, text: str, *, voice_mode=False):
         if not self.is_current_question(text):
             return None
-        key = " ".join(text.casefold().strip(" .?!").split())
+        adapter = next((item for item in self.adapters if item.matches(text)), None)
+        key = (
+            f"adapter:{type(adapter).__name__}"
+            if adapter is not None
+            else " ".join(text.casefold().strip(" .?!").split())
+        )
         cached = self._cache.get(key)
         now = self.clock()
         if cached and now - cached[0] <= self.policy.cache_ttl_seconds:
@@ -370,7 +375,9 @@ class CurrentInformationIntelligence:
         started = now
         try:
             result = await asyncio.wait_for(
-                self._resolve(text, voice_mode=voice_mode, started=started),
+                self._resolve(
+                    text, voice_mode=voice_mode, started=started, adapter=adapter
+                ),
                 timeout=self.policy.total_timeout_seconds,
             )
         except asyncio.TimeoutError:
@@ -380,8 +387,7 @@ class CurrentInformationIntelligence:
             self._cache[key] = (self.clock(), dict(result))
         return result
 
-    async def _resolve(self, text, *, voice_mode, started):
-        adapter = next((item for item in self.adapters if item.matches(text)), None)
+    async def _resolve(self, text, *, voice_mode, started, adapter=None):
         query = adapter.query(text) if adapter else text[:300]
         search_started = self.clock()
         search_task = asyncio.create_task(

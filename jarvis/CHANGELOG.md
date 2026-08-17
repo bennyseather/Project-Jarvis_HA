@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.19
+
+- Mark browser-satellite conversations explicitly so HA requests without a device entity still enter the voice deadline coordinator.
+- Carry the configured browser target in the conversation identity, avoiding hard-coded device IDs and preventing ordinary text chats from producing spoken follow-ups.
+
 ## 0.45.18
 
 - Deliver scoped browser follow-up events through Home Assistant's authenticated local REST API, avoiding Supervisor rejection of a second websocket.

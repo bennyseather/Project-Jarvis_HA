@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from urllib.parse import unquote
 
 from homeassistant.components import conversation
 from homeassistant.components.conversation import AssistantContent
@@ -38,6 +39,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
 
     async def _async_handle_message(self, user_input, chat_log):
         conversation_id = user_input.conversation_id or chat_log.conversation_id
+        browser_target = self._browser_voice_target(conversation_id)
         satellite_device_id = None
         if user_input.satellite_id:
             satellite = er.async_get(self.hass).async_get(user_input.satellite_id)
@@ -52,6 +54,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             external_voice
             or user_input.device_id
             or user_input.satellite_id
+            or browser_target
         )
         source_id = (
             user_input.device_id
@@ -85,9 +88,12 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                 "event_type": "jarvis_voice_follow_up",
                 "source_id": source_id,
                 "target_id": (
-                    source_id
-                    if user_input.device_id or satellite_device_id or user_input.satellite_id
-                    else "development_computer"
+                    browser_target
+                    or (
+                        source_id
+                        if user_input.device_id or satellite_device_id or user_input.satellite_id
+                        else "development_computer"
+                    )
                 ),
             }
         async with session.post(
@@ -129,6 +135,18 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             continue_conversation=payload.get("status")
             == "requires_confirmation",
         )
+
+    @staticmethod
+    def _browser_voice_target(conversation_id):
+        """Read the explicit target carried by a Jarvis browser voice session."""
+        value = str(conversation_id or "")
+        if not value.startswith("jarvis-voice:"):
+            return None
+        parts = value.split(":", 2)
+        target = unquote(parts[1]).strip() if len(parts) == 3 else ""
+        return target[:200] if target and all(
+            character.isalnum() or character in "_-" for character in target
+        ) else None
 
     async def _async_speak_externally(self, message, context) -> bool:
         output_entity = self.entry.options.get(
