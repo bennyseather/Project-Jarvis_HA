@@ -64,10 +64,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             )
         session = async_get_clientsession(self.hass)
         proactive_voice_route = None
-        if (
-            self.entry.options.get("proactive_voice_output", False)
-            and self.entry.options.get("external_voice_output", False)
-        ):
+        if external_voice:
             proactive_voice_route = {
                 "tts_entity_id": self.entry.options.get("tts_entity_id"),
                 "media_player_entity_id": self.entry.options.get(

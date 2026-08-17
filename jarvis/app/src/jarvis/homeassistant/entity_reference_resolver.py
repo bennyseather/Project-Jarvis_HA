@@ -26,11 +26,12 @@ class EntityReferenceResolver:
         floors=None,
     ):
         self._ids = frozenset(allowed_entity_ids)
+        raw_groups = groups or {}
         self._areas = self._collectives(areas or {})
-        self._groups = self._collectives(groups or {})
+        self._groups = self._collectives(raw_groups)
         self._floors = self._collectives(floors or {})
         self._group_entity_ids = frozenset(
-            name for name in self._groups if name in self._ids and "." in name
+            name for name in raw_groups if name in self._ids and "." in name
         )
         self._names: dict[str, set[str]] = {}
         self._descriptive_names: set[str] = set()
@@ -155,7 +156,16 @@ class EntityReferenceResolver:
 
     @staticmethod
     def _norm(value):
-        return " ".join(str(value).casefold().split())
+        return " ".join(
+            str(value).casefold()
+            .replace("'s", "")
+            .replace("’s", "")
+            .replace("_", " ")
+            .replace("-", " ")
+            .replace("?", " ")
+            .replace(",", " ")
+            .split()
+        )
 
     @staticmethod
     def _contains_reference(text, reference):

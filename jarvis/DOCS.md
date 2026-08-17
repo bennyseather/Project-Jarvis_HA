@@ -2,6 +2,19 @@
 
 Set an OpenAI API key and a long random bridge API key in the add-on options.
 
+## Responsive voice follow-ups
+
+Jarvis returns ordinary fast answers through the active Assist pipeline. When a
+voice request is still running after the configured one-second backend deadline,
+Jarvis gives a short progress response and continues the same bounded job. The
+completed answer is spoken automatically through the conversation integration's
+explicitly configured TTS entity and output media player. For the current
+single-room setup, configure that media player as the development computer's
+Home Assistant playback endpoint. Jarvis never selects an arbitrary speaker.
+
+Later room satellites can reuse the same source identity and explicit route
+contract so delayed answers return to the room that originated the request.
+
 ## Adaptive preference learning
 
 M46 records repeated explicit temperature and lighting preferences as local

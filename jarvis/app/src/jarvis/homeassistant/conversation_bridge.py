@@ -110,12 +110,25 @@ class JarvisConversationBridge:
                 flags=re.IGNORECASE,
             ) or text
 
-        result = await self._application.handle_request(
+        operation = self._application.handle_request(
             request_text,
             conversation_id,
             voice_mode=voice_mode,
             source_id=source_id,
         )
+        coordinator = getattr(
+            self._application.container, "responsive_voice", None
+        )
+        if voice_mode and coordinator is not None:
+            result = await coordinator.execute(
+                operation,
+                text=request_text,
+                conversation_id=identifier,
+                source_id=source_id,
+                route=proactive_voice_route,
+            )
+        else:
+            result = await operation
         if result.get("status") == "requires_confirmation":
             action_token = result.get("token")
             action_payload = result.pop("action_payload", None)

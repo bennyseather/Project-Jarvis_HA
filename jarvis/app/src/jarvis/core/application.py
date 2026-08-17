@@ -7,6 +7,7 @@ Main application class.
 import asyncio
 import os
 from datetime import datetime, timezone
+import time
 
 from rich.console import Console
 from rich.panel import Panel
@@ -109,6 +110,10 @@ from jarvis.learning.contextual_routines import (
 )
 from jarvis.homeassistant.blueprint_planner import BlueprintPlanner
 from jarvis.rss import RSSIntelligence, RSSPolicy
+from jarvis.responsive_orchestration import (
+    ResponsiveVoiceCoordinator,
+    ResponsiveVoicePolicy,
+)
 
 
 class JarvisApplication:
@@ -310,6 +315,14 @@ class JarvisApplication:
         )
         self.container.current_information_policy = CurrentInformationPolicy.from_config(
             self.general.get("current_information", {})
+        )
+        self.container.responsive_voice_policy = ResponsiveVoicePolicy.from_config(
+            self.general.get("responsive_voice", {})
+        )
+        self.container.responsive_voice = ResponsiveVoiceCoordinator(
+            self.container.responsive_voice_policy,
+            client=self.container.home_assistant,
+            logger=self.container.logger,
         )
         self.container.openai = OpenAIProvider(
             api_key=self.general["openai"]["api_key"],
@@ -743,6 +756,7 @@ class JarvisApplication:
     ) -> dict[str, object]:
         """Route one user request through the configured safe assistant slice."""
 
+        started = time.monotonic()
         async with self._request_lock:
             result = await self._handle_request(
                 text, conversation_id, voice_mode, source_id
@@ -754,12 +768,20 @@ class JarvisApplication:
                 self.container.conversation_store.clear()
             if not self.container.episodic_manager.is_command(text):
                 self.container.episodic_manager.observe(identifier)
-            return self.container.personality_presenter.present(
+            presented = self.container.personality_presenter.present(
                 result,
                 text,
                 identifier,
                 voice_mode=voice_mode,
             )
+            self.container.logger.info(
+                "Request completed in "
+                f"{round((time.monotonic() - started) * 1000)}ms "
+                f"(status={presented.get('status')}, "
+                f"provider={presented.get('provider', 'deterministic')}, "
+                f"voice={voice_mode})"
+            )
+            return presented
 
     async def _handle_request(
         self,
@@ -852,7 +874,7 @@ class JarvisApplication:
         current_result = await self.container.current_information.handle(
             text, voice_mode=voice_mode
         )
-        if current_result is not None:
+        if current_result is not None and not current_result.get("fallback_reason"):
             self.container.research_controller.record(identifier, current_result)
             conversation_store.add_message(
                 identifier, "assistant", self._user_message(current_result)
@@ -991,8 +1013,11 @@ class JarvisApplication:
                 )
             return research_result
         if self.container.local_knowledge_router is not None:
-            local_result = self.container.local_knowledge_router.handle(
-                text, context, voice_mode=voice_mode
+            local_result = await asyncio.to_thread(
+                self.container.local_knowledge_router.handle,
+                text,
+                context,
+                voice_mode=voice_mode,
             )
             if local_result is not None:
                 message = self._user_message(local_result)
@@ -1085,14 +1110,23 @@ class JarvisApplication:
     @staticmethod
     def _user_message(result: dict[str, object]) -> str:
         """Return a stable, safe console response for every runtime outcome."""
+        explicit = str(result.get("message", "")).strip()
+        if explicit:
+            return explicit
+        reason = str(result.get("reason_code", ""))
+        forbidden = {
+            "invalid_confirmation": "That confirmation is invalid or has expired. Please repeat the request to create a new confirmation.",
+            "unknown_entity": "I cannot access that entity because Home Assistant has not exposed it to Jarvis. Please expose or enrol the entity and try again.",
+            "unknown_service": "Home Assistant does not expose that service to Jarvis. Please check the integration and Jarvis service permissions.",
+            "too_many_entities": "That request affects too many entities at once. Please narrow it to 20 or fewer devices.",
+            "immediate_action_not_authorized": "That action requires authorization. Please review the Jarvis Home Assistant action policy.",
+        }
         messages = {
-            "success": "Action completed." if "message" not in result else str(result["message"]),
-            "clarification_required": str(result.get(
-                "message", "Please specify the exact configured entity you mean."
-            )),
-            "not_supported": "That request is not available in the current configuration.",
-            "unavailable": "The requested service is temporarily unavailable. Please try again.",
-            "forbidden": "That confirmation is invalid or has expired." if result.get("reason_code") == "invalid_confirmation" else "That action is not authorized.",
+            "success": "Action completed.",
+            "clarification_required": "Please specify the exact configured entity you mean.",
+            "not_supported": "That capability is not configured yet. Please check the Jarvis integration and add-on configuration.",
+            "unavailable": "A required service is unavailable. Please check the Jarvis add-on log and the relevant Home Assistant integration.",
+            "forbidden": forbidden.get(reason, "Home Assistant has not authorised that action. Please review the Jarvis entity and service permissions."),
             "requires_confirmation": "Confirmation is required before this action can run.",
         }
         return messages.get(str(result.get("status")), str(result.get("message", "Request could not be completed.")))

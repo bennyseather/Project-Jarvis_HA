@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.45.15
+
+- Add deadline-aware voice orchestration: fast answers return normally, while slow work produces a natural progress response and continues in the background.
+- Deliver completed background answers through the explicitly configured Home Assistant TTS and development-computer media-player route.
+- Move local Ollama work off the event loop so the voice progress deadline remains enforceable.
+- Deduplicate repeated requests, cancel superseded work from the same source, and bound pending jobs and total runtime.
+- Continue from the fast current-information path into broader research when the fast path cannot verify an answer.
+- Add end-to-end request timing and actionable permission, integration, and capability diagnostics.
+- Generalise spoken entity matching across possessives, underscores, hyphens, and punctuation while preserving deterministic HA authorization.
+
 ## 0.45.14
 
 - Recognise `USA` and `U.S.A.` as deterministic US-president adapter aliases.

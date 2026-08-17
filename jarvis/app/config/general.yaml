@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.45.14"
+  version: "0.45.15"
 
 system:
   debug: false
@@ -68,6 +68,11 @@ current_information:
   cache_ttl_seconds: 300
   maximum_sources: 3
   maximum_evidence_characters: 4500
+
+responsive_voice:
+  progress_deadline_seconds: 1.0
+  maximum_runtime_seconds: 90.0
+  maximum_pending_jobs: 16
 
 ai_budget:
   monthly_limit_usd: 10.0
