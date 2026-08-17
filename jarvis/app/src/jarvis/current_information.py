@@ -12,9 +12,9 @@ from urllib.parse import urlparse
 
 @dataclass(frozen=True, slots=True)
 class CurrentInformationPolicy:
-    total_timeout_seconds: float = 5.0
-    search_timeout_seconds: float = 3.5
-    synthesis_timeout_seconds: float = 1.2
+    total_timeout_seconds: float = 3.0
+    search_timeout_seconds: float = 2.2
+    synthesis_timeout_seconds: float = 0.7
     cache_ttl_seconds: int = 300
     maximum_sources: int = 3
     maximum_evidence_characters: int = 4500
@@ -337,7 +337,7 @@ class CurrentInformationIntelligence:
         return tuple(sorted(ranked, key=lambda item: item["authority_score"], reverse=True))
 
     def _success(self, extracted, started, search_ms, synthesis_ms):
-        return {
+        result = {
             "status": "success",
             "message": extracted["message"],
             "sources": extracted["sources"],
@@ -350,6 +350,15 @@ class CurrentInformationIntelligence:
                 "total_ms": round((self.clock() - started) * 1000),
             },
         }
+        if self.logger:
+            self.logger.info(
+                "Current information resolved via %s in %sms (search=%sms, synthesis=%sms)",
+                extracted["adapter"],
+                result["timings"]["total_ms"],
+                search_ms,
+                synthesis_ms,
+            )
+        return result
 
     def _fallback(self, reason, started, evidence=()):
         if self.logger:

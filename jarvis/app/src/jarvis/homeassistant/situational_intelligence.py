@@ -162,6 +162,8 @@ class WholeHomeSituationalIntelligence:
         scope = self._select_scope(
             normalized, snapshot, references, scope_key
         )
+        if scope is None and self.is_temperature_question(normalized):
+            scope = self._temperature_reference(normalized, snapshot)
         if scope is None:
             return None
         label, base_ids = scope
@@ -229,6 +231,47 @@ class WholeHomeSituationalIntelligence:
             voice_mode,
             noun,
         )
+
+    def is_temperature_question(self, text: str) -> bool:
+        """Identify a read-only local temperature request for fast routing."""
+
+        normalized = self._norm(text)
+        words = set(normalized.split())
+        return (
+            "temperature" in words
+            and not self._is_action(normalized)
+            and not bool(words & self._EXTERNAL_TOPIC_WORDS)
+            and bool(words & self._HOME_WORDS)
+        )
+
+    @classmethod
+    def _temperature_reference(cls, text, snapshot):
+        """Recover room scope from entity metadata when registry areas are absent."""
+
+        ignored = {
+            "what", "is", "the", "temperature", "current", "in", "of", "at",
+            "home", "house", "here", "please", "tell", "me",
+        }
+        requested = set(text.split()) - ignored
+        if not requested:
+            return None
+        matches = []
+        for item in snapshot.entities:
+            if item.domain not in {"sensor", "climate"}:
+                continue
+            searchable = cls._norm(
+                " ".join(filter(None, (
+                    item.entity_id.replace("_", " "),
+                    item.friendly_name.replace("_", " "),
+                    item.area_name,
+                )))
+            )
+            if requested <= set(searchable.split()):
+                matches.append(item)
+        if not matches:
+            return None
+        label = matches[0].area_name or " ".join(sorted(requested)).title()
+        return label, tuple(item.entity_id for item in matches)
 
     def context(self, conversation_id: str):
         scope = self._scopes.get(conversation_id)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.10
+
+- Route local temperature reads ahead of general reasoning and research.
+- Recover room temperature scope from permitted sensor metadata when registry area mappings are incomplete.
+- Reduce uncached current-information deadlines to leave time for speech within the voice latency budget.
+- Log bounded current-information timings for acceptance diagnostics.
+
 ## 0.45.9
 
 - Fix M53 acceptance failures with deterministic official Android, Polestar, and US president adapters.

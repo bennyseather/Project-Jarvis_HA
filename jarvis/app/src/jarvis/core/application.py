@@ -799,6 +799,22 @@ class JarvisApplication:
         if routine_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(routine_result))
             return routine_result
+        situational_checked = False
+        if self.container.situational_intelligence.is_temperature_question(text):
+            situational_checked = True
+            temperature_result = await self.container.situational_intelligence.handle(
+                text,
+                identifier,
+                voice_mode=voice_mode,
+                source_id=source_id,
+            )
+            if temperature_result is not None:
+                conversation_store.add_message(
+                    identifier,
+                    "assistant",
+                    self._user_message(temperature_result),
+                )
+                return temperature_result
         adaptive_result = self.container.adaptive_preferences.handle(text, identifier)
         if adaptive_result is not None:
             normalized_learning = " ".join(text.casefold().strip(" .?!").split())
@@ -891,12 +907,14 @@ class JarvisApplication:
                 self._user_message(compound_result),
             )
             return compound_result
-        situational_result = await self.container.situational_intelligence.handle(
-            text,
-            identifier,
-            voice_mode=voice_mode,
-            source_id=source_id,
-        )
+        situational_result = None
+        if not situational_checked:
+            situational_result = await self.container.situational_intelligence.handle(
+                text,
+                identifier,
+                voice_mode=voice_mode,
+                source_id=source_id,
+            )
         if situational_result is not None:
             conversation_store.add_message(
                 identifier,

@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.45.9"
+  version: "0.45.10"
 
 system:
   debug: false
@@ -61,9 +61,9 @@ hybrid_research:
   premium_model: "gpt-5.6-sol"
 
 current_information:
-  total_timeout_seconds: 5.0
-  search_timeout_seconds: 3.5
-  synthesis_timeout_seconds: 1.2
+  total_timeout_seconds: 3.0
+  search_timeout_seconds: 2.2
+  synthesis_timeout_seconds: 0.7
   cache_ttl_seconds: 300
   maximum_sources: 3
   maximum_evidence_characters: 4500
