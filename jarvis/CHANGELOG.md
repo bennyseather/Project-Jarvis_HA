@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.18
+
+- Deliver scoped browser follow-up events through Home Assistant's authenticated local REST API, avoiding Supervisor rejection of a second websocket.
+- Contain diagnostic-delivery failures so background jobs always finish cleanly.
+
 ## 0.45.17
 
 - Add an explicit `development_computer` follow-up target for the current browser satellite, which has no Home Assistant device ID.

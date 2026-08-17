@@ -4,6 +4,8 @@ Home Assistant client for Project Jarvis.
 
 import asyncio
 import json
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 import websockets
 
@@ -257,24 +259,25 @@ class HomeAssistantClient:
         return task
 
     async def dispatch_event(self, event_type: str, event_data: dict) -> bool:
-        """Fire a bounded HA event on an isolated authenticated socket."""
-        dispatcher = HomeAssistantClient(self.url, self.token, self.logger)
-        await dispatcher._connect_socket()
-        await dispatcher.send_json({
-            "id": dispatcher.get_next_message_id(),
-            "type": "fire_event",
-            "event_type": event_type,
-            "event_data": event_data,
-        })
-        try:
-            response = await dispatcher.receive_json()
-            if response.get("type") != "result" or not response.get("success", False):
+        """Fire a bounded HA event through its local authenticated REST API."""
+        return await asyncio.to_thread(self._dispatch_event, event_type, event_data)
+
+    def _dispatch_event(self, event_type: str, event_data: dict) -> bool:
+        request = Request(
+            f"{self.url.rstrip('/')}/api/events/{quote(event_type, safe='')}",
+            data=json.dumps(event_data).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urlopen(request, timeout=5) as response:
+            if not 200 <= response.status < 300:
                 raise RuntimeError(
-                    f"Home Assistant reported a failed event dispatch: {response}"
+                    f"Home Assistant rejected event dispatch with HTTP {response.status}"
                 )
-            return True
-        finally:
-            await dispatcher.disconnect()
+        return True
 
     async def _receive_dispatched_service_result(self):
         try:

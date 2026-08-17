@@ -103,7 +103,7 @@ class ResponsiveVoiceCoordinator:
             task.cancel()
         except asyncio.TimeoutError:
             task.cancel()
-            await self._speak(
+            await self._safe_speak(
                 job["route"],
                 "This is taking unusually long because a required service is not responding. "
                 "Please check the Jarvis diagnostics in Home Assistant.",
@@ -111,13 +111,22 @@ class ResponsiveVoiceCoordinator:
         except Exception as error:
             if self.logger:
                 self.logger.warning(f"Responsive voice follow-up failed safely: {error}")
-            await self._speak(
+            await self._safe_speak(
                 job["route"],
                 "I could not complete that because a required service failed. "
                 "Please check the Jarvis add-on log for the specific cause.",
             )
         finally:
             self._remove(job)
+
+    async def _safe_speak(self, route, message):
+        try:
+            await self._speak(route, message)
+        except Exception as error:
+            if self.logger:
+                self.logger.warning(
+                    f"Responsive voice diagnostic delivery failed safely: {error}"
+                )
 
     async def _speak(self, route, message):
         spoken = self._spoken(message)
