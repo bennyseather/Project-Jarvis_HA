@@ -5,6 +5,18 @@ from __future__ import annotations
 import re
 
 
+def sanitize_spoken_response(message: str) -> str:
+    """Remove non-speech presentation from every voice-bound response."""
+    text = re.sub(r"\n+Sources:\n.*", "", message, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", text)
+    text = re.sub(r"https?://\S+", "", text)
+    text = re.sub(r"(?<!\w)\[(?:\d+|source[^\]]*)\]", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?m)^\s*(?:[-+*]|\d+[.)])\s+", "", text)
+    text = re.sub(r"[*_`#>|~]", "", text)
+    text = re.sub(r"[\U0001F000-\U0001FAFF\u2600-\u26FF\u2700-\u27BF]", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 class PersonalityPresenter:
     """Shape presentation without changing facts, actions, or policy outcomes."""
 
@@ -28,6 +40,8 @@ class PersonalityPresenter:
         message = result["message"].strip()
         if not message:
             return result
+        if voice_mode:
+            message = sanitize_spoken_response(message)
         normalized = " ".join(request.casefold().strip(" .?!").split())
         status = str(result.get("status", "unavailable"))
         serious = status in self._SERIOUS_STATUSES
@@ -118,12 +132,7 @@ class PersonalityPresenter:
 
     @staticmethod
     def _for_voice(message, verbosity, *, omit_links=False, preserve_list=False):
-        text = re.sub(r"\n+Sources:\n.*", "", message, flags=re.DOTALL | re.IGNORECASE)
-        if omit_links:
-            text = re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", text)
-            text = re.sub(r"https?://\S+", "", text)
-        text = re.sub(r"[*_`#]", "", text)
-        text = re.sub(r"\s+", " ", text).strip()
+        text = sanitize_spoken_response(message)
         text = re.sub(
             r"^(?:certainly|of course|understood|very good)[,!.]?\s+",
             "",

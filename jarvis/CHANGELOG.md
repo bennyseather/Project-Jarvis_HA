@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.45.8
+
+- Replace the one-off current-release route with a general source-first current-information pipeline.
+- Prefer authoritative primary sources and preserve the deterministic Home Assistant release fast path.
+- Bound current-information research to 3.2 seconds, local synthesis to one short pass, and return a concise fallback on failure.
+- Cache repeated current questions for five minutes while retaining inspectable citations in text responses.
+- Keep local Home Assistant entity questions on deterministic home routing.
+- Remove links, citations, Markdown, lists, headings, formatting symbols, and emoji from every voice-bound response.
+
 ## 0.45.7
 
 - Resolve the latest official Home Assistant release without an LLM pass.

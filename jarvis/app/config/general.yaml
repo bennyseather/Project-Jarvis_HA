@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.45.7"
+  version: "0.45.8"
 
 system:
   debug: false
@@ -59,6 +59,14 @@ hybrid_research:
   normal_model: "gpt-5.6-luna"
   escalation_model: "gpt-5.6-terra"
   premium_model: "gpt-5.6-sol"
+
+current_information:
+  total_timeout_seconds: 3.2
+  search_timeout_seconds: 1.8
+  synthesis_timeout_seconds: 1.2
+  cache_ttl_seconds: 300
+  maximum_sources: 3
+  maximum_evidence_characters: 4500
 
 ai_budget:
   monthly_limit_usd: 10.0

@@ -16,7 +16,10 @@ from jarvis.core.container import ServiceContainer
 from jarvis.core.context_builder import ContextBuilder
 from jarvis.homeassistant.client import HomeAssistantClient
 from jarvis.homeassistant.weather_intelligence import LocalWeatherIntelligence
-from jarvis.homeassistant.release_intelligence import HomeAssistantReleaseIntelligence
+from jarvis.current_information import (
+    CurrentInformationIntelligence,
+    CurrentInformationPolicy,
+)
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
 from jarvis.providers.local_first_provider import LocalFirstReasoningProvider, LocalReasoningPolicy
@@ -304,6 +307,9 @@ class JarvisApplication:
         self.container.hybrid_research_policy = HybridResearchPolicy.from_config(
             self.general.get("hybrid_research", {})
         )
+        self.container.current_information_policy = CurrentInformationPolicy.from_config(
+            self.general.get("current_information", {})
+        )
         self.container.openai = OpenAIProvider(
             api_key=self.general["openai"]["api_key"],
             logger=self.container.logger,
@@ -463,6 +469,12 @@ class JarvisApplication:
             self.container.hybrid_research_policy,
             self.container.logger,
         )
+        self.container.current_information = CurrentInformationIntelligence(
+            self.container.searxng_research,
+            self.container.openai,
+            self.container.current_information_policy,
+            self.container.logger,
+        )
         self.container.research_provider = HybridResearchProvider(
             self.container.openai,
             self.container.searxng_research,
@@ -575,9 +587,6 @@ class JarvisApplication:
             area_members,
             groups,
             floor_members,
-        )
-        self.container.home_assistant_release_intelligence = (
-            HomeAssistantReleaseIntelligence(self.container.searxng_research)
         )
         self.container.read_only_assistant._resolver = reference_resolver
         self.container.adaptive_preferences.set_area_references(
@@ -822,13 +831,25 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(weather_result)
             )
             return weather_result
-        release_result = await self.container.home_assistant_release_intelligence.handle(text)
-        if release_result is not None:
-            self.container.research_controller.record(identifier, release_result)
+        current_result = await self.container.current_information.handle(
+            text, voice_mode=voice_mode
+        )
+        if current_result is not None:
+            self.container.research_controller.record(identifier, current_result)
             conversation_store.add_message(
-                identifier, "assistant", self._user_message(release_result)
+                identifier, "assistant", self._user_message(current_result)
             )
-            return release_result
+            if current_result.get("sources") and not voice_mode:
+                current_result = dict(current_result)
+                current_result["message"] = (
+                    str(current_result.get("message", "")).rstrip()
+                    + "\n\nSources:\n"
+                    + "\n".join(
+                        f"- {source['title']} — {source['url']}"
+                        for source in current_result["sources"]
+                    )
+                )
+            return current_result
         rss_result = self.container.rss_intelligence.handle(
             text, identifier, voice_mode=voice_mode
         )
