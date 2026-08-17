@@ -230,6 +230,13 @@ views:
             compact: true
       - type: grid
         cards:
+          - type: custom:jarvis-thermal-graph-card
+            name: Jarvis Node thermals
+            history_hours: "24"
+            entities:
+              - sensor.jarvis_ai_node_cpu_temperature
+              - sensor.jarvis_ai_node_nvidia_geforce_rtx_2080_super_gpu_temperature
+              - sensor.jarvis_ai_node_nvidia_geforce_rtx_3060_ti_gpu_temperature
           - type: custom:jarvis-action-card
             label: Project Jarvis add-on
             description: Open add-on status and logs

@@ -51,7 +51,7 @@ Jarvis Command Center:
       jarvis-control-size: "42px"
       lovelace-background: >-
         linear-gradient(rgba(1, 8, 14, 0.28), rgba(1, 8, 14, 0.28)),
-        center / cover no-repeat url("/local/jarvis/jarvis-command-center-landscape.png") fixed
+        center / cover no-repeat url("/local/jarvis/jarvis-unified-landscape.png") fixed
       ha-section-background-color: "rgba(2, 12, 21, 0.54)"
       ha-section-border-radius: "2px"
       ha-dialog-border-radius: "2px"
@@ -113,7 +113,7 @@ Jarvis Command Center Panel:
       jarvis-control-size: "38px"
       lovelace-background: >-
         linear-gradient(rgba(1, 8, 14, 0.22), rgba(1, 8, 14, 0.22)),
-        center / cover no-repeat url("/local/jarvis/jarvis-command-center-portrait.png") fixed
+        center / cover no-repeat url("/local/jarvis/jarvis-unified-portrait.png") fixed
       ha-section-background-color: "rgba(2, 12, 21, 0.60)"
       ha-section-border-radius: "2px"
       ha-dialog-border-radius: "2px"

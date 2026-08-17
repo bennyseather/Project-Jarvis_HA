@@ -1,0 +1,25 @@
+jarvis_lighting_pulse:
+  alias: Jarvis lighting pulse
+  icon: mdi:creation-outline
+  mode: restart
+  sequence:
+    - action: light.turn_on
+      target:
+        entity_id: light.blocks
+      data:
+        brightness_pct: 38
+        effect: Northern Lights
+        transition: 3
+
+jarvis_lighting_still:
+  alias: Jarvis lighting still
+  icon: mdi:hexagon-multiple-outline
+  mode: restart
+  sequence:
+    - action: light.turn_on
+      target:
+        entity_id: light.blocks
+      data:
+        rgb_color: [32, 216, 255]
+        brightness_pct: 32
+        transition: 3

@@ -16,8 +16,8 @@ The UI package does not change Jarvis memory or device authorization.
 - `jarvis-dashboard.yaml`: five responsive dashboard views.
 - `jarvis-component-catalog.yaml`: card, icon, and coverage reference.
 - `themes/jarvis-command-center.yaml`: desktop and portrait themes.
-- `www/jarvis/jarvis-command-center-landscape.png`: desktop background.
-- `www/jarvis/jarvis-command-center-portrait.png`: panel/mobile background.
+- `www/jarvis/jarvis-unified-landscape.png`: unified desktop background.
+- `www/jarvis/jarvis-unified-portrait.png`: unified panel/mobile background.
 - `www/jarvis/jarvis-ui.js`: complete Jarvis cards and `jarvis:` icons.
 - `www/jarvis/jarvis-voice-card.js`: compatibility loader for D1 installs.
 - `hacs.json` and `dist/Project-Jarvis_HA.js`: HACS publication package.

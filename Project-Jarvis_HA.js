@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.46.7";
+const JARVIS_UI_VERSION = "0.47.0";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -888,6 +888,32 @@ class JarvisSensorCard extends JarvisBaseCard {
     const start = new Date(states[0]?.last_changed || end.getTime() - hours * 3600000);
     const mid = new Date((start.getTime() + end.getTime()) / 2);
     return [start, mid, end].map((date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  }
+}
+
+class JarvisThermalGraphCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static cardName = "Jarvis Thermal Graph";
+  static gridRows = 4;
+  static getConfigForm() { return { schema: [
+    { name: "name", selector: { text: {} } },
+    { name: "entities", required: true, selector: { entity: { multiple: true, filter: [{ domain: "sensor", device_class: "temperature" }] } } },
+    { name: "history_hours", selector: { select: { options: ["1", "6", "12", "24", "48"] } } },
+  ] }; }
+  static getStubConfig(hass) { return { name: "Jarvis Node thermals", entities: Object.keys(hass?.states || {}).filter((id) => id.includes("temperature") && (id.includes("gpu") || id.includes("cpu"))).slice(0, 3), history_hours: "24" }; }
+  connectedCallback() { this._visible = false; this._observer = new IntersectionObserver((entries) => { this._visible = entries.some((entry) => entry.isIntersecting); if (this._visible) this.loadHistory(); }, { rootMargin: "160px" }); this._observer.observe(this); }
+  disconnectedCallback() { this._observer?.disconnect(); }
+  render() {
+    if (!this._config) return; const ids = (this._config.entities || []).slice(0, 6);
+    const legend = ids.map((id, index) => `<span style="--series:${index}"><i></i>${escapeHtml(friendlyName(stateObject(this._hass, id), { entity:id }))}<b>${escapeHtml(formatState(stateObject(this._hass, id), { entity:id }))}</b></span>`).join("");
+    this.shell(`<div class="thermal"><header><div><div class="eyebrow">Historical thermal envelope</div><div class="name">${escapeHtml(this._config.name || "Jarvis Node thermals")}</div></div><ha-icon icon="mdi:chart-multiple"></ha-icon></header><div class="thermal-plot"><span>HISTORY LOADING</span></div><div class="legend">${legend}</div></div><style>.thermal{min-height:220px;padding:18px;display:grid;gap:12px}.thermal header{display:flex;justify-content:space-between;align-items:center}.thermal header ha-icon{color:var(--j-accent)}.thermal-plot{height:120px;border-left:1px solid var(--j-line);border-bottom:1px solid var(--j-line);display:grid;place-items:center}.thermal-plot>span{font:600 8px monospace;color:var(--secondary-text-color)}.thermal-plot svg{width:100%;height:100%;overflow:visible}.thermal-plot polyline{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 3px currentColor)}.legend{display:flex;flex-wrap:wrap;gap:8px 14px}.legend span{display:grid;grid-template-columns:8px auto auto;gap:5px;align-items:center;font:600 9px monospace}.legend i{width:7px;height:7px;background:hsl(calc(190 + var(--series)*22),90%,60%)}.legend b{color:var(--j-accent)}</style>`, { interactive:false });
+    if (this._visible) this.loadHistory();
+  }
+  async loadHistory() {
+    const host=this.shadowRoot?.querySelector(".thermal-plot"), ids=(this._config?.entities||[]).slice(0,6); if(!host||!ids.length||!this._hass?.callApi||this._loadingHistory)return;
+    const hours=[1,6,12,24,48].includes(Number(this._config.history_hours))?Number(this._config.history_hours):24; const end=new Date(),start=new Date(end.getTime()-hours*3600000),key=`thermal:${ids.join(",")}:${hours}`; let entry=HISTORY_CACHE.get(key);
+    if(!entry||Date.now()-entry.time>DATA_CACHE_TTL){this._loadingHistory=true;try{const result=await this._hass.callApi("GET",`history/period/${start.toISOString()}?filter_entity_id=${encodeURIComponent(ids.join(","))}&end_time=${encodeURIComponent(end.toISOString())}&minimal_response&no_attributes`);entry={time:Date.now(),series:(result||[]).map((states)=>states.map((x)=>Number(x.state)).filter(Number.isFinite).slice(-MAX_HISTORY_SAMPLES))};HISTORY_CACHE.set(key,entry);}catch(_e){entry={time:Date.now(),series:[]};}finally{this._loadingHistory=false;}}
+    const values=entry.series.flat();if(values.length<2){host.innerHTML="<span>NO THERMAL HISTORY</span>";return;}const min=Math.floor(Math.min(...values)-2),max=Math.ceil(Math.max(...values)+2),span=Math.max(1,max-min);const lines=entry.series.map((series,index)=>series.length<2?"":`<polyline style="stroke:hsl(${190+index*22},90%,60%)" points="${series.map((v,i)=>`${(i/(series.length-1)*100).toFixed(1)},${(96-(v-min)/span*88).toFixed(1)}`).join(" ")}"></polyline>`).join("");host.innerHTML=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="${hours} hour thermal history">${lines}</svg>`;
   }
 }
 
@@ -2326,6 +2352,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-camera-card", JarvisCameraCard, "Jarvis Camera", "Camera view in the Jarvis HUD"],
   ["jarvis-sensor-card", JarvisSensorCard, "Jarvis Sensor", "Sensor telemetry and state"],
   ["jarvis-node-card", JarvisNodeCard, "Jarvis AI Node", "CPU, memory, storage, dual-GPU and local AI telemetry"],
+  ["jarvis-thermal-graph-card", JarvisThermalGraphCard, "Jarvis Thermal Graph", "Historical CPU and GPU temperature comparison"],
   ["jarvis-security-card", JarvisSecurityCard, "Jarvis Security", "Lock and safety entity display"],
   ["jarvis-status-card", JarvisStatusCard, "Jarvis Status", "Multi-entity system summary"],
   ["jarvis-voice-card", JarvisVoiceCard, "Jarvis Voice", "Animated Project Jarvis Assist launcher"],
