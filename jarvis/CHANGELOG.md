@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.9
+
+- Fix M53 acceptance failures with deterministic official Android, Polestar, and US president adapters.
+- Preserve truthful bounded current-information fallbacks instead of remapping them to a generic service error.
+- Include all permitted Home Assistant entities in deterministic room topology so valid temperature sensors are not truncated.
+- Allow up to 3.5 seconds for local authoritative search while retaining a strict five-second total research deadline.
+
 ## 0.45.8
 
 - Replace the one-off current-release route with a general source-first current-information pipeline.

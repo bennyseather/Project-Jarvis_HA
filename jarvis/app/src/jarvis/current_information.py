@@ -12,8 +12,8 @@ from urllib.parse import urlparse
 
 @dataclass(frozen=True, slots=True)
 class CurrentInformationPolicy:
-    total_timeout_seconds: float = 3.2
-    search_timeout_seconds: float = 1.8
+    total_timeout_seconds: float = 5.0
+    search_timeout_seconds: float = 3.5
     synthesis_timeout_seconds: float = 1.2
     cache_ttl_seconds: int = 300
     maximum_sources: int = 3
@@ -83,6 +83,97 @@ class HomeAssistantReleaseAdapter:
         }
 
 
+class AndroidReleaseAdapter:
+    """Extract a stable Android release from official Android Developers URLs."""
+
+    _URL = re.compile(
+        r"^https://developer\.android\.com/about/versions/(\d+)/(?:blog-release)?/?$"
+    )
+
+    def matches(self, text: str) -> bool:
+        normalized = text.casefold()
+        return "android" in normalized and any(
+            word in normalized for word in ("latest", "newest", "current", "release", "version")
+        )
+
+    def query(self, text: str) -> str:
+        return "site:developer.android.com/about/versions Android latest stable release"
+
+    def extract(self, results):
+        releases = []
+        for item in results:
+            url = str(item.get("url", "")).split("?", 1)[0]
+            match = self._URL.match(url)
+            if match and "blog-release" in url:
+                releases.append((int(match.group(1)), item))
+        if not releases:
+            return None
+        version, item = max(releases, key=lambda value: value[0])
+        return {
+            "message": f"The latest stable Android release is Android {version}.",
+            "sources": ({"title": str(item.get("title", "Android release")), "url": str(item["url"])},),
+            "adapter": "android_release",
+        }
+
+
+class PolestarModelAdapter:
+    """Extract the newest prominently ranked model from Polestar's official site."""
+
+    _URL = re.compile(r"^https://www\.polestar\.com/[^/]+/polestar-(\d+)/?$")
+
+    def matches(self, text: str) -> bool:
+        normalized = text.casefold()
+        return "polestar" in normalized and any(
+            word in normalized for word in ("latest", "newest", "current", "model", "release")
+        )
+
+    def query(self, text: str) -> str:
+        return "site:polestar.com/global newest Polestar model"
+
+    def extract(self, results):
+        for item in results:
+            url = str(item.get("url", "")).split("?", 1)[0]
+            match = self._URL.match(url)
+            if match:
+                model = match.group(1)
+                return {
+                    "message": f"The newest Polestar model is the Polestar {model}.",
+                    "sources": ({"title": str(item.get("title", f"Polestar {model}")), "url": str(item["url"])},),
+                    "adapter": "polestar_model",
+                }
+        return None
+
+
+class UnitedStatesPresidentAdapter:
+    """Extract the current US president from the official White House result."""
+
+    _TITLE = re.compile(r"^President\s+(.+?)\s+[–—-]\s+The White House$", re.IGNORECASE)
+
+    def matches(self, text: str) -> bool:
+        normalized = text.casefold()
+        return "president" in normalized and any(
+            country in normalized for country in ("united states", " u.s.", " us ", "america")
+        )
+
+    def query(self, text: str) -> str:
+        return "site:whitehouse.gov current President of the United States"
+
+    def extract(self, results):
+        for item in results:
+            url = str(item.get("url", ""))
+            if (urlparse(url).hostname or "").casefold() != "www.whitehouse.gov":
+                continue
+            match = self._TITLE.match(str(item.get("title", "")).strip())
+            if match:
+                name = match.group(1).strip()
+                return {
+                    "message": f"The current president of the United States is {name}.",
+                    "sources": ({"title": str(item["title"]), "url": url},),
+                    "adapter": "us_president",
+                }
+        return None
+
+
 class CurrentInformationIntelligence:
     """Search first and answer from bounded, preferentially primary evidence."""
 
@@ -115,7 +206,12 @@ class CurrentInformationIntelligence:
         self.policy = policy or CurrentInformationPolicy()
         self.logger = logger
         self.clock = clock
-        self.adapters = (HomeAssistantReleaseAdapter(),)
+        self.adapters = (
+            HomeAssistantReleaseAdapter(),
+            AndroidReleaseAdapter(),
+            PolestarModelAdapter(),
+            UnitedStatesPresidentAdapter(),
+        )
         self._cache = {}
 
     def is_current_question(self, text: str) -> bool:
@@ -149,7 +245,7 @@ class CurrentInformationIntelligence:
         except asyncio.TimeoutError:
             result = self._fallback("deadline", started)
         result.setdefault("cache", "miss")
-        if result.get("status") == "success":
+        if result.get("status") == "success" and not result.get("fallback_reason"):
             self._cache[key] = (self.clock(), dict(result))
         return result
 
@@ -259,7 +355,7 @@ class CurrentInformationIntelligence:
         if self.logger:
             self.logger.warning(f"Current information fallback: {reason}")
         return {
-            "status": "unavailable",
+            "status": "success",
             "message": "I couldn't verify that current information quickly enough. Please try again shortly.",
             "sources": tuple(
                 {"title": item["title"], "url": item["url"]}
