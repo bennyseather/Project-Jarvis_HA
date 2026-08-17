@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.core import callback
 from homeassistant.helpers.event import async_track_time_interval
 from datetime import timedelta
 
@@ -11,7 +12,13 @@ from . import DOMAIN, load_cache
 async def async_setup_platform(hass, _config, async_add_entities, _discovery_info=None):
     entities = [JarvisRSSStories(hass), JarvisRSSHealth(hass)]
     async_add_entities(entities, True)
-    async_track_time_interval(hass, lambda _now: [entity.async_schedule_update_ha_state(True) for entity in entities], timedelta(minutes=1))
+
+    @callback
+    def async_refresh(_now):
+        for entity in entities:
+            entity.async_schedule_update_ha_state(True)
+
+    async_track_time_interval(hass, async_refresh, timedelta(minutes=1))
 
 
 class JarvisRSSStories(SensorEntity):
