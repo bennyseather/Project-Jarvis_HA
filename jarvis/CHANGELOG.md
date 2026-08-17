@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.1
+
+- Publish the local Intelligence Node configuration under a new Supervisor-visible add-on version.
+- Preserve local Qwen3 reasoning, embeddings, bounded fallback, and Home Assistant safety boundaries.
+
 ## 0.45.0
 
 - Route ordinary language planning and bounded evidence synthesis through local Qwen3 8B on the Intelligence Node.
