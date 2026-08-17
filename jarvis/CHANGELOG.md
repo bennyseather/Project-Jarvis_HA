@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.13
+
+- Probe Android release redirects without downloading the full destination page.
+- Preserve version-bearing official URLs during deterministic Android extraction.
+- Emit timing telemetry through the runtime logger’s supported single-message interface.
+
 ## 0.45.12
 
 - Run deterministic official-source retrieval concurrently with local search.

@@ -9,22 +9,47 @@ import json
 import re
 import time
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+
+
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 def fetch_official_document(url, timeout):
     """Fetch one bounded document from an adapter-owned official endpoint."""
 
+    is_android_probe = (
+        url.startswith("https://developer.android.com/about/versions/")
+        and url.endswith("/blog-release")
+    )
     request = Request(
         url,
         headers={
             "Accept": "application/json,text/html,text/plain",
             "User-Agent": "Project-Jarvis/0.45",
         },
+        method="HEAD" if is_android_probe else "GET",
     )
-    with urlopen(request, timeout=timeout) as response:
-        content = response.read(262_144).decode("utf-8", errors="replace")
-        return {"url": response.geturl(), "content": content}
+    try:
+        opener = build_opener(_NoRedirect()) if is_android_probe else None
+        response = (
+            opener.open(request, timeout=timeout)
+            if opener else urlopen(request, timeout=timeout)
+        )
+        with response:
+            content = response.read(262_144).decode("utf-8", errors="replace")
+            return {"url": url, "resolved_url": response.geturl(), "content": content}
+    except HTTPError as exc:
+        if is_android_probe and 300 <= exc.code < 400:
+            return {
+                "url": url,
+                "resolved_url": exc.headers.get("Location", url),
+                "content": "",
+            }
+        raise
 
 
 @dataclass(frozen=True, slots=True)
@@ -488,11 +513,9 @@ class CurrentInformationIntelligence:
         }
         if self.logger:
             self.logger.info(
-                "Current information resolved via %s in %sms (search=%sms, synthesis=%sms)",
-                extracted["adapter"],
-                result["timings"]["total_ms"],
-                search_ms,
-                synthesis_ms,
+                f"Current information resolved via {extracted['adapter']} in "
+                f"{result['timings']['total_ms']}ms (search={search_ms}ms, "
+                f"synthesis={synthesis_ms}ms)"
             )
         return result
 
