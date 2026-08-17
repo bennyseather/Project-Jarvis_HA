@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.46.4";
+const JARVIS_UI_VERSION = "0.46.5";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1111,7 +1111,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   render() {
     if (!this._config) return;
     const entity = stateObject(this._hass, this._config.satellite_entity);
-    const entityState = entity ? formatState(entity, {}) : "Browser satellite";
+    const entityState = entity ? formatState(entity, {}) : `Browser satellite · UI ${JARVIS_UI_VERSION}`;
     this.shell(`<div class="satellite-layout"><div class="satellite-head"><div class="icon-shell"><ha-icon icon="mdi:microphone-message"></ha-icon></div><div class="copy"><div class="eyebrow">Voice activation node</div><div class="name">${escapeHtml(this._config.title)}</div><div class="state entity-state">${escapeHtml(entityState)}</div></div><div class="live-dot"></div></div><div class="satellite-status">${escapeHtml(this._status)}</div><div class="satellite-controls"><button class="wake primary">Enable wake word</button><button class="ptt">Push to talk</button><button class="mute">Mute</button></div><div class="privacy">AUDIO STREAMS TO HOME ASSISTANT ONLY // NO RECORDING</div></div>
       <style>.satellite-layout{min-height:170px;padding:20px;display:grid;gap:13px}.satellite-head{display:grid;grid-template-columns:48px 1fr 12px;gap:12px;align-items:center}.icon-shell{width:46px;height:46px}.live-dot{width:9px;height:9px;border:1px solid var(--j-line);border-radius:50%}.live-dot.active{background:var(--j-green);box-shadow:0 0 12px var(--j-green)}.satellite-status{font:700 11px monospace;letter-spacing:.08em;color:var(--j-accent);text-transform:uppercase}.satellite-controls{display:grid;grid-template-columns:1.35fr 1fr .7fr;gap:8px}.privacy{font:600 8px monospace;letter-spacing:.1em;color:var(--secondary-text-color)}@container(max-width:430px){.satellite-layout{padding:14px}.satellite-controls{grid-template-columns:1fr 1fr}.mute{grid-column:1/-1}}</style>`, { interactive: false });
     this.shadowRoot.querySelector(".wake").addEventListener("click", () =>
@@ -1126,7 +1126,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (!root) return;
     const entity = stateObject(this._hass, this._config?.satellite_entity);
     const entityState = root.querySelector(".entity-state");
-    if (entityState) entityState.textContent = entity ? formatState(entity, {}) : "Browser satellite";
+    if (entityState) entityState.textContent = entity ? formatState(entity, {}) : `Browser satellite · UI ${JARVIS_UI_VERSION}`;
     const status = root.querySelector(".satellite-status");
     if (status) status.textContent = this._status;
     const dot = root.querySelector(".live-dot");
@@ -2328,6 +2328,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-status-card", JarvisStatusCard, "Jarvis Status", "Multi-entity system summary"],
   ["jarvis-voice-card", JarvisVoiceCard, "Jarvis Voice", "Animated Project Jarvis Assist launcher"],
   ["jarvis-voice-satellite-card", JarvisVoiceSatelliteCard, "Jarvis Voice Satellite", "Wake word and push-to-talk browser satellite"],
+  ["jarvis-voice-satellite-v2-card", JarvisVoiceSatelliteCard, "Jarvis Voice Satellite v2", "Versioned low-latency browser voice satellite"],
   ["jarvis-room-card", JarvisRoomCard, "Jarvis Room Summary", "Room state, telemetry and navigation"],
   ["jarvis-presence-card", JarvisPresenceCard, "Jarvis Presence", "Person and presence status"],
   ["jarvis-weather-card", JarvisWeatherCard, "Jarvis Weather", "Current weather telemetry"],
