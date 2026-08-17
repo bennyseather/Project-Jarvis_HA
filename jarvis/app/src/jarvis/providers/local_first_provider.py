@@ -80,7 +80,7 @@ class LocalFirstReasoningProvider:
         if instructions:
             ollama_messages.append({"role": "system", "content": str(instructions)})
         ollama_messages.extend({"role": str(item.get("role", "user")), "content": str(item.get("content", ""))} for item in messages if isinstance(item, dict))
-        payload = {"model": self.policy.model, "messages": ollama_messages, "stream": False, "think": False, "keep_alive": "30m", "options": {"temperature": 0.2, "num_ctx": 8192}}
+        payload = {"model": self.policy.model, "messages": ollama_messages, "stream": False, "think": False, "keep_alive": -1, "options": {"temperature": 0.2, "num_ctx": 8192}}
         if json_output:
             payload["format"] = "json"
         response = self._post("/api/chat", payload, timeout_seconds=timeout_seconds)

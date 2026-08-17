@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.3
+
+- Keep the dedicated local Qwen3 reasoning model resident in GPU memory.
+- Eliminate the avoidable cold start after thirty minutes of inactivity.
+
 ## 0.45.2
 
 - Exclude the large Home Assistant entity catalogue from ordinary knowledge questions.
