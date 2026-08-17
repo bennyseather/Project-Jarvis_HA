@@ -47,6 +47,8 @@ class OpenAIAssistantProposalProvider:
 
     def propose(self, request: AssistantInput) -> AssistantProposal:
         context = dict(request.context)
+        if not self._needs_home_assistant_context(request.request_text):
+            context.pop("home_assistant", None)
         history = context.pop("conversation", ())
         messages = [
             {"role": item["role"], "content": item["content"]}
@@ -94,6 +96,26 @@ class OpenAIAssistantProposalProvider:
             return AssistantProposal(kind, str(payload.get("message", "")), action=action)
         if kind not in {AssistantProposalKind.CONVERSATION,AssistantProposalKind.READ_ENTITY_STATE}: return AssistantProposal(AssistantProposalKind.UNSUPPORTED,"Unsupported model proposal.")
         return AssistantProposal(kind,str(payload.get("message","")),payload.get("entity_id"))
+
+    @staticmethod
+    def _needs_home_assistant_context(request_text: str) -> bool:
+        """Avoid sending the full entity catalogue for ordinary knowledge questions."""
+        normalized = " ".join(request_text.casefold().split())
+        words = set(normalized.strip(" .?!").split())
+        home_nouns = {
+            "alarm", "area", "blind", "blinds", "brightness", "camera",
+            "climate", "cover", "curtain", "device", "door", "entity",
+            "fan", "floor", "garage", "heater", "heating", "home", "house",
+            "humidifier", "humidity", "light", "lights", "lock", "mower",
+            "room", "scene", "script", "sensor", "speaker", "switch",
+            "temperature", "thermostat", "vacuum", "washing", "window",
+        }
+        action_prefixes = (
+            "activate ", "close ", "lock ", "open ", "press ", "run ",
+            "set ", "start ", "stop ", "switch ", "toggle ", "turn ",
+            "unlock ",
+        )
+        return bool(words & home_nouns) or normalized.startswith(action_prefixes)
 
     @staticmethod
     def _fallback(request: AssistantInput) -> AssistantProposal:

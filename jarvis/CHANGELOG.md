@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.2
+
+- Exclude the large Home Assistant entity catalogue from ordinary knowledge questions.
+- Retain the authorized catalogue for home, entity, status, and action requests.
+- Prevent local Qwen planning timeouts that surfaced as intent-recognition and audio errors.
+
 ## 0.45.1
 
 - Publish the local Intelligence Node configuration under a new Supervisor-visible add-on version.
