@@ -15,6 +15,7 @@ from jarvis.core.assistant import Assistant
 from jarvis.core.container import ServiceContainer
 from jarvis.core.context_builder import ContextBuilder
 from jarvis.homeassistant.client import HomeAssistantClient
+from jarvis.homeassistant.weather_intelligence import LocalWeatherIntelligence
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
 from jarvis.providers.local_first_provider import LocalFirstReasoningProvider, LocalReasoningPolicy
@@ -650,6 +651,11 @@ class JarvisApplication:
             self.container.personality_manager
         )
         self.container.proactive_allowed_entities = allowed_reads
+        self.container.weather_intelligence = LocalWeatherIntelligence(
+            self.container.home_assistant,
+            self.container.entity_registry,
+            allowed_reads,
+        )
         timeline_config = self.general.get("event_timeline", {})
         if (
             self.container.timeline_policy.enabled
@@ -802,6 +808,12 @@ class JarvisApplication:
         if stewardship_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(stewardship_result))
             return stewardship_result
+        weather_result = await self.container.weather_intelligence.handle(text)
+        if weather_result is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(weather_result)
+            )
+            return weather_result
         rss_result = self.container.rss_intelligence.handle(
             text, identifier, voice_mode=voice_mode
         )

@@ -72,6 +72,7 @@ class ServiceContainer:
         self.stewardship_store = None
         self.stewardship = None
         self.stewardship_task = None
+        self.weather_intelligence = None
         self.blueprint_planner = None
         self.rss_policy = None
         self.rss_intelligence = None

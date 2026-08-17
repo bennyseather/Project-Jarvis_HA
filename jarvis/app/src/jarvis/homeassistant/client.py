@@ -207,6 +207,30 @@ class HomeAssistantClient:
 
         return True
 
+    async def call_service_response(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict,
+    ) -> dict:
+        """Call a read-style Home Assistant service and return its response."""
+        request = {
+            "id": self.get_next_message_id(),
+            "type": "call_service",
+            "domain": domain,
+            "service": service,
+            "service_data": service_data,
+            "return_response": True,
+        }
+        await self.send_json(request)
+        response = await self.receive_json()
+        if response.get("type") != "result" or not response.get("success", False):
+            raise RuntimeError(
+                f"Home Assistant reported a failed service call: {response}"
+            )
+        result = response.get("result") or {}
+        return result.get("response") or {}
+
     async def dispatch_service(
         self,
         domain: str,

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.4
+
+- Route ordinary weather forecasts directly through the permitted Home Assistant weather entity.
+- Avoid local reasoning and public web research for household forecasts.
+- Return one concise forecast suitable for low-latency spoken delivery.
+
 ## 0.45.3
 
 - Keep the dedicated local Qwen3 reasoning model resident in GPU memory.
