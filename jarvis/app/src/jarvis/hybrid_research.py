@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import re
 import socket
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -18,6 +19,7 @@ class HybridResearchPolicy:
     maximum_pages: int = 3
     maximum_page_bytes: int = 262_144
     timeout_seconds: int = 15
+    search_engines: str = "bing,duckduckgo,brave"
     normal_model: str = "gpt-5.6-luna"
     escalation_model: str = "gpt-5.6-terra"
     premium_model: str = "gpt-5.6-sol"
@@ -38,6 +40,8 @@ class HybridResearchPolicy:
             raise ValueError("hybrid_research.maximum_page_bytes is invalid")
         if not 3 <= policy.timeout_seconds <= 60:
             raise ValueError("hybrid_research.timeout_seconds is invalid")
+        if not re.fullmatch(r"[a-z0-9_-]+(?:,[a-z0-9_-]+)*", policy.search_engines):
+            raise ValueError("hybrid_research.search_engines is invalid")
         return policy
 
 
@@ -81,7 +85,12 @@ class SearXNGResearchClient:
         """Return bounded search metadata without fetching result pages."""
         search_url = self.policy.searxng_url + (
             "&" if "?" in self.policy.searxng_url else "?"
-        ) + urlencode({"q": query, "format": "json", "language": "auto"})
+        ) + urlencode({
+            "q": query,
+            "format": "json",
+            "language": "auto",
+            "engines": self.policy.search_engines,
+        })
         try:
             payload = self._json(search_url)
         except Exception as exc:

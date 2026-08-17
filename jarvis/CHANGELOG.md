@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.11
+
+- Use a resilient local metasearch engine mix instead of relying on CAPTCHA-blocked defaults.
+- Fall back from search to bounded direct reads of official primary sources for deterministic adapters.
+- Recognise abbreviated `temp` sensor names while preserving Home Assistant read permissions.
+
 ## 0.45.10
 
 - Route local temperature reads ahead of general reasoning and research.

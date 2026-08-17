@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import date
+import json
 import re
 import time
 from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +59,23 @@ class HomeAssistantReleaseAdapter:
     def query(self, text: str) -> str:
         return "site:home-assistant.io/blog Home Assistant latest stable release"
 
+    def direct_urls(self):
+        return ("https://api.github.com/repos/home-assistant/core/releases/latest",)
+
+    def extract_direct(self, documents):
+        for item in documents:
+            try:
+                tag = str(json.loads(item["content"]).get("tag_name", ""))
+            except (ValueError, TypeError):
+                continue
+            if re.fullmatch(r"\d{4}\.\d+\.\d+", tag):
+                return {
+                    "message": f"The latest stable Home Assistant release is {tag}.",
+                    "sources": ({"title": "Home Assistant Core releases", "url": item["url"]},),
+                    "adapter": "home_assistant_release",
+                }
+        return None
+
     def extract(self, results):
         releases = []
         for item in results:
@@ -99,6 +118,28 @@ class AndroidReleaseAdapter:
     def query(self, text: str) -> str:
         return "site:developer.android.com/about/versions Android latest stable release"
 
+    def direct_urls(self):
+        expected = date.today().year - 2009
+        return tuple(
+            f"https://developer.android.com/about/versions/{version}/blog-release"
+            for version in range(expected - 1, expected + 2)
+        )
+
+    def extract_direct(self, documents):
+        releases = []
+        for item in documents:
+            match = self._URL.match(item["url"])
+            if match and "blog-release" in item["url"]:
+                releases.append((int(match.group(1)), item))
+        if not releases:
+            return None
+        version, item = max(releases, key=lambda value: value[0])
+        return {
+            "message": f"The latest stable Android release is Android {version}.",
+            "sources": ({"title": f"Android {version} release", "url": item["url"]},),
+            "adapter": "android_release",
+        }
+
     def extract(self, results):
         releases = []
         for item in results:
@@ -130,6 +171,26 @@ class PolestarModelAdapter:
     def query(self, text: str) -> str:
         return "site:polestar.com/global newest Polestar model"
 
+    def direct_urls(self):
+        return ("https://www.polestar.com/no/",)
+
+    def extract_direct(self, documents):
+        models = [
+            int(value)
+            for item in documents
+            for value in re.findall(
+                r"\bPolestar\s+([1-9]\d?)\b", item["content"], re.IGNORECASE
+            )
+        ]
+        if not models:
+            return None
+        model = max(models)
+        return {
+            "message": f"The newest Polestar model is the Polestar {model}.",
+            "sources": ({"title": "Polestar models", "url": documents[0]["url"]},),
+            "adapter": "polestar_model",
+        }
+
     def extract(self, results):
         for item in results:
             url = str(item.get("url", "")).split("?", 1)[0]
@@ -157,6 +218,24 @@ class UnitedStatesPresidentAdapter:
 
     def query(self, text: str) -> str:
         return "site:whitehouse.gov current President of the United States"
+
+    def direct_urls(self):
+        return ("https://www.whitehouse.gov/administration/",)
+
+    def extract_direct(self, documents):
+        for item in documents:
+            match = re.search(
+                r"President\s+([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})",
+                item["content"],
+            )
+            if match:
+                name = match.group(1).strip()
+                return {
+                    "message": f"The current president of the United States is {name}.",
+                    "sources": ({"title": "The White House administration", "url": item["url"]},),
+                    "adapter": "us_president",
+                }
+        return None
 
     def extract(self, results):
         for item in results:
@@ -253,21 +332,36 @@ class CurrentInformationIntelligence:
         adapter = next((item for item in self.adapters if item.matches(text)), None)
         query = adapter.query(text) if adapter else text[:300]
         search_started = self.clock()
+        search_task = asyncio.create_task(
+            asyncio.to_thread(self.search.search_results, query)
+        )
+        search_timed_out = False
         try:
             raw = await asyncio.wait_for(
-                asyncio.to_thread(self.search.search_results, query),
-                timeout=self.policy.search_timeout_seconds,
+                search_task, timeout=self.policy.search_timeout_seconds
             )
         except asyncio.TimeoutError:
-            return self._fallback("search_timeout", started)
+            raw = ()
+            search_timed_out = True
         ranked = self._rank(raw, query)[: self.policy.maximum_sources]
         search_ms = round((self.clock() - search_started) * 1000)
         if adapter:
             extracted = adapter.extract(ranked)
             if extracted:
                 return self._success(extracted, started, search_ms, synthesis_ms=0)
+            if hasattr(adapter, "direct_urls"):
+                direct = await self._direct_documents(adapter)
+                extracted = adapter.extract_direct(direct) if direct else None
+                if extracted:
+                    return self._success(
+                        extracted,
+                        started,
+                        round((self.clock() - search_started) * 1000),
+                        synthesis_ms=0,
+                    )
         if not ranked:
-            return self._fallback("no_authoritative_evidence", started)
+            reason = "search_timeout" if search_timed_out else "no_authoritative_evidence"
+            return self._fallback(reason, started)
         synthesis_started = self.clock()
         result = await self._synthesise(text, ranked, voice_mode)
         synthesis_ms = round((self.clock() - synthesis_started) * 1000)
@@ -278,6 +372,28 @@ class CurrentInformationIntelligence:
             "sources": tuple({"title": item["title"], "url": item["url"]} for item in ranked),
             "adapter": "bounded_local_synthesis",
         }, started, search_ms, synthesis_ms)
+
+    async def _direct_documents(self, adapter):
+        tasks = [
+            asyncio.to_thread(self._fetch_official, url)
+            for url in adapter.direct_urls()
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        return tuple(item for item in results if isinstance(item, dict))
+
+    def _fetch_official(self, url):
+        request = Request(
+            url,
+            headers={
+                "Accept": "application/json,text/html,text/plain",
+                "User-Agent": "Project-Jarvis/0.45",
+            },
+        )
+        with urlopen(
+            request, timeout=self.policy.search_timeout_seconds
+        ) as response:
+            content = response.read(262_144).decode("utf-8", errors="replace")
+            return {"url": response.geturl(), "content": content}
 
     async def _synthesise(self, question, evidence, voice_mode):
         evidence_text = "\n".join(

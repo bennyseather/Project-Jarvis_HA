@@ -608,7 +608,11 @@ class WholeHomeSituationalIntelligence:
                 priority = 0
             elif item.domain == "sensor" and (
                 item.device_class == "temperature"
-                or "temperature" in (item.entity_id + " " + item.friendly_name).casefold()
+                or bool(
+                    set(WholeHomeSituationalIntelligence._norm(
+                        item.entity_id + " " + item.friendly_name
+                    ).split()) & {"temp", "temperature"}
+                )
             ):
                 value = item.state
                 priority = 1 if item.device_class == "temperature" else 2
@@ -894,7 +898,12 @@ class WholeHomeSituationalIntelligence:
     @staticmethod
     def _norm(value):
         return " ".join(
-            str(value).casefold().replace("?", " ").replace(",", " ").split()
+            str(value).casefold()
+            .replace("?", " ")
+            .replace(",", " ")
+            .replace("_", " ")
+            .replace("-", " ")
+            .split()
         )
 
     @staticmethod

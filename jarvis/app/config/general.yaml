@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.45.10"
+  version: "0.45.11"
 
 system:
   debug: false
@@ -52,6 +52,7 @@ research:
 
 hybrid_research:
   searxng_url: "http://homeassistant.local:8088/search"
+  search_engines: "bing,duckduckgo,brave"
   maximum_results: 5
   maximum_pages: 3
   maximum_page_bytes: 262144
