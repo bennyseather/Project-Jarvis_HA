@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.46.5";
+const JARVIS_UI_VERSION = "0.46.6";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1393,6 +1393,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
 }
 
+class JarvisVoiceSatelliteV2Card extends JarvisVoiceSatelliteCard {}
+
 function multiEntityForm(extra = []) {
   return {
     schema: [
@@ -2328,7 +2330,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-status-card", JarvisStatusCard, "Jarvis Status", "Multi-entity system summary"],
   ["jarvis-voice-card", JarvisVoiceCard, "Jarvis Voice", "Animated Project Jarvis Assist launcher"],
   ["jarvis-voice-satellite-card", JarvisVoiceSatelliteCard, "Jarvis Voice Satellite", "Wake word and push-to-talk browser satellite"],
-  ["jarvis-voice-satellite-v2-card", JarvisVoiceSatelliteCard, "Jarvis Voice Satellite v2", "Versioned low-latency browser voice satellite"],
+  ["jarvis-voice-satellite-v2-card", JarvisVoiceSatelliteV2Card, "Jarvis Voice Satellite v2", "Versioned low-latency browser voice satellite"],
   ["jarvis-room-card", JarvisRoomCard, "Jarvis Room Summary", "Room state, telemetry and navigation"],
   ["jarvis-presence-card", JarvisPresenceCard, "Jarvis Presence", "Person and presence status"],
   ["jarvis-weather-card", JarvisWeatherCard, "Jarvis Weather", "Current weather telemetry"],
