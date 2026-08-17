@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.5
+
+- Answer stable general-knowledge questions with exactly one local Ollama pass.
+- Reserve web research for current, explicitly researched, or locally uncertain questions.
+- Keep Home Assistant entity handling and OpenAI fallback boundaries unchanged.
+
 ## 0.45.4
 
 - Route ordinary weather forecasts directly through the permitted Home Assistant weather entity.

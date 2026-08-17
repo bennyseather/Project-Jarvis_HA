@@ -59,6 +59,26 @@ class LocalFirstReasoningProvider:
                 return self.fallback.reason(instructions=instructions, input_messages=input_messages, model=model, timeout_seconds=timeout_seconds)
             return {"status": "unavailable", "message": "Local reasoning is temporarily unavailable."}
 
+    def reason_local(self, *, instructions, input_messages, timeout_seconds):
+        """Run exactly one local pass without invoking the external fallback."""
+        try:
+            message = self._chat(
+                instructions, input_messages, timeout_seconds=timeout_seconds
+            )
+            return {
+                "status": "success",
+                "message": message,
+                "provider": "ollama",
+                "model": self.policy.model,
+                "estimated_cost_usd": 0.0,
+            }
+        except Exception as exc:
+            self.logger.warning(f"Local knowledge pass unavailable: {exc}")
+            return {
+                "status": "unavailable",
+                "message": "Local reasoning is temporarily unavailable.",
+            }
+
     def research(self, **kwargs):
         if self.fallback is None:
             return {"status": "unavailable", "message": "External research is unavailable.", "sources": ()}

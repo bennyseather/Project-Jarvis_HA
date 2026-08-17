@@ -19,6 +19,7 @@ from jarvis.homeassistant.weather_intelligence import LocalWeatherIntelligence
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
 from jarvis.providers.local_first_provider import LocalFirstReasoningProvider, LocalReasoningPolicy
+from jarvis.providers.local_knowledge_router import LocalKnowledgeRouter
 from jarvis.core.assistant_factory import create_read_only_assistant
 from jarvis.context.context_assembler import ContextAssembler
 from jarvis.context.providers import MemoryContextProvider, KnowledgeContextProvider
@@ -378,6 +379,9 @@ class JarvisApplication:
             self.container.openai = LocalFirstReasoningProvider(
                 self.container.local_reasoning_policy, self.container.logger,
                 fallback=self.container.openai,
+            )
+            self.container.local_knowledge_router = LocalKnowledgeRouter(
+                self.container.openai
             )
         self.container.adaptive_learning_policy = AdaptiveLearningPolicy.from_config(
             self.general.get("adaptive_learning", {})
@@ -908,6 +912,15 @@ class JarvisApplication:
         context["home_assistant"]["situational"] = (
             self.container.situational_intelligence.context(identifier)
         )
+        if self.container.local_knowledge_router is not None:
+            local_result = self.container.local_knowledge_router.handle(
+                text, context, voice_mode=voice_mode
+            )
+            if local_result is not None:
+                message = self._user_message(local_result)
+                if message:
+                    conversation_store.add_message(identifier, "assistant", message)
+                return local_result
         result = await self.container.read_only_assistant.handle(text, context)
         learned_suggestion = self.container.adaptive_preferences.observe_outcome(
             text, result, identifier
