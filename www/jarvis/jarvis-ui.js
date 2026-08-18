@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.7";
+const JARVIS_UI_VERSION = "0.47.8";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2376,7 +2376,7 @@ class JarvisClockDashboardCard extends HTMLElement {
       this._forecast = result?.response?.[entityId]?.forecast || result?.[entityId]?.forecast || [];
     } catch (_) { this._forecast = []; }
     this._forecastLoading = false;
-    this.render();
+    if (!this._editorOpen) this.render();
   }
 
   call(domain, service, entityId, data = {}) {
@@ -2391,6 +2391,8 @@ class JarvisClockDashboardCard extends HTMLElement {
       enabled: this.entity("alarm_enabled_entity", "input_boolean.jarvis_clock_alarm_enabled")?.state === "on",
       mode: this.entity("alarm_mode_entity", "input_select.jarvis_clock_alarm_mode")?.state || "Jarvis",
       volume: Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50),
+      days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) =>
+        this._hass?.states?.[`input_boolean.jarvis_clock_alarm_${day}`]?.state === "on"),
     };
     this._editorOpen = true;
     this.render();
@@ -2435,6 +2437,62 @@ class JarvisClockDashboardCard extends HTMLElement {
     return undefined;
   }
 
+  async playJarvisMessage(message) {
+    const result = await this._hass.callWS({
+      type: "call_service", domain: "tts", service: "get_url",
+      target: { entity_id: this._config.tts_entity || "tts.project_jarvis_high_quality_voice" },
+      service_data: { message, cache: true }, return_response: true,
+    });
+    const url = this.findPlayableUrl(result);
+    if (!url || !this._alarmIsActive) throw new Error("Jarvis voice URL unavailable");
+    await new Promise((resolve, reject) => {
+      const audio = new Audio(url);
+      audio.volume = Math.max(0.1, Math.min(1, Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50) / 100));
+      audio.addEventListener("ended", () => { this._alarmAudio = undefined; resolve(); }, { once: true });
+      audio.addEventListener("error", reject, { once: true });
+      this._alarmAudio = audio;
+      audio.play().catch(reject);
+    });
+  }
+
+  async briefingSegments() {
+    const segments = [];
+    const weather = this.entity("weather_entity", "weather.forecast_home");
+    const today = this._forecast?.[0];
+    if (weather && weather.state !== "unavailable") {
+      const condition = String(weather.state).replaceAll("-", " ");
+      const current = weather.attributes?.temperature;
+      const high = today?.temperature;
+      const low = today?.templow;
+      let message = `Today's weather is ${condition}`;
+      if (current != null) message += `, currently ${Math.round(current)} degrees`;
+      if (high != null) message += `, with a high of ${Math.round(high)} degrees`;
+      if (low != null) message += ` and a low of ${Math.round(low)} degrees`;
+      segments.push(`${message}.`);
+    }
+    const stories = this._hass?.states?.[this._config.rss_entity || "sensor.jarvis_rss_top_stories"]?.attributes?.stories || [];
+    const topStory = (matcher) => stories.find((story) => matcher.test(String(story.source || "")));
+    const bbc = topStory(/bbc/i);
+    const united = topStory(/man\s*utd|manutd|united/i);
+    if (bbc?.title) segments.push(`The top story from BBC News is: ${String(bbc.title).slice(0, 220)}.`);
+    if (united?.title) segments.push(`The latest Manchester United story is: ${String(united.title).slice(0, 220)}.`);
+    let appointmentMessage = "You have no appointments scheduled today.";
+    try {
+      const start = new Date(); start.setHours(0, 0, 0, 0);
+      const end = new Date(start); end.setDate(end.getDate() + 1);
+      const calendarId = this._config.calendar_entity || "calendar.work_reach";
+      const events = await this._hass.callApi("GET", `calendars/${encodeURIComponent(calendarId)}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`);
+      const event = (events || []).sort((a, b) => new Date(a.start?.dateTime || a.start?.date) - new Date(b.start?.dateTime || b.start?.date))[0];
+      if (event) {
+        const eventStart = new Date(event.start?.dateTime || event.start?.date);
+        const eventTime = event.start?.dateTime ? eventStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "all day";
+        appointmentMessage = `Your first work appointment is ${String(event.summary || "an appointment").slice(0, 180)}, at ${eventTime}.`;
+      }
+    } catch (_) { appointmentMessage = "I could not access today's work calendar."; }
+    segments.push(appointmentMessage);
+    return segments;
+  }
+
   async startAlarmVoice() {
     if (this._voiceRequested || !this._hass) return;
     this._voiceRequested = true;
@@ -2445,24 +2503,15 @@ class JarvisClockDashboardCard extends HTMLElement {
     }, 8000);
     const currentTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
     try {
-      const result = await this._hass.callWS({
-        type: "call_service", domain: "tts", service: "get_url",
-        target: { entity_id: this._config.tts_entity || "tts.project_jarvis_high_quality_voice" },
-        service_data: { message: `Good morning, Benny. It is ${currentTime}. Time to wake up.`, cache: true },
-        return_response: true,
-      });
-      const url = this.findPlayableUrl(result);
-      if (!url || !this._alarmIsActive) throw new Error("Jarvis voice URL unavailable");
-      const audio = new Audio(url);
-      audio.volume = Math.max(0.1, Math.min(1, Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50) / 100));
-      audio.addEventListener("ended", () => {
-        this._alarmAudio = undefined;
-        if (this._alarmIsActive) this._voiceRepeatTimer = setTimeout(() => { this._voiceRequested = false; this.startAlarmVoice(); }, 12000);
-      }, { once: true });
-      this._alarmAudio = audio;
-      await audio.play();
+      const briefing = this.briefingSegments();
+      await this.playJarvisMessage(`Good morning, Benny. It is ${currentTime}. Time to wake up.`);
       clearTimeout(this._voiceFallbackTimer);
-      this.stopAlarmTone();
+      this.stopFallbackTone();
+      for (const segment of await briefing) {
+        if (!this._alarmIsActive) break;
+        await this.playJarvisMessage(segment);
+      }
+      if (this._alarmIsActive) this._voiceRepeatTimer = setTimeout(() => { this._voiceRequested = false; this.startAlarmVoice(); }, 20000);
     } catch (_) {
       this._voiceRequested = false;
       if (this._alarmIsActive) this.startAlarmTone();
@@ -2480,6 +2529,10 @@ class JarvisClockDashboardCard extends HTMLElement {
     }
     this._alarmAudio = undefined;
     this._voiceRequested = false;
+    this.stopFallbackTone();
+  }
+
+  stopFallbackTone() {
     clearInterval(this._tonePulse);
     this._tonePulse = undefined;
     try { this._alarmOscillator?.stop(); } catch (_) {}
@@ -2496,13 +2549,15 @@ class JarvisClockDashboardCard extends HTMLElement {
   }
 
   async saveAlarm() {
-    const draft = this._draft || { hour: 7, minute: 0, enabled: false, mode: "Jarvis", volume: 50 };
+    const draft = this._draft || { hour: 7, minute: 0, enabled: false, mode: "Jarvis", volume: 50, days: [true, true, true, true, true, false, false] };
     const time = `${String(draft.hour).padStart(2, "0")}:${String(draft.minute).padStart(2, "0")}`;
+    const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
     await Promise.all([
       this.call("input_datetime", "set_datetime", this._config.alarm_time_entity || "input_datetime.jarvis_clock_alarm_time", { time: `${time}:00` }),
       this.call("input_boolean", draft.enabled ? "turn_on" : "turn_off", this._config.alarm_enabled_entity || "input_boolean.jarvis_clock_alarm_enabled"),
       this.call("input_select", "select_option", this._config.alarm_mode_entity || "input_select.jarvis_clock_alarm_mode", { option: draft.mode }),
       this.call("input_number", "set_value", this._config.alarm_volume_entity || "input_number.jarvis_clock_alarm_volume", { value: draft.volume }),
+      ...dayNames.map((day, index) => this.call("input_boolean", draft.days[index] ? "turn_on" : "turn_off", `input_boolean.jarvis_clock_alarm_${day}`)),
     ]);
     this._editorOpen = false;
     this._draft = undefined;
@@ -2526,6 +2581,9 @@ class JarvisClockDashboardCard extends HTMLElement {
     const condition = (weather?.state || "unavailable").replaceAll("-", " ");
     const forecast = this._forecast?.slice(0, 3) || [];
     const forecastHtml = forecast.map((item) => `<span><b>${new Date(item.datetime).toLocaleDateString([], { weekday: "short" })}</b>${Math.round(item.temperature)}°</span>`).join("");
+    const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const selectedDayLabels = dayLabels.filter((_, index) => this._hass?.states?.[`input_boolean.jarvis_clock_alarm_${dayNames[index]}`]?.state === "on");
     this.shadowRoot.innerHTML = `
       <style>
         :host{position:fixed;inset:0;z-index:9999;display:block;background:#020912;color:#e7fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden}
@@ -2534,14 +2592,14 @@ class JarvisClockDashboardCard extends HTMLElement {
         .main{display:grid;grid-template-columns:1.25fr .75fr;align-items:center;padding:28px;cursor:pointer}.clock{font:800 clamp(74px,16vw,150px)/.9 ui-monospace,SFMono-Regular,monospace;letter-spacing:-.08em;color:#dffcff;text-shadow:0 0 24px rgba(32,216,255,.4)}
         .date{margin-top:16px;text-transform:uppercase;letter-spacing:.18em;font:700 clamp(12px,2vw,18px) monospace;color:#20d8ff}.weather{border-left:1px solid rgba(32,216,255,.35);padding-left:26px;text-transform:capitalize}.temp{font:800 clamp(44px,8vw,76px) monospace;color:#20d8ff}.condition{font-weight:700;letter-spacing:.08em}.forecast{display:flex;gap:16px;margin-top:24px}.forecast span{display:grid;gap:4px;font:600 14px monospace;color:#9dd8e8}.forecast b{font-size:10px;color:#20d8ff;text-transform:uppercase}.alarm-indicator{position:absolute;left:28px;bottom:18px;font:700 11px monospace;letter-spacing:.14em;color:${alarmEnabled ? "#20d8ff" : "#698898"};text-transform:uppercase}
         .light{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer}.bulb{width:74px;height:74px;border:2px solid #20d8ff;border-radius:50%;display:grid;place-items:center;font-size:34px;box-shadow:${light?.state === "on" ? "0 0 32px rgba(32,216,255,.65),inset 0 0 24px rgba(32,216,255,.28)" : "none"}}.light strong{font:800 18px monospace;text-transform:uppercase;text-align:center}.light small{font:700 10px monospace;color:#20d8ff;letter-spacing:.16em}
-        .overlay{position:fixed;inset:0;background:rgba(0,5,10,.9);display:grid;place-items:center;z-index:4}.dialog{position:relative;width:min(720px,94vw);height:min(420px,92vh);padding:14px 14px 64px;border:1px solid #20d8ff;background:#041523;box-shadow:0 0 55px rgba(32,216,255,.25);overflow:hidden}.dialog h2{margin:0 0 8px;font:800 16px monospace;color:#20d8ff;text-transform:uppercase}.touch-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:8px;height:calc(100% - 26px)}.touch-panel{padding:7px;border:1px solid rgba(32,216,255,.25)}.touch-label{font:700 8px monospace;letter-spacing:.14em;color:#9dd8e8;text-transform:uppercase}.stepper{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:6px;margin-top:4px}.stepper strong{font:800 28px monospace;text-align:center;color:#e7fbff}.touch-btn{min-height:38px;border:1px solid #20d8ff;color:#e7fbff;background:#071d2c;font-weight:900;font-size:18px}.choice{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}.choice button{min-height:34px;border:1px solid rgba(32,216,255,.45);color:#9dd8e8;background:#07131f;font:800 10px monospace;text-transform:uppercase}.choice button.active{background:#20d8ff;color:#00131a}.buttons{position:absolute;left:14px;right:14px;bottom:10px;display:flex;gap:10px;justify-content:flex-end}.buttons button,.alarm-actions button{min-height:42px;padding:0 20px;border:1px solid #20d8ff;color:#dffcff;background:#071d2c;font-weight:800;text-transform:uppercase}.buttons .primary{background:#20d8ff;color:#00131a}.alarm-dialog{text-align:center;height:auto;padding-bottom:18px}.alarm-dialog .wake{font:800 clamp(36px,8vw,72px) monospace;color:#20d8ff}.alarm-actions{display:flex;gap:14px;justify-content:center;margin-top:24px}
+        .overlay{position:fixed;inset:0;background:rgba(0,5,10,.9);display:grid;place-items:center;z-index:4}.dialog{position:relative;width:min(720px,94vw);height:min(440px,94vh);padding:10px 10px 58px;border:1px solid #20d8ff;background:#041523;box-shadow:0 0 55px rgba(32,216,255,.25);overflow:hidden}.dialog h2{margin:0 0 6px;font:800 14px monospace;color:#20d8ff;text-transform:uppercase}.touch-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:6px;height:calc(100% - 20px)}.touch-panel{padding:6px;border:1px solid rgba(32,216,255,.25)}.touch-panel.days-panel{grid-column:1/-1}.touch-label{font:700 8px monospace;letter-spacing:.14em;color:#9dd8e8;text-transform:uppercase}.stepper{display:grid;grid-template-columns:42px 1fr 42px;align-items:center;gap:5px;margin-top:3px}.stepper strong{font:800 25px monospace;text-align:center;color:#e7fbff}.touch-btn{min-height:34px;border:1px solid #20d8ff;color:#e7fbff;background:#071d2c;font-weight:900;font-size:17px}.choice{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:3px}.choice button,.days button{min-height:30px;border:1px solid rgba(32,216,255,.45);color:#9dd8e8;background:#07131f;font:800 9px monospace;text-transform:uppercase}.choice button.active,.days button.active{background:#20d8ff;color:#00131a}.days{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;margin-top:4px}.buttons{position:absolute;left:10px;right:10px;bottom:8px;display:flex;gap:8px;justify-content:flex-end}.buttons button,.alarm-actions button{min-height:38px;padding:0 18px;border:1px solid #20d8ff;color:#dffcff;background:#071d2c;font-weight:800;text-transform:uppercase}.buttons .primary{background:#20d8ff;color:#00131a}.alarm-dialog{text-align:center;height:auto;padding-bottom:18px}.alarm-dialog .wake{font:800 clamp(36px,8vw,72px) monospace;color:#20d8ff}.alarm-actions{display:flex;gap:14px;justify-content:center;margin-top:24px}
         @media(max-width:650px){.screen{padding:8px;gap:8px}.main{padding:18px;grid-template-columns:1fr 1fr}.clock{font-size:64px}.date{font-size:10px}.weather{padding-left:16px}.temp{font-size:42px}.forecast{gap:8px}.forecast span:nth-child(3){display:none}.light strong{font-size:13px}.bulb{width:58px;height:58px}}
       </style>
       <div class="screen">
-        <section class="panel main" id="open-alarm"><div><div class="clock">${time}</div><div class="date">${escapeHtml(date)}</div></div><div class="weather"><div class="temp">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><div class="condition">${escapeHtml(condition)}</div><div class="forecast">${forecastHtml}</div></div><div class="alarm-indicator">${alarmEnabled ? `Alarm ${escapeHtml(alarmTime.slice(0, 5))} · ${escapeHtml(alarmMode)}` : "Alarm off"}</div></section>
+        <section class="panel main" id="open-alarm"><div><div class="clock">${time}</div><div class="date">${escapeHtml(date)}</div></div><div class="weather"><div class="temp">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><div class="condition">${escapeHtml(condition)}</div><div class="forecast">${forecastHtml}</div></div><div class="alarm-indicator">${alarmEnabled ? `Alarm ${escapeHtml(alarmTime.slice(0, 5))} · ${escapeHtml(selectedDayLabels.join(" ") || "No days")} · ${escapeHtml(alarmMode)}` : "Alarm off"}</div></section>
         <section class="panel light" id="toggle-light"><div class="bulb">◉</div><strong>Interior<br>Lights</strong><small>${escapeHtml(light?.state || "unavailable")}</small></section>
       </div>
-      ${this._editorOpen ? `<div class="overlay"><div class="dialog"><h2>Wake sequence</h2><div class="touch-grid"><div class="touch-panel"><div class="touch-label">Alarm time</div><div class="stepper"><button class="touch-btn" data-step="hour:-1">−</button><strong>${String(this._draft.hour).padStart(2,"0")}:${String(this._draft.minute).padStart(2,"0")}</strong><button class="touch-btn" data-step="hour:1">+</button></div><div class="stepper"><button class="touch-btn" data-step="minute:-5">−5</button><strong>MIN</strong><button class="touch-btn" data-step="minute:5">+5</button></div></div><div class="touch-panel"><div class="touch-label">Alarm enabled</div><div class="choice"><button data-enabled="false" class="${!this._draft.enabled ? "active" : ""}">Off</button><button data-enabled="true" class="${this._draft.enabled ? "active" : ""}">On</button></div><div class="touch-label" style="margin-top:12px">Wake mode</div><div class="choice"><button data-mode="Jarvis" class="${this._draft.mode === "Jarvis" ? "active" : ""}">Jarvis</button><button data-mode="Spotify" class="${this._draft.mode === "Spotify" ? "active" : ""}">Spotify</button></div><div class="touch-label" style="margin-top:12px">Volume</div><div class="stepper"><button class="touch-btn" data-step="volume:-10">−</button><strong>${this._draft.volume}%</strong><button class="touch-btn" data-step="volume:10">+</button></div></div></div><div class="buttons"><button id="close-editor">Cancel</button><button class="primary" id="save-alarm">Save alarm</button></div></div></div>` : ""}
+      ${this._editorOpen ? `<div class="overlay"><div class="dialog"><h2>Wake sequence</h2><div class="touch-grid"><div class="touch-panel"><div class="touch-label">Alarm time</div><div class="stepper"><button class="touch-btn" data-step="hour:-1">−</button><strong>${String(this._draft.hour).padStart(2,"0")}:${String(this._draft.minute).padStart(2,"0")}</strong><button class="touch-btn" data-step="hour:1">+</button></div><div class="stepper"><button class="touch-btn" data-step="minute:-5">−5</button><strong>MIN</strong><button class="touch-btn" data-step="minute:5">+5</button></div></div><div class="touch-panel"><div class="touch-label">Alarm enabled</div><div class="choice"><button data-enabled="false" class="${!this._draft.enabled ? "active" : ""}">Off</button><button data-enabled="true" class="${this._draft.enabled ? "active" : ""}">On</button></div><div class="touch-label" style="margin-top:6px">Wake mode</div><div class="choice"><button data-mode="Jarvis" class="${this._draft.mode === "Jarvis" ? "active" : ""}">Jarvis</button><button data-mode="Spotify" class="${this._draft.mode === "Spotify" ? "active" : ""}">Spotify</button></div><div class="touch-label" style="margin-top:6px">Volume</div><div class="stepper"><button class="touch-btn" data-step="volume:-10">−</button><strong>${this._draft.volume}%</strong><button class="touch-btn" data-step="volume:10">+</button></div></div><div class="touch-panel days-panel"><div class="touch-label">Repeat days</div><div class="days">${dayLabels.map((label,index) => `<button data-day="${index}" class="${this._draft.days[index] ? "active" : ""}">${label}</button>`).join("")}<button data-days="weekdays">Weekdays</button><button data-days="all">Every day</button></div></div></div><div class="buttons"><button id="close-editor">Cancel</button><button class="primary" id="save-alarm">Save alarm</button></div></div></div>` : ""}
       ${alarmActive ? `<div class="overlay"><div class="dialog alarm-dialog"><h2>Wake sequence active</h2><div class="wake">${time}</div><div class="alarm-actions"><button id="cancel-alarm">Cancel</button><button id="snooze-alarm">Snooze 5 min</button></div></div></div>` : ""}`;
     this.shadowRoot.querySelector("#open-alarm")?.addEventListener("click", () => this.openEditor());
     this.shadowRoot.querySelector("#toggle-light")?.addEventListener("click", () => this.call("light", "toggle", this._config.light_entity || "light.interior_lights"));
@@ -2550,6 +2608,8 @@ class JarvisClockDashboardCard extends HTMLElement {
     this.shadowRoot.querySelectorAll("[data-step]").forEach((button) => button.addEventListener("click", () => { const [field, delta] = button.dataset.step.split(":"); this.changeDraft(field, Number(delta)); }));
     this.shadowRoot.querySelectorAll("[data-enabled]").forEach((button) => button.addEventListener("click", () => { this._draft.enabled = button.dataset.enabled === "true"; this.render(); }));
     this.shadowRoot.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => { this._draft.mode = button.dataset.mode; this.render(); }));
+    this.shadowRoot.querySelectorAll("[data-day]").forEach((button) => button.addEventListener("click", () => { const index = Number(button.dataset.day); this._draft.days[index] = !this._draft.days[index]; this.render(); }));
+    this.shadowRoot.querySelectorAll("[data-days]").forEach((button) => button.addEventListener("click", () => { this._draft.days = button.dataset.days === "all" ? Array(7).fill(true) : [true, true, true, true, true, false, false]; this.render(); }));
     this.shadowRoot.querySelector("#cancel-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_cancel"));
     this.shadowRoot.querySelector("#snooze-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_snooze"));
     this._alarmIsActive = alarmActive;
