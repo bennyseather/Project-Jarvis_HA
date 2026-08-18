@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.5";
+const JARVIS_UI_VERSION = "0.47.6";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2353,7 +2353,7 @@ class JarvisClockDashboardCard extends HTMLElement {
     }, 1000);
   }
 
-  disconnectedCallback() { clearInterval(this._ticker); }
+  disconnectedCallback() { clearInterval(this._ticker); this.stopAlarmTone(); }
   setConfig(config) { this._config = config || {}; this.render(); }
   set hass(value) {
     this._hass = value;
@@ -2384,6 +2384,7 @@ class JarvisClockDashboardCard extends HTMLElement {
   }
 
   openEditor() {
+    this.unlockAlarmAudio();
     const alarmTime = this.entity("alarm_time_entity", "input_datetime.jarvis_clock_alarm_time")?.state || "07:00:00";
     this._draft = {
       hour: Number(alarmTime.slice(0, 2)), minute: Number(alarmTime.slice(3, 5)),
@@ -2393,6 +2394,42 @@ class JarvisClockDashboardCard extends HTMLElement {
     };
     this._editorOpen = true;
     this.render();
+  }
+
+  unlockAlarmAudio() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    if (!this._audioContext) this._audioContext = new AudioContextClass();
+    if (this._audioContext.state === "suspended") this._audioContext.resume().catch(() => {});
+  }
+
+  startAlarmTone() {
+    if (this._alarmOscillator) return;
+    this.unlockAlarmAudio();
+    if (!this._audioContext || this._audioContext.state !== "running") return;
+    const oscillator = this._audioContext.createOscillator();
+    const gain = this._audioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    gain.gain.value = 0.14;
+    oscillator.connect(gain);
+    gain.connect(this._audioContext.destination);
+    oscillator.start();
+    this._alarmOscillator = oscillator;
+    this._alarmGain = gain;
+    this._toneHigh = true;
+    this._tonePulse = setInterval(() => {
+      this._toneHigh = !this._toneHigh;
+      this._alarmGain?.gain.setTargetAtTime(this._toneHigh ? 0.14 : 0.025, this._audioContext.currentTime, 0.035);
+    }, 420);
+  }
+
+  stopAlarmTone() {
+    clearInterval(this._tonePulse);
+    this._tonePulse = undefined;
+    try { this._alarmOscillator?.stop(); } catch (_) {}
+    this._alarmOscillator = undefined;
+    this._alarmGain = undefined;
   }
 
   changeDraft(field, delta) {
@@ -2442,7 +2479,7 @@ class JarvisClockDashboardCard extends HTMLElement {
         .main{display:grid;grid-template-columns:1.25fr .75fr;align-items:center;padding:28px;cursor:pointer}.clock{font:800 clamp(74px,16vw,150px)/.9 ui-monospace,SFMono-Regular,monospace;letter-spacing:-.08em;color:#dffcff;text-shadow:0 0 24px rgba(32,216,255,.4)}
         .date{margin-top:16px;text-transform:uppercase;letter-spacing:.18em;font:700 clamp(12px,2vw,18px) monospace;color:#20d8ff}.weather{border-left:1px solid rgba(32,216,255,.35);padding-left:26px;text-transform:capitalize}.temp{font:800 clamp(44px,8vw,76px) monospace;color:#20d8ff}.condition{font-weight:700;letter-spacing:.08em}.forecast{display:flex;gap:16px;margin-top:24px}.forecast span{display:grid;gap:4px;font:600 14px monospace;color:#9dd8e8}.forecast b{font-size:10px;color:#20d8ff;text-transform:uppercase}.alarm-indicator{position:absolute;left:28px;bottom:18px;font:700 11px monospace;letter-spacing:.14em;color:${alarmEnabled ? "#20d8ff" : "#698898"};text-transform:uppercase}
         .light{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer}.bulb{width:74px;height:74px;border:2px solid #20d8ff;border-radius:50%;display:grid;place-items:center;font-size:34px;box-shadow:${light?.state === "on" ? "0 0 32px rgba(32,216,255,.65),inset 0 0 24px rgba(32,216,255,.28)" : "none"}}.light strong{font:800 18px monospace;text-transform:uppercase;text-align:center}.light small{font:700 10px monospace;color:#20d8ff;letter-spacing:.16em}
-        .overlay{position:fixed;inset:0;background:rgba(0,5,10,.9);display:grid;place-items:center;z-index:4}.dialog{width:min(720px,94vw);max-height:94vh;padding:18px;border:1px solid #20d8ff;background:#041523;box-shadow:0 0 55px rgba(32,216,255,.25)}.dialog h2{margin:0 0 12px;font:800 18px monospace;color:#20d8ff;text-transform:uppercase}.touch-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:12px}.touch-panel{padding:10px;border:1px solid rgba(32,216,255,.25)}.touch-label{font:700 9px monospace;letter-spacing:.14em;color:#9dd8e8;text-transform:uppercase}.stepper{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;gap:8px;margin-top:6px}.stepper strong{font:800 32px monospace;text-align:center;color:#e7fbff}.touch-btn{min-height:44px;border:1px solid #20d8ff;color:#e7fbff;background:#071d2c;font-weight:900;font-size:20px}.choice{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:7px}.choice button{min-height:42px;border:1px solid rgba(32,216,255,.45);color:#9dd8e8;background:#07131f;font:800 11px monospace;text-transform:uppercase}.choice button.active{background:#20d8ff;color:#00131a}.buttons{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}.buttons button,.alarm-actions button{min-height:42px;padding:0 20px;border:1px solid #20d8ff;color:#dffcff;background:#071d2c;font-weight:800;text-transform:uppercase}.buttons .primary{background:#20d8ff;color:#00131a}.alarm-dialog{text-align:center}.alarm-dialog .wake{font:800 clamp(36px,8vw,72px) monospace;color:#20d8ff}.alarm-actions{display:flex;gap:14px;justify-content:center;margin-top:24px}
+        .overlay{position:fixed;inset:0;background:rgba(0,5,10,.9);display:grid;place-items:center;z-index:4}.dialog{position:relative;width:min(720px,94vw);height:min(420px,92vh);padding:14px 14px 64px;border:1px solid #20d8ff;background:#041523;box-shadow:0 0 55px rgba(32,216,255,.25);overflow:hidden}.dialog h2{margin:0 0 8px;font:800 16px monospace;color:#20d8ff;text-transform:uppercase}.touch-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:8px;height:calc(100% - 26px)}.touch-panel{padding:7px;border:1px solid rgba(32,216,255,.25)}.touch-label{font:700 8px monospace;letter-spacing:.14em;color:#9dd8e8;text-transform:uppercase}.stepper{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:6px;margin-top:4px}.stepper strong{font:800 28px monospace;text-align:center;color:#e7fbff}.touch-btn{min-height:38px;border:1px solid #20d8ff;color:#e7fbff;background:#071d2c;font-weight:900;font-size:18px}.choice{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}.choice button{min-height:34px;border:1px solid rgba(32,216,255,.45);color:#9dd8e8;background:#07131f;font:800 10px monospace;text-transform:uppercase}.choice button.active{background:#20d8ff;color:#00131a}.buttons{position:absolute;left:14px;right:14px;bottom:10px;display:flex;gap:10px;justify-content:flex-end}.buttons button,.alarm-actions button{min-height:42px;padding:0 20px;border:1px solid #20d8ff;color:#dffcff;background:#071d2c;font-weight:800;text-transform:uppercase}.buttons .primary{background:#20d8ff;color:#00131a}.alarm-dialog{text-align:center;height:auto;padding-bottom:18px}.alarm-dialog .wake{font:800 clamp(36px,8vw,72px) monospace;color:#20d8ff}.alarm-actions{display:flex;gap:14px;justify-content:center;margin-top:24px}
         @media(max-width:650px){.screen{padding:8px;gap:8px}.main{padding:18px;grid-template-columns:1fr 1fr}.clock{font-size:64px}.date{font-size:10px}.weather{padding-left:16px}.temp{font-size:42px}.forecast{gap:8px}.forecast span:nth-child(3){display:none}.light strong{font-size:13px}.bulb{width:58px;height:58px}}
       </style>
       <div class="screen">
@@ -2460,6 +2497,7 @@ class JarvisClockDashboardCard extends HTMLElement {
     this.shadowRoot.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => { this._draft.mode = button.dataset.mode; this.render(); }));
     this.shadowRoot.querySelector("#cancel-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_cancel"));
     this.shadowRoot.querySelector("#snooze-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_snooze"));
+    if (alarmActive) this.startAlarmTone(); else this.stopAlarmTone();
   }
 }
 
