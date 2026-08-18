@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.10";
+const JARVIS_UI_VERSION = "0.47.11";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2438,10 +2438,48 @@ class JarvisClockDashboardCard extends HTMLElement {
     return undefined;
   }
 
+  numberWords(value) {
+    const number = Math.trunc(Number(value));
+    if (!Number.isFinite(number)) return String(value);
+    if (number < 0) return `minus ${this.numberWords(-number)}`;
+    const small = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+    const tens = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+    if (number < 20) return small[number];
+    if (number < 100) return `${tens[Math.floor(number / 10)]}${number % 10 ? `-${small[number % 10]}` : ""}`;
+    if (number < 1000) return `${small[Math.floor(number / 100)]} hundred${number % 100 ? ` ${this.numberWords(number % 100)}` : ""}`;
+    if (number < 1000000) return `${this.numberWords(Math.floor(number / 1000))} thousand${number % 1000 ? ` ${this.numberWords(number % 1000)}` : ""}`;
+    return String(number);
+  }
+
+  spokenClock(hourValue, minuteValue) {
+    const hour = Number(hourValue), minute = Number(minuteValue);
+    const twelveHour = hour % 12 || 12;
+    const period = hour < 5 ? "at night" : hour < 12 ? "in the morning" : hour < 17 ? "in the afternoon" : hour < 22 ? "in the evening" : "at night";
+    if (minute === 0) return `${this.numberWords(twelveHour)} o'clock ${period}`;
+    if (minute === 15) return `quarter past ${this.numberWords(twelveHour)} ${period}`;
+    if (minute === 30) return `half past ${this.numberWords(twelveHour)} ${period}`;
+    if (minute === 45) return `quarter to ${this.numberWords((twelveHour % 12) + 1)} ${period}`;
+    if (minute < 30) return `${this.numberWords(minute)} past ${this.numberWords(twelveHour)} ${period}`;
+    return `${this.numberWords(60 - minute)} to ${this.numberWords((twelveHour % 12) + 1)} ${period}`;
+  }
+
+  normalizeSpeechText(text) {
+    return String(text)
+      .replace(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g, (_match, hour, minute) => this.spokenClock(hour, minute))
+      .replace(/\b(19\d{2}|20\d{2})\b/g, (match) => {
+        const year = Number(match);
+        if (year < 2000) return `${this.numberWords(Math.floor(year / 100))} ${this.numberWords(year % 100)}`;
+        if (year < 2010) return `two thousand${year % 2000 ? ` ${this.numberWords(year % 2000)}` : ""}`;
+        return `twenty ${this.numberWords(year % 100)}`;
+      })
+      .replace(/\b(\d+)\.(\d+)\b/g, (_match, whole, decimal) => `${this.numberWords(whole)} point ${decimal.split("").map((digit) => this.numberWords(digit)).join(" ")}`)
+      .replace(/\b\d+\b/g, (match) => this.numberWords(match));
+  }
+
   async prepareJarvisAudio(message) {
     const result = await this._hass.callApi("POST", "tts_get_url", {
       engine_id: this._config.tts_entity || "tts.project_jarvis_high_quality_voice",
-      message,
+      message: this.normalizeSpeechText(message),
       cache: true,
     });
     const url = this.findPlayableUrl(result);
@@ -2482,8 +2520,8 @@ class JarvisClockDashboardCard extends HTMLElement {
     const topStory = (matcher) => stories.find((story) => matcher.test(String(story.source || "")));
     const bbc = topStory(/bbc/i);
     const united = topStory(/man\s*utd|manutd|united/i);
-    if (bbc?.title) segments.push(`The top story from BBC News is: ${String(bbc.title).slice(0, 220)}.`);
-    if (united?.title) segments.push(`The latest Manchester United story is: ${String(united.title).slice(0, 220)}.`);
+    if (bbc?.title) segments.push(`The top story from BBC News is: ${String(bbc.title).slice(0, 140)}.`);
+    if (united?.title) segments.push(`The latest Manchester United story is: ${String(united.title).slice(0, 140)}.`);
     let appointmentMessage = "You have no appointments scheduled today.";
     try {
       const start = new Date(); start.setHours(0, 0, 0, 0);
@@ -2498,7 +2536,9 @@ class JarvisClockDashboardCard extends HTMLElement {
       }
     } catch (_) { appointmentMessage = "I could not access today's work calendar."; }
     segments.push(appointmentMessage);
-    return segments.join(" ");
+    const weatherSegment = segments.shift();
+    const appointmentSegment = segments.pop();
+    return [weatherSegment, segments.join(" "), appointmentSegment].filter(Boolean);
   }
 
   async startAlarmVoice() {
@@ -2509,14 +2549,22 @@ class JarvisClockDashboardCard extends HTMLElement {
     this._voiceFallbackTimer = setTimeout(() => {
       if (this._alarmIsActive && !this._alarmAudio) this.startAlarmTone();
     }, 8000);
-    const currentTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    const now = new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     try {
       const greetingAudio = await this.prepareJarvisAudio(`Good morning, Benny. It is ${currentTime}. Time to wake up.`);
-      const briefingAudio = this.briefingSegments().then((message) => this.prepareJarvisAudio(message));
+      const briefingAudio = this.briefingSegments().then(async (messages) => {
+        const prepared = [];
+        for (const message of messages) prepared.push(await this.prepareJarvisAudio(message));
+        return prepared;
+      });
       await this.playPreparedAudio(greetingAudio);
       clearTimeout(this._voiceFallbackTimer);
       this.stopFallbackTone();
-      if (this._alarmIsActive) await this.playPreparedAudio(await briefingAudio);
+      for (const audio of await briefingAudio) {
+        if (!this._alarmIsActive) break;
+        await this.playPreparedAudio(audio);
+      }
       const afterBriefing = this._hass?.states?.[this._config.after_briefing_entity || "input_select.jarvis_clock_after_briefing"]?.state || "Nothing";
       if (this._alarmIsActive && afterBriefing !== "Nothing") {
         await this.call("script", "turn_on", "script.jarvis_clock_after_briefing");
