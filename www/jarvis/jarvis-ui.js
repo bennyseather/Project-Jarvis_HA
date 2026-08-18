@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.13";
+const JARVIS_UI_VERSION = "0.47.14";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2633,7 +2633,8 @@ class JarvisClockDashboardCard extends HTMLElement {
     const weather = this.entity("weather_entity", "weather.forecast_home");
     const light = this.entity("light_entity", "light.interior_lights");
     const wakeMedia = this.entity("media_player_entity", "media_player.bedroom_clock_benny");
-    const wakeMediaActive = ["playing", "paused", "buffering"].includes(wakeMedia?.state);
+    const wakeMediaActive = this.entity("after_media_active_entity", "input_boolean.jarvis_clock_after_media_active")?.state === "on"
+      || ["playing", "paused", "buffering"].includes(wakeMedia?.state);
     const alarmTime = this.entity("alarm_time_entity", "input_datetime.jarvis_clock_alarm_time")?.state || "07:00:00";
     const alarmEnabled = this.entity("alarm_enabled_entity", "input_boolean.jarvis_clock_alarm_enabled")?.state === "on";
     const alarmActive = this.entity("alarm_active_entity", "input_boolean.jarvis_clock_alarm_active")?.state === "on";
@@ -2666,7 +2667,7 @@ class JarvisClockDashboardCard extends HTMLElement {
       ${alarmActive ? `<div class="overlay"><div class="dialog alarm-dialog"><h2>Wake sequence active</h2><div class="wake">${time}</div><div class="alarm-actions"><button id="cancel-alarm">Cancel</button><button id="snooze-alarm">Snooze 5 min</button></div></div></div>` : ""}`;
     this.shadowRoot.querySelector("#open-alarm")?.addEventListener("click", () => this.openEditor());
     this.shadowRoot.querySelector("#toggle-light")?.addEventListener("click", () => this.call("light", "toggle", this._config.light_entity || "light.interior_lights"));
-    this.shadowRoot.querySelector("#stop-media")?.addEventListener("click", (event) => { event.stopPropagation(); this.call("media_player", "media_stop", this._config.media_player_entity || "media_player.bedroom_clock_benny"); });
+    this.shadowRoot.querySelector("#stop-media")?.addEventListener("click", (event) => { event.stopPropagation(); this.call("script", "turn_on", this._config.after_media_stop_script || "script.jarvis_clock_after_media_stop"); });
     this.shadowRoot.querySelector("#close-editor")?.addEventListener("click", () => { this._editorOpen = false; this.render(); });
     this.shadowRoot.querySelector("#save-alarm")?.addEventListener("click", () => this.saveAlarm());
     this.shadowRoot.querySelectorAll("[data-step]").forEach((button) => button.addEventListener("click", () => { const [field, delta] = button.dataset.step.split(":"); this.changeDraft(field, Number(delta)); }));
