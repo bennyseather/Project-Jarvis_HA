@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.14";
+const JARVIS_UI_VERSION = "0.47.15";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2345,6 +2345,13 @@ class JarvisClockDashboardCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._satellite = new JarvisVoiceSatelliteCard();
+    this._satellite.setConfig({
+      title: "Bedroom Jarvis Satellite", follow_up_target: "bedroom_clock",
+      pipeline_id: "preferred", conversational_mode: true,
+      follow_up_timeout: 7, max_dialogue_turns: 3,
+    });
+    this._satelliteMode = "idle";
     this._editorOpen = false;
     this._forecast = undefined;
     this._forecastLoading = false;
@@ -2353,10 +2360,16 @@ class JarvisClockDashboardCard extends HTMLElement {
     }, 1000);
   }
 
-  disconnectedCallback() { clearInterval(this._ticker); this.stopAlarmTone(); }
+  disconnectedCallback() {
+    clearInterval(this._ticker);
+    this.stopAlarmTone();
+    this.stopLocalRadio();
+    this._satellite.disconnectedCallback();
+  }
   setConfig(config) { this._config = config || {}; this.render(); }
   set hass(value) {
     this._hass = value;
+    this._satellite.hass = value;
     this.loadForecast();
     if (!this._editorOpen) this.render();
   }
@@ -2381,6 +2394,50 @@ class JarvisClockDashboardCard extends HTMLElement {
 
   call(domain, service, entityId, data = {}) {
     return this._hass?.callService(domain, service, data, { entity_id: entityId });
+  }
+
+  async startLocalRadio() {
+    if (this._radioAudio) {
+      if (this._radioAudio.paused) await this._radioAudio.play().catch(() => {});
+      return;
+    }
+    if (this._radioStarting) return;
+    this._radioStarting = true;
+    const audio = new Audio("https://live-bauerno.sharp-stream.com/radionorge_no_mp3");
+    audio.preload = "none";
+    audio.volume = Math.max(0.1, Math.min(1, Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50) / 100));
+    audio.addEventListener("error", () => { if (this._radioAudio === audio) this._radioAudio = undefined; });
+    try {
+      await audio.play();
+      this._radioAudio = audio;
+    } catch (_) {
+      audio.pause();
+    } finally {
+      this._radioStarting = false;
+    }
+  }
+
+  stopLocalRadio() {
+    if (this._radioAudio) {
+      this._radioAudio.pause();
+      this._radioAudio.removeAttribute("src");
+      this._radioAudio.load();
+    }
+    this._radioAudio = undefined;
+    this._resumeRadioAfterVoice = false;
+  }
+
+  toggleBedroomVoice() {
+    if (this._satellite._mode === "idle") {
+      if (this._radioAudio && !this._radioAudio.paused) {
+        this._radioAudio.pause();
+        this._resumeRadioAfterVoice = true;
+      }
+      this._satellite._start("ptt");
+    } else {
+      this._satellite._finishAudio();
+    }
+    this.render();
   }
 
   openEditor() {
@@ -2655,19 +2712,20 @@ class JarvisClockDashboardCard extends HTMLElement {
         .panel{position:relative;border:1px solid rgba(32,216,255,.55);background:linear-gradient(135deg,rgba(2,15,27,.9),rgba(4,37,62,.82));box-shadow:inset 0 0 34px rgba(0,174,255,.08),0 0 18px rgba(0,174,255,.12);clip-path:polygon(0 12px,12px 0,92% 0,100% 18px,100% 100%,8% 100%,0 calc(100% - 18px))}
         .main{display:grid;grid-template-columns:1.25fr .75fr;align-items:center;padding:28px;cursor:pointer}.clock{font:800 clamp(74px,16vw,150px)/.9 ui-monospace,SFMono-Regular,monospace;letter-spacing:-.08em;color:#dffcff;text-shadow:0 0 24px rgba(32,216,255,.4)}
         .date{margin-top:16px;text-transform:uppercase;letter-spacing:.18em;font:700 clamp(12px,2vw,18px) monospace;color:#20d8ff}.weather{border-left:1px solid rgba(32,216,255,.35);padding-left:26px;text-transform:capitalize}.temp{font:800 clamp(44px,8vw,76px) monospace;color:#20d8ff}.condition{font-weight:700;letter-spacing:.08em}.forecast{display:flex;gap:16px;margin-top:24px}.forecast span{display:grid;gap:4px;font:600 14px monospace;color:#9dd8e8}.forecast b{font-size:10px;color:#20d8ff;text-transform:uppercase}.alarm-indicator{position:absolute;left:28px;bottom:18px;font:700 11px monospace;letter-spacing:.14em;color:${alarmEnabled ? "#20d8ff" : "#698898"};text-transform:uppercase}
-        .light{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer}.bulb{width:74px;height:74px;border:2px solid #20d8ff;border-radius:50%;display:grid;place-items:center;font-size:34px;box-shadow:${light?.state === "on" ? "0 0 32px rgba(32,216,255,.65),inset 0 0 24px rgba(32,216,255,.28)" : "none"}}.light strong{font:800 18px monospace;text-transform:uppercase;text-align:center}.light small{font:700 10px monospace;color:#20d8ff;letter-spacing:.16em}.media-stop{position:absolute;left:10px;right:10px;bottom:10px;min-height:42px;border:1px solid #ff6572;background:rgba(70,8,18,.92);color:#fff;font:900 10px monospace;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 0 18px rgba(255,101,114,.25)}
+        .light{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer}.bulb{width:74px;height:74px;border:2px solid #20d8ff;border-radius:50%;display:grid;place-items:center;font-size:34px;box-shadow:${light?.state === "on" ? "0 0 32px rgba(32,216,255,.65),inset 0 0 24px rgba(32,216,255,.28)" : "none"}}.light strong{font:800 18px monospace;text-transform:uppercase;text-align:center}.light small{font:700 10px monospace;color:#20d8ff;letter-spacing:.16em}.voice-ptt{position:absolute;left:10px;right:10px;top:10px;min-height:38px;border:1px solid #20d8ff;background:rgba(3,31,48,.94);color:#e7fbff;font:900 9px monospace;letter-spacing:.1em;text-transform:uppercase}.voice-ptt.active{background:#20d8ff;color:#00131a;box-shadow:0 0 18px rgba(32,216,255,.35)}.media-stop{position:absolute;left:10px;right:10px;bottom:10px;min-height:42px;border:1px solid #ff6572;background:rgba(70,8,18,.92);color:#fff;font:900 10px monospace;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 0 18px rgba(255,101,114,.25)}
         .overlay{position:fixed;inset:0;background:rgba(0,5,10,.9);display:grid;place-items:center;z-index:4}.dialog{position:relative;width:min(720px,94vw);height:min(450px,95vh);padding:44px 8px 8px;border:1px solid #20d8ff;background:#041523;box-shadow:0 0 55px rgba(32,216,255,.25);overflow:hidden}.dialog h2{position:absolute;left:10px;top:12px;margin:0;font:800 13px monospace;color:#20d8ff;text-transform:uppercase}.touch-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:5px;height:100%}.touch-panel{padding:5px;border:1px solid rgba(32,216,255,.25)}.touch-panel.days-panel,.touch-panel.after-panel{grid-column:1/-1}.touch-label{font:700 7px monospace;letter-spacing:.14em;color:#9dd8e8;text-transform:uppercase}.stepper{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;gap:4px;margin-top:2px}.minute-stepper{display:grid;grid-template-columns:40px 40px 1fr 40px 40px;align-items:center;gap:3px;margin-top:3px}.stepper strong,.minute-stepper strong{font:800 23px monospace;text-align:center;color:#e7fbff}.touch-btn{min-height:31px;border:1px solid #20d8ff;color:#e7fbff;background:#071d2c;font-weight:900;font-size:16px}.choice{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px}.choice button,.days button,.after-choice button{min-height:28px;border:1px solid rgba(32,216,255,.45);color:#9dd8e8;background:#07131f;font:800 8px monospace;text-transform:uppercase}.choice button.active,.days button.active,.after-choice button.active{background:#20d8ff;color:#00131a}.days{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;margin-top:3px}.after-choice{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:3px}.buttons{position:absolute;right:8px;top:6px;display:flex;gap:6px}.buttons button,.alarm-actions button{min-height:32px;padding:0 13px;border:1px solid #20d8ff;color:#dffcff;background:#071d2c;font-weight:800;text-transform:uppercase}.buttons .primary{background:#20d8ff;color:#00131a}.alarm-dialog{text-align:center;height:auto;padding:18px}.alarm-dialog h2{position:static;margin-bottom:10px}.alarm-dialog .wake{font:800 clamp(36px,8vw,72px) monospace;color:#20d8ff}.alarm-actions{display:flex;gap:14px;justify-content:center;margin-top:24px}
         @media(max-width:650px){.screen{padding:8px;gap:8px}.main{padding:18px;grid-template-columns:1fr 1fr}.clock{font-size:64px}.date{font-size:10px}.weather{padding-left:16px}.temp{font-size:42px}.forecast{gap:8px}.forecast span:nth-child(3){display:none}.light strong{font-size:13px}.bulb{width:58px;height:58px}}
       </style>
       <div class="screen">
         <section class="panel main" id="open-alarm"><div><div class="clock">${time}</div><div class="date">${escapeHtml(date)}</div></div><div class="weather"><div class="temp">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><div class="condition">${escapeHtml(condition)}</div><div class="forecast">${forecastHtml}</div></div><div class="alarm-indicator">${alarmEnabled ? `Alarm ${escapeHtml(alarmTime.slice(0, 5))} · ${escapeHtml(selectedDayLabels.join(" ") || "No days")} · ${escapeHtml(alarmMode)}` : "Alarm off"}</div></section>
-        <section class="panel light" id="toggle-light"><div class="bulb">◉</div><strong>Interior<br>Lights</strong><small>${escapeHtml(light?.state || "unavailable")}</small>${wakeMediaActive ? `<button class="media-stop" id="stop-media">Stop ${escapeHtml(wakeMedia?.attributes?.media_title || "radio")}</button>` : ""}</section>
+        <section class="panel light" id="toggle-light"><button class="voice-ptt ${this._satellite._mode !== "idle" ? "active" : ""}" id="bedroom-ptt">${this._satellite._mode === "ptt" ? "Send command" : escapeHtml(this._satellite._status === "Muted // microphone offline" ? "Ask Jarvis" : this._satellite._status)}</button><div class="bulb">◉</div><strong>Interior<br>Lights</strong><small>${escapeHtml(light?.state || "unavailable")}</small>${wakeMediaActive ? `<button class="media-stop" id="stop-media">Stop Radio Norge</button>` : ""}</section>
       </div>
       ${this._editorOpen ? `<div class="overlay"><div class="dialog"><h2>Wake sequence</h2><div class="touch-grid"><div class="touch-panel"><div class="touch-label">Alarm time</div><div class="stepper"><button class="touch-btn" data-step="hour:-1">−</button><strong>${String(this._draft.hour).padStart(2,"0")}:${String(this._draft.minute).padStart(2,"0")}</strong><button class="touch-btn" data-step="hour:1">+</button></div><div class="minute-stepper"><button class="touch-btn" data-step="minute:-5">−5</button><button class="touch-btn" data-step="minute:-1">−1</button><strong>MIN</strong><button class="touch-btn" data-step="minute:1">+1</button><button class="touch-btn" data-step="minute:5">+5</button></div></div><div class="touch-panel"><div class="touch-label">Alarm enabled</div><div class="choice"><button data-enabled="false" class="${!this._draft.enabled ? "active" : ""}">Off</button><button data-enabled="true" class="${this._draft.enabled ? "active" : ""}">On</button></div><div class="touch-label" style="margin-top:4px">Wake mode</div><div class="choice"><button data-mode="Jarvis" class="${this._draft.mode === "Jarvis" ? "active" : ""}">Jarvis</button><button data-mode="Spotify" class="${this._draft.mode === "Spotify" ? "active" : ""}">Spotify</button></div><div class="touch-label" style="margin-top:4px">Volume</div><div class="stepper"><button class="touch-btn" data-step="volume:-10">−</button><strong>${this._draft.volume}%</strong><button class="touch-btn" data-step="volume:10">+</button></div></div><div class="touch-panel days-panel"><div class="touch-label">Repeat days</div><div class="days">${dayLabels.map((label,index) => `<button data-day="${index}" class="${this._draft.days[index] ? "active" : ""}">${label}</button>`).join("")}<button data-days="weekdays">Weekdays</button><button data-days="all">Every day</button></div></div><div class="touch-panel after-panel"><div class="touch-label">After briefing</div><div class="after-choice">${["Nothing","Spotify Starred","Radio Norge"].map((choice) => `<button data-after="${choice}" class="${this._draft.after === choice ? "active" : ""}">${choice}</button>`).join("")}</div></div></div><div class="buttons"><button id="close-editor">Cancel</button><button class="primary" id="save-alarm">Save alarm</button></div></div></div>` : ""}
       ${alarmActive ? `<div class="overlay"><div class="dialog alarm-dialog"><h2>Wake sequence active</h2><div class="wake">${time}</div><div class="alarm-actions"><button id="cancel-alarm">Cancel</button><button id="snooze-alarm">Snooze 5 min</button></div></div></div>` : ""}`;
     this.shadowRoot.querySelector("#open-alarm")?.addEventListener("click", () => this.openEditor());
     this.shadowRoot.querySelector("#toggle-light")?.addEventListener("click", () => this.call("light", "toggle", this._config.light_entity || "light.interior_lights"));
-    this.shadowRoot.querySelector("#stop-media")?.addEventListener("click", (event) => { event.stopPropagation(); this.call("script", "turn_on", this._config.after_media_stop_script || "script.jarvis_clock_after_media_stop"); });
+    this.shadowRoot.querySelector("#bedroom-ptt")?.addEventListener("click", (event) => { event.stopPropagation(); this.toggleBedroomVoice(); });
+    this.shadowRoot.querySelector("#stop-media")?.addEventListener("click", (event) => { event.stopPropagation(); this.stopLocalRadio(); this.call("script", "turn_on", this._config.after_media_stop_script || "script.jarvis_clock_after_media_stop"); });
     this.shadowRoot.querySelector("#close-editor")?.addEventListener("click", () => { this._editorOpen = false; this.render(); });
     this.shadowRoot.querySelector("#save-alarm")?.addEventListener("click", () => this.saveAlarm());
     this.shadowRoot.querySelectorAll("[data-step]").forEach((button) => button.addEventListener("click", () => { const [field, delta] = button.dataset.step.split(":"); this.changeDraft(field, Number(delta)); }));
@@ -2680,6 +2738,15 @@ class JarvisClockDashboardCard extends HTMLElement {
     this.shadowRoot.querySelector("#snooze-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_snooze"));
     this._alarmIsActive = alarmActive;
     if (alarmActive && alarmMode === "Jarvis") this.startAlarmVoice(); else this.stopAlarmTone();
+    const afterChoice = this.entity("after_briefing_entity", "input_select.jarvis_clock_after_briefing")?.state;
+    const shouldPlayLocalRadio = wakeMediaActive && afterChoice === "Radio Norge";
+    if (shouldPlayLocalRadio && !this._radioAudio && this._satellite._mode === "idle") this.startLocalRadio();
+    if (!shouldPlayLocalRadio && this._radioAudio) this.stopLocalRadio();
+    if (this._satelliteMode !== "idle" && this._satellite._mode === "idle" && this._resumeRadioAfterVoice && shouldPlayLocalRadio) {
+      this._resumeRadioAfterVoice = false;
+      this.startLocalRadio();
+    }
+    this._satelliteMode = this._satellite._mode;
   }
 }
 
