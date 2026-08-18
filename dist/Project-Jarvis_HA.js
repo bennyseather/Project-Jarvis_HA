@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.2";
+const JARVIS_UI_VERSION = "0.47.3";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2340,7 +2340,110 @@ class JarvisCoverageCard extends JarvisBaseCard {
   }
 }
 
+class JarvisClockDashboardCard extends HTMLElement {
+  static requiresEntity = false;
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._editorOpen = false;
+    this._forecast = undefined;
+    this._forecastLoading = false;
+    this._ticker = setInterval(() => this.render(), 1000);
+  }
+
+  disconnectedCallback() { clearInterval(this._ticker); }
+  setConfig(config) { this._config = config || {}; this.render(); }
+  set hass(value) {
+    this._hass = value;
+    this.loadForecast();
+    this.render();
+  }
+  getCardSize() { return 8; }
+  getGridOptions() { return { rows: 8, columns: 12, min_rows: 6, min_columns: 8 }; }
+
+  entity(key, fallback) { return this._hass?.states?.[this._config?.[key] || fallback]; }
+  async loadForecast() {
+    if (!this._hass || this._forecastLoading || this._forecast) return;
+    this._forecastLoading = true;
+    const entityId = this._config.weather_entity || "weather.forecast_home";
+    try {
+      const result = await this._hass.callWS({
+        type: "call_service", domain: "weather", service: "get_forecasts",
+        target: { entity_id: entityId }, service_data: { type: "daily" }, return_response: true,
+      });
+      this._forecast = result?.response?.[entityId]?.forecast || result?.[entityId]?.forecast || [];
+    } catch (_) { this._forecast = []; }
+    this._forecastLoading = false;
+    this.render();
+  }
+
+  call(domain, service, entityId, data = {}) {
+    return this._hass?.callService(domain, service, data, { entity_id: entityId });
+  }
+
+  async saveAlarm() {
+    const root = this.shadowRoot;
+    const time = root.querySelector("#alarm-time")?.value || "07:00";
+    const enabled = root.querySelector("#alarm-enabled")?.checked;
+    const mode = root.querySelector("#alarm-mode")?.value || "Jarvis";
+    const volume = Number(root.querySelector("#alarm-volume")?.value || 50);
+    const spotify = root.querySelector("#alarm-spotify")?.value?.trim() || "";
+    await Promise.all([
+      this.call("input_datetime", "set_datetime", this._config.alarm_time_entity || "input_datetime.jarvis_clock_alarm_time", { time: `${time}:00` }),
+      this.call("input_boolean", enabled ? "turn_on" : "turn_off", this._config.alarm_enabled_entity || "input_boolean.jarvis_clock_alarm_enabled"),
+      this.call("input_select", "select_option", this._config.alarm_mode_entity || "input_select.jarvis_clock_alarm_mode", { option: mode }),
+      this.call("input_number", "set_value", this._config.alarm_volume_entity || "input_number.jarvis_clock_alarm_volume", { value: volume }),
+      this.call("input_text", "set_value", this._config.alarm_spotify_entity || "input_text.jarvis_clock_alarm_spotify_uri", { value: spotify }),
+    ]);
+    this._editorOpen = false;
+    this.render();
+  }
+
+  render() {
+    if (!this.shadowRoot || !this._config) return;
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    const date = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+    const weather = this.entity("weather_entity", "weather.forecast_home");
+    const light = this.entity("light_entity", "light.interior_lights");
+    const alarmTime = this.entity("alarm_time_entity", "input_datetime.jarvis_clock_alarm_time")?.state || "07:00:00";
+    const alarmEnabled = this.entity("alarm_enabled_entity", "input_boolean.jarvis_clock_alarm_enabled")?.state === "on";
+    const alarmActive = this.entity("alarm_active_entity", "input_boolean.jarvis_clock_alarm_active")?.state === "on";
+    const alarmMode = this.entity("alarm_mode_entity", "input_select.jarvis_clock_alarm_mode")?.state || "Jarvis";
+    const volume = this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || "50";
+    const spotify = this.entity("alarm_spotify_entity", "input_text.jarvis_clock_alarm_spotify_uri")?.state || "";
+    const temperature = weather?.attributes?.temperature;
+    const condition = (weather?.state || "unavailable").replaceAll("-", " ");
+    const forecast = this._forecast?.slice(0, 3) || [];
+    const forecastHtml = forecast.map((item) => `<span><b>${new Date(item.datetime).toLocaleDateString([], { weekday: "short" })}</b>${Math.round(item.temperature)}°</span>`).join("");
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host{position:fixed;inset:0;z-index:9999;display:block;background:#020912;color:#e7fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden}
+        *{box-sizing:border-box}button,input,select{font:inherit}.screen{height:100%;padding:14px;display:grid;grid-template-columns:3fr 1fr;gap:12px;background:radial-gradient(circle at 34% 42%,rgba(0,139,214,.22),transparent 38%),linear-gradient(145deg,#020811,#061a2d)}
+        .panel{position:relative;border:1px solid rgba(32,216,255,.55);background:linear-gradient(135deg,rgba(2,15,27,.9),rgba(4,37,62,.82));box-shadow:inset 0 0 34px rgba(0,174,255,.08),0 0 18px rgba(0,174,255,.12);clip-path:polygon(0 12px,12px 0,92% 0,100% 18px,100% 100%,8% 100%,0 calc(100% - 18px))}
+        .main{display:grid;grid-template-columns:1.25fr .75fr;align-items:center;padding:28px;cursor:pointer}.clock{font:800 clamp(74px,16vw,150px)/.9 ui-monospace,SFMono-Regular,monospace;letter-spacing:-.08em;color:#dffcff;text-shadow:0 0 24px rgba(32,216,255,.4)}
+        .date{margin-top:16px;text-transform:uppercase;letter-spacing:.18em;font:700 clamp(12px,2vw,18px) monospace;color:#20d8ff}.weather{border-left:1px solid rgba(32,216,255,.35);padding-left:26px;text-transform:capitalize}.temp{font:800 clamp(44px,8vw,76px) monospace;color:#20d8ff}.condition{font-weight:700;letter-spacing:.08em}.forecast{display:flex;gap:16px;margin-top:24px}.forecast span{display:grid;gap:4px;font:600 14px monospace;color:#9dd8e8}.forecast b{font-size:10px;color:#20d8ff;text-transform:uppercase}.alarm-indicator{position:absolute;left:28px;bottom:18px;font:700 11px monospace;letter-spacing:.14em;color:${alarmEnabled ? "#20d8ff" : "#698898"};text-transform:uppercase}
+        .light{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer}.bulb{width:74px;height:74px;border:2px solid #20d8ff;border-radius:50%;display:grid;place-items:center;font-size:34px;box-shadow:${light?.state === "on" ? "0 0 32px rgba(32,216,255,.65),inset 0 0 24px rgba(32,216,255,.28)" : "none"}}.light strong{font:800 18px monospace;text-transform:uppercase;text-align:center}.light small{font:700 10px monospace;color:#20d8ff;letter-spacing:.16em}
+        .overlay{position:fixed;inset:0;background:rgba(0,5,10,.82);display:grid;place-items:center;z-index:4}.dialog{width:min(620px,90vw);padding:24px;border:1px solid #20d8ff;background:#041523;box-shadow:0 0 55px rgba(32,216,255,.25)}.dialog h2{margin:0 0 20px;font:800 20px monospace;color:#20d8ff;text-transform:uppercase}.form{display:grid;grid-template-columns:1fr 1fr;gap:16px}.field{display:grid;gap:6px;font:700 10px monospace;text-transform:uppercase;color:#9dd8e8}.field.wide{grid-column:1/-1}.field input,.field select{min-height:42px;padding:8px;color:#e7fbff;border:1px solid rgba(32,216,255,.4);background:#020b13}.buttons{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}.buttons button,.alarm-actions button{min-height:44px;padding:0 20px;border:1px solid #20d8ff;color:#dffcff;background:#071d2c;font-weight:800;text-transform:uppercase}.buttons .primary{background:#20d8ff;color:#00131a}.alarm-dialog{text-align:center}.alarm-dialog .wake{font:800 clamp(36px,8vw,72px) monospace;color:#20d8ff}.alarm-actions{display:flex;gap:14px;justify-content:center;margin-top:24px}
+        @media(max-width:650px){.screen{padding:8px;gap:8px}.main{padding:18px;grid-template-columns:1fr 1fr}.clock{font-size:64px}.date{font-size:10px}.weather{padding-left:16px}.temp{font-size:42px}.forecast{gap:8px}.forecast span:nth-child(3){display:none}.light strong{font-size:13px}.bulb{width:58px;height:58px}}
+      </style>
+      <div class="screen">
+        <section class="panel main" id="open-alarm"><div><div class="clock">${time}</div><div class="date">${escapeHtml(date)}</div></div><div class="weather"><div class="temp">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><div class="condition">${escapeHtml(condition)}</div><div class="forecast">${forecastHtml}</div></div><div class="alarm-indicator">${alarmEnabled ? `Alarm ${escapeHtml(alarmTime.slice(0, 5))} · ${escapeHtml(alarmMode)}` : "Alarm off"}</div></section>
+        <section class="panel light" id="toggle-light"><div class="bulb">◉</div><strong>Interior<br>Lights</strong><small>${escapeHtml(light?.state || "unavailable")}</small></section>
+      </div>
+      ${this._editorOpen ? `<div class="overlay"><div class="dialog"><h2>Wake sequence</h2><div class="form"><label class="field">Alarm time<input id="alarm-time" type="time" value="${escapeHtml(alarmTime.slice(0,5))}"></label><label class="field">Wake mode<select id="alarm-mode"><option${alarmMode === "Jarvis" ? " selected" : ""}>Jarvis</option><option${alarmMode === "Spotify" ? " selected" : ""}>Spotify</option></select></label><label class="field">Enabled<input id="alarm-enabled" type="checkbox" ${alarmEnabled ? "checked" : ""}></label><label class="field">Volume ${escapeHtml(volume)}%<input id="alarm-volume" type="range" min="10" max="100" step="5" value="${escapeHtml(volume)}"></label><label class="field wide">Spotify playlist URI<input id="alarm-spotify" value="${escapeHtml(spotify)}" placeholder="spotify:playlist:..."></label></div><div class="buttons"><button id="close-editor">Cancel</button><button class="primary" id="save-alarm">Save alarm</button></div></div></div>` : ""}
+      ${alarmActive ? `<div class="overlay"><div class="dialog alarm-dialog"><h2>Wake sequence active</h2><div class="wake">${time}</div><div class="alarm-actions"><button id="cancel-alarm">Cancel</button><button id="snooze-alarm">Snooze 5 min</button></div></div></div>` : ""}`;
+    this.shadowRoot.querySelector("#open-alarm")?.addEventListener("click", () => { this._editorOpen = true; this.render(); });
+    this.shadowRoot.querySelector("#toggle-light")?.addEventListener("click", () => this.call("light", "toggle", this._config.light_entity || "light.interior_lights"));
+    this.shadowRoot.querySelector("#close-editor")?.addEventListener("click", () => { this._editorOpen = false; this.render(); });
+    this.shadowRoot.querySelector("#save-alarm")?.addEventListener("click", () => this.saveAlarm());
+    this.shadowRoot.querySelector("#cancel-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_cancel"));
+    this.shadowRoot.querySelector("#snooze-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_snooze"));
+  }
+}
+
 const CARD_DEFINITIONS = [
+  ["jarvis-clock-dashboard-card", JarvisClockDashboardCard, "Jarvis Smart Clock", "Full-screen clock, weather, lighting and alarm interface"],
   ["jarvis-button-card", JarvisButtonCard, "Jarvis Button", "HUD action, navigation, scene or script button"],
   ["jarvis-action-card", JarvisActionCard, "Jarvis Action Card", "Backward-compatible Jarvis action button"],
   ["jarvis-entity-card", JarvisEntityCard, "Jarvis Entity", "Generic entity state card"],

@@ -1,0 +1,15 @@
+title: Jarvis Clock
+views:
+  - title: Clock
+    path: home
+    type: panel
+    cards:
+      - type: custom:jarvis-clock-dashboard-card
+        weather_entity: weather.forecast_home
+        light_entity: light.interior_lights
+        alarm_time_entity: input_datetime.jarvis_clock_alarm_time
+        alarm_enabled_entity: input_boolean.jarvis_clock_alarm_enabled
+        alarm_active_entity: input_boolean.jarvis_clock_alarm_active
+        alarm_mode_entity: input_select.jarvis_clock_alarm_mode
+        alarm_volume_entity: input_number.jarvis_clock_alarm_volume
+        alarm_spotify_entity: input_text.jarvis_clock_alarm_spotify_uri
