@@ -16,3 +16,4 @@ views:
         tts_entity: tts.project_jarvis_high_quality_voice
         rss_entity: sensor.jarvis_rss_top_stories
         calendar_entity: calendar.work_reach
+        after_briefing_entity: input_select.jarvis_clock_after_briefing
