@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.3";
+const JARVIS_UI_VERSION = "0.47.4";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2348,7 +2348,9 @@ class JarvisClockDashboardCard extends HTMLElement {
     this._editorOpen = false;
     this._forecast = undefined;
     this._forecastLoading = false;
-    this._ticker = setInterval(() => this.render(), 1000);
+    this._ticker = setInterval(() => {
+      if (!this._editorOpen) this.render();
+    }, 1000);
   }
 
   disconnectedCallback() { clearInterval(this._ticker); }
@@ -2356,7 +2358,7 @@ class JarvisClockDashboardCard extends HTMLElement {
   set hass(value) {
     this._hass = value;
     this.loadForecast();
-    this.render();
+    if (!this._editorOpen) this.render();
   }
   getCardSize() { return 8; }
   getGridOptions() { return { rows: 8, columns: 12, min_rows: 6, min_columns: 8 }; }
