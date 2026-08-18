@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.8";
+const JARVIS_UI_VERSION = "0.47.9";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2438,10 +2438,10 @@ class JarvisClockDashboardCard extends HTMLElement {
   }
 
   async playJarvisMessage(message) {
-    const result = await this._hass.callWS({
-      type: "call_service", domain: "tts", service: "get_url",
-      target: { entity_id: this._config.tts_entity || "tts.project_jarvis_high_quality_voice" },
-      service_data: { message, cache: true }, return_response: true,
+    const result = await this._hass.callApi("POST", "tts_get_url", {
+      engine_id: this._config.tts_entity || "tts.project_jarvis_high_quality_voice",
+      message,
+      cache: true,
     });
     const url = this.findPlayableUrl(result);
     if (!url || !this._alarmIsActive) throw new Error("Jarvis voice URL unavailable");
