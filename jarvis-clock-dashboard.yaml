@@ -13,3 +13,4 @@ views:
         alarm_mode_entity: input_select.jarvis_clock_alarm_mode
         alarm_volume_entity: input_number.jarvis_clock_alarm_volume
         alarm_spotify_entity: input_text.jarvis_clock_alarm_spotify_uri
+        tts_entity: tts.project_jarvis_high_quality_voice

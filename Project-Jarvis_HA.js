@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.6";
+const JARVIS_UI_VERSION = "0.47.7";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2424,7 +2424,62 @@ class JarvisClockDashboardCard extends HTMLElement {
     }, 420);
   }
 
+  findPlayableUrl(value) {
+    if (typeof value === "string" && (value.startsWith("/") || value.startsWith("http://") || value.startsWith("https://"))) return value;
+    if (!value || typeof value !== "object") return undefined;
+    for (const [key, child] of Object.entries(value)) {
+      if (["url", "path"].includes(key) && typeof child === "string") return child;
+      const nested = this.findPlayableUrl(child);
+      if (nested) return nested;
+    }
+    return undefined;
+  }
+
+  async startAlarmVoice() {
+    if (this._voiceRequested || !this._hass) return;
+    this._voiceRequested = true;
+    this.unlockAlarmAudio();
+    clearTimeout(this._voiceFallbackTimer);
+    this._voiceFallbackTimer = setTimeout(() => {
+      if (this._alarmIsActive && !this._alarmAudio) this.startAlarmTone();
+    }, 8000);
+    const currentTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    try {
+      const result = await this._hass.callWS({
+        type: "call_service", domain: "tts", service: "get_url",
+        target: { entity_id: this._config.tts_entity || "tts.project_jarvis_high_quality_voice" },
+        service_data: { message: `Good morning, Benny. It is ${currentTime}. Time to wake up.`, cache: true },
+        return_response: true,
+      });
+      const url = this.findPlayableUrl(result);
+      if (!url || !this._alarmIsActive) throw new Error("Jarvis voice URL unavailable");
+      const audio = new Audio(url);
+      audio.volume = Math.max(0.1, Math.min(1, Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50) / 100));
+      audio.addEventListener("ended", () => {
+        this._alarmAudio = undefined;
+        if (this._alarmIsActive) this._voiceRepeatTimer = setTimeout(() => { this._voiceRequested = false; this.startAlarmVoice(); }, 12000);
+      }, { once: true });
+      this._alarmAudio = audio;
+      await audio.play();
+      clearTimeout(this._voiceFallbackTimer);
+      this.stopAlarmTone();
+    } catch (_) {
+      this._voiceRequested = false;
+      if (this._alarmIsActive) this.startAlarmTone();
+    }
+  }
+
   stopAlarmTone() {
+    clearTimeout(this._voiceFallbackTimer);
+    clearTimeout(this._voiceRepeatTimer);
+    this._voiceFallbackTimer = undefined;
+    this._voiceRepeatTimer = undefined;
+    if (this._alarmAudio) {
+      this._alarmAudio.pause();
+      this._alarmAudio.currentTime = 0;
+    }
+    this._alarmAudio = undefined;
+    this._voiceRequested = false;
     clearInterval(this._tonePulse);
     this._tonePulse = undefined;
     try { this._alarmOscillator?.stop(); } catch (_) {}
@@ -2497,7 +2552,8 @@ class JarvisClockDashboardCard extends HTMLElement {
     this.shadowRoot.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => { this._draft.mode = button.dataset.mode; this.render(); }));
     this.shadowRoot.querySelector("#cancel-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_cancel"));
     this.shadowRoot.querySelector("#snooze-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_snooze"));
-    if (alarmActive) this.startAlarmTone(); else this.stopAlarmTone();
+    this._alarmIsActive = alarmActive;
+    if (alarmActive) this.startAlarmVoice(); else this.stopAlarmTone();
   }
 }
 
