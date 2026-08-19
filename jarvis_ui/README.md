@@ -1,4 +1,4 @@
-# Project Jarvis UI 0.44.1
+# Project Jarvis UI 0.46.0
 
 The Jarvis RSS Intelligence card displays locally cached top stories grouped by
 source or category, supports compact NSPanel rendering, lazy images, refresh,
@@ -16,8 +16,8 @@ The UI package does not change Jarvis memory or device authorization.
 - `jarvis-dashboard.yaml`: five responsive dashboard views.
 - `jarvis-component-catalog.yaml`: card, icon, and coverage reference.
 - `themes/jarvis-command-center.yaml`: desktop and portrait themes.
-- `www/jarvis/jarvis-command-center-landscape.png`: desktop background.
-- `www/jarvis/jarvis-command-center-portrait.png`: panel/mobile background.
+- `www/jarvis/jarvis-unified-v2-landscape.png`: luminous unified desktop background.
+- `www/jarvis/jarvis-unified-v2-portrait.png`: luminous unified panel/mobile background.
 - `www/jarvis/jarvis-ui.js`: complete Jarvis cards and `jarvis:` icons.
 - `www/jarvis/jarvis-voice-card.js`: compatibility loader for D1 installs.
 - `hacs.json` and `dist/Project-Jarvis_HA.js`: HACS publication package.
@@ -33,7 +33,7 @@ Use Studio Code Server, File editor, or Samba to access `/config`.
    `/config/themes/jarvis-command-center.yaml`.
 3. Copy the `www/jarvis` folder into `/config/www/jarvis`.
 4. In Home Assistant, open **Settings -> Dashboards**, open the three-dot menu,
-   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.44.1`
+   and select **Resources**. Add `/local/jarvis/jarvis-ui.js?v=0.46.0`
    as a **JavaScript module**.
 5. If you want the supplied dashboards, merge `configuration-snippet.yaml`
    into `/config/configuration.yaml`. Do not create a second `frontend:` or
@@ -92,7 +92,10 @@ The Voice card dispatches Home Assistant's standard Assist action. The separate
 Voice Satellite card can use a browser microphone over HTTPS for wake-word or
 push-to-talk testing. Audio streams directly to Home Assistant's authenticated
 Assist pipeline and is never stored by Jarvis. Muting the card closes its audio
-track and releases the microphone.
+track and releases the microphone. Push to talk starts with one press and sends
+automatically after speech followed by 0.9 seconds of silence. The visual editor
+can adjust `silence_timeout` between 0.6 and 2 seconds, and the active button
+remains a manual early-send control.
 
 ## Jarvis icons
 
@@ -140,7 +143,7 @@ complete Home Assistant configuration.
 ## Update from an earlier UI release
 
 Replace both dashboard files, the theme, and the `www/jarvis` folder. Replace
-the old resource with `/local/jarvis/jarvis-ui.js?v=0.44.1`, restart Home
+the old resource with `/local/jarvis/jarvis-ui.js?v=0.46.0`, restart Home
 Assistant, and hard-refresh every client. The old JavaScript resource remains
 a compatibility loader, but the new URL is recommended.
 
