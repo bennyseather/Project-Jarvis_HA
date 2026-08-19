@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.45.22
+
+- Warm the local Ollama model through the Jarvis Node proxy's supported chat route.
+
 ## 0.45.21
 
 - Added M55 efficient local-intelligence routing with privacy-safe latency diagnostics.

@@ -115,8 +115,13 @@ class LocalFirstReasoningProvider:
         """Load the configured model without generating user-visible content."""
         try:
             payload = self._post(
-                "/api/generate",
-                {"model": self.policy.model, "prompt": "", "keep_alive": -1},
+                "/api/chat",
+                {
+                    "model": self.policy.model,
+                    "messages": [],
+                    "stream": False,
+                    "keep_alive": -1,
+                },
                 timeout_seconds=30,
             )
             return {"ready": bool(payload), "provider": "ollama", "model": self.policy.model}
