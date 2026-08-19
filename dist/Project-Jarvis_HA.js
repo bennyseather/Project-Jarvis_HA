@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.17";
+const JARVIS_UI_VERSION = "0.47.18";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2608,18 +2608,29 @@ class JarvisClockDashboardCard extends HTMLElement {
     });
     const url = this.findPlayableUrl(result);
     if (!url || !this._alarmIsActive) throw new Error("Jarvis voice URL unavailable");
-    const audio = new Audio(url);
-    audio.preload = "auto";
-    audio.volume = Math.max(0.1, Math.min(1, Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50) / 100));
-    return audio;
+    this.unlockAlarmAudio();
+    if (!this._audioContext || this._audioContext.state !== "running") throw new Error("Alarm audio context unavailable");
+    const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
+    const response = await window.fetch.call(window, target, { credentials: "same-origin" });
+    if (!response.ok) throw new Error(`Alarm audio request ${response.status}`);
+    return this._audioContext.decodeAudioData(await response.arrayBuffer());
   }
 
-  async playPreparedAudio(audio) {
+  async playPreparedAudio(buffer) {
     await new Promise((resolve, reject) => {
-      audio.addEventListener("ended", () => { this._alarmAudio = undefined; resolve(); }, { once: true });
-      audio.addEventListener("error", reject, { once: true });
-      this._alarmAudio = audio;
-      audio.play().catch(reject);
+      if (!this._audioContext || this._audioContext.state !== "running") {
+        reject(new Error("Alarm audio context unavailable"));
+        return;
+      }
+      const source = this._audioContext.createBufferSource();
+      const gain = this._audioContext.createGain();
+      source.buffer = buffer;
+      gain.gain.value = Math.max(0.1, Math.min(1, Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50) / 100));
+      source.connect(gain);
+      gain.connect(this._audioContext.destination);
+      source.onended = () => { if (this._alarmAudio === source) this._alarmAudio = undefined; resolve(); };
+      this._alarmAudio = source;
+      try { source.start(); } catch (error) { this._alarmAudio = undefined; reject(error); }
     });
   }
 
@@ -2708,8 +2719,7 @@ class JarvisClockDashboardCard extends HTMLElement {
     this._voiceFallbackTimer = undefined;
     this._voiceRepeatTimer = undefined;
     if (this._alarmAudio) {
-      this._alarmAudio.pause();
-      this._alarmAudio.currentTime = 0;
+      try { this._alarmAudio.stop(); } catch (_) {}
     }
     this._alarmAudio = undefined;
     this._voiceRequested = false;
