@@ -398,15 +398,13 @@ class CurrentInformationIntelligence:
 
     def _local_datetime(self, text):
         normalized = " ".join(str(text).casefold().strip(" .?!").split())
-        date_question = bool(re.fullmatch(
-            r"(?:what|which) (?:day|date) is it(?: today)?|"
-            r"what is (?:the date|today'?s date)|tell me (?:the day|the date)",
-            normalized,
-        ))
-        time_question = bool(re.fullmatch(
-            r"what time is it(?: now)?|tell me the time|what is the time",
-            normalized,
-        ))
+        words = set(re.findall(r"[a-z]+", normalized))
+        question = bool(words & {"what", "which", "tell", "today", "now"})
+        excluded = bool(words & {
+            "weather", "forecast", "news", "schedule", "appointment", "release",
+        })
+        date_question = question and bool(words & {"day", "date"}) and not excluded
+        time_question = question and "time" in words and not excluded
         if not date_question and not time_question:
             return None
         now = datetime.now(ZoneInfo(self.policy.time_zone))

@@ -144,7 +144,26 @@ class EfficientLocalIntelligence:
     @staticmethod
     def _key(text):
         normalized = " ".join(str(text).casefold().split()).strip(" .?!")
-        return hashlib.sha256(normalized.encode()).hexdigest()
+        tokens = re.findall(r"[a-z0-9]+", normalized)
+        # Remove presentation/politeness scaffolding while preserving factual
+        # content and negation. This tolerates ordinary STT wording variation
+        # without allowing broad fuzzy matches between different questions.
+        scaffolding = {
+            "a", "an", "the", "do", "does", "in", "of", "please", "me",
+            "tell", "explain", "describe", "answer", "sentence", "sentences",
+            "one", "two", "short", "briefly", "what", "why", "how",
+        }
+        content = []
+        for token in tokens:
+            if token in scaffolding:
+                continue
+            if len(token) > 5 and token.endswith("ing"):
+                token = token[:-3]
+            elif len(token) > 4 and token.endswith("s"):
+                token = token[:-1]
+            content.append(token)
+        fingerprint = " ".join(sorted(content)) or normalized
+        return hashlib.sha256(fingerprint.encode()).hexdigest()
 
     def _cache_get(self, key):
         item = self._cache.get(key)

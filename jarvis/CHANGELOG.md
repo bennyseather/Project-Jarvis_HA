@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.25
+
+- Canonicalise safe stable-question cache keys across ordinary STT wording and presentation variations.
+- Recognise day, date, and time intent structurally while excluding weather, news, schedules, appointments, and releases.
+
 ## 0.45.24
 
 - Deliver slow-request progress directly to the explicitly originating browser satellite, preventing silent Assist waits.
