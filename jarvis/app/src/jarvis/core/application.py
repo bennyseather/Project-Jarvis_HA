@@ -775,7 +775,12 @@ class JarvisApplication:
         lock_key = self.container.conversation_store.normalize_conversation_id(
             conversation_id
         )
-        request_lock = self._request_locks.setdefault(lock_key, asyncio.Lock())
+        route = self.container.efficient_intelligence.classify(text)
+        request_lock = (
+            asyncio.Lock()
+            if route in {"general_reasoning", "current_information"}
+            else self._request_locks.setdefault(lock_key, asyncio.Lock())
+        )
         async with request_lock:
             result = await self._handle_request(
                 text, conversation_id, voice_mode, source_id

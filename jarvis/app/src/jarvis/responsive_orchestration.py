@@ -80,7 +80,14 @@ class ResponsiveVoiceCoordinator:
         self._job_by_source[source] = job_id
         self._job_by_request[request_key] = job_id
         asyncio.create_task(self._complete(job))
-        return self._progress(text, job_id)
+        progress = self._progress(text, job_id)
+        if route.get("event_type"):
+            # Browser Assist pipelines can lose their initial TTS when a long
+            # intent is still active. A scoped event makes progress audible on
+            # the originating satellite without guessing another speaker.
+            asyncio.create_task(self._safe_speak(route, progress["message"]))
+            progress["direct_delivery"] = True
+        return progress
 
     async def _complete(self, job):
         task = job["task"]

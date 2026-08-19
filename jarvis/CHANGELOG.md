@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.24
+
+- Deliver slow-request progress directly to the explicitly originating browser satellite, preventing silent Assist waits.
+- Allow safe general and current-information requests from one conversation to run concurrently while preserving serialization for HA actions and memory changes.
+
 ## 0.45.23
 
 - Route concise voice reasoning through a dedicated local Qwen3 1.7B model while retaining Qwen3 8B for deeper reasoning.
