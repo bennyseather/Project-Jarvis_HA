@@ -16,6 +16,11 @@ class LocalReasoningPolicy:
     timeout_seconds: int = 90
     fallback_to_openai: bool = True
     token: str = ""
+    context_tokens: int = 4096
+    maximum_input_messages: int = 8
+    maximum_input_characters: int = 12000
+    maximum_output_tokens: int = 160
+    failure_cooldown_seconds: int = 30
 
     @classmethod
     def from_config(cls, value):
@@ -29,6 +34,16 @@ class LocalReasoningPolicy:
             raise ValueError("local reasoning model names must not be empty")
         if not 5 <= policy.timeout_seconds <= 300:
             raise ValueError("local_reasoning.timeout_seconds must be between 5 and 300")
+        if not 2048 <= policy.context_tokens <= 32768:
+            raise ValueError("local_reasoning.context_tokens is invalid")
+        if not 2 <= policy.maximum_input_messages <= 30:
+            raise ValueError("local_reasoning.maximum_input_messages is invalid")
+        if not 2000 <= policy.maximum_input_characters <= 100000:
+            raise ValueError("local_reasoning.maximum_input_characters is invalid")
+        if not 32 <= policy.maximum_output_tokens <= 1024:
+            raise ValueError("local_reasoning.maximum_output_tokens is invalid")
+        if not 5 <= policy.failure_cooldown_seconds <= 300:
+            raise ValueError("local_reasoning.failure_cooldown_seconds is invalid")
         return policy
 
 
@@ -38,6 +53,7 @@ class LocalFirstReasoningProvider:
 
     def __init__(self, policy, logger, fallback=None):
         self.policy, self.logger, self.fallback = policy, logger, fallback
+        self._local_unavailable_until = 0.0
 
     def ask(self, input_data: Any) -> str:
         try:
@@ -95,11 +111,43 @@ class LocalFirstReasoningProvider:
         payload = self._post("/api/show", {"model": self.policy.model}, timeout_seconds=10)
         return {"ready": bool(payload), "provider": "ollama", "model": self.policy.model}
 
+    def warm(self):
+        """Load the configured model without generating user-visible content."""
+        try:
+            payload = self._post(
+                "/api/generate",
+                {"model": self.policy.model, "prompt": "", "keep_alive": -1},
+                timeout_seconds=30,
+            )
+            return {"ready": bool(payload), "provider": "ollama", "model": self.policy.model}
+        except Exception as exc:
+            self.logger.warning(f"Local reasoning warm-up deferred: {exc}")
+            return {"ready": False, "provider": "ollama", "model": self.policy.model}
+
     def _chat(self, instructions, messages, *, json_output=False, timeout_seconds=None):
+        import time
+        if time.monotonic() < self._local_unavailable_until:
+            raise RuntimeError("local worker is in a short recovery cooldown")
         ollama_messages = []
         if instructions:
-            ollama_messages.append({"role": "system", "content": str(instructions)})
-        ollama_messages.extend({"role": str(item.get("role", "user")), "content": str(item.get("content", ""))} for item in messages if isinstance(item, dict))
+            ollama_messages.append({
+                "role": "system",
+                "content": str(instructions)[: self.policy.maximum_input_characters // 2],
+            })
+        remaining = self.policy.maximum_input_characters - sum(
+            len(item["content"]) for item in ollama_messages
+        )
+        bounded = [item for item in messages if isinstance(item, dict)][
+            -self.policy.maximum_input_messages:
+        ]
+        for item in bounded:
+            content = str(item.get("content", ""))[:max(0, remaining)]
+            if not content:
+                continue
+            ollama_messages.append({
+                "role": str(item.get("role", "user")), "content": content
+            })
+            remaining -= len(content)
         payload = {
             "model": self.policy.model,
             "messages": ollama_messages,
@@ -108,13 +156,18 @@ class LocalFirstReasoningProvider:
             "keep_alive": -1,
             "options": {
                 "temperature": 0.2,
-                "num_ctx": 8192,
-                "num_predict": 512 if json_output else 192,
+                "num_ctx": self.policy.context_tokens,
+                "num_predict": 512 if json_output else self.policy.maximum_output_tokens,
             },
         }
         if json_output:
             payload["format"] = "json"
-        response = self._post("/api/chat", payload, timeout_seconds=timeout_seconds)
+        try:
+            response = self._post("/api/chat", payload, timeout_seconds=timeout_seconds)
+        except Exception:
+            self._local_unavailable_until = time.monotonic() + self.policy.failure_cooldown_seconds
+            raise
+        self._local_unavailable_until = 0.0
         message = str(response.get("message", {}).get("content", "")).strip()
         if not message:
             raise RuntimeError("Ollama returned no answer")

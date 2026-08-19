@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.45.20"
+  version: "0.45.21"
 
 system:
   debug: false
@@ -74,6 +74,14 @@ responsive_voice:
   maximum_runtime_seconds: 90.0
   maximum_pending_jobs: 16
 
+efficient_intelligence:
+  enabled: true
+  stable_cache_ttl_seconds: 600
+  maximum_cache_entries: 128
+  maximum_concurrent_reasoning: 2
+  maximum_context_references: 24
+  telemetry_entries: 200
+
 ai_budget:
   monthly_limit_usd: 10.0
   warning_thresholds: [0.7, 0.9]
@@ -87,6 +95,11 @@ local_reasoning:
   timeout_seconds: 90
   fallback_to_openai: true
   token: ""
+  context_tokens: 4096
+  maximum_input_messages: 8
+  maximum_input_characters: 12000
+  maximum_output_tokens: 160
+  failure_cooldown_seconds: 30
 
 reflection:
   context_limit: 5

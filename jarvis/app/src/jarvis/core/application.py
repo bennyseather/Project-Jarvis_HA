@@ -22,6 +22,10 @@ from jarvis.current_information import (
     CurrentInformationPolicy,
     fetch_official_document,
 )
+from jarvis.efficient_local_intelligence import (
+    EfficientIntelligencePolicy,
+    EfficientLocalIntelligence,
+)
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
 from jarvis.providers.local_first_provider import LocalFirstReasoningProvider, LocalReasoningPolicy
@@ -133,7 +137,7 @@ class JarvisApplication:
         self._pending_action_payloads: dict[
             str, tuple[str, dict[str, object]]
         ] = {}
-        self._request_lock = asyncio.Lock()
+        self._request_locks: dict[str, asyncio.Lock] = {}
 
     async def run(self):
         """
@@ -324,6 +328,13 @@ class JarvisApplication:
             client=self.container.home_assistant,
             logger=self.container.logger,
         )
+        self.container.efficient_intelligence_policy = EfficientIntelligencePolicy.from_config(
+            self.general.get("efficient_intelligence", {})
+        )
+        self.container.efficient_intelligence = EfficientLocalIntelligence(
+            self.container.efficient_intelligence_policy,
+            logger=self.container.logger,
+        )
         self.container.openai = OpenAIProvider(
             api_key=self.general["openai"]["api_key"],
             logger=self.container.logger,
@@ -397,10 +408,11 @@ class JarvisApplication:
             self.general.get("local_reasoning", {})
         )
         if self.container.local_reasoning_policy.enabled:
-            self.container.openai = LocalFirstReasoningProvider(
+            self.container.local_reasoning_provider = LocalFirstReasoningProvider(
                 self.container.local_reasoning_policy, self.container.logger,
                 fallback=self.container.openai,
             )
+            self.container.openai = self.container.local_reasoning_provider
             self.container.local_knowledge_router = LocalKnowledgeRouter(
                 self.container.openai
             )
@@ -745,6 +757,9 @@ class JarvisApplication:
         )
 
         self.container.logger.info("Provider startup checks are connectivity-only.")
+        local_provider = self.container.local_reasoning_provider
+        if local_provider is not None:
+            asyncio.create_task(asyncio.to_thread(local_provider.warm))
 
     async def handle_request(
         self,
@@ -757,7 +772,11 @@ class JarvisApplication:
         """Route one user request through the configured safe assistant slice."""
 
         started = time.monotonic()
-        async with self._request_lock:
+        lock_key = self.container.conversation_store.normalize_conversation_id(
+            conversation_id
+        )
+        request_lock = self._request_locks.setdefault(lock_key, asyncio.Lock())
+        async with request_lock:
             result = await self._handle_request(
                 text, conversation_id, voice_mode, source_id
             )
@@ -982,7 +1001,11 @@ class JarvisApplication:
             "proactive": self.container.proactive_manager.context_for(text),
             "home_assistant": self.container.home_assistant_capability_context.as_context(),
         }
-        context["home_assistant"]["references"] = self.container.home_reference_context
+        context["home_assistant"]["references"] = (
+            self.container.efficient_intelligence.context_for(
+                text, self.container.home_reference_context
+            )
+        )
         context["home_assistant"]["situational"] = (
             self.container.situational_intelligence.context(identifier)
         )

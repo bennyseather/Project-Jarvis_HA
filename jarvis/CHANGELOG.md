@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.45.21
+
+- Added M55 efficient local-intelligence routing with privacy-safe latency diagnostics.
+- Added safe hashed caching for stable general knowledge; HA state, actions, personal context, and current information always bypass it.
+- Bounded local Ollama queues, prompt context, and spoken-answer generation for more predictable voice latency.
+- Added short local-worker recovery cooldown and preserved policy-controlled OpenAI fallback as the last resort.
+- Reduced HA metadata context to relevant authorised names and areas without including state history.
+
 ## 0.45.20
 
 - Shorten delayed voice acknowledgements to rotating synthetic phrases such as “Searching sources”, “Calculating”, and “Processing”.

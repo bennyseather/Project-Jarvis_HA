@@ -116,6 +116,13 @@ class JarvisConversationBridge:
             voice_mode=voice_mode,
             source_id=source_id,
         )
+        intelligence = getattr(
+            self._application.container, "efficient_intelligence", None
+        )
+        if intelligence is not None:
+            operation = intelligence.execute(
+                operation, text=request_text, source_id=source_id
+            )
         coordinator = getattr(
             self._application.container, "responsive_voice", None
         )
