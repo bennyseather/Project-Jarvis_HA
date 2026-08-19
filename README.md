@@ -92,7 +92,10 @@ The Voice card dispatches Home Assistant's standard Assist action. The separate
 Voice Satellite card can use a browser microphone over HTTPS for wake-word or
 push-to-talk testing. Audio streams directly to Home Assistant's authenticated
 Assist pipeline and is never stored by Jarvis. Muting the card closes its audio
-track and releases the microphone.
+track and releases the microphone. Push to talk starts with one press and sends
+automatically after speech followed by 0.9 seconds of silence. The visual editor
+can adjust `silence_timeout` between 0.6 and 2 seconds, and the active button
+remains a manual early-send control.
 
 ## Jarvis icons
 

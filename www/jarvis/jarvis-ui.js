@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.16";
+const JARVIS_UI_VERSION = "0.47.17";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1080,13 +1080,14 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       { name: "satellite_entity", selector: { entity: { domain: "assist_satellite" } } },
       { name: "wake_word_phrase", selector: { text: {} } },
       { name: "wake_timeout", selector: { number: { min: 3, max: 60, step: 1, mode: "slider" } } },
+      { name: "silence_timeout", selector: { number: { min: 0.6, max: 2, step: 0.1, mode: "slider" } } },
       { name: "conversational_mode", selector: { boolean: {} } },
       { name: "follow_up_timeout", selector: { number: { min: 3, max: 20, step: 1, mode: "slider" } } },
       { name: "max_dialogue_turns", selector: { number: { min: 1, max: 5, step: 1, mode: "slider" } } },
     ] };
   }
   static getStubConfig() {
-    return { title: "Windows Voice Satellite", follow_up_target: "development_computer", wake_word_phrase: "Hey Jarvis", wake_timeout: 15, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3 };
+    return { title: "Windows Voice Satellite", follow_up_target: "development_computer", wake_word_phrase: "Hey Jarvis", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3 };
   }
   constructor() {
     super();
@@ -1101,7 +1102,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._pipelineGeneration = 0;
   }
   setConfig(config) {
-    super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
+    super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
     if (!this._conversationId) {
       const target = encodeURIComponent(this._config.follow_up_target || "development_computer");
       const session = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1161,7 +1162,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     const wake = root.querySelector(".wake");
     if (wake) wake.textContent = this._mode === "wake" ? "Wake word active" : "Enable wake word";
     const ptt = root.querySelector(".ptt");
-    if (ptt) ptt.textContent = this._mode === "ptt" ? "Send command" : "Push to talk";
+    if (ptt) ptt.textContent = this._mode === "ptt" ? "Listening · auto send" : "Push to talk";
   }
   async _start(mode) {
     if (!this._hass?.connection?.subscribeMessage || !navigator.mediaDevices?.getUserMedia) {
@@ -1201,10 +1202,13 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._handlerId = undefined;
     this._preRoll = [];
     this._voiceGate = 0;
+    this._pttSpeechFrames = 0;
+    this._pttSpeechDetected = false;
+    this._pttLastSpeechAt = 0;
     this._wakeDetected = false;
     this._status = followUp ? "Awaiting follow-up // listening" : startStage === "wake_word"
       ? `Listening for ${this._config.wake_word_phrase || "wake word"}`
-      : "Listening // tap send when finished";
+      : "Listening // auto send after silence";
     this._paintStatus();
     const message = {
       type: "assist_pipeline/run", start_stage: startStage, end_stage: "tts",
@@ -1278,6 +1282,11 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       const sample = Math.max(-1, Math.min(1, samples[Math.floor(index * ratio)]));
       view.setInt16(1 + index * 2, sample < 0 ? sample * 32768 : sample * 32767, true);
     }
+    if (this._mode === "ptt") {
+      this._hass.connection.socket.send(packet);
+      this._trackPushToTalkSilence(samples);
+      return;
+    }
     if (this._mode !== "wake" || this._wakeDetected || this._followUpMode) {
       this._hass.connection.socket.send(packet);
       return;
@@ -1296,8 +1305,31 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       if (this._preRoll.length > 4) this._preRoll.shift();
     }
   }
+  _trackPushToTalkSilence(samples) {
+    let energy = 0;
+    for (let index = 0; index < samples.length; index += 1) energy += samples[index] * samples[index];
+    const level = Math.sqrt(energy / samples.length);
+    const now = performance.now();
+    if (!this._pttSpeechDetected) {
+      this._pttSpeechFrames = level > 0.012 ? this._pttSpeechFrames + 1 : 0;
+      if (this._pttSpeechFrames >= 2) {
+        this._pttSpeechDetected = true;
+        this._pttLastSpeechAt = now;
+        this._status = "Command detected // listening";
+        this._paintStatus();
+      }
+      return;
+    }
+    if (level > 0.007) {
+      this._pttLastSpeechAt = now;
+      return;
+    }
+    const silenceMs = Number(this._config.silence_timeout || 0.9) * 1000;
+    if (now - this._pttLastSpeechAt >= silenceMs) this._finishAudio();
+  }
   _finishAudio() {
-    if (this._handlerId !== undefined) this._hass.connection.socket.send(new Uint8Array([this._handlerId]));
+    if (this._handlerId === undefined || this._handlerId === null) return;
+    this._hass.connection.socket.send(new Uint8Array([this._handlerId]));
     this._handlerId = undefined;
     this._status = "Processing command";
     this._paintStatus();
