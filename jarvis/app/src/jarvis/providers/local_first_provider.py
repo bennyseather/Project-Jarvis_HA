@@ -12,6 +12,7 @@ class LocalReasoningPolicy:
     enabled: bool = True
     url: str = "http://192.168.1.105:11434"
     model: str = "qwen3:8b"
+    voice_model: str = "qwen3:1.7b"
     embedding_model: str = "qwen3-embedding:0.6b"
     timeout_seconds: int = 90
     fallback_to_openai: bool = True
@@ -30,7 +31,7 @@ class LocalReasoningPolicy:
         policy = cls(**{name: config.get(name, getattr(cls(), name)) for name in cls.__dataclass_fields__})
         if not policy.url.startswith(("http://", "https://")):
             raise ValueError("local_reasoning.url must be HTTP(S)")
-        if not policy.model.strip() or not policy.embedding_model.strip():
+        if not policy.model.strip() or not policy.voice_model.strip() or not policy.embedding_model.strip():
             raise ValueError("local reasoning model names must not be empty")
         if not 5 <= policy.timeout_seconds <= 300:
             raise ValueError("local_reasoning.timeout_seconds must be between 5 and 300")
@@ -75,17 +76,18 @@ class LocalFirstReasoningProvider:
                 return self.fallback.reason(instructions=instructions, input_messages=input_messages, model=model, timeout_seconds=timeout_seconds)
             return {"status": "unavailable", "message": "Local reasoning is temporarily unavailable."}
 
-    def reason_local(self, *, instructions, input_messages, timeout_seconds):
+    def reason_local(self, *, instructions, input_messages, timeout_seconds, model=None):
         """Run exactly one local pass without invoking the external fallback."""
         try:
             message = self._chat(
-                instructions, input_messages, timeout_seconds=timeout_seconds
+                instructions, input_messages, timeout_seconds=timeout_seconds,
+                model=model,
             )
             return {
                 "status": "success",
                 "message": message,
                 "provider": "ollama",
-                "model": self.policy.model,
+                "model": model or self.policy.model,
                 "estimated_cost_usd": 0.0,
             }
         except Exception as exc:
@@ -114,22 +116,25 @@ class LocalFirstReasoningProvider:
     def warm(self):
         """Load the configured model without generating user-visible content."""
         try:
-            payload = self._post(
-                "/api/chat",
-                {
-                    "model": self.policy.model,
-                    "messages": [],
-                    "stream": False,
-                    "keep_alive": -1,
-                },
-                timeout_seconds=30,
-            )
-            return {"ready": bool(payload), "provider": "ollama", "model": self.policy.model}
+            ready = False
+            for model in dict.fromkeys((self.policy.model, self.policy.voice_model)):
+                payload = self._post(
+                    "/api/chat",
+                    {
+                        "model": model,
+                        "messages": [],
+                        "stream": False,
+                        "keep_alive": -1,
+                    },
+                    timeout_seconds=30,
+                )
+                ready = bool(payload) or ready
+            return {"ready": ready, "provider": "ollama", "model": self.policy.voice_model}
         except Exception as exc:
             self.logger.warning(f"Local reasoning warm-up deferred: {exc}")
             return {"ready": False, "provider": "ollama", "model": self.policy.model}
 
-    def _chat(self, instructions, messages, *, json_output=False, timeout_seconds=None):
+    def _chat(self, instructions, messages, *, json_output=False, timeout_seconds=None, model=None):
         import time
         if time.monotonic() < self._local_unavailable_until:
             raise RuntimeError("local worker is in a short recovery cooldown")
@@ -154,7 +159,7 @@ class LocalFirstReasoningProvider:
             })
             remaining -= len(content)
         payload = {
-            "model": self.policy.model,
+            "model": model or self.policy.model,
             "messages": ollama_messages,
             "stream": False,
             "think": False,

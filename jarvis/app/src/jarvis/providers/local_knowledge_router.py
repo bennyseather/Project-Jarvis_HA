@@ -66,6 +66,8 @@ class LocalKnowledgeRouter:
             "input_messages": messages,
             "timeout_seconds": 45,
         }
+        if voice_mode and hasattr(self._reasoning, "policy"):
+            request["model"] = self._reasoning.policy.voice_model
         local_reason = getattr(self._reasoning, "reason_local", None)
         result = (
             local_reason(**request)

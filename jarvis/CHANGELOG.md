@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.23
+
+- Route concise voice reasoning through a dedicated local Qwen3 1.7B model while retaining Qwen3 8B for deeper reasoning.
+- Cache stable explanatory prompts regardless of harmless spoken prefixes such as requested sentence counts.
+- Preserve earlier pending answers when a second request arrives from the same speaker instead of silently cancelling them.
+- Answer local day, date, and time questions deterministically in the configured Home Assistant time zone without web research.
+
 ## 0.45.22
 
 - Warm the local Ollama model through the Jarvis Node proxy's supported chat route.

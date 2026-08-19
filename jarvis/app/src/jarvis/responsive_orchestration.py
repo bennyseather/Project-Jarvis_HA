@@ -59,11 +59,6 @@ class ResponsiveVoiceCoordinator:
                 operation.close()
             return self._progress(text, existing_id, duplicate=True)
 
-        previous_id = self._job_by_source.get(source)
-        previous = self._jobs.get(previous_id) if previous_id else None
-        if previous and not previous["task"].done():
-            previous["task"].cancel()
-
         self._prune()
         task = asyncio.create_task(operation)
         done, _ = await asyncio.wait(

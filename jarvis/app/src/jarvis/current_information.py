@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 import json
 import re
 import time
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from urllib.parse import urlparse
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
@@ -60,6 +61,7 @@ class CurrentInformationPolicy:
     cache_ttl_seconds: int = 300
     maximum_sources: int = 3
     maximum_evidence_characters: int = 4500
+    time_zone: str = "Europe/Oslo"
 
     @classmethod
     def from_config(cls, value):
@@ -82,6 +84,10 @@ class CurrentInformationPolicy:
             raise ValueError("current_information.maximum_sources is invalid")
         if not 1000 <= policy.maximum_evidence_characters <= 12000:
             raise ValueError("current_information.maximum_evidence_characters is invalid")
+        try:
+            ZoneInfo(policy.time_zone)
+        except (ZoneInfoNotFoundError, TypeError):
+            raise ValueError("current_information.time_zone is invalid")
         return policy
 
 
@@ -357,6 +363,9 @@ class CurrentInformationIntelligence:
         return bool(self._TEMPORAL.search(normalized) or self._EXPLICIT.search(normalized))
 
     async def handle(self, text: str, *, voice_mode=False):
+        local_time = self._local_datetime(text)
+        if local_time is not None:
+            return local_time
         if not self.is_current_question(text):
             return None
         adapter = next((item for item in self.adapters if item.matches(text)), None)
@@ -386,6 +395,33 @@ class CurrentInformationIntelligence:
         if result.get("status") == "success" and not result.get("fallback_reason"):
             self._cache[key] = (self.clock(), dict(result))
         return result
+
+    def _local_datetime(self, text):
+        normalized = " ".join(str(text).casefold().strip(" .?!").split())
+        date_question = bool(re.fullmatch(
+            r"(?:what|which) (?:day|date) is it(?: today)?|"
+            r"what is (?:the date|today'?s date)|tell me (?:the day|the date)",
+            normalized,
+        ))
+        time_question = bool(re.fullmatch(
+            r"what time is it(?: now)?|tell me the time|what is the time",
+            normalized,
+        ))
+        if not date_question and not time_question:
+            return None
+        now = datetime.now(ZoneInfo(self.policy.time_zone))
+        message = (
+            f"Today is {now.strftime('%A')}, {now.day} {now.strftime('%B %Y')}."
+            if date_question
+            else f"It is {now.strftime('%H:%M')}."
+        )
+        return {
+            "status": "success",
+            "message": message,
+            "provider": "local_clock",
+            "cache": "bypass",
+            "timings": {"total_ms": 0},
+        }
 
     async def _resolve(self, text, *, voice_mode, started, adapter=None):
         query = adapter.query(text) if adapter else text[:300]

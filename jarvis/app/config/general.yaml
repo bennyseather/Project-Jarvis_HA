@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.45.22"
+  version: "0.45.23"
 
 system:
   debug: false
@@ -68,6 +68,7 @@ current_information:
   cache_ttl_seconds: 300
   maximum_sources: 3
   maximum_evidence_characters: 4500
+  time_zone: "Europe/Oslo"
 
 responsive_voice:
   progress_deadline_seconds: 1.0
@@ -91,6 +92,7 @@ local_reasoning:
   enabled: true
   url: "http://192.168.1.105:10550"
   model: "qwen3:8b"
+  voice_model: "qwen3:1.7b"
   embedding_model: "qwen3-embedding:0.6b"
   timeout_seconds: 90
   fallback_to_openai: true

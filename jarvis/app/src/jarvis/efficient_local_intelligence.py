@@ -56,7 +56,7 @@ class EfficientLocalIntelligence:
         r"\b(my|me|i|we|our|remember|forget|learned|calendar|appointment|password|pin)\b", re.I
     )
     _STABLE_QUESTION = re.compile(
-        r"^(what|why|how|who|where|when|explain|compare|define|calculate|convert)\b", re.I
+        r"\b(what|why|how|who|where|when|explain|compare|define|calculate|convert)\b", re.I
     )
 
     def __init__(self, policy=None, *, clock=time.monotonic, logger=None):
