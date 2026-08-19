@@ -10,6 +10,7 @@ views:
         media_player_entity: media_player.bedroom_clock_benny
         after_media_active_entity: input_boolean.jarvis_clock_after_media_active
         after_media_stop_script: script.jarvis_clock_after_media_stop
+        wake_word_enabled_entity: input_boolean.jarvis_clock_wake_word_enabled
         alarm_time_entity: input_datetime.jarvis_clock_alarm_time
         alarm_enabled_entity: input_boolean.jarvis_clock_alarm_enabled
         alarm_active_entity: input_boolean.jarvis_clock_alarm_active
