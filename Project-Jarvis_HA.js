@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.18";
+const JARVIS_UI_VERSION = "0.47.19";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2392,7 +2392,9 @@ class JarvisClockDashboardCard extends HTMLElement {
     this._editorOpen = false;
     this._forecast = undefined;
     this._forecastLoading = false;
+    this._lastHeartbeatAt = 0;
     this._ticker = setInterval(() => {
+      this.publishHeartbeat();
       if (!this._editorOpen) this.render();
     }, 1000);
   }
@@ -2407,6 +2409,7 @@ class JarvisClockDashboardCard extends HTMLElement {
   set hass(value) {
     this._hass = value;
     this._satellite.hass = value;
+    this.publishHeartbeat();
     this.loadForecast();
     if (!this._editorOpen) this.render();
   }
@@ -2431,6 +2434,34 @@ class JarvisClockDashboardCard extends HTMLElement {
 
   call(domain, service, entityId, data = {}) {
     return this._hass?.callService(domain, service, data, { entity_id: entityId });
+  }
+
+  publishHeartbeat(force = false) {
+    if (!this._hass) return;
+    const now = Date.now();
+    if (!force && now - this._lastHeartbeatAt < 30000) return;
+    this._lastHeartbeatAt = now;
+    const date = new Date(now);
+    const pad = (value) => String(value).padStart(2, "0");
+    const datetime = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    Promise.resolve(this.call(
+      "input_datetime", "set_datetime",
+      this._config.heartbeat_entity || "input_datetime.jarvis_clock_dashboard_heartbeat",
+      { datetime },
+    )).catch(() => { this._lastHeartbeatAt = 0; });
+  }
+
+  acknowledgeAlarmPlayback() {
+    const ackEntity = this._config.playback_ack_entity || "input_boolean.jarvis_clock_alarm_playback_ack";
+    Promise.resolve(this.call("input_boolean", "turn_on", ackEntity)).catch(() => {});
+    const backupEntity = this._config.backup_active_entity || "input_boolean.jarvis_clock_alarm_backup_active";
+    if (this._hass?.states?.[backupEntity]?.state === "on") {
+      Promise.resolve(this.call(
+        "media_player", "media_stop",
+        this._config.media_player_entity || "media_player.bedroom_clock_benny",
+      )).catch(() => {});
+      Promise.resolve(this.call("input_boolean", "turn_off", backupEntity)).catch(() => {});
+    }
   }
 
   async startLocalRadio() {
@@ -2630,7 +2661,10 @@ class JarvisClockDashboardCard extends HTMLElement {
       gain.connect(this._audioContext.destination);
       source.onended = () => { if (this._alarmAudio === source) this._alarmAudio = undefined; resolve(); };
       this._alarmAudio = source;
-      try { source.start(); } catch (error) { this._alarmAudio = undefined; reject(error); }
+      try {
+        source.start();
+        this.acknowledgeAlarmPlayback();
+      } catch (error) { this._alarmAudio = undefined; reject(error); }
     });
   }
 
