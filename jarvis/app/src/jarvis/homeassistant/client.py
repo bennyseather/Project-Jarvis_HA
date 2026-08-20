@@ -39,7 +39,8 @@ class HomeAssistantClient:
         data = json.loads(message)
 
         message_type = data.get("type", "unknown")
-        self.logger.info(f"Received message of type '{message_type}'")
+        if message_type != "event":
+            self.logger.info(f"Received message of type '{message_type}'")
 
         return data
 
@@ -125,7 +126,7 @@ class HomeAssistantClient:
             return await self._get_states_once()
         except Exception as error:
             self.logger.warning(
-                f"Home Assistant state read failed; reconnecting once: {error}"
+                f"Home Assistant state read failed; reconnecting: {error}"
             )
             await self._connect_socket()
             return await self._get_states_once()

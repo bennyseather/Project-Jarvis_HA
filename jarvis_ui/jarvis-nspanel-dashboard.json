@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "lovelace.nspanel_lcars",
+  "data": {
+    "config": {
+      "views": [
+        {
+          "title": "Jarvis NSPanel",
+          "path": "0",
+          "type": "panel",
+          "icon": "mdi:home-assistant",
+          "cards": [
+            {
+              "type": "custom:jarvis-nspanel-dashboard-card",
+              "light_entity": "light.interior_lights",
+              "cover_entity": "cover.all_blinds",
+              "mower_entity": "lawn_mower.edward_scissorhand_lawn_mower",
+              "vacuum_entity": "sensor.alfred_status",
+              "washer_entity": "sensor.vaskepott_state"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

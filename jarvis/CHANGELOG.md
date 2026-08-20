@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.26
+
+- Keep voice and general reasoning on the same GPU-resident Qwen3 8B model to eliminate model-swap stalls.
+- Prefer the healthy Bing search route and continuously recover proactive Home Assistant connections.
+- Suppress high-volume generic event logs while preserving bounded route-duration telemetry.
+
 ## 0.45.25
 
 - Canonicalise safe stable-question cache keys across ordinary STT wording and presentation variations.

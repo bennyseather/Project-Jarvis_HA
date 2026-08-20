@@ -33,7 +33,19 @@ class JarvisRSSStories(SensorEntity):
     @property
     def extra_state_attributes(self):
         read = self.hass.data[DOMAIN]["read"]
-        stories = [{**item, "read": item.get("id") in read} for item in self._cache.get("stories", ())[:40]]
+        # HA recorder limits state attributes to 16 KiB. Keep the complete cache
+        # on disk for Jarvis, while exposing a compact dashboard window here.
+        stories = [
+            {
+                "id": item.get("id"),
+                "title": str(item.get("title", ""))[:240],
+                "source": str(item.get("source", ""))[:80],
+                "url": str(item.get("url", ""))[:500],
+                "published": item.get("published"),
+                "read": item.get("id") in read,
+            }
+            for item in self._cache.get("stories", ())[:16]
+        ]
         return {"updated_at": self._cache.get("updated_at"), "stories": stories, "unread": sum(not item["read"] for item in stories)}
 
 

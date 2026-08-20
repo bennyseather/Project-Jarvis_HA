@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.45.25"
+  version: "0.45.26"
 
 system:
   debug: false
@@ -92,7 +92,7 @@ local_reasoning:
   enabled: true
   url: "http://192.168.1.105:10550"
   model: "qwen3:8b"
-  voice_model: "qwen3:1.7b"
+  voice_model: "qwen3:8b"
   embedding_model: "qwen3-embedding:0.6b"
   timeout_seconds: 90
   fallback_to_openai: true

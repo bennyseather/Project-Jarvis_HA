@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.45.25"
+version: "0.45.26"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]
@@ -35,7 +35,7 @@ options:
   local_reasoning_url: "http://192.168.1.105:10550"
   local_reasoning_token: ""
   local_reasoning_model: "qwen3:8b"
-  local_voice_reasoning_model: "qwen3:1.7b"
+  local_voice_reasoning_model: "qwen3:8b"
   local_embedding_model: "qwen3-embedding:0.6b"
   local_reasoning_timeout: 90
   openai_fallback_enabled: true

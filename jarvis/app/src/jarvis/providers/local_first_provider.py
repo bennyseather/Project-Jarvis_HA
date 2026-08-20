@@ -12,7 +12,7 @@ class LocalReasoningPolicy:
     enabled: bool = True
     url: str = "http://192.168.1.105:11434"
     model: str = "qwen3:8b"
-    voice_model: str = "qwen3:1.7b"
+    voice_model: str = "qwen3:8b"
     embedding_model: str = "qwen3-embedding:0.6b"
     timeout_seconds: int = 90
     fallback_to_openai: bool = True

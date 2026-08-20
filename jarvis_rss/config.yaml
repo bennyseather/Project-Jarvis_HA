@@ -1,5 +1,5 @@
 name: "Project Jarvis RSS"
-version: "0.1.1"
+version: "0.1.2"
 slug: "jarvis_rss"
 description: "Private RSS and Atom feed cache for Project Jarvis"
 arch: [amd64, aarch64]

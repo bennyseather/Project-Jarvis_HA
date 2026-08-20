@@ -1102,26 +1102,31 @@ class JarvisApplication:
     async def _run_proactive_loop(self) -> None:
         """Periodically evaluate and deliver bounded Home Assistant suggestions."""
         client = self.container.proactive_client
-        try:
-            states = await client.connect()
-            while True:
-                self._refresh_proactive(states)
-                try:
-                    await self.container.proactive_delivery.deliver(client)
-                except Exception as error:
-                    self.container.logger.warning(
-                        f"Proactive delivery failed safely: {error}"
+        recovery_delay = 2
+        while True:
+            try:
+                states = await client.connect()
+                recovery_delay = 2
+                while True:
+                    self._refresh_proactive(states)
+                    try:
+                        await self.container.proactive_delivery.deliver(client)
+                    except Exception as error:
+                        self.container.logger.warning(
+                            f"Proactive delivery failed safely: {error}"
+                        )
+                    await asyncio.sleep(
+                        self.container.proactive_policy.scan_interval_seconds
                     )
-                await asyncio.sleep(
-                    self.container.proactive_policy.scan_interval_seconds
+                    states = await client.get_states()
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                self.container.logger.warning(
+                    f"Proactive connection unavailable; retrying in {recovery_delay}s: {error}"
                 )
-                states = await client.get_states()
-        except asyncio.CancelledError:
-            raise
-        except Exception as error:
-            self.container.logger.error(
-                f"Proactive assistance stopped safely: {error}"
-            )
+                await asyncio.sleep(recovery_delay)
+                recovery_delay = min(60, recovery_delay * 2)
 
     async def _run_stewardship_loop(self) -> None:
         try:

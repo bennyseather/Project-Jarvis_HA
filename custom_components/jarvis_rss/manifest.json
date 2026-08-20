@@ -1,7 +1,7 @@
 {
   "domain": "jarvis_rss",
   "name": "Project Jarvis RSS",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "documentation": "https://github.com/bennyseather/Project-Jarvis_HA",
   "iot_class": "local_polling",
   "requirements": []

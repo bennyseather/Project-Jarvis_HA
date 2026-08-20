@@ -19,7 +19,7 @@ class HybridResearchPolicy:
     maximum_pages: int = 3
     maximum_page_bytes: int = 262_144
     timeout_seconds: int = 15
-    search_engines: str = "bing,duckduckgo,brave"
+    search_engines: str = "bing"
     normal_model: str = "gpt-5.6-luna"
     escalation_model: str = "gpt-5.6-terra"
     premium_model: str = "gpt-5.6-sol"
