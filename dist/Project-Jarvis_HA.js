@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.46.7";
+const JARVIS_UI_VERSION = "0.47.22";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -891,6 +891,33 @@ class JarvisSensorCard extends JarvisBaseCard {
   }
 }
 
+class JarvisThermalGraphCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static cardName = "Jarvis Thermal Graph";
+  static gridRows = 4;
+  static getConfigForm() { return { schema: [
+    { name: "name", selector: { text: {} } },
+    { name: "entities", required: true, selector: { entity: { multiple: true, filter: [{ domain: "sensor", device_class: "temperature" }] } } },
+    { name: "history_hours", selector: { select: { options: ["1", "6", "12", "24", "48"] } } },
+    { name: "accent", selector: { select: { options: ["cyan", "amber", "green", "red"] } } },
+  ] }; }
+  static getStubConfig(hass) { return { name: "Jarvis Node thermals", entities: Object.keys(hass?.states || {}).filter((id) => id.includes("temperature") && (id.includes("gpu") || id.includes("cpu"))).slice(0, 3), history_hours: "24" }; }
+  connectedCallback() { this._visible = false; this._observer = new IntersectionObserver((entries) => { this._visible = entries.some((entry) => entry.isIntersecting); if (this._visible) this.loadHistory(); }, { rootMargin: "160px" }); this._observer.observe(this); }
+  disconnectedCallback() { this._observer?.disconnect(); }
+  render() {
+    if (!this._config) return; const ids = (this._config.entities || []).slice(0, 6);
+    const legend = ids.map((id, index) => `<span class="series-${index}"><i></i>${escapeHtml(friendlyName(stateObject(this._hass, id), { entity:id }))}<b>${escapeHtml(formatState(stateObject(this._hass, id), { entity:id }))}</b></span>`).join("");
+    this.shell(`<div class="thermal"><header><div><div class="eyebrow">Historical thermal envelope</div><div class="name">${escapeHtml(this._config.name || "Jarvis Node thermals")}</div></div><ha-icon icon="mdi:chart-multiple"></ha-icon></header><div class="thermal-plot"><span>HISTORY LOADING</span></div><div class="legend">${legend}</div></div><style>.thermal{--series-0:var(--j-accent);--series-1:color-mix(in srgb,var(--j-accent) 68%,#eafaff);--series-2:color-mix(in srgb,var(--j-accent) 72%,#315cff);--series-3:color-mix(in srgb,var(--j-accent) 60%,#55e6a5);--series-4:color-mix(in srgb,var(--j-accent) 65%,#ffc247);--series-5:color-mix(in srgb,var(--j-accent) 65%,#ff6572);min-height:250px;padding:18px;display:grid;gap:12px}.thermal header{display:flex;justify-content:space-between;align-items:center}.thermal header ha-icon{color:var(--j-accent)}.thermal-plot{height:146px;display:grid;place-items:center;min-width:0}.thermal-plot>span{font:600 8px monospace;color:var(--secondary-text-color)}.thermal-chart{width:100%;height:100%;display:grid;grid-template-columns:46px minmax(0,1fr);grid-template-rows:116px 18px 12px}.y-axis{grid-column:1;grid-row:1;display:flex;flex-direction:column;justify-content:space-between;align-items:end;padding:0 7px 0 0;font:600 8px monospace;color:var(--secondary-text-color)}.plot{grid-column:2;grid-row:1;border-left:1px solid var(--j-line);border-bottom:1px solid var(--j-line);min-width:0;overflow:hidden}.plot svg{display:block;width:100%;height:100%}.grid-line{stroke:var(--j-line);stroke-width:.45;vector-effect:non-scaling-stroke;stroke-dasharray:2 3}.thermal-plot polyline{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 3px currentColor)}.thermal-plot .series-0{stroke:var(--series-0)}.thermal-plot .series-1{stroke:var(--series-1)}.thermal-plot .series-2{stroke:var(--series-2)}.thermal-plot .series-3{stroke:var(--series-3)}.thermal-plot .series-4{stroke:var(--series-4)}.thermal-plot .series-5{stroke:var(--series-5)}.x-axis{grid-column:2;grid-row:2;display:flex;justify-content:space-between;padding-top:4px;font:600 8px monospace;color:var(--secondary-text-color)}.axis-title{grid-column:1/-1;grid-row:3;text-align:center;font:700 7px monospace;letter-spacing:.14em;color:var(--secondary-text-color)}.legend{display:flex;flex-wrap:wrap;gap:8px 14px}.legend span{display:grid;grid-template-columns:8px auto auto;gap:5px;align-items:center;font:600 9px monospace}.legend i{width:7px;height:7px;background:var(--j-accent)}.legend .series-1 i{background:var(--series-1)}.legend .series-2 i{background:var(--series-2)}.legend .series-3 i{background:var(--series-3)}.legend .series-4 i{background:var(--series-4)}.legend .series-5 i{background:var(--series-5)}.legend b{color:var(--j-accent)}@container(max-width:430px){.thermal{padding:14px}.thermal-chart{grid-template-columns:40px minmax(0,1fr)}.legend span{font-size:8px}}</style>`, { interactive:false });
+    if (this._visible) this.loadHistory();
+  }
+  async loadHistory() {
+    const host=this.shadowRoot?.querySelector(".thermal-plot"), ids=(this._config?.entities||[]).slice(0,6); if(!host||!ids.length||!this._hass?.callApi||this._loadingHistory)return;
+    const hours=[1,6,12,24,48].includes(Number(this._config.history_hours))?Number(this._config.history_hours):24; const end=new Date(),start=new Date(end.getTime()-hours*3600000),key=`thermal:${ids.join(",")}:${hours}`; let entry=HISTORY_CACHE.get(key);
+    if(!entry||Date.now()-entry.time>DATA_CACHE_TTL){this._loadingHistory=true;try{const result=await this._hass.callApi("GET",`history/period/${start.toISOString()}?filter_entity_id=${encodeURIComponent(ids.join(","))}&end_time=${encodeURIComponent(end.toISOString())}&minimal_response&no_attributes`);entry={time:Date.now(),series:(result||[]).map((states)=>states.map((x)=>Number(x.state)).filter(Number.isFinite).slice(-MAX_HISTORY_SAMPLES))};HISTORY_CACHE.set(key,entry);}catch(_e){entry={time:Date.now(),series:[]};}finally{this._loadingHistory=false;}}
+    const values=entry.series.flat();if(values.length<2){host.innerHTML="<span>NO THERMAL HISTORY</span>";return;}const min=Math.floor(Math.min(...values)-2),max=Math.ceil(Math.max(...values)+2),mid=Math.round((min+max)/2),span=Math.max(1,max-min);const lines=entry.series.map((series,index)=>series.length<2?"":`<polyline class="series-${index}" points="${series.map((v,i)=>`${(i/(series.length-1)*100).toFixed(1)},${(96-(v-min)/span*92).toFixed(1)}`).join(" ")}"></polyline>`).join("");host.innerHTML=`<div class="thermal-chart"><div class="y-axis"><span>${max} °C</span><span>${mid} °C</span><span>${min} °C</span></div><div class="plot"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Temperature over ${hours} hours"><line class="grid-line" x1="0" y1="4" x2="100" y2="4"></line><line class="grid-line" x1="0" y1="50" x2="100" y2="50"></line><line class="grid-line" x1="0" y1="96" x2="100" y2="96"></line>${lines}</svg></div><div class="x-axis"><span>−${hours}h</span><span>−${hours/2}h</span><span>Now</span></div><div class="axis-title">TIME // TEMPERATURE °C</div></div>`;
+  }
+}
+
 class JarvisNodeCard extends JarvisSensorCard {
   static cardName = "Jarvis AI Node";
   static domains = ["sensor"];
@@ -1053,13 +1080,14 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       { name: "satellite_entity", selector: { entity: { domain: "assist_satellite" } } },
       { name: "wake_word_phrase", selector: { text: {} } },
       { name: "wake_timeout", selector: { number: { min: 3, max: 60, step: 1, mode: "slider" } } },
+      { name: "silence_timeout", selector: { number: { min: 0.6, max: 2, step: 0.1, mode: "slider" } } },
       { name: "conversational_mode", selector: { boolean: {} } },
       { name: "follow_up_timeout", selector: { number: { min: 3, max: 20, step: 1, mode: "slider" } } },
       { name: "max_dialogue_turns", selector: { number: { min: 1, max: 5, step: 1, mode: "slider" } } },
     ] };
   }
   static getStubConfig() {
-    return { title: "Windows Voice Satellite", follow_up_target: "development_computer", wake_word_phrase: "Hey Jarvis", wake_timeout: 15, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3 };
+    return { title: "Windows Voice Satellite", follow_up_target: "development_computer", wake_word_phrase: "Hey Jarvis", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3 };
   }
   constructor() {
     super();
@@ -1074,7 +1102,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._pipelineGeneration = 0;
   }
   setConfig(config) {
-    super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
+    super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
     if (!this._conversationId) {
       const target = encodeURIComponent(this._config.follow_up_target || "development_computer");
       const session = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1134,7 +1162,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     const wake = root.querySelector(".wake");
     if (wake) wake.textContent = this._mode === "wake" ? "Wake word active" : "Enable wake word";
     const ptt = root.querySelector(".ptt");
-    if (ptt) ptt.textContent = this._mode === "ptt" ? "Send command" : "Push to talk";
+    if (ptt) ptt.textContent = this._mode === "ptt" ? "Listening · auto send" : "Push to talk";
   }
   async _start(mode) {
     if (!this._hass?.connection?.subscribeMessage || !navigator.mediaDevices?.getUserMedia) {
@@ -1174,10 +1202,13 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._handlerId = undefined;
     this._preRoll = [];
     this._voiceGate = 0;
+    this._pttSpeechFrames = 0;
+    this._pttSpeechDetected = false;
+    this._pttLastSpeechAt = 0;
     this._wakeDetected = false;
     this._status = followUp ? "Awaiting follow-up // listening" : startStage === "wake_word"
       ? `Listening for ${this._config.wake_word_phrase || "wake word"}`
-      : "Listening // tap send when finished";
+      : "Listening // auto send after silence";
     this._paintStatus();
     const message = {
       type: "assist_pipeline/run", start_stage: startStage, end_stage: "tts",
@@ -1214,6 +1245,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._dialogueTurns = 0;
       this._endDialogue = false;
       this._status = "Wake word accepted // listening";
+      this.onWakeDetected?.();
     }
     else if (type === "stt-vad-start") {
       clearTimeout(this._followUpTimer);
@@ -1250,6 +1282,11 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       const sample = Math.max(-1, Math.min(1, samples[Math.floor(index * ratio)]));
       view.setInt16(1 + index * 2, sample < 0 ? sample * 32768 : sample * 32767, true);
     }
+    if (this._mode === "ptt") {
+      this._hass.connection.socket.send(packet);
+      this._trackPushToTalkSilence(samples);
+      return;
+    }
     if (this._mode !== "wake" || this._wakeDetected || this._followUpMode) {
       this._hass.connection.socket.send(packet);
       return;
@@ -1268,8 +1305,31 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       if (this._preRoll.length > 4) this._preRoll.shift();
     }
   }
+  _trackPushToTalkSilence(samples) {
+    let energy = 0;
+    for (let index = 0; index < samples.length; index += 1) energy += samples[index] * samples[index];
+    const level = Math.sqrt(energy / samples.length);
+    const now = performance.now();
+    if (!this._pttSpeechDetected) {
+      this._pttSpeechFrames = level > 0.012 ? this._pttSpeechFrames + 1 : 0;
+      if (this._pttSpeechFrames >= 2) {
+        this._pttSpeechDetected = true;
+        this._pttLastSpeechAt = now;
+        this._status = "Command detected // listening";
+        this._paintStatus();
+      }
+      return;
+    }
+    if (level > 0.007) {
+      this._pttLastSpeechAt = now;
+      return;
+    }
+    const silenceMs = Number(this._config.silence_timeout || 0.9) * 1000;
+    if (now - this._pttLastSpeechAt >= silenceMs) this._finishAudio();
+  }
   _finishAudio() {
-    if (this._handlerId !== undefined) this._hass.connection.socket.send(new Uint8Array([this._handlerId]));
+    if (this._handlerId === undefined || this._handlerId === null) return;
+    this._hass.connection.socket.send(new Uint8Array([this._handlerId]));
     this._handlerId = undefined;
     this._status = "Processing command";
     this._paintStatus();
@@ -1287,6 +1347,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
           && !this._endDialogue && this._dialogueTurns < maximum;
         this._status = continueDialogue ? "Awaiting follow-up" : "Returning to wake-word mode";
         this._paintStatus();
+        if (!continueDialogue) this.onDialogueIdle?.();
         clearTimeout(this._restartTimer);
         this._restartTimer = setTimeout(() => this._runPipeline(continueDialogue).catch((error) => {
           this._status = `Pipeline error // ${error.message}`; this._paintStatus();
@@ -1306,6 +1367,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._followUpMode = false;
     this._status = "Follow-up timed out // rearming wake word";
     this._paintStatus();
+    this.onDialogueIdle?.();
     this._restartTimer = setTimeout(() => this._runPipeline(false).catch((error) => {
       this._status = `Pipeline error // ${error.message}`; this._paintStatus();
     }), 400);
@@ -2313,7 +2375,544 @@ class JarvisCoverageCard extends JarvisBaseCard {
   }
 }
 
+class JarvisClockDashboardCard extends HTMLElement {
+  static requiresEntity = false;
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._satellite = new JarvisVoiceSatelliteCard();
+    this._satellite.setConfig({
+      title: "Bedroom Jarvis Satellite", follow_up_target: "bedroom_clock",
+      pipeline_id: "preferred", wake_word_phrase: "Hey Jarvis", conversational_mode: true,
+      follow_up_timeout: 7, max_dialogue_turns: 3,
+    });
+    this._satellite.onWakeDetected = () => this.pauseRadioForVoice();
+    this._satellite.onDialogueIdle = () => this.resumeRadioAfterVoice();
+    this._satelliteMode = "idle";
+    this._editorOpen = false;
+    this._forecast = undefined;
+    this._forecastLoading = false;
+    this._lastHeartbeatAt = 0;
+    this._ticker = setInterval(() => {
+      this.publishHeartbeat();
+      if (!this._editorOpen) this.render();
+    }, 1000);
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._ticker);
+    this.stopAlarmTone();
+    this.stopLocalRadio();
+    this._satellite.disconnectedCallback();
+  }
+  setConfig(config) { this._config = config || {}; this.render(); }
+  set hass(value) {
+    this._hass = value;
+    this._satellite.hass = value;
+    this.publishHeartbeat();
+    this.loadForecast();
+    if (!this._editorOpen) this.render();
+  }
+  getCardSize() { return 8; }
+  getGridOptions() { return { rows: 8, columns: 12, min_rows: 6, min_columns: 8 }; }
+
+  entity(key, fallback) { return this._hass?.states?.[this._config?.[key] || fallback]; }
+  async loadForecast() {
+    if (!this._hass || this._forecastLoading || this._forecast) return;
+    this._forecastLoading = true;
+    const entityId = this._config.weather_entity || "weather.forecast_home";
+    try {
+      const result = await this._hass.callWS({
+        type: "call_service", domain: "weather", service: "get_forecasts",
+        target: { entity_id: entityId }, service_data: { type: "daily" }, return_response: true,
+      });
+      this._forecast = result?.response?.[entityId]?.forecast || result?.[entityId]?.forecast || [];
+    } catch (_) { this._forecast = []; }
+    this._forecastLoading = false;
+    if (!this._editorOpen) this.render();
+  }
+
+  call(domain, service, entityId, data = {}) {
+    return this._hass?.callService(domain, service, data, { entity_id: entityId });
+  }
+
+  publishHeartbeat(force = false) {
+    if (!this._hass) return;
+    const now = Date.now();
+    if (!force && now - this._lastHeartbeatAt < 30000) return;
+    this._lastHeartbeatAt = now;
+    const date = new Date(now);
+    const pad = (value) => String(value).padStart(2, "0");
+    const datetime = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    Promise.resolve(this.call(
+      "input_datetime", "set_datetime",
+      this._config.heartbeat_entity || "input_datetime.jarvis_clock_dashboard_heartbeat",
+      { datetime },
+    )).catch(() => { this._lastHeartbeatAt = 0; });
+  }
+
+  acknowledgeAlarmPlayback() {
+    const ackEntity = this._config.playback_ack_entity || "input_boolean.jarvis_clock_alarm_playback_ack";
+    Promise.resolve(this.call("input_boolean", "turn_on", ackEntity)).catch(() => {});
+    const backupEntity = this._config.backup_active_entity || "input_boolean.jarvis_clock_alarm_backup_active";
+    if (this._hass?.states?.[backupEntity]?.state === "on") {
+      Promise.resolve(this.call(
+        "media_player", "media_stop",
+        this._config.media_player_entity || "media_player.bedroom_clock_benny",
+      )).catch(() => {});
+      Promise.resolve(this.call("input_boolean", "turn_off", backupEntity)).catch(() => {});
+    }
+  }
+
+  async startLocalRadio() {
+    if (this._radioAudio) {
+      if (this._radioAudio.paused) await this._radioAudio.play().catch(() => {});
+      return;
+    }
+    if (this._radioStarting) return;
+    this._radioStarting = true;
+    const audio = new Audio("https://live-bauerno.sharp-stream.com/radionorge_no_mp3");
+    audio.preload = "none";
+    audio.volume = Math.max(0.1, Math.min(1, Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50) / 100));
+    audio.addEventListener("error", () => { if (this._radioAudio === audio) this._radioAudio = undefined; });
+    try {
+      await audio.play();
+      this._radioAudio = audio;
+    } catch (_) {
+      audio.pause();
+    } finally {
+      this._radioStarting = false;
+    }
+  }
+
+  stopLocalRadio() {
+    if (this._radioAudio) {
+      this._radioAudio.pause();
+      this._radioAudio.removeAttribute("src");
+      this._radioAudio.load();
+    }
+    this._radioAudio = undefined;
+    this._resumeRadioAfterVoice = false;
+  }
+
+  async toggleBedroomVoice() {
+    if (this._satellite._mode === "wake") {
+      await this.call("input_boolean", "turn_off", this._config.wake_word_enabled_entity || "input_boolean.jarvis_clock_wake_word_enabled");
+      await this._satellite._stop(false);
+    }
+    if (this._satellite._mode === "idle") {
+      if (this._radioAudio && !this._radioAudio.paused) {
+        this._radioAudio.pause();
+        this._resumeRadioAfterVoice = true;
+      }
+      this._satellite._start("ptt");
+    } else {
+      this._satellite._finishAudio();
+    }
+    this.render();
+  }
+
+  pauseRadioForVoice() {
+    if (this._radioAudio && !this._radioAudio.paused) {
+      this._radioAudio.pause();
+      this._resumeRadioAfterVoice = true;
+    }
+  }
+
+  resumeRadioAfterVoice() {
+    const active = this.entity("after_media_active_entity", "input_boolean.jarvis_clock_after_media_active")?.state === "on";
+    const afterChoice = this.entity("after_briefing_entity", "input_select.jarvis_clock_after_briefing")?.state;
+    if (this._resumeRadioAfterVoice && active && afterChoice === "Radio Norge") this.startLocalRadio();
+    this._resumeRadioAfterVoice = false;
+  }
+
+  toggleWakeWord() {
+    const entityId = this._config.wake_word_enabled_entity || "input_boolean.jarvis_clock_wake_word_enabled";
+    const enabled = this._hass?.states?.[entityId]?.state === "on";
+    if (enabled) {
+      this._satellite._stop(false);
+      this.resumeRadioAfterVoice();
+    }
+    this.call("input_boolean", enabled ? "turn_off" : "turn_on", entityId);
+    if (!enabled) this._satellite._start("wake");
+    this.render();
+  }
+
+  openEditor() {
+    this.unlockAlarmAudio();
+    const alarmTime = this.entity("alarm_time_entity", "input_datetime.jarvis_clock_alarm_time")?.state || "07:00:00";
+    this._draft = {
+      hour: Number(alarmTime.slice(0, 2)), minute: Number(alarmTime.slice(3, 5)),
+      enabled: this.entity("alarm_enabled_entity", "input_boolean.jarvis_clock_alarm_enabled")?.state === "on",
+      mode: this.entity("alarm_mode_entity", "input_select.jarvis_clock_alarm_mode")?.state || "Jarvis",
+      volume: Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50),
+      days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) =>
+        this._hass?.states?.[`input_boolean.jarvis_clock_alarm_${day}`]?.state === "on"),
+      after: this.entity("after_briefing_entity", "input_select.jarvis_clock_after_briefing")?.state || "Radio Norge",
+    };
+    this._editorOpen = true;
+    this.render();
+  }
+
+  unlockAlarmAudio() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    if (!this._audioContext) this._audioContext = new AudioContextClass();
+    if (this._audioContext.state === "suspended") this._audioContext.resume().catch(() => {});
+  }
+
+  startAlarmTone() {
+    if (this._alarmOscillator) return;
+    this.unlockAlarmAudio();
+    if (!this._audioContext || this._audioContext.state !== "running") return;
+    const oscillator = this._audioContext.createOscillator();
+    const gain = this._audioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    gain.gain.value = 0.14;
+    oscillator.connect(gain);
+    gain.connect(this._audioContext.destination);
+    oscillator.start();
+    this._alarmOscillator = oscillator;
+    this._alarmGain = gain;
+    this._toneHigh = true;
+    this._tonePulse = setInterval(() => {
+      this._toneHigh = !this._toneHigh;
+      this._alarmGain?.gain.setTargetAtTime(this._toneHigh ? 0.14 : 0.025, this._audioContext.currentTime, 0.035);
+    }, 420);
+  }
+
+  findPlayableUrl(value) {
+    if (typeof value === "string" && (value.startsWith("/") || value.startsWith("http://") || value.startsWith("https://"))) return value;
+    if (!value || typeof value !== "object") return undefined;
+    for (const [key, child] of Object.entries(value)) {
+      if (["url", "path"].includes(key) && typeof child === "string") return child;
+      const nested = this.findPlayableUrl(child);
+      if (nested) return nested;
+    }
+    return undefined;
+  }
+
+  numberWords(value) {
+    const number = Math.trunc(Number(value));
+    if (!Number.isFinite(number)) return String(value);
+    if (number < 0) return `minus ${this.numberWords(-number)}`;
+    const small = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+    const tens = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+    if (number < 20) return small[number];
+    if (number < 100) return `${tens[Math.floor(number / 10)]}${number % 10 ? `-${small[number % 10]}` : ""}`;
+    if (number < 1000) return `${small[Math.floor(number / 100)]} hundred${number % 100 ? ` ${this.numberWords(number % 100)}` : ""}`;
+    if (number < 1000000) return `${this.numberWords(Math.floor(number / 1000))} thousand${number % 1000 ? ` ${this.numberWords(number % 1000)}` : ""}`;
+    return String(number);
+  }
+
+  spokenClock(hourValue, minuteValue) {
+    const hour = Number(hourValue), minute = Number(minuteValue);
+    const twelveHour = hour % 12 || 12;
+    const period = hour < 5 ? "at night" : hour < 12 ? "in the morning" : hour < 17 ? "in the afternoon" : hour < 22 ? "in the evening" : "at night";
+    if (minute === 0) return `${this.numberWords(twelveHour)} o'clock ${period}`;
+    if (minute === 15) return `quarter past ${this.numberWords(twelveHour)} ${period}`;
+    if (minute === 30) return `half past ${this.numberWords(twelveHour)} ${period}`;
+    if (minute === 45) return `quarter to ${this.numberWords((twelveHour % 12) + 1)} ${period}`;
+    if (minute < 30) return `${this.numberWords(minute)} past ${this.numberWords(twelveHour)} ${period}`;
+    return `${this.numberWords(60 - minute)} to ${this.numberWords((twelveHour % 12) + 1)} ${period}`;
+  }
+
+  normalizeSpeechText(text) {
+    return String(text)
+      .replace(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g, (_match, hour, minute) => this.spokenClock(hour, minute))
+      .replace(/\b(19\d{2}|20\d{2})\b/g, (match) => {
+        const year = Number(match);
+        if (year < 2000) return `${this.numberWords(Math.floor(year / 100))} ${this.numberWords(year % 100)}`;
+        if (year < 2010) return `two thousand${year % 2000 ? ` ${this.numberWords(year % 2000)}` : ""}`;
+        return `twenty ${this.numberWords(year % 100)}`;
+      })
+      .replace(/\b(\d+)\.(\d+)\b/g, (_match, whole, decimal) => `${this.numberWords(whole)} point ${decimal.split("").map((digit) => this.numberWords(digit)).join(" ")}`)
+      .replace(/\b\d+\b/g, (match) => this.numberWords(match));
+  }
+
+  async prepareJarvisAudio(message) {
+    const result = await this._hass.callApi("POST", "tts_get_url", {
+      engine_id: this._config.tts_entity || "tts.project_jarvis_high_quality_voice",
+      message: this.normalizeSpeechText(message),
+      cache: true,
+    });
+    const url = this.findPlayableUrl(result);
+    if (!url || !this._alarmIsActive) throw new Error("Jarvis voice URL unavailable");
+    this.unlockAlarmAudio();
+    if (!this._audioContext || this._audioContext.state !== "running") throw new Error("Alarm audio context unavailable");
+    const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
+    const response = await window.fetch.call(window, target, { credentials: "same-origin" });
+    if (!response.ok) throw new Error(`Alarm audio request ${response.status}`);
+    return this._audioContext.decodeAudioData(await response.arrayBuffer());
+  }
+
+  async playPreparedAudio(buffer) {
+    await new Promise((resolve, reject) => {
+      if (!this._audioContext || this._audioContext.state !== "running") {
+        reject(new Error("Alarm audio context unavailable"));
+        return;
+      }
+      const source = this._audioContext.createBufferSource();
+      const gain = this._audioContext.createGain();
+      source.buffer = buffer;
+      gain.gain.value = Math.max(0.1, Math.min(1, Number(this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || 50) / 100));
+      source.connect(gain);
+      gain.connect(this._audioContext.destination);
+      source.onended = () => { if (this._alarmAudio === source) this._alarmAudio = undefined; resolve(); };
+      this._alarmAudio = source;
+      try {
+        source.start();
+        this.acknowledgeAlarmPlayback();
+      } catch (error) { this._alarmAudio = undefined; reject(error); }
+    });
+  }
+
+  async playJarvisMessage(message) { return this.playPreparedAudio(await this.prepareJarvisAudio(message)); }
+
+  async briefingSegments() {
+    const segments = [];
+    const weather = this.entity("weather_entity", "weather.forecast_home");
+    const today = this._forecast?.[0];
+    if (weather && weather.state !== "unavailable") {
+      const condition = String(weather.state).replaceAll("-", " ");
+      const current = weather.attributes?.temperature;
+      const high = today?.temperature;
+      const low = today?.templow;
+      let message = `Today's weather is ${condition}`;
+      if (current != null) message += `, currently ${Math.round(current)} degrees`;
+      if (high != null) message += `, with a high of ${Math.round(high)} degrees`;
+      if (low != null) message += ` and a low of ${Math.round(low)} degrees`;
+      segments.push(`${message}.`);
+    }
+    const stories = this._hass?.states?.[this._config.rss_entity || "sensor.jarvis_rss_top_stories"]?.attributes?.stories || [];
+    const topStory = (matcher) => stories.find((story) => matcher.test(String(story.source || "")));
+    const bbc = topStory(/bbc/i);
+    const united = topStory(/man\s*utd|manutd|united/i);
+    if (bbc?.title) segments.push(`The top story from BBC News is: ${String(bbc.title).slice(0, 140)}.`);
+    if (united?.title) segments.push(`The latest Manchester United story is: ${String(united.title).slice(0, 140)}.`);
+    let appointmentMessage = "You have no appointments scheduled today.";
+    try {
+      const start = new Date(); start.setHours(0, 0, 0, 0);
+      const end = new Date(start); end.setDate(end.getDate() + 1);
+      const calendarId = this._config.calendar_entity || "calendar.work_reach";
+      const events = await this._hass.callApi("GET", `calendars/${encodeURIComponent(calendarId)}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`);
+      const event = (events || []).sort((a, b) => new Date(a.start?.dateTime || a.start?.date) - new Date(b.start?.dateTime || b.start?.date))[0];
+      if (event) {
+        const eventStart = new Date(event.start?.dateTime || event.start?.date);
+        const eventTime = event.start?.dateTime ? eventStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "all day";
+        appointmentMessage = `Your first work appointment is ${String(event.summary || "an appointment").slice(0, 180)}, at ${eventTime}.`;
+      }
+    } catch (_) { appointmentMessage = "I could not access today's work calendar."; }
+    segments.push(appointmentMessage);
+    const weatherSegment = segments.shift();
+    const appointmentSegment = segments.pop();
+    return [weatherSegment, segments.join(" "), appointmentSegment].filter(Boolean);
+  }
+
+  async startAlarmVoice() {
+    if (this._voiceRequested || !this._hass) return;
+    this._voiceRequested = true;
+    this.unlockAlarmAudio();
+    clearTimeout(this._voiceFallbackTimer);
+    this._voiceFallbackTimer = setTimeout(() => {
+      if (this._alarmIsActive && !this._alarmAudio) this.startAlarmTone();
+    }, 8000);
+    const now = new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    try {
+      const greetingAudio = await this.prepareJarvisAudio(`Good morning, Benny. It is ${currentTime}. Time to wake up.`);
+      const briefingAudio = this.briefingSegments().then(async (messages) => {
+        const prepared = [];
+        for (const message of messages) prepared.push(await this.prepareJarvisAudio(message));
+        return prepared;
+      });
+      await this.playPreparedAudio(greetingAudio);
+      clearTimeout(this._voiceFallbackTimer);
+      this.stopFallbackTone();
+      for (const audio of await briefingAudio) {
+        if (!this._alarmIsActive) break;
+        await this.playPreparedAudio(audio);
+      }
+      const afterBriefing = this._hass?.states?.[this._config.after_briefing_entity || "input_select.jarvis_clock_after_briefing"]?.state || "Nothing";
+      if (this._alarmIsActive && afterBriefing !== "Nothing") {
+        await this.call("script", "turn_on", "script.jarvis_clock_after_briefing");
+        await this.call("input_boolean", "turn_off", this._config.alarm_active_entity || "input_boolean.jarvis_clock_alarm_active");
+      } else if (this._alarmIsActive) {
+        this._voiceRepeatTimer = setTimeout(() => { this._voiceRequested = false; this.startAlarmVoice(); }, 20000);
+      }
+    } catch (_) {
+      this._voiceRequested = false;
+      if (this._alarmIsActive) this.startAlarmTone();
+    }
+  }
+
+  stopAlarmTone() {
+    clearTimeout(this._voiceFallbackTimer);
+    clearTimeout(this._voiceRepeatTimer);
+    this._voiceFallbackTimer = undefined;
+    this._voiceRepeatTimer = undefined;
+    if (this._alarmAudio) {
+      try { this._alarmAudio.stop(); } catch (_) {}
+    }
+    this._alarmAudio = undefined;
+    this._voiceRequested = false;
+    this.stopFallbackTone();
+  }
+
+  stopFallbackTone() {
+    clearInterval(this._tonePulse);
+    this._tonePulse = undefined;
+    try { this._alarmOscillator?.stop(); } catch (_) {}
+    this._alarmOscillator = undefined;
+    this._alarmGain = undefined;
+  }
+
+  changeDraft(field, delta) {
+    if (!this._draft) return;
+    if (field === "hour") this._draft.hour = (this._draft.hour + delta + 24) % 24;
+    if (field === "minute") this._draft.minute = (this._draft.minute + delta + 60) % 60;
+    if (field === "volume") this._draft.volume = Math.max(10, Math.min(100, this._draft.volume + delta));
+    this.render();
+  }
+
+  async saveAlarm() {
+    const draft = this._draft || { hour: 7, minute: 0, enabled: false, mode: "Jarvis", volume: 50, days: [true, true, true, true, true, false, false] };
+    const time = `${String(draft.hour).padStart(2, "0")}:${String(draft.minute).padStart(2, "0")}`;
+    const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    await Promise.all([
+      this.call("input_datetime", "set_datetime", this._config.alarm_time_entity || "input_datetime.jarvis_clock_alarm_time", { time: `${time}:00` }),
+      this.call("input_boolean", draft.enabled ? "turn_on" : "turn_off", this._config.alarm_enabled_entity || "input_boolean.jarvis_clock_alarm_enabled"),
+      this.call("input_select", "select_option", this._config.alarm_mode_entity || "input_select.jarvis_clock_alarm_mode", { option: draft.mode }),
+      this.call("input_number", "set_value", this._config.alarm_volume_entity || "input_number.jarvis_clock_alarm_volume", { value: draft.volume }),
+      this.call("input_select", "select_option", this._config.after_briefing_entity || "input_select.jarvis_clock_after_briefing", { option: draft.after }),
+      ...dayNames.map((day, index) => this.call("input_boolean", draft.days[index] ? "turn_on" : "turn_off", `input_boolean.jarvis_clock_alarm_${day}`)),
+    ]);
+    this._editorOpen = false;
+    this._draft = undefined;
+    this.render();
+  }
+
+  render() {
+    if (!this.shadowRoot || !this._config) return;
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    const date = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+    const weather = this.entity("weather_entity", "weather.forecast_home");
+    const light = this.entity("light_entity", "light.interior_lights");
+    const wakeMedia = this.entity("media_player_entity", "media_player.bedroom_clock_benny");
+    const wakeMediaActive = this.entity("after_media_active_entity", "input_boolean.jarvis_clock_after_media_active")?.state === "on"
+      || ["playing", "paused", "buffering"].includes(wakeMedia?.state);
+    const wakeWordEnabled = this.entity("wake_word_enabled_entity", "input_boolean.jarvis_clock_wake_word_enabled")?.state === "on";
+    const alarmTime = this.entity("alarm_time_entity", "input_datetime.jarvis_clock_alarm_time")?.state || "07:00:00";
+    const alarmEnabled = this.entity("alarm_enabled_entity", "input_boolean.jarvis_clock_alarm_enabled")?.state === "on";
+    const alarmActive = this.entity("alarm_active_entity", "input_boolean.jarvis_clock_alarm_active")?.state === "on";
+    const alarmMode = this.entity("alarm_mode_entity", "input_select.jarvis_clock_alarm_mode")?.state || "Jarvis";
+    const volume = this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || "50";
+    const spotify = this.entity("alarm_spotify_entity", "input_text.jarvis_clock_alarm_spotify_uri")?.state || "";
+    const temperature = weather?.attributes?.temperature;
+    const condition = (weather?.state || "unavailable").replaceAll("-", " ");
+    const forecast = this._forecast?.slice(0, 3) || [];
+    const forecastHtml = forecast.map((item) => `<span><b>${new Date(item.datetime).toLocaleDateString([], { weekday: "short" })}</b>${Math.round(item.temperature)}°</span>`).join("");
+    const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const selectedDayLabels = dayLabels.filter((_, index) => this._hass?.states?.[`input_boolean.jarvis_clock_alarm_${dayNames[index]}`]?.state === "on");
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host{position:fixed;inset:0;z-index:9999;display:block;background:#020912;color:#e7fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden}
+        *{box-sizing:border-box}button,input,select{font:inherit}.screen{height:100%;padding:14px;display:grid;grid-template-columns:3fr 1fr;gap:12px;background:radial-gradient(circle at 34% 42%,rgba(0,139,214,.22),transparent 38%),linear-gradient(145deg,#020811,#061a2d)}
+        .panel{position:relative;border:1px solid rgba(32,216,255,.55);background:linear-gradient(135deg,rgba(2,15,27,.9),rgba(4,37,62,.82));box-shadow:inset 0 0 34px rgba(0,174,255,.08),0 0 18px rgba(0,174,255,.12);clip-path:polygon(0 12px,12px 0,92% 0,100% 18px,100% 100%,8% 100%,0 calc(100% - 18px))}
+        .main{display:grid;grid-template-columns:1.25fr .75fr;align-items:center;padding:28px;cursor:pointer}.clock{font:800 clamp(74px,16vw,150px)/.9 ui-monospace,SFMono-Regular,monospace;letter-spacing:-.08em;color:#dffcff;text-shadow:0 0 24px rgba(32,216,255,.4)}
+        .date{margin-top:16px;text-transform:uppercase;letter-spacing:.18em;font:700 clamp(12px,2vw,18px) monospace;color:#20d8ff}.weather{border-left:1px solid rgba(32,216,255,.35);padding-left:26px;text-transform:capitalize}.temp{font:800 clamp(44px,8vw,76px) monospace;color:#20d8ff}.condition{font-weight:700;letter-spacing:.08em}.forecast{display:flex;gap:16px;margin-top:24px}.forecast span{display:grid;gap:4px;font:600 14px monospace;color:#9dd8e8}.forecast b{font-size:10px;color:#20d8ff;text-transform:uppercase}.alarm-indicator{position:absolute;left:28px;bottom:18px;font:700 11px monospace;letter-spacing:.14em;color:${alarmEnabled ? "#20d8ff" : "#698898"};text-transform:uppercase}
+        .light{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer}.bulb{width:74px;height:74px;border:2px solid #20d8ff;border-radius:50%;display:grid;place-items:center;font-size:34px;box-shadow:${light?.state === "on" ? "0 0 32px rgba(32,216,255,.65),inset 0 0 24px rgba(32,216,255,.28)" : "none"}}.light strong{font:800 18px monospace;text-transform:uppercase;text-align:center}.light small{font:700 10px monospace;color:#20d8ff;letter-spacing:.16em}.voice-controls{position:absolute;left:8px;right:8px;top:8px;display:grid;grid-template-columns:1fr 1fr;gap:5px}.voice-controls button{min-height:36px;border:1px solid #20d8ff;background:rgba(3,31,48,.94);color:#e7fbff;font:900 8px monospace;letter-spacing:.08em;text-transform:uppercase}.voice-controls button.active{background:#20d8ff;color:#00131a;box-shadow:0 0 18px rgba(32,216,255,.35)}.media-stop{position:absolute;left:10px;right:10px;bottom:10px;min-height:42px;border:1px solid #ff6572;background:rgba(70,8,18,.92);color:#fff;font:900 10px monospace;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 0 18px rgba(255,101,114,.25)}
+        .overlay{position:fixed;inset:0;background:rgba(0,5,10,.9);display:grid;place-items:center;z-index:4}.dialog{position:relative;width:min(720px,94vw);height:min(450px,95vh);padding:44px 8px 8px;border:1px solid #20d8ff;background:#041523;box-shadow:0 0 55px rgba(32,216,255,.25);overflow:hidden}.dialog h2{position:absolute;left:10px;top:12px;margin:0;font:800 13px monospace;color:#20d8ff;text-transform:uppercase}.touch-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:5px;height:100%}.touch-panel{padding:5px;border:1px solid rgba(32,216,255,.25)}.touch-panel.days-panel,.touch-panel.after-panel{grid-column:1/-1}.touch-label{font:700 7px monospace;letter-spacing:.14em;color:#9dd8e8;text-transform:uppercase}.stepper{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;gap:4px;margin-top:2px}.minute-stepper{display:grid;grid-template-columns:40px 40px 1fr 40px 40px;align-items:center;gap:3px;margin-top:3px}.stepper strong,.minute-stepper strong{font:800 23px monospace;text-align:center;color:#e7fbff}.touch-btn{min-height:31px;border:1px solid #20d8ff;color:#e7fbff;background:#071d2c;font-weight:900;font-size:16px}.choice{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px}.choice button,.days button,.after-choice button{min-height:28px;border:1px solid rgba(32,216,255,.45);color:#9dd8e8;background:#07131f;font:800 8px monospace;text-transform:uppercase}.choice button.active,.days button.active,.after-choice button.active{background:#20d8ff;color:#00131a}.days{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;margin-top:3px}.after-choice{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:3px}.buttons{position:absolute;right:8px;top:6px;display:flex;gap:6px}.buttons button,.alarm-actions button{min-height:32px;padding:0 13px;border:1px solid #20d8ff;color:#dffcff;background:#071d2c;font-weight:800;text-transform:uppercase}.buttons .primary{background:#20d8ff;color:#00131a}.alarm-dialog{text-align:center;height:auto;padding:18px}.alarm-dialog h2{position:static;margin-bottom:10px}.alarm-dialog .wake{font:800 clamp(36px,8vw,72px) monospace;color:#20d8ff}.alarm-actions{display:flex;gap:14px;justify-content:center;margin-top:24px}
+        @media(max-width:650px){.screen{padding:8px;gap:8px}.main{padding:18px;grid-template-columns:1fr 1fr}.clock{font-size:64px}.date{font-size:10px}.weather{padding-left:16px}.temp{font-size:42px}.forecast{gap:8px}.forecast span:nth-child(3){display:none}.light strong{font-size:13px}.bulb{width:58px;height:58px}}
+      </style>
+      <div class="screen">
+        <section class="panel main" id="open-alarm"><div><div class="clock">${time}</div><div class="date">${escapeHtml(date)}</div></div><div class="weather"><div class="temp">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><div class="condition">${escapeHtml(condition)}</div><div class="forecast">${forecastHtml}</div></div><div class="alarm-indicator">${alarmEnabled ? `Alarm ${escapeHtml(alarmTime.slice(0, 5))} · ${escapeHtml(selectedDayLabels.join(" ") || "No days")} · ${escapeHtml(alarmMode)}` : "Alarm off"}</div></section>
+        <section class="panel light" id="toggle-light"><div class="voice-controls"><button class="${wakeWordEnabled ? "active" : ""}" id="bedroom-wake">${wakeWordEnabled ? "Hey Jarvis active" : "Enable Hey Jarvis"}</button><button class="${this._satellite._mode === "ptt" ? "active" : ""}" id="bedroom-ptt">${this._satellite._mode === "ptt" ? "Send command" : "Ask Jarvis"}</button></div><div class="bulb">◉</div><strong>Interior<br>Lights</strong><small>${escapeHtml(this._satellite._mode !== "idle" ? this._satellite._status : light?.state || "unavailable")}</small>${wakeMediaActive ? `<button class="media-stop" id="stop-media">Stop Radio Norge</button>` : ""}</section>
+      </div>
+      ${this._editorOpen ? `<div class="overlay"><div class="dialog"><h2>Wake sequence</h2><div class="touch-grid"><div class="touch-panel"><div class="touch-label">Alarm time</div><div class="stepper"><button class="touch-btn" data-step="hour:-1">−</button><strong>${String(this._draft.hour).padStart(2,"0")}:${String(this._draft.minute).padStart(2,"0")}</strong><button class="touch-btn" data-step="hour:1">+</button></div><div class="minute-stepper"><button class="touch-btn" data-step="minute:-5">−5</button><button class="touch-btn" data-step="minute:-1">−1</button><strong>MIN</strong><button class="touch-btn" data-step="minute:1">+1</button><button class="touch-btn" data-step="minute:5">+5</button></div></div><div class="touch-panel"><div class="touch-label">Alarm enabled</div><div class="choice"><button data-enabled="false" class="${!this._draft.enabled ? "active" : ""}">Off</button><button data-enabled="true" class="${this._draft.enabled ? "active" : ""}">On</button></div><div class="touch-label" style="margin-top:4px">Wake mode</div><div class="choice"><button data-mode="Jarvis" class="${this._draft.mode === "Jarvis" ? "active" : ""}">Jarvis</button><button data-mode="Spotify" class="${this._draft.mode === "Spotify" ? "active" : ""}">Spotify</button></div><div class="touch-label" style="margin-top:4px">Volume</div><div class="stepper"><button class="touch-btn" data-step="volume:-10">−</button><strong>${this._draft.volume}%</strong><button class="touch-btn" data-step="volume:10">+</button></div></div><div class="touch-panel days-panel"><div class="touch-label">Repeat days</div><div class="days">${dayLabels.map((label,index) => `<button data-day="${index}" class="${this._draft.days[index] ? "active" : ""}">${label}</button>`).join("")}<button data-days="weekdays">Weekdays</button><button data-days="all">Every day</button></div></div><div class="touch-panel after-panel"><div class="touch-label">After briefing</div><div class="after-choice">${["Nothing","Spotify Starred","Radio Norge"].map((choice) => `<button data-after="${choice}" class="${this._draft.after === choice ? "active" : ""}">${choice}</button>`).join("")}</div></div></div><div class="buttons"><button id="close-editor">Cancel</button><button class="primary" id="save-alarm">Save alarm</button></div></div></div>` : ""}
+      ${alarmActive ? `<div class="overlay"><div class="dialog alarm-dialog"><h2>Wake sequence active</h2><div class="wake">${time}</div><div class="alarm-actions"><button id="cancel-alarm">Cancel</button><button id="snooze-alarm">Snooze 5 min</button></div></div></div>` : ""}`;
+    this.shadowRoot.querySelector("#open-alarm")?.addEventListener("click", () => this.openEditor());
+    this.shadowRoot.querySelector("#toggle-light")?.addEventListener("click", () => this.call("light", "toggle", this._config.light_entity || "light.interior_lights"));
+    this.shadowRoot.querySelector("#bedroom-ptt")?.addEventListener("click", (event) => { event.stopPropagation(); this.toggleBedroomVoice(); });
+    this.shadowRoot.querySelector("#bedroom-wake")?.addEventListener("click", (event) => { event.stopPropagation(); this.toggleWakeWord(); });
+    this.shadowRoot.querySelector("#stop-media")?.addEventListener("click", (event) => { event.stopPropagation(); this.stopLocalRadio(); this.call("script", "turn_on", this._config.after_media_stop_script || "script.jarvis_clock_after_media_stop"); });
+    this.shadowRoot.querySelector("#close-editor")?.addEventListener("click", () => { this._editorOpen = false; this.render(); });
+    this.shadowRoot.querySelector("#save-alarm")?.addEventListener("click", () => this.saveAlarm());
+    this.shadowRoot.querySelectorAll("[data-step]").forEach((button) => button.addEventListener("click", () => { const [field, delta] = button.dataset.step.split(":"); this.changeDraft(field, Number(delta)); }));
+    this.shadowRoot.querySelectorAll("[data-enabled]").forEach((button) => button.addEventListener("click", () => { this._draft.enabled = button.dataset.enabled === "true"; this.render(); }));
+    this.shadowRoot.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => { this._draft.mode = button.dataset.mode; this.render(); }));
+    this.shadowRoot.querySelectorAll("[data-day]").forEach((button) => button.addEventListener("click", () => { const index = Number(button.dataset.day); this._draft.days[index] = !this._draft.days[index]; this.render(); }));
+    this.shadowRoot.querySelectorAll("[data-days]").forEach((button) => button.addEventListener("click", () => { this._draft.days = button.dataset.days === "all" ? Array(7).fill(true) : [true, true, true, true, true, false, false]; this.render(); }));
+    this.shadowRoot.querySelectorAll("[data-after]").forEach((button) => button.addEventListener("click", () => { this._draft.after = button.dataset.after; this.render(); }));
+    this.shadowRoot.querySelector("#cancel-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_cancel"));
+    this.shadowRoot.querySelector("#snooze-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_snooze"));
+    this._alarmIsActive = alarmActive;
+    if (alarmActive && alarmMode === "Jarvis") this.startAlarmVoice(); else this.stopAlarmTone();
+    const afterChoice = this.entity("after_briefing_entity", "input_select.jarvis_clock_after_briefing")?.state;
+    const shouldPlayLocalRadio = wakeMediaActive && afterChoice === "Radio Norge";
+    const voiceBusy = this._satellite._mode === "ptt"
+      || (this._satellite._mode === "wake" && (this._satellite._wakeDetected || this._satellite._followUpMode));
+    if (shouldPlayLocalRadio && !this._radioAudio && !voiceBusy) this.startLocalRadio();
+    if (!shouldPlayLocalRadio && this._radioAudio) this.stopLocalRadio();
+    if (this._satelliteMode !== "idle" && this._satellite._mode === "idle" && this._resumeRadioAfterVoice && shouldPlayLocalRadio) {
+      this._resumeRadioAfterVoice = false;
+      this.startLocalRadio();
+    }
+    if (wakeWordEnabled && this._satellite._mode === "idle" && !this._wakeStartPending && Date.now() >= (this._wakeRetryAt || 0)) {
+      this._wakeStartPending = true;
+      this._satellite._start("wake").catch(() => { this._wakeRetryAt = Date.now() + 5000; }).finally(() => { this._wakeStartPending = false; });
+    } else if (!wakeWordEnabled && this._satellite._mode === "wake") {
+      this._satellite._stop(false);
+    }
+    this._satelliteMode = this._satellite._mode;
+  }
+}
+
+class JarvisNSPanelDashboardCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._config = {}; }
+  setConfig(config) { this._config = config || {}; this.render(); }
+  set hass(value) { this._hass = value; this.render(); }
+  getCardSize() { return 1; }
+  state(key, fallback) { return this._hass?.states?.[this._config[key] || fallback]; }
+  call(domain, service, entity) { return this._hass?.callService(domain, service, { entity_id: entity }); }
+  render() {
+    if (!this.shadowRoot) return;
+    const lightId = this._config.light_entity || "light.interior_lights";
+    const coverId = this._config.cover_entity || "cover.all_blinds";
+    const light = this.state("light_entity", lightId);
+    const cover = this.state("cover_entity", coverId);
+    const weather = this.state("weather_entity", "weather.forecast_home");
+    const temperature = weather?.attributes?.temperature;
+    const humidity = weather?.attributes?.humidity;
+    const condition = String(weather?.state || "weather unavailable").replaceAll("-", " ");
+    const status = [
+      ["MOWER", this.state("mower_entity", "lawn_mower.edward_scissorhand_lawn_mower"), "mdi:robot-mower-outline"],
+      ["VACUUM", this.state("vacuum_entity", "sensor.alfred_status"), "mdi:vacuum"],
+      ["WASHER", this.state("washer_entity", "sensor.vaskepott_state"), "jarvis:washing-machine"],
+    ];
+    this.shadowRoot.innerHTML = `<style>
+      :host{position:fixed;inset:0;z-index:9999;display:block;color:#e8fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden;background:#020914}*{box-sizing:border-box}
+      .deck{height:100%;padding:8px;display:grid;grid-template-rows:30px 58px 1fr 100px;gap:7px;background:radial-gradient(circle at 50% 22%,rgba(0,153,255,.2),transparent 42%),linear-gradient(145deg,#020914,#05213a);overflow:hidden}
+      header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #16d7ff;font:800 10px/1 monospace;letter-spacing:.16em;color:#16d7ff;text-transform:uppercase}header b{font-size:15px;color:#e8fbff}
+      .weather{padding:8px 14px;display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:12px}.weather ha-icon{width:42px;height:42px;color:#16d7ff;filter:drop-shadow(0 0 12px rgba(22,215,255,.45))}.weather strong{display:block;font:900 14px monospace;letter-spacing:.08em;text-transform:uppercase}.weather span{display:block;margin-top:3px;font:700 9px monospace;letter-spacing:.1em;color:#9edbea;text-transform:uppercase}.temperature{font:900 25px monospace;color:#16d7ff}.temperature small{display:block;font:700 8px monospace;color:#9edbea;text-align:right}
+      .controls{display:grid;grid-template-columns:1fr 1fr;gap:7px;min-height:0}.panel{border:1px solid rgba(22,215,255,.65);background:linear-gradient(145deg,rgba(3,17,30,.96),rgba(5,45,73,.85));box-shadow:inset 0 0 25px rgba(22,215,255,.07);clip-path:polygon(0 10px,10px 0,90% 0,100% 12px,100% 100%,8% 100%,0 calc(100% - 12px))}
+      .main{padding:12px;display:grid;grid-template-rows:auto 1fr auto;gap:5px;cursor:pointer;touch-action:manipulation}.main:active{background:#16d7ff;color:#00131c}.label{font:900 12px monospace;letter-spacing:.12em;color:#16d7ff}.main:active .label{color:#00131c}.value{display:grid;place-items:center;gap:5px;font:900 21px monospace;text-transform:uppercase;text-align:center}.value ha-icon{width:82px;height:82px;color:#16d7ff;filter:drop-shadow(0 0 14px rgba(22,215,255,.55))}.hint{display:flex;align-items:center;justify-content:space-between;font:800 9px monospace;letter-spacing:.1em;color:#9edbea}
+      .statuses{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.status{padding:10px;display:grid;grid-template-columns:38px 1fr;align-items:center;gap:7px}.glyph{width:30px;height:30px;color:#16d7ff;filter:drop-shadow(0 0 8px rgba(22,215,255,.4))}.status strong{display:block;font:900 9px monospace;letter-spacing:.12em;color:#16d7ff}.status span{display:block;margin-top:5px;font:800 12px monospace;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    </style><div class="deck"><header><span>Jarvis Home Control</span><b>${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</b></header><section class="panel weather"><ha-icon icon="mdi:weather-${escapeHtml(String(weather?.state || "cloudy"))}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><span>Home forecast${humidity == null ? "" : ` · Humidity ${escapeHtml(humidity)}%`}</span></div><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}<small>OUTSIDE</small></div></section><div class="controls">
+      <section class="panel main" data-panel="light"><div class="label">INTERIOR LIGHTS</div><div class="value"><ha-icon icon="mdi:lightbulb-group"></ha-icon>${escapeHtml(light?.state || "unavailable")}</div><div class="hint"><span>TOUCH TO TOGGLE</span><span>${light?.state === "on" ? "ACTIVE" : "STANDBY"}</span></div></section>
+      <section class="panel main" data-panel="cover"><div class="label">ALL BLINDS</div><div class="value"><ha-icon icon="mdi:blinds-horizontal"></ha-icon>${escapeHtml(cover?.state || "unavailable")}</div><div class="hint"><span>TOUCH ${["open","opening"].includes(cover?.state) ? "TO LOWER" : "TO RAISE"}</span><span>${["open","opening"].includes(cover?.state) ? "OPEN" : "CLOSED"}</span></div></section>
+    </div><div class="statuses">${status.map(([name,item,icon]) => `<section class="panel status"><ha-icon class="glyph" icon="${icon}"></ha-icon><div><strong>${name}</strong><span>${escapeHtml(item?.state || "unavailable")}</span></div></section>`).join("")}</div></div>`;
+    this.shadowRoot.querySelector('[data-panel="light"]')?.addEventListener("click", () => this.call("light", "toggle", lightId));
+    this.shadowRoot.querySelector('[data-panel="cover"]')?.addEventListener("click", () => this.call("cover", ["open", "opening"].includes(cover?.state) ? "close_cover" : "open_cover", coverId));
+  }
+}
+
 const CARD_DEFINITIONS = [
+  ["jarvis-nspanel-dashboard-card", JarvisNSPanelDashboardCard, "Jarvis NSPanel Dashboard", "No-scroll lighting, blinds and appliance status interface"],
+  ["jarvis-clock-dashboard-card", JarvisClockDashboardCard, "Jarvis Smart Clock", "Full-screen clock, weather, lighting and alarm interface"],
   ["jarvis-button-card", JarvisButtonCard, "Jarvis Button", "HUD action, navigation, scene or script button"],
   ["jarvis-action-card", JarvisActionCard, "Jarvis Action Card", "Backward-compatible Jarvis action button"],
   ["jarvis-entity-card", JarvisEntityCard, "Jarvis Entity", "Generic entity state card"],
@@ -2326,6 +2925,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-camera-card", JarvisCameraCard, "Jarvis Camera", "Camera view in the Jarvis HUD"],
   ["jarvis-sensor-card", JarvisSensorCard, "Jarvis Sensor", "Sensor telemetry and state"],
   ["jarvis-node-card", JarvisNodeCard, "Jarvis AI Node", "CPU, memory, storage, dual-GPU and local AI telemetry"],
+  ["jarvis-thermal-graph-card", JarvisThermalGraphCard, "Jarvis Thermal Graph", "Historical CPU and GPU temperature comparison"],
   ["jarvis-security-card", JarvisSecurityCard, "Jarvis Security", "Lock and safety entity display"],
   ["jarvis-status-card", JarvisStatusCard, "Jarvis Status", "Multi-entity system summary"],
   ["jarvis-voice-card", JarvisVoiceCard, "Jarvis Voice", "Animated Project Jarvis Assist launcher"],
