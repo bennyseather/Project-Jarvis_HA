@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.20";
+const JARVIS_UI_VERSION = "0.47.21";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2885,27 +2885,25 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     const light = this.state("light_entity", lightId);
     const cover = this.state("cover_entity", coverId);
     const status = [
-      ["MOWER", this.state("mower_entity", "lawn_mower.edward_scissorhand_lawn_mower"), "◢"],
-      ["VACUUM", this.state("vacuum_entity", "sensor.alfred_status"), "◎"],
-      ["WASHER", this.state("washer_entity", "sensor.vaskepott_state"), "◉"],
+      ["MOWER", this.state("mower_entity", "lawn_mower.edward_scissorhand_lawn_mower"), "mdi:robot-mower-outline"],
+      ["VACUUM", this.state("vacuum_entity", "sensor.alfred_status"), "mdi:vacuum"],
+      ["WASHER", this.state("washer_entity", "sensor.vaskepott_state"), "jarvis:washing-machine"],
     ];
     this.shadowRoot.innerHTML = `<style>
-      :host{display:block;height:min(100vh,480px);min-height:360px;color:#e8fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden}*{box-sizing:border-box}
+      :host{position:fixed;inset:0;z-index:9999;display:block;color:#e8fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden;background:#020914}*{box-sizing:border-box}
       .deck{height:100%;padding:8px;display:grid;grid-template-rows:34px 1fr 108px;gap:7px;background:radial-gradient(circle at 50% 22%,rgba(0,153,255,.2),transparent 42%),linear-gradient(145deg,#020914,#05213a);overflow:hidden}
       header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #16d7ff;font:800 10px/1 monospace;letter-spacing:.16em;color:#16d7ff;text-transform:uppercase}header b{font-size:15px;color:#e8fbff}
       .controls{display:grid;grid-template-columns:1fr 1fr;gap:7px;min-height:0}.panel{border:1px solid rgba(22,215,255,.65);background:linear-gradient(145deg,rgba(3,17,30,.96),rgba(5,45,73,.85));box-shadow:inset 0 0 25px rgba(22,215,255,.07);clip-path:polygon(0 10px,10px 0,90% 0,100% 12px,100% 100%,8% 100%,0 calc(100% - 12px))}
-      .main{padding:12px;display:grid;grid-template-rows:auto 1fr auto;gap:7px}.label{font:900 12px monospace;letter-spacing:.12em;color:#16d7ff}.value{display:grid;place-items:center;font:900 21px monospace;text-transform:uppercase;text-align:center}.actions{display:grid;gap:6px}.light-actions{grid-template-columns:1fr 1fr}.cover-actions{grid-template-columns:1fr 1fr 1fr}
-      button{min-height:48px;border:1px solid #16d7ff;background:#061826;color:#e8fbff;font:900 11px monospace;text-transform:uppercase;touch-action:manipulation}button:active,.active{background:#16d7ff;color:#00131c;box-shadow:0 0 18px rgba(22,215,255,.4)}
-      .statuses{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.status{padding:10px;display:grid;grid-template-columns:31px 1fr;align-items:center;gap:7px}.glyph{font-size:24px;color:#16d7ff}.status strong{display:block;font:900 9px monospace;letter-spacing:.12em;color:#16d7ff}.status span{display:block;margin-top:5px;font:800 12px monospace;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .main{padding:12px;display:grid;grid-template-rows:auto 1fr auto;gap:5px;cursor:pointer;touch-action:manipulation}.main:active{background:#16d7ff;color:#00131c}.label{font:900 12px monospace;letter-spacing:.12em;color:#16d7ff}.main:active .label{color:#00131c}.value{display:grid;place-items:center;gap:8px;font:900 21px monospace;text-transform:uppercase;text-align:center}.value ha-icon{width:62px;height:62px;color:#16d7ff;filter:drop-shadow(0 0 12px rgba(22,215,255,.45))}.hint{display:flex;align-items:center;justify-content:space-between;font:800 9px monospace;letter-spacing:.1em;color:#9edbea}
+      button{min-width:92px;min-height:54px;border:1px solid #16d7ff;background:#061826;color:#e8fbff;font:900 11px monospace;text-transform:uppercase;touch-action:manipulation}button:active,.active{background:#16d7ff;color:#00131c;box-shadow:0 0 18px rgba(22,215,255,.4)}
+      .statuses{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.status{padding:10px;display:grid;grid-template-columns:38px 1fr;align-items:center;gap:7px}.glyph{width:30px;height:30px;color:#16d7ff;filter:drop-shadow(0 0 8px rgba(22,215,255,.4))}.status strong{display:block;font:900 9px monospace;letter-spacing:.12em;color:#16d7ff}.status span{display:block;margin-top:5px;font:800 12px monospace;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     </style><div class="deck"><header><span>Jarvis Home Control</span><b>${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</b></header><div class="controls">
-      <section class="panel main"><div class="label">INTERIOR LIGHTS</div><div class="value">${escapeHtml(light?.state || "unavailable")}</div><div class="actions light-actions"><button data-action="light:on" class="${light?.state === "on" ? "active" : ""}">ON</button><button data-action="light:off">OFF</button></div></section>
-      <section class="panel main"><div class="label">ALL BLINDS</div><div class="value">${escapeHtml(cover?.state || "unavailable")}</div><div class="actions cover-actions"><button data-action="cover:open">UP</button><button data-action="cover:stop">STOP</button><button data-action="cover:close">DOWN</button></div></section>
-    </div><div class="statuses">${status.map(([name,item,glyph]) => `<section class="panel status"><div class="glyph">${glyph}</div><div><strong>${name}</strong><span>${escapeHtml(item?.state || "unavailable")}</span></div></section>`).join("")}</div></div>`;
-    this.shadowRoot.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => {
-      const [kind, action] = button.dataset.action.split(":");
-      if (kind === "light") this.call("light", action === "on" ? "turn_on" : "turn_off", lightId);
-      if (kind === "cover") this.call("cover", action === "open" ? "open_cover" : action === "close" ? "close_cover" : "stop_cover", coverId);
-    }));
+      <section class="panel main" data-panel="light"><div class="label">INTERIOR LIGHTS</div><div class="value"><ha-icon icon="mdi:lightbulb-group"></ha-icon>${escapeHtml(light?.state || "unavailable")}</div><div class="hint"><span>TOUCH TO TOGGLE</span><span>${light?.state === "on" ? "ACTIVE" : "STANDBY"}</span></div></section>
+      <section class="panel main" data-panel="cover"><div class="label">ALL BLINDS</div><div class="value"><ha-icon icon="mdi:blinds-horizontal"></ha-icon>${escapeHtml(cover?.state || "unavailable")}</div><div class="hint"><span>TOUCH ${["open","opening"].includes(cover?.state) ? "TO LOWER" : "TO RAISE"}</span><button data-action="cover:stop">STOP</button></div></section>
+    </div><div class="statuses">${status.map(([name,item,icon]) => `<section class="panel status"><ha-icon class="glyph" icon="${icon}"></ha-icon><div><strong>${name}</strong><span>${escapeHtml(item?.state || "unavailable")}</span></div></section>`).join("")}</div></div>`;
+    this.shadowRoot.querySelector('[data-panel="light"]')?.addEventListener("click", () => this.call("light", "toggle", lightId));
+    this.shadowRoot.querySelector('[data-panel="cover"]')?.addEventListener("click", () => this.call("cover", ["open", "opening"].includes(cover?.state) ? "close_cover" : "open_cover", coverId));
+    this.shadowRoot.querySelector('[data-action="cover:stop"]')?.addEventListener("click", (event) => { event.stopPropagation(); this.call("cover", "stop_cover", coverId); });
   }
 }
 
