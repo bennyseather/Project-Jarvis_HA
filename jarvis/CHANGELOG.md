@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.45.29
+
+- Correct the M58 local-reasoning configuration indentation so the add-on starts cleanly.
+
 ## 0.45.28
 
 - Add adaptive instant, quick, and deep local response planning with voice-sized output budgets.
