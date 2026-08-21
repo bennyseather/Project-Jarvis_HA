@@ -92,9 +92,17 @@ class ResponsiveVoiceCoordinator:
     async def _complete(self, job):
         task = job["task"]
         try:
-            result = await asyncio.wait_for(
-                asyncio.shield(task), timeout=self.policy.maximum_runtime_seconds
-            )
+            while True:
+                done, _ = await asyncio.wait(
+                    {task}, timeout=self.policy.maximum_runtime_seconds
+                )
+                if done:
+                    result = await task
+                    break
+                await self._safe_speak(
+                    job["route"],
+                    "Still working. A required service is responding slowly.",
+                )
             message = str(result.get("message", "")).strip()
             if not message:
                 message = self._actionable_blocker(result)
@@ -104,13 +112,6 @@ class ResponsiveVoiceCoordinator:
                 self.logger.info(f"Responsive voice follow-up {job['id']} delivered in {elapsed}ms")
         except asyncio.CancelledError:
             task.cancel()
-        except asyncio.TimeoutError:
-            task.cancel()
-            await self._safe_speak(
-                job["route"],
-                "This is taking unusually long because a required service is not responding. "
-                "Please check the Jarvis diagnostics in Home Assistant.",
-            )
         except Exception as error:
             if self.logger:
                 self.logger.warning(f"Responsive voice follow-up failed safely: {error}")
@@ -235,5 +236,7 @@ class ResponsiveVoiceCoordinator:
             self._remove(job)
         while len(self._jobs) >= self.policy.maximum_pending_jobs:
             oldest = min(self._jobs.values(), key=lambda item: item["started"])
-            oldest["task"].cancel()
-            self._remove(oldest)
+            if oldest["task"].done():
+                self._remove(oldest)
+                continue
+            break

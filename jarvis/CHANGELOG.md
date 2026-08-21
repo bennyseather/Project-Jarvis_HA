@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.27
+
+- Add M57 local capability routing with deterministic calendar arithmetic.
+- Preserve slow voice jobs beyond service deadlines and report continued work.
+- Expose privacy-safe route, latency, success, and cache telemetry to Home Assistant.
+
 ## 0.45.26
 
 - Keep voice and general reasoning on the same GPU-resident Qwen3 8B model to eliminate model-swap stalls.

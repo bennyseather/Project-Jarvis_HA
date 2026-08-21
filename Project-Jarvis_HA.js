@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.28";
+const JARVIS_UI_VERSION = "0.47.29";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -3037,6 +3037,30 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
   }
 }
 
+class JarvisOrchestrationPerformanceCard extends JarvisBaseCard {
+  static getConfigElement() { return document.createElement("hui-generic-entity-row"); }
+  static getStubConfig() { return { type: "custom:jarvis-orchestration-performance-card", title: "Jarvis Cognitive Performance" }; }
+  render() {
+    if (!this.shadowRoot) return;
+    const read = (entity, fallback = "0") => this._hass?.states?.[entity]?.state ?? fallback;
+    const p95 = read(this._config?.p95_entity || "sensor.jarvis_p95_latency");
+    const p50 = read(this._config?.p50_entity || "sensor.jarvis_median_latency");
+    const success = read(this._config?.success_entity || "sensor.jarvis_success_rate");
+    const cache = read(this._config?.cache_entity || "sensor.jarvis_cache_hit_rate");
+    const details = this._hass?.states?.[this._config?.p95_entity || "sensor.jarvis_p95_latency"]?.attributes || {};
+    this.shadowRoot.innerHTML = `<style>
+      :host{display:block}ha-card{padding:16px;color:#e8fbff;background:linear-gradient(145deg,#020914,#06233a);border:1px solid rgba(22,215,255,.7)}
+      header{font:900 12px ui-monospace,monospace;letter-spacing:.14em;color:#16d7ff;text-transform:uppercase;border-bottom:1px solid rgba(22,215,255,.35);padding-bottom:10px}
+      .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.metric{padding:10px 8px;text-align:center;background:rgba(22,215,255,.06);border:1px solid rgba(22,215,255,.22)}
+      b{display:block;font:900 20px ui-monospace,monospace;color:#16d7ff}span{font:700 8px ui-monospace,monospace;letter-spacing:.09em;color:#9edbea;text-transform:uppercase}.route{margin-top:10px;font:700 9px ui-monospace,monospace;color:#9edbea}
+      @media(max-width:520px){.grid{grid-template-columns:1fr 1fr}}
+    </style><ha-card><header>${escapeHtml(this._config?.title || "Jarvis Cognitive Performance")}</header><div class="grid">
+      <div class="metric"><b>${escapeHtml(p50)}</b><span>Median ms</span></div><div class="metric"><b>${escapeHtml(p95)}</b><span>P95 ms</span></div>
+      <div class="metric"><b>${escapeHtml(success)}%</b><span>Success</span></div><div class="metric"><b>${escapeHtml(cache)}%</b><span>Cache hit</span></div>
+    </div><div class="route">LAST ROUTE // ${escapeHtml(details.last_route || "none")} &nbsp; REQUESTS // ${escapeHtml(details.requests || 0)}</div></ha-card>`;
+  }
+}
+
 const CARD_DEFINITIONS = [
   ["jarvis-nspanel-dashboard-card", JarvisNSPanelDashboardCard, "Jarvis NSPanel Dashboard", "No-scroll lighting, blinds and appliance status interface"],
   ["jarvis-clock-dashboard-card", JarvisClockDashboardCard, "Jarvis Smart Clock", "Full-screen clock, weather, lighting and alarm interface"],
@@ -3081,6 +3105,7 @@ const CARD_DEFINITIONS = [
   ["jarvis-rss-card", JarvisRSSCard, "Jarvis RSS Intelligence", "Top RSS stories grouped by source or category"],
   ["jarvis-rss-ticker-card", JarvisRSSTickerCard, "Jarvis RSS News Ticker", "Full-width scrolling RSS headline wire"],
   ["jarvis-learning-insights-card", JarvisLearningInsightsCard, "Jarvis Learning Insights", "Observed, suggested, approved and declining household routines"],
+  ["jarvis-orchestration-performance-card", JarvisOrchestrationPerformanceCard, "Jarvis Cognitive Performance", "Local route, latency, success and cache telemetry"],
   ["jarvis-glance-card", JarvisGlanceCard, "Jarvis Glance", "Compact multi-entity overview"],
   ["jarvis-alerts-card", JarvisAlertsCard, "Jarvis Home Alerts", "Leaks, smoke, batteries and availability"],
   ["jarvis-network-card", JarvisNetworkCard, "Jarvis Network / NAS", "Network and storage telemetry"],

@@ -40,6 +40,7 @@ class ServiceContainer:
         self.responsive_voice = None
         self.efficient_intelligence_policy = None
         self.efficient_intelligence = None
+        self.local_facts = None
 
         self.context_builder: ContextBuilder | None = None
         self.assistant: Assistant | None = None

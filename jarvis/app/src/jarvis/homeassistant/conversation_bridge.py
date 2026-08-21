@@ -120,8 +120,14 @@ class JarvisConversationBridge:
             self._application.container, "efficient_intelligence", None
         )
         if intelligence is not None:
+            envelope = intelligence.envelope(
+                request_text,
+                conversation_id=identifier,
+                source_id=source_id,
+                voice_mode=voice_mode,
+            )
             operation = intelligence.execute(
-                operation, text=request_text, source_id=source_id
+                operation, envelope=envelope
             )
         coordinator = getattr(
             self._application.container, "responsive_voice", None

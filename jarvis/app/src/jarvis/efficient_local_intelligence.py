@@ -9,6 +9,8 @@ import hashlib
 import re
 import time
 
+from jarvis.orchestration_registry import LocalCapabilityRegistry, RequestEnvelope
+
 
 @dataclass(frozen=True, slots=True)
 class EfficientIntelligencePolicy:
@@ -68,8 +70,13 @@ class EfficientLocalIntelligence:
         self._reasoning_slots = asyncio.Semaphore(
             self.policy.maximum_concurrent_reasoning
         )
+        self.registry = LocalCapabilityRegistry()
 
-    async def execute(self, operation, *, text, source_id=None):
+    async def execute(self, operation, *, text=None, source_id=None, envelope=None):
+        if envelope is not None:
+            text = envelope.text
+            source_id = envelope.source_id
+        text = str(text or "")
         route = self.classify(text)
         cacheable = self._cacheable(text, route)
         key = self._key(text) if cacheable else None
@@ -97,14 +104,16 @@ class EfficientLocalIntelligence:
         return result
 
     def classify(self, text):
-        value = " ".join(str(text).split())
-        if self._HOME.search(value):
-            return "home_assistant"
-        if self._CURRENT.search(value):
-            return "current_information"
-        if self._PERSONAL.search(value):
-            return "memory_knowledge"
-        return "general_reasoning"
+        return self.registry.decide(text).capability
+
+    def envelope(self, text, *, conversation_id=None, source_id=None, voice_mode=False):
+        return RequestEnvelope(
+            text=str(text),
+            conversation_id=str(conversation_id or "local-default"),
+            source_id=str(source_id or ""),
+            voice_mode=bool(voice_mode),
+            received_at=self.clock(),
+        )
 
     def context_for(self, text, references):
         """Return only relevant authorized metadata; never entity state/history."""
@@ -130,6 +139,28 @@ class EfficientLocalIntelligence:
 
     def diagnostics(self):
         return tuple(dict(item) for item in self._telemetry)
+
+    def metrics(self):
+        items = tuple(self._telemetry)
+        if not items:
+            return {"state": 0, "requests": 0, "success_percent": 0,
+                    "cache_hit_percent": 0, "p50_ms": 0, "p95_ms": 0,
+                    "route_counts": {}, "last_route": "none", "last_duration_ms": 0}
+        durations = sorted(item["duration_ms"] for item in items)
+        routes = {}
+        for item in items:
+            routes[item["route"]] = routes.get(item["route"], 0) + 1
+        percentile = lambda fraction: durations[min(len(durations) - 1, max(0, round((len(durations) - 1) * fraction)))]
+        success = sum(item["status"] == "success" for item in items)
+        hits = sum(item["cache"] == "hit" for item in items)
+        return {
+            "state": percentile(.95), "requests": len(items),
+            "success_percent": round(success * 100 / len(items), 1),
+            "cache_hit_percent": round(hits * 100 / len(items), 1),
+            "p50_ms": percentile(.50), "p95_ms": percentile(.95),
+            "route_counts": routes, "last_route": items[-1]["route"],
+            "last_duration_ms": items[-1]["duration_ms"],
+        }
 
     def _cacheable(self, text, route):
         value = " ".join(str(text).casefold().split()).strip(" .?!")

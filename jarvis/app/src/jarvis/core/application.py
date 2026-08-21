@@ -26,6 +26,7 @@ from jarvis.efficient_local_intelligence import (
     EfficientIntelligencePolicy,
     EfficientLocalIntelligence,
 )
+from jarvis.orchestration_registry import LocalFacts
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
 from jarvis.providers.local_first_provider import LocalFirstReasoningProvider, LocalReasoningPolicy
@@ -334,6 +335,9 @@ class JarvisApplication:
         self.container.efficient_intelligence = EfficientLocalIntelligence(
             self.container.efficient_intelligence_policy,
             logger=self.container.logger,
+        )
+        self.container.local_facts = LocalFacts(
+            self.container.current_information_policy.time_zone
         )
         self.container.openai = OpenAIProvider(
             api_key=self.general["openai"]["api_key"],
@@ -895,6 +899,12 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(weather_result)
             )
             return weather_result
+        local_fact_result = self.container.local_facts.handle(text)
+        if local_fact_result is not None:
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(local_fact_result)
+            )
+            return local_fact_result
         current_result = await self.container.current_information.handle(
             text, voice_mode=voice_mode
         )
