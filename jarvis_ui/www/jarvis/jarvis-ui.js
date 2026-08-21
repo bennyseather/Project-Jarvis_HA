@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.25";
+const JARVIS_UI_VERSION = "0.47.28";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1165,7 +1165,9 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (ptt) ptt.textContent = this._mode === "ptt" ? "Listening · auto send" : "Push to talk";
   }
   async _start(mode) {
-    if (!this._hass?.connection?.subscribeMessage || !navigator.mediaDevices?.getUserMedia) {
+    const nativeAudio = globalThis.JarvisNativeAudio;
+    const nativeAvailable = Boolean(nativeAudio?.available?.());
+    if (!this._hass?.connection?.subscribeMessage || (!navigator.mediaDevices?.getUserMedia && !nativeAvailable)) {
       this._status = "Unavailable // HTTPS and microphone permission required";
       this._paintStatus();
       return;
@@ -1177,6 +1179,12 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._status = "Requesting microphone permission";
     this._paintStatus();
     try {
+      if (!navigator.mediaDevices?.getUserMedia && nativeAvailable) {
+        await this._runPipeline();
+        globalThis.jarvisNativeAudioSamples = (encoded) => this._sendNativePcm(encoded);
+        nativeAudio.start();
+        return;
+      }
       this._stream = await navigator.mediaDevices.getUserMedia({ audio: {
         channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       } });
@@ -1327,9 +1335,33 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     const silenceMs = Number(this._config.silence_timeout || 0.9) * 1000;
     if (now - this._pttLastSpeechAt >= silenceMs) this._finishAudio();
   }
+  _sendNativePcm(encoded) {
+    if (this._handlerId === undefined || this._handlerId === null || this._mode !== "ptt") return;
+    const binary = atob(encoded);
+    const packet = new Uint8Array(1 + binary.length);
+    packet[0] = this._handlerId;
+    let energy = 0;
+    for (let index = 0; index < binary.length; index += 1) packet[index + 1] = binary.charCodeAt(index);
+    const view = new DataView(packet.buffer, 1);
+    const samples = Math.floor(binary.length / 2);
+    for (let index = 0; index < samples; index += 1) { const sample = view.getInt16(index * 2, true) / 32768; energy += sample * sample; }
+    this._hass.connection.socket.send(packet);
+    this._trackNativeSilence(Math.sqrt(energy / Math.max(samples, 1)));
+  }
+  _trackNativeSilence(level) {
+    const now = performance.now();
+    if (!this._pttSpeechDetected) {
+      this._pttSpeechFrames = level > 0.012 ? this._pttSpeechFrames + 1 : 0;
+      if (this._pttSpeechFrames >= 2) { this._pttSpeechDetected = true; this._pttLastSpeechAt = now; this._status = "Command detected // listening"; }
+      return;
+    }
+    if (level > 0.007) this._pttLastSpeechAt = now;
+    else if (now - this._pttLastSpeechAt >= Number(this._config.silence_timeout || 0.9) * 1000) this._finishAudio();
+  }
   _finishAudio() {
     if (this._handlerId === undefined || this._handlerId === null) return;
     this._hass.connection.socket.send(new Uint8Array([this._handlerId]));
+    globalThis.JarvisNativeAudio?.stop?.();
     this._handlerId = undefined;
     this._status = "Processing command";
     this._paintStatus();
@@ -1449,6 +1481,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (this._processor) { this._processor.disconnect(); this._processor = undefined; }
     if (this._audioContext) { await this._audioContext.close(); this._audioContext = undefined; }
     if (this._stream) { this._stream.getTracks().forEach((track) => track.stop()); this._stream = undefined; }
+    globalThis.JarvisNativeAudio?.stop?.();
+    if (globalThis.jarvisNativeAudioSamples) delete globalThis.jarvisNativeAudioSamples;
     this._mode = "idle";
     if (!keepStatus) this._status = "Muted // microphone offline";
     if (render) this.render(); else this._paintStatus();
@@ -2872,11 +2906,24 @@ class JarvisClockDashboardCard extends HTMLElement {
 }
 
 class JarvisNSPanelDashboardCard extends HTMLElement {
-  constructor() { super(); this.attachShadow({ mode: "open" }); this._config = {}; this._forecast = null; this._forecastLoading = false; this._forecastLoadedAt = 0; }
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = {}; this._forecast = null; this._forecastLoading = false; this._forecastLoadedAt = 0;
+    this._activeMenu = null; this._actionFeedback = "";
+    this._satellite = new JarvisVoiceSatelliteCard();
+    this._satellite.setConfig({ title: "NSPanel Jarvis", follow_up_target: "nspanel_test", pipeline_id: "preferred", silence_timeout: 0.9, conversational_mode: false });
+    this._voiceTicker = setInterval(() => {
+      const status = this.shadowRoot?.querySelector(".voice-status");
+      if (status) status.textContent = this._satellite._status;
+    }, 300);
+  }
+  disconnectedCallback() { clearInterval(this._voiceTicker); this._satellite.disconnectedCallback(); }
   setConfig(config) { this._config = config || {}; this.render(); }
-  set hass(value) { this._hass = value; this.loadForecast(); this.render(); }
+  set hass(value) { this._hass = value; this._satellite.hass = value; this.loadForecast(); this.render(); }
   getCardSize() { return 1; }
   extendedForecastEnabled() { return this._config.extended_forecast === true || new URLSearchParams(window.location.search).get("forecast") === "extended"; }
+  advancedControlsEnabled() { return this._config.advanced_controls === true || new URLSearchParams(window.location.search).get("controls") === "advanced"; }
   state(key, fallback) { return this._hass?.states?.[this._config[key] || fallback]; }
   call(domain, service, entity) { return this._hass?.callService(domain, service, { entity_id: entity }); }
   async loadForecast() {
@@ -2898,6 +2945,41 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     const value = String(condition || "cloudy").replace("partlycloudy", "partly-cloudy");
     return `mdi:weather-${value}`;
   }
+  menuActions(menu) {
+    const mower = this._config.mower_control_entity || "lawn_mower.edward_scissorhand_lawn_mower";
+    const vacuum = this._config.vacuum_control_entity || "vacuum.roborock_s6";
+    return {
+      mower: [
+        ["START MOWING", "button", "press", this._config.mower_start_entity || "button.edward_scissorhand_start_mowing_now", "mdi:play"],
+        ["PAUSE", "lawn_mower", "pause", mower, "mdi:pause"],
+        ["RETURN TO DOCK", "button", "press", this._config.mower_dock_entity || "button.edward_scissorhand_return_to_dock_2", "mdi:home-import-outline"],
+      ],
+      vacuum: [
+        ["START CLEANING", "vacuum", "start", vacuum, "mdi:play"],
+        ["PAUSE", "vacuum", "pause", vacuum, "mdi:pause"],
+        ["STOP", "vacuum", "stop", vacuum, "mdi:stop"],
+        ["RETURN TO DOCK", "vacuum", "return_to_base", vacuum, "mdi:home-import-outline"],
+      ],
+      washer: [
+        ["START", "button", "press", this._config.washer_start_entity || "button.vaskepott_start", "mdi:play"],
+        ["PAUSE", "button", "press", this._config.washer_pause_entity || "button.vaskepott_pause", "mdi:pause"],
+        ["SHUT DOWN", "button", "press", this._config.washer_stop_entity || "button.vaskepott_shutdown", "mdi:power"],
+      ],
+    }[menu] || [];
+  }
+  async runAction(action) {
+    const [label, domain, service, entityId] = action;
+    this._actionFeedback = `SENDING // ${label}`; this.render();
+    try {
+      await this._hass.callService(domain, service, {}, { entity_id: entityId });
+      this._actionFeedback = `COMMAND ACCEPTED // ${label}`; this.render();
+      setTimeout(() => { this._activeMenu = null; this._actionFeedback = ""; this.render(); }, 900);
+    } catch (error) { this._actionFeedback = `COMMAND FAILED // ${error?.message || "SERVICE UNAVAILABLE"}`; this.render(); }
+  }
+  closeMenu() {
+    if (this._activeMenu === "voice") this._satellite._stop(false);
+    this._activeMenu = null; this._actionFeedback = ""; this.render();
+  }
   render() {
     if (!this.shadowRoot) return;
     const lightId = this._config.light_entity || "light.interior_lights";
@@ -2918,26 +3000,40 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
       const low = day.templow == null ? "--" : Math.round(day.templow);
       return `<div class="day"><b>${label}</b><ha-icon icon="${this.weatherIcon(day.condition)}"></ha-icon><span>${high}° <i>${low}°</i></span></div>`;
     }).join("");
+    const advancedControls = this.advancedControlsEnabled();
     const status = [
-      ["MOWER", this.state("mower_entity", "lawn_mower.edward_scissorhand_lawn_mower"), "mdi:robot-mower-outline"],
-      ["VACUUM", this.state("vacuum_entity", "sensor.alfred_status"), "mdi:vacuum"],
-      ["WASHER", this.state("washer_entity", "sensor.vaskepott_state"), "jarvis:washing-machine"],
+      ["mower", "MOWER", this.state("mower_entity", "lawn_mower.edward_scissorhand_lawn_mower"), "mdi:robot-mower-outline"],
+      ["vacuum", "VACUUM", this.state("vacuum_entity", "sensor.alfred_status"), "mdi:vacuum"],
+      ["washer", "WASHER", this.state("washer_entity", "sensor.vaskepott_state"), "jarvis:washing-machine"],
     ];
+    const activeState = this._activeMenu && this._activeMenu !== "voice" ? status.find(([key]) => key === this._activeMenu)?.[2] : null;
+    const actions = this.menuActions(this._activeMenu);
+    const overlay = !this._activeMenu ? "" : this._activeMenu === "voice"
+      ? `<div class="overlay"><section class="dialog voice-dialog"><button class="close" data-close>×</button><ha-icon class="voice-orb" icon="mdi:microphone-message"></ha-icon><h2>ASK JARVIS</h2><div class="voice-status">${escapeHtml(this._satellite._status)}</div><button class="voice-start" data-voice>${this._satellite._mode === "ptt" ? "LISTENING · AUTO SEND" : "START LISTENING"}</button><small>Audio streams to Home Assistant only</small></section></div>`
+      : `<div class="overlay"><section class="dialog"><button class="close" data-close>×</button><div class="dialog-title">${escapeHtml(this._activeMenu)} CONTROL</div><div class="dialog-state">CURRENT // ${escapeHtml(activeState?.state || "unavailable")}</div><div class="actions">${actions.map((action, index) => { const target = this._hass?.states?.[action[3]]; const disabled = !target || target.state === "unavailable"; return `<button data-command="${index}" ${disabled ? "disabled" : ""}><ha-icon icon="${action[4]}"></ha-icon>${action[0]}</button>`; }).join("")}</div><div class="feedback">${escapeHtml(this._actionFeedback || "SELECT OPERATION")}</div></section></div>`;
     this.shadowRoot.innerHTML = `<style>
       :host{position:fixed;inset:0;z-index:9999;display:block;color:#e8fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden;background:#020914}*{box-sizing:border-box}
       .deck{height:100%;padding:8px;display:grid;grid-template-rows:30px ${extendedForecast ? "78px" : "58px"} 1fr 100px;gap:7px;background:radial-gradient(circle at 50% 22%,rgba(0,153,255,.2),transparent 42%),linear-gradient(145deg,#020914,#05213a);overflow:hidden}
-      header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #16d7ff;font:800 10px/1 monospace;letter-spacing:.16em;color:#16d7ff;text-transform:uppercase}header b{font-size:15px;color:#e8fbff}
+      header{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;border-bottom:1px solid #16d7ff;font:800 10px/1 monospace;letter-spacing:.16em;color:#16d7ff;text-transform:uppercase}header b{font-size:15px;color:#e8fbff}.jarvis-mic{width:30px;height:26px;border:1px solid #16d7ff;background:rgba(22,215,255,.08);color:#16d7ff;display:grid;place-items:center;padding:0}.jarvis-mic ha-icon{--mdc-icon-size:18px}
       .weather{padding:5px 9px;display:grid;grid-template-columns:126px 1fr;align-items:center;gap:7px}.current{height:100%;padding-right:7px;border-right:1px solid rgba(22,215,255,.35);display:grid;grid-template-columns:36px 1fr;align-items:center;gap:6px}.current ha-icon{width:32px;height:32px;--mdc-icon-size:32px;color:#16d7ff;filter:drop-shadow(0 0 10px rgba(22,215,255,.45))}.current strong{display:block;font:900 11px monospace;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.current span{display:block;margin-top:2px;font:700 8px monospace;color:#9edbea;text-transform:uppercase}.temperature{font:900 20px monospace;color:#16d7ff}.days{height:100%;display:grid;grid-template-columns:repeat(4,1fr);align-items:center}.day{min-width:0;text-align:center;border-left:1px solid rgba(22,215,255,.16)}.day:first-child{border-left:0}.day b{display:block;font:900 8px monospace;letter-spacing:.06em;color:#9edbea}.day ha-icon{display:block;margin:3px auto;width:25px;height:25px;--mdc-icon-size:25px;color:#16d7ff}.day span{font:900 10px monospace;white-space:nowrap}.day i{font-style:normal;color:#7da9b7}
       .weather.basic{padding:8px 14px;grid-template-columns:52px 1fr auto;gap:12px}.basic>ha-icon{width:42px;height:42px;--mdc-icon-size:42px;color:#16d7ff}.basic strong{font:900 14px monospace;text-transform:uppercase}.basic span{display:block;font:700 9px monospace;color:#9edbea}.basic .temperature{font-size:25px}
       .controls{display:grid;grid-template-columns:1fr 1fr;gap:7px;min-height:0}.panel{border:1px solid rgba(22,215,255,.65);background:linear-gradient(145deg,rgba(3,17,30,.96),rgba(5,45,73,.85));box-shadow:inset 0 0 25px rgba(22,215,255,.07);clip-path:polygon(0 10px,10px 0,90% 0,100% 12px,100% 100%,8% 100%,0 calc(100% - 12px))}
       .main{padding:12px;display:grid;grid-template-rows:auto 1fr auto;gap:5px;cursor:pointer;touch-action:manipulation}.main:active{background:#16d7ff;color:#00131c}.label{font:900 12px monospace;letter-spacing:.12em;color:#16d7ff}.main:active .label{color:#00131c}.value{display:grid;place-items:center;gap:3px;font:900 21px monospace;text-transform:uppercase;text-align:center}.value ha-icon{width:104px;height:104px;--mdc-icon-size:104px;color:#16d7ff;filter:drop-shadow(0 0 16px rgba(22,215,255,.6))}.hint{display:flex;align-items:center;justify-content:space-between;font:800 9px monospace;letter-spacing:.1em;color:#9edbea}
-      .statuses{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.status{padding:10px;display:grid;grid-template-columns:38px 1fr;align-items:center;gap:7px}.glyph{width:30px;height:30px;color:#16d7ff;filter:drop-shadow(0 0 8px rgba(22,215,255,.4))}.status strong{display:block;font:900 9px monospace;letter-spacing:.12em;color:#16d7ff}.status span{display:block;margin-top:5px;font:800 12px monospace;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    </style><div class="deck"><header><span>Jarvis Home Control</span><b>${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</b></header>${extendedForecast ? `<section class="panel weather"><div class="current"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><span>${humidity == null ? "CURRENT" : `HUM ${escapeHtml(humidity)}%`}</span></div></div><div class="days">${forecastHtml || '<div class="day"><b>FORECAST</b><span>LOADING</span></div>'}</div></section>` : `<section class="panel weather basic"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><span>Home forecast${humidity == null ? "" : ` · Humidity ${escapeHtml(humidity)}%`}</span></div><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div></section>`}<div class="controls">
+      .statuses{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.status{padding:10px;display:grid;grid-template-columns:38px 1fr;align-items:center;gap:7px}.status.interactive{cursor:pointer;touch-action:manipulation}.status.interactive:active{background:#16d7ff;color:#00131c}.glyph{width:30px;height:30px;color:#16d7ff;filter:drop-shadow(0 0 8px rgba(22,215,255,.4))}.status strong{display:block;font:900 9px monospace;letter-spacing:.12em;color:#16d7ff}.status span{display:block;margin-top:5px;font:800 12px monospace;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .overlay{position:fixed;inset:0;z-index:20;background:rgba(0,5,12,.9);display:grid;place-items:center;padding:20px}.dialog{width:min(430px,100%);max-height:440px;padding:20px;border:1px solid #16d7ff;background:linear-gradient(145deg,#03101c,#07304b);box-shadow:0 0 35px rgba(22,215,255,.25);position:relative}.close{position:absolute;right:10px;top:8px;width:44px;height:40px;border:1px solid #16d7ff;background:#061826;color:#e8fbff;font-size:25px}.dialog-title{font:900 18px monospace;letter-spacing:.12em;color:#16d7ff;text-transform:uppercase}.dialog-state,.feedback{margin-top:8px;font:800 10px monospace;letter-spacing:.1em;color:#9edbea;text-transform:uppercase}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.actions button,.voice-start{min-height:70px;border:1px solid #16d7ff;background:#061826;color:#e8fbff;font:900 11px monospace;display:grid;place-items:center;gap:5px}.actions button ha-icon{--mdc-icon-size:28px;color:#16d7ff}.actions button:disabled{opacity:.28}.feedback{min-height:14px;text-align:center}.voice-dialog{text-align:center}.voice-orb{width:90px;height:90px;--mdc-icon-size:70px;color:#16d7ff;filter:drop-shadow(0 0 18px #16d7ff)}.voice-dialog h2{font:900 20px monospace;color:#16d7ff}.voice-status{min-height:34px;font:800 10px monospace;text-transform:uppercase}.voice-start{width:100%;margin-top:12px}.voice-dialog small{display:block;margin-top:12px;color:#9edbea;font:700 8px monospace;text-transform:uppercase}
+    </style><div class="deck"><header><span>Jarvis Home Control</span>${advancedControls ? '<button class="jarvis-mic" data-menu="voice"><ha-icon icon="mdi:microphone"></ha-icon></button>' : ""}<b>${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</b></header>${extendedForecast ? `<section class="panel weather"><div class="current"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><span>${humidity == null ? "CURRENT" : `HUM ${escapeHtml(humidity)}%`}</span></div></div><div class="days">${forecastHtml || '<div class="day"><b>FORECAST</b><span>LOADING</span></div>'}</div></section>` : `<section class="panel weather basic"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><span>Home forecast${humidity == null ? "" : ` · Humidity ${escapeHtml(humidity)}%`}</span></div><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div></section>`}<div class="controls">
       <section class="panel main" data-panel="light"><div class="label">INTERIOR LIGHTS</div><div class="value"><ha-icon icon="mdi:lightbulb-group"></ha-icon>${escapeHtml(light?.state || "unavailable")}</div><div class="hint"><span>TOUCH TO TOGGLE</span><span>${light?.state === "on" ? "ACTIVE" : "STANDBY"}</span></div></section>
       <section class="panel main" data-panel="cover"><div class="label">ALL BLINDS</div><div class="value"><ha-icon icon="mdi:blinds-horizontal"></ha-icon>${escapeHtml(cover?.state || "unavailable")}</div><div class="hint"><span>TOUCH ${["open","opening"].includes(cover?.state) ? "TO LOWER" : "TO RAISE"}</span><span>${["open","opening"].includes(cover?.state) ? "OPEN" : "CLOSED"}</span></div></section>
-    </div><div class="statuses">${status.map(([name,item,icon]) => `<section class="panel status"><ha-icon class="glyph" icon="${icon}"></ha-icon><div><strong>${name}</strong><span>${escapeHtml(item?.state || "unavailable")}</span></div></section>`).join("")}</div></div>`;
+    </div><div class="statuses">${status.map(([key,name,item,icon]) => `<section class="panel status ${advancedControls ? "interactive" : ""}" ${advancedControls ? `data-menu="${key}"` : ""}><ha-icon class="glyph" icon="${icon}"></ha-icon><div><strong>${name}</strong><span>${escapeHtml(item?.state || "unavailable")}</span></div></section>`).join("")}</div></div>${overlay}`;
     this.shadowRoot.querySelector('[data-panel="light"]')?.addEventListener("click", () => this.call("light", "toggle", lightId));
     this.shadowRoot.querySelector('[data-panel="cover"]')?.addEventListener("click", () => this.call("cover", ["open", "opening"].includes(cover?.state) ? "close_cover" : "open_cover", coverId));
+    this.shadowRoot.querySelectorAll("[data-menu]").forEach((node) => node.addEventListener("click", () => { this._activeMenu = node.dataset.menu; this._actionFeedback = ""; this.render(); }));
+    this.shadowRoot.querySelector("[data-close]")?.addEventListener("click", () => this.closeMenu());
+    this.shadowRoot.querySelectorAll("[data-command]").forEach((node) => node.addEventListener("click", () => this.runAction(actions[Number(node.dataset.command)])));
+    this.shadowRoot.querySelector("[data-voice]")?.addEventListener("click", () => {
+      if (this._satellite._mode === "ptt") this._satellite._finishAudio(); else this._satellite._start("ptt");
+      this.render();
+    });
   }
 }
 
