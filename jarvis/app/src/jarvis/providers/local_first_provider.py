@@ -5,6 +5,9 @@ from dataclasses import dataclass
 import json
 from typing import Any
 from urllib.request import Request, urlopen
+import re
+
+from jarvis.sentence_stream import sentence_sink
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,7 +23,7 @@ class LocalReasoningPolicy:
     context_tokens: int = 4096
     maximum_input_messages: int = 8
     maximum_input_characters: int = 12000
-    maximum_output_tokens: int = 160
+    maximum_output_tokens: int = 240
     failure_cooldown_seconds: int = 30
 
     @classmethod
@@ -76,12 +79,13 @@ class LocalFirstReasoningProvider:
                 return self.fallback.reason(instructions=instructions, input_messages=input_messages, model=model, timeout_seconds=timeout_seconds)
             return {"status": "unavailable", "message": "Local reasoning is temporarily unavailable."}
 
-    def reason_local(self, *, instructions, input_messages, timeout_seconds, model=None):
+    def reason_local(self, *, instructions, input_messages, timeout_seconds, model=None, maximum_output_tokens=None):
         """Run exactly one local pass without invoking the external fallback."""
         try:
             message = self._chat(
                 instructions, input_messages, timeout_seconds=timeout_seconds,
                 model=model,
+                maximum_output_tokens=maximum_output_tokens,
             )
             return {
                 "status": "success",
@@ -134,7 +138,7 @@ class LocalFirstReasoningProvider:
             self.logger.warning(f"Local reasoning warm-up deferred: {exc}")
             return {"ready": False, "provider": "ollama", "model": self.policy.model}
 
-    def _chat(self, instructions, messages, *, json_output=False, timeout_seconds=None, model=None):
+    def _chat(self, instructions, messages, *, json_output=False, timeout_seconds=None, model=None, maximum_output_tokens=None):
         import time
         if time.monotonic() < self._local_unavailable_until:
             raise RuntimeError("local worker is in a short recovery cooldown")
@@ -161,19 +165,26 @@ class LocalFirstReasoningProvider:
         payload = {
             "model": model or self.policy.model,
             "messages": ollama_messages,
-            "stream": False,
+            "stream": sentence_sink.get() is not None,
             "think": False,
             "keep_alive": -1,
             "options": {
                 "temperature": 0.2,
                 "num_ctx": self.policy.context_tokens,
-                "num_predict": 512 if json_output else self.policy.maximum_output_tokens,
+                "num_predict": 512 if json_output else min(
+                    self.policy.maximum_output_tokens,
+                    int(maximum_output_tokens or self.policy.maximum_output_tokens),
+                ),
             },
         }
         if json_output:
             payload["format"] = "json"
         try:
-            response = self._post("/api/chat", payload, timeout_seconds=timeout_seconds)
+            response = (
+                self._post_chat_stream(payload, timeout_seconds=timeout_seconds)
+                if payload["stream"] else
+                self._post("/api/chat", payload, timeout_seconds=timeout_seconds)
+            )
         except Exception:
             self._local_unavailable_until = time.monotonic() + self.policy.failure_cooldown_seconds
             raise
@@ -182,6 +193,37 @@ class LocalFirstReasoningProvider:
         if not message:
             raise RuntimeError("Ollama returned no answer")
         return message
+
+    def _post_chat_stream(self, payload, *, timeout_seconds=None):
+        node_proxy = self.policy.token or self.policy.url.rstrip("/").endswith(":10550")
+        route = "/v1/ollama/chat" if node_proxy else "/api/chat"
+        headers = {"Content-Type": "application/json", "User-Agent": "Project-Jarvis/0.46"}
+        if self.policy.token:
+            headers["Authorization"] = "Bearer " + self.policy.token
+        request = Request(self.policy.url.rstrip("/") + route, data=json.dumps(payload).encode(), headers=headers, method="POST")
+        content = ""
+        spoken_at = 0
+        with urlopen(request, timeout=timeout_seconds or self.policy.timeout_seconds) as response:
+            for line in response:
+                if not line.strip():
+                    continue
+                item = json.loads(line)
+                content += str(item.get("message", {}).get("content", ""))
+                sink = sentence_sink.get()
+                if sink is not None:
+                    complete = tuple(re.finditer(r"(?<=[.!?])(?:\s+|$)", content))
+                    if complete:
+                        boundary = complete[-1].end()
+                        if boundary > spoken_at:
+                            sentence = content[spoken_at:boundary].strip()
+                            if sentence:
+                                sink(sentence)
+                            spoken_at = boundary
+        sink = sentence_sink.get()
+        trailing = content[spoken_at:].strip()
+        if sink is not None and trailing:
+            sink(trailing)
+        return {"message": {"content": content}}
 
     def _post(self, path, payload, *, timeout_seconds=None):
         node_proxy = self.policy.token or self.policy.url.rstrip("/").endswith(":10550")

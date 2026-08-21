@@ -41,6 +41,7 @@ class ServiceContainer:
         self.efficient_intelligence_policy = None
         self.efficient_intelligence = None
         self.local_facts = None
+        self.adaptive_intelligence = None
 
         self.context_builder: ContextBuilder | None = None
         self.assistant: Assistant | None = None

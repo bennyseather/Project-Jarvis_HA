@@ -9,6 +9,8 @@ import re
 import time
 import uuid
 
+from jarvis.sentence_stream import sentence_sink
+
 
 @dataclass(frozen=True, slots=True)
 class ResponsiveVoicePolicy:
@@ -60,7 +62,26 @@ class ResponsiveVoiceCoordinator:
             return self._progress(text, existing_id, duplicate=True)
 
         self._prune()
-        task = asyncio.create_task(operation)
+        loop = asyncio.get_running_loop()
+        stream_state = {"enabled": False, "pending": [], "streamed": False}
+
+        def stream_sentence(sentence):
+            value = self._spoken(sentence)
+            if not value:
+                return
+            if not stream_state["enabled"]:
+                stream_state["pending"].append(value)
+                return
+            def deliver():
+                stream_state["streamed"] = True
+                asyncio.create_task(self._safe_speak(route, value))
+            loop.call_soon_threadsafe(deliver)
+
+        token = sentence_sink.set(stream_sentence)
+        try:
+            task = asyncio.create_task(operation)
+        finally:
+            sentence_sink.reset(token)
         done, _ = await asyncio.wait(
             {task}, timeout=self.policy.progress_deadline_seconds
         )
@@ -75,12 +96,21 @@ class ResponsiveVoiceCoordinator:
             "source": source,
             "request_key": request_key,
             "started": self.clock(),
+            "stream_state": stream_state,
         }
         self._jobs[job_id] = job
         self._job_by_source[source] = job_id
         self._job_by_request[request_key] = job_id
         asyncio.create_task(self._complete(job))
+        stream_state["enabled"] = True
+        pending = stream_state["pending"]
         progress = self._progress(text, job_id)
+        if pending:
+            progress["message"] = pending.pop(0)
+            stream_state["streamed"] = True
+            for sentence in pending:
+                asyncio.create_task(self._safe_speak(route, sentence))
+            pending.clear()
         if route.get("event_type"):
             # Browser Assist pipelines can lose their initial TTS when a long
             # intent is still active. A scoped event makes progress audible on
@@ -106,7 +136,8 @@ class ResponsiveVoiceCoordinator:
             message = str(result.get("message", "")).strip()
             if not message:
                 message = self._actionable_blocker(result)
-            await self._speak(job["route"], message)
+            if not job.get("stream_state", {}).get("streamed"):
+                await self._speak(job["route"], message)
             if self.logger:
                 elapsed = round((self.clock() - job["started"]) * 1000)
                 self.logger.info(f"Responsive voice follow-up {job['id']} delivered in {elapsed}ms")

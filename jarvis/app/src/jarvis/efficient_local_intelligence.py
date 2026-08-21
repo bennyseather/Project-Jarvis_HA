@@ -82,10 +82,14 @@ class EfficientLocalIntelligence:
         key = self._key(text) if cacheable else None
         started = self.clock()
         cached = self._cache_get(key) if key else None
+        semantic = False
+        if cached is None and key:
+            cached = self._semantic_cache_get(text)
+            semantic = cached is not None
         if cached is not None:
             result = dict(cached)
-            result["cache"] = "hit"
-            self._record(route, "hit", result, started, source_id)
+            result["cache"] = "semantic_hit" if semantic else "hit"
+            self._record(route, result["cache"], result, started, source_id)
             if asyncio.iscoroutine(operation):
                 operation.close()
             return result
@@ -97,7 +101,7 @@ class EfficientLocalIntelligence:
             result = await operation
         actual_route = self._actual_route(route, result)
         if key and actual_route == "general_reasoning" and result.get("status") == "success":
-            self._cache_put(key, result)
+            self._cache_put(key, result, text)
         result = dict(result)
         result.setdefault("cache", "miss" if cacheable else "bypass")
         self._record(actual_route, result["cache"], result, started, source_id)
@@ -152,7 +156,7 @@ class EfficientLocalIntelligence:
             routes[item["route"]] = routes.get(item["route"], 0) + 1
         percentile = lambda fraction: durations[min(len(durations) - 1, max(0, round((len(durations) - 1) * fraction)))]
         success = sum(item["status"] == "success" for item in items)
-        hits = sum(item["cache"] == "hit" for item in items)
+        hits = sum(item["cache"] in {"hit", "semantic_hit"} for item in items)
         return {
             "state": percentile(.95), "requests": len(items),
             "success_percent": round(success * 100 / len(items), 1),
@@ -200,14 +204,14 @@ class EfficientLocalIntelligence:
         item = self._cache.get(key)
         if item is None:
             return None
-        expires, result = item
+        expires, result, _signature = item
         if expires <= self.clock():
             self._cache.pop(key, None)
             return None
         self._cache.move_to_end(key)
         return result
 
-    def _cache_put(self, key, result):
+    def _cache_put(self, key, result, text):
         safe = {
             name: value for name, value in result.items()
             if name in {"status", "message", "provider", "model"}
@@ -215,10 +219,52 @@ class EfficientLocalIntelligence:
         self._cache[key] = (
             self.clock() + self.policy.stable_cache_ttl_seconds,
             safe,
+            self._semantic_signature(text),
         )
         self._cache.move_to_end(key)
         while len(self._cache) > self.policy.maximum_cache_entries:
             self._cache.popitem(last=False)
+
+    def _semantic_cache_get(self, text):
+        signature = self._semantic_signature(text)
+        best = (0.0, None)
+        for key, (expires, result, candidate) in tuple(self._cache.items()):
+            if expires <= self.clock():
+                self._cache.pop(key, None)
+                continue
+            if signature[1:] != candidate[1:]:
+                continue
+            union = signature[0] | candidate[0]
+            score = len(signature[0] & candidate[0]) / max(1, len(union))
+            if score >= 0.78 and score > best[0]:
+                best = (score, result)
+        return best[1]
+
+    @staticmethod
+    def _semantic_signature(text):
+        aliases = {
+            "electrical": "electric", "electricity": "electric",
+            "costly": "expensive", "cost": "price", "costs": "price",
+            "operate": "run", "operating": "run", "works": "work",
+        }
+        scaffolding = {
+            "a", "an", "the", "do", "does", "please", "me", "tell",
+            "explain", "describe", "answer", "briefly", "what", "why", "how",
+            "compare", "and", "with", "versus", "vs",
+        }
+        tokens = []
+        for token in re.findall(r"[a-z0-9]+", str(text).casefold()):
+            token = aliases.get(token, token)
+            if token in scaffolding:
+                continue
+            if len(token) > 5 and token.endswith("ing"):
+                token = token[:-3]
+            elif len(token) > 4 and token.endswith("s"):
+                token = token[:-1]
+            tokens.append(token)
+        numbers = tuple(sorted(item for item in tokens if item.isdigit()))
+        negations = tuple(sorted(item for item in tokens if item in {"not", "no", "never", "without"}))
+        return frozenset(tokens), numbers, negations
 
     @staticmethod
     def _actual_route(route, result):

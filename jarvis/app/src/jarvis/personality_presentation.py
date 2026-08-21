@@ -66,6 +66,7 @@ class PersonalityPresenter:
                 profile.verbosity,
                 omit_links=researched,
                 preserve_list=bool(result.get("preserve_voice_list")),
+                sentence_limit=result.get("voice_sentence_limit"),
             )
             if shaped != message:
                 message = shaped
@@ -131,7 +132,7 @@ class PersonalityPresenter:
         return "general dialogue"
 
     @staticmethod
-    def _for_voice(message, verbosity, *, omit_links=False, preserve_list=False):
+    def _for_voice(message, verbosity, *, omit_links=False, preserve_list=False, sentence_limit=None):
         text = sanitize_spoken_response(message)
         text = re.sub(
             r"^(?:certainly|of course|understood|very good)[,!.]?\s+",
@@ -139,7 +140,7 @@ class PersonalityPresenter:
             text,
             flags=re.IGNORECASE,
         )
-        sentence_limit = 10 if preserve_list else (1 if verbosity == "concise" else 2)
+        sentence_limit = int(sentence_limit or (10 if preserve_list else (1 if verbosity == "concise" else 2)))
         sentences = re.split(r"(?<=[.!?])\s+", text)
         text = " ".join(sentences[:sentence_limit])
         character_limit = 900 if preserve_list else (220 if verbosity == "concise" else 360)

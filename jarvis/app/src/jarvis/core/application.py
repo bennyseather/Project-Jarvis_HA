@@ -27,6 +27,7 @@ from jarvis.efficient_local_intelligence import (
     EfficientLocalIntelligence,
 )
 from jarvis.orchestration_registry import LocalFacts
+from jarvis.adaptive_intelligence import AdaptiveLocalIntelligence
 from jarvis.homeassistant.entity_resolver import EntityResolver
 from jarvis.providers.openai_provider import OpenAIProvider
 from jarvis.providers.local_first_provider import LocalFirstReasoningProvider, LocalReasoningPolicy
@@ -339,6 +340,7 @@ class JarvisApplication:
         self.container.local_facts = LocalFacts(
             self.container.current_information_policy.time_zone
         )
+        self.container.adaptive_intelligence = AdaptiveLocalIntelligence()
         self.container.openai = OpenAIProvider(
             api_key=self.general["openai"]["api_key"],
             logger=self.container.logger,
@@ -780,6 +782,12 @@ class JarvisApplication:
             conversation_id
         )
         route = self.container.efficient_intelligence.classify(text)
+        response_plan = self.container.adaptive_intelligence.plan(
+            text,
+            route=route,
+            voice_mode=voice_mode,
+            metrics=self.container.efficient_intelligence.metrics(),
+        )
         request_lock = (
             asyncio.Lock()
             if route in {"general_reasoning", "current_information"}
@@ -787,17 +795,19 @@ class JarvisApplication:
         )
         async with request_lock:
             result = await self._handle_request(
-                text, conversation_id, voice_mode, source_id
+                text, conversation_id, voice_mode, source_id, response_plan
             )
             identifier = self.container.conversation_store.normalize_conversation_id(
                 conversation_id
             )
             if " ".join(text.casefold().strip(" .?!").split()) == "clear conversation history":
                 self.container.conversation_store.clear()
+                self.container.adaptive_intelligence.clear()
             if not self.container.episodic_manager.is_command(text):
                 self.container.episodic_manager.observe(identifier)
             presented = self.container.personality_presenter.present(
-                result,
+                {**result, "voice_sentence_limit": response_plan.voice_sentence_limit,
+                 "response_plan": response_plan.tier},
                 text,
                 identifier,
                 voice_mode=voice_mode,
@@ -817,6 +827,7 @@ class JarvisApplication:
         conversation_id: str | None,
         voice_mode: bool,
         source_id: str | None,
+        response_plan,
     ) -> dict[str, object]:
         conversation_store = self.container.conversation_store
         identifier = conversation_store.normalize_conversation_id(conversation_id)
@@ -1001,7 +1012,7 @@ class JarvisApplication:
             "knowledge": self._context_items(package.knowledge),
             "conversation": tuple(message.to_openai() for message in history[:-1]),
             "conversation_id": identifier,
-            "interaction": {"voice": voice_mode},
+            "interaction": {"voice": voice_mode, "response_plan": response_plan.context()},
             "personality": self.container.personality_manager.profile().context(),
             "research": self.container.research_policy.context(
                 self.container.research_controller.enabled(identifier)
@@ -1023,6 +1034,9 @@ class JarvisApplication:
         )
         context["home_assistant"]["situational"] = (
             self.container.situational_intelligence.context(identifier)
+        )
+        context["conversation_subject"] = (
+            self.container.adaptive_intelligence.subject_context(text, identifier)
         )
         if (
             self.container.local_knowledge_router is not None
@@ -1056,6 +1070,7 @@ class JarvisApplication:
                 text,
                 context,
                 voice_mode=voice_mode,
+                response_plan=response_plan,
             )
             if local_result is not None:
                 message = self._user_message(local_result)

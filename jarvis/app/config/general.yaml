@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.45.27"
+  version: "0.45.28"
 
 system:
   debug: false
@@ -100,7 +100,7 @@ local_reasoning:
   context_tokens: 4096
   maximum_input_messages: 8
   maximum_input_characters: 12000
-  maximum_output_tokens: 160
+    maximum_output_tokens: 240
   failure_cooldown_seconds: 30
 
 reflection:

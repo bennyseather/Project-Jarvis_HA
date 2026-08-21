@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.28
+
+- Add adaptive instant, quick, and deep local response planning with voice-sized output budgets.
+- Stream completed local-model sentences to the originating voice client while generation continues.
+- Preserve bounded conversational subjects and reuse verified stable answers across equivalent wording.
+- Keep current-information and Home Assistant state requests outside semantic caching.
+
 ## 0.45.27
 
 - Add M57 local capability routing with deterministic calendar arithmetic.

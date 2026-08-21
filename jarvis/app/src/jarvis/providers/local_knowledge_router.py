@@ -38,7 +38,7 @@ class LocalKnowledgeRouter:
             or any(marker in normalized for marker in self._FRESHNESS)
         )
 
-    def handle(self, text, context, *, voice_mode=False):
+    def handle(self, text, context, *, voice_mode=False, response_plan=None):
         normalized = " ".join(text.casefold().strip(" .?!").split())
         words = set(normalized.split())
         if (
@@ -56,10 +56,14 @@ class LocalKnowledgeRouter:
             and isinstance(item.get("content"), str)
         ]
         messages.append({"role": "user", "content": text})
+        subject = context.get("conversation_subject", {})
+        subject_instruction = str(subject.get("instruction", "")) if isinstance(subject, dict) else ""
+        sentence_limit = getattr(response_plan, "voice_sentence_limit", 2)
         request = {
             "instructions": (
                 "Answer from stable general knowledge in concise British English. "
-                + ("Use at most two short spoken sentences. " if voice_mode else "")
+                + (f"Use at most {sentence_limit} short spoken sentences. " if voice_mode else "")
+                + (subject_instruction + " " if subject_instruction else "")
                 + "State uncertainty plainly. Do not claim current facts, browse the web, "
                 "or perform Home Assistant actions."
             ),
@@ -68,6 +72,8 @@ class LocalKnowledgeRouter:
         }
         if voice_mode and hasattr(self._reasoning, "policy"):
             request["model"] = self._reasoning.policy.voice_model
+        if response_plan is not None:
+            request["maximum_output_tokens"] = response_plan.maximum_output_tokens
         local_reason = getattr(self._reasoning, "reason_local", None)
         result = (
             local_reason(**request)
