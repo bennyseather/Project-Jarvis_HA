@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.24";
+const JARVIS_UI_VERSION = "0.47.25";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2872,12 +2872,32 @@ class JarvisClockDashboardCard extends HTMLElement {
 }
 
 class JarvisNSPanelDashboardCard extends HTMLElement {
-  constructor() { super(); this.attachShadow({ mode: "open" }); this._config = {}; }
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._config = {}; this._forecast = null; this._forecastLoading = false; this._forecastLoadedAt = 0; }
   setConfig(config) { this._config = config || {}; this.render(); }
-  set hass(value) { this._hass = value; this.render(); }
+  set hass(value) { this._hass = value; this.loadForecast(); this.render(); }
   getCardSize() { return 1; }
+  extendedForecastEnabled() { return this._config.extended_forecast === true || new URLSearchParams(window.location.search).get("forecast") === "extended"; }
   state(key, fallback) { return this._hass?.states?.[this._config[key] || fallback]; }
   call(domain, service, entity) { return this._hass?.callService(domain, service, { entity_id: entity }); }
+  async loadForecast() {
+    if (!this.extendedForecastEnabled() || !this._hass || this._forecastLoading || Date.now() - this._forecastLoadedAt < 30 * 60_000) return;
+    this._forecastLoading = true;
+    const entityId = this._config.weather_entity || "weather.forecast_home";
+    try {
+      const result = await this._hass.callWS({
+        type: "call_service", domain: "weather", service: "get_forecasts",
+        target: { entity_id: entityId }, service_data: { type: "daily" }, return_response: true,
+      });
+      this._forecast = (result?.response?.[entityId]?.forecast || result?.[entityId]?.forecast || []).slice(0, 4);
+      this._forecastLoadedAt = Date.now();
+    } catch (_) { this._forecast = []; this._forecastLoadedAt = Date.now(); }
+    this._forecastLoading = false;
+    this.render();
+  }
+  weatherIcon(condition) {
+    const value = String(condition || "cloudy").replace("partlycloudy", "partly-cloudy");
+    return `mdi:weather-${value}`;
+  }
   render() {
     if (!this.shadowRoot) return;
     const lightId = this._config.light_entity || "light.interior_lights";
@@ -2888,6 +2908,16 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     const temperature = weather?.attributes?.temperature;
     const humidity = weather?.attributes?.humidity;
     const condition = String(weather?.state || "weather unavailable").replaceAll("-", " ");
+    const forecast = this._forecast || [];
+    const extendedForecast = this.extendedForecastEnabled();
+    const dayNames = ["TODAY", "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    const forecastHtml = forecast.map((day, index) => {
+      const date = day.datetime ? new Date(day.datetime) : null;
+      const label = index === 0 ? dayNames[0] : (date && !Number.isNaN(date.valueOf()) ? dayNames[date.getDay() + 1] : `+${index}`);
+      const high = day.temperature == null ? "--" : Math.round(day.temperature);
+      const low = day.templow == null ? "--" : Math.round(day.templow);
+      return `<div class="day"><b>${label}</b><ha-icon icon="${this.weatherIcon(day.condition)}"></ha-icon><span>${high}° <i>${low}°</i></span></div>`;
+    }).join("");
     const status = [
       ["MOWER", this.state("mower_entity", "lawn_mower.edward_scissorhand_lawn_mower"), "mdi:robot-mower-outline"],
       ["VACUUM", this.state("vacuum_entity", "sensor.alfred_status"), "mdi:vacuum"],
@@ -2895,13 +2925,14 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     ];
     this.shadowRoot.innerHTML = `<style>
       :host{position:fixed;inset:0;z-index:9999;display:block;color:#e8fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden;background:#020914}*{box-sizing:border-box}
-      .deck{height:100%;padding:8px;display:grid;grid-template-rows:30px 58px 1fr 100px;gap:7px;background:radial-gradient(circle at 50% 22%,rgba(0,153,255,.2),transparent 42%),linear-gradient(145deg,#020914,#05213a);overflow:hidden}
+      .deck{height:100%;padding:8px;display:grid;grid-template-rows:30px ${extendedForecast ? "78px" : "58px"} 1fr 100px;gap:7px;background:radial-gradient(circle at 50% 22%,rgba(0,153,255,.2),transparent 42%),linear-gradient(145deg,#020914,#05213a);overflow:hidden}
       header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #16d7ff;font:800 10px/1 monospace;letter-spacing:.16em;color:#16d7ff;text-transform:uppercase}header b{font-size:15px;color:#e8fbff}
-      .weather{padding:8px 14px;display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:12px}.weather ha-icon{width:42px;height:42px;color:#16d7ff;filter:drop-shadow(0 0 12px rgba(22,215,255,.45))}.weather strong{display:block;font:900 14px monospace;letter-spacing:.08em;text-transform:uppercase}.weather span{display:block;margin-top:3px;font:700 9px monospace;letter-spacing:.1em;color:#9edbea;text-transform:uppercase}.temperature{font:900 25px monospace;color:#16d7ff}.temperature small{display:block;font:700 8px monospace;color:#9edbea;text-align:right}
+      .weather{padding:5px 9px;display:grid;grid-template-columns:126px 1fr;align-items:center;gap:7px}.current{height:100%;padding-right:7px;border-right:1px solid rgba(22,215,255,.35);display:grid;grid-template-columns:36px 1fr;align-items:center;gap:6px}.current ha-icon{width:32px;height:32px;--mdc-icon-size:32px;color:#16d7ff;filter:drop-shadow(0 0 10px rgba(22,215,255,.45))}.current strong{display:block;font:900 11px monospace;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.current span{display:block;margin-top:2px;font:700 8px monospace;color:#9edbea;text-transform:uppercase}.temperature{font:900 20px monospace;color:#16d7ff}.days{height:100%;display:grid;grid-template-columns:repeat(4,1fr);align-items:center}.day{min-width:0;text-align:center;border-left:1px solid rgba(22,215,255,.16)}.day:first-child{border-left:0}.day b{display:block;font:900 8px monospace;letter-spacing:.06em;color:#9edbea}.day ha-icon{display:block;margin:3px auto;width:25px;height:25px;--mdc-icon-size:25px;color:#16d7ff}.day span{font:900 10px monospace;white-space:nowrap}.day i{font-style:normal;color:#7da9b7}
+      .weather.basic{padding:8px 14px;grid-template-columns:52px 1fr auto;gap:12px}.basic>ha-icon{width:42px;height:42px;--mdc-icon-size:42px;color:#16d7ff}.basic strong{font:900 14px monospace;text-transform:uppercase}.basic span{display:block;font:700 9px monospace;color:#9edbea}.basic .temperature{font-size:25px}
       .controls{display:grid;grid-template-columns:1fr 1fr;gap:7px;min-height:0}.panel{border:1px solid rgba(22,215,255,.65);background:linear-gradient(145deg,rgba(3,17,30,.96),rgba(5,45,73,.85));box-shadow:inset 0 0 25px rgba(22,215,255,.07);clip-path:polygon(0 10px,10px 0,90% 0,100% 12px,100% 100%,8% 100%,0 calc(100% - 12px))}
       .main{padding:12px;display:grid;grid-template-rows:auto 1fr auto;gap:5px;cursor:pointer;touch-action:manipulation}.main:active{background:#16d7ff;color:#00131c}.label{font:900 12px monospace;letter-spacing:.12em;color:#16d7ff}.main:active .label{color:#00131c}.value{display:grid;place-items:center;gap:3px;font:900 21px monospace;text-transform:uppercase;text-align:center}.value ha-icon{width:104px;height:104px;--mdc-icon-size:104px;color:#16d7ff;filter:drop-shadow(0 0 16px rgba(22,215,255,.6))}.hint{display:flex;align-items:center;justify-content:space-between;font:800 9px monospace;letter-spacing:.1em;color:#9edbea}
       .statuses{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.status{padding:10px;display:grid;grid-template-columns:38px 1fr;align-items:center;gap:7px}.glyph{width:30px;height:30px;color:#16d7ff;filter:drop-shadow(0 0 8px rgba(22,215,255,.4))}.status strong{display:block;font:900 9px monospace;letter-spacing:.12em;color:#16d7ff}.status span{display:block;margin-top:5px;font:800 12px monospace;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    </style><div class="deck"><header><span>Jarvis Home Control</span><b>${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</b></header><section class="panel weather"><ha-icon icon="mdi:weather-${escapeHtml(String(weather?.state || "cloudy"))}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><span>Home forecast${humidity == null ? "" : ` · Humidity ${escapeHtml(humidity)}%`}</span></div><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}<small>OUTSIDE</small></div></section><div class="controls">
+    </style><div class="deck"><header><span>Jarvis Home Control</span><b>${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</b></header>${extendedForecast ? `<section class="panel weather"><div class="current"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><span>${humidity == null ? "CURRENT" : `HUM ${escapeHtml(humidity)}%`}</span></div></div><div class="days">${forecastHtml || '<div class="day"><b>FORECAST</b><span>LOADING</span></div>'}</div></section>` : `<section class="panel weather basic"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><span>Home forecast${humidity == null ? "" : ` · Humidity ${escapeHtml(humidity)}%`}</span></div><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div></section>`}<div class="controls">
       <section class="panel main" data-panel="light"><div class="label">INTERIOR LIGHTS</div><div class="value"><ha-icon icon="mdi:lightbulb-group"></ha-icon>${escapeHtml(light?.state || "unavailable")}</div><div class="hint"><span>TOUCH TO TOGGLE</span><span>${light?.state === "on" ? "ACTIVE" : "STANDBY"}</span></div></section>
       <section class="panel main" data-panel="cover"><div class="label">ALL BLINDS</div><div class="value"><ha-icon icon="mdi:blinds-horizontal"></ha-icon>${escapeHtml(cover?.state || "unavailable")}</div><div class="hint"><span>TOUCH ${["open","opening"].includes(cover?.state) ? "TO LOWER" : "TO RAISE"}</span><span>${["open","opening"].includes(cover?.state) ? "OPEN" : "CLOSED"}</span></div></section>
     </div><div class="statuses">${status.map(([name,item,icon]) => `<section class="panel status"><ha-icon class="glyph" icon="${icon}"></ha-icon><div><strong>${name}</strong><span>${escapeHtml(item?.state || "unavailable")}</span></div></section>`).join("")}</div></div>`;
