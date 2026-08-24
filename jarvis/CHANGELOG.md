@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.32
+
+- Replaces the poorly articulated `Analyzing` progress cue with short, distinct
+  synthetic acknowledgements: `Compiling`, `Processing`, and `Computing`.
+
 ## 0.45.31
 
 - Deliver the initial browser Assist progress response only once.
