@@ -14,7 +14,7 @@
             {
               "type": "custom:jarvis-nspanel-dashboard-card",
               "light_entity": "light.interior_lights",
-              "cover_entity": "cover.all_blinds",
+              "cover_entity": "cover.living_room_blinds",
               "mower_entity": "lawn_mower.edward_scissorhand_lawn_mower",
               "vacuum_entity": "sensor.alfred_status",
               "washer_entity": "sensor.vaskepott_state"
