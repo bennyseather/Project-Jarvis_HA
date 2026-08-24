@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.31
+
+- Deliver the initial browser Assist progress response only once.
+- Coordinate streamed satellite sentences with a single ordered TTS playback queue.
+
 ## 0.45.30
 
 - Prevent streamed sentence delivery from racing with full-answer completion and producing overlapping speech.

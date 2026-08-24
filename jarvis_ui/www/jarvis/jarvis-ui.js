@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.29";
+const JARVIS_UI_VERSION = "0.47.30";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1100,6 +1100,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._dialogueTurns = 0;
     this._endDialogue = false;
     this._pipelineGeneration = 0;
+    this._followUpDeliveryQueue = Promise.resolve();
+    this._playbackQueue = Promise.resolve();
   }
   setConfig(config) {
     super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
@@ -1113,10 +1115,15 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._hass = value;
     if (!this._followUpEventSubscription && value?.connection?.subscribeEvents) {
       this._followUpEventSubscription = value.connection.subscribeEvents(
-        (event) => this._receiveFollowUp(event?.data || {}).catch((error) => {
+        (event) => {
+          this._followUpDeliveryQueue = this._followUpDeliveryQueue
+            .catch(() => {})
+            .then(() => this._receiveFollowUp(event?.data || {}))
+            .catch((error) => {
           this._status = `Follow-up error // ${error?.message || "playback failed"}`;
           this._paintStatus();
-        }),
+            });
+        },
         "jarvis_voice_follow_up",
       );
     }
@@ -1451,24 +1458,28 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._paintStatus();
       return;
     }
-    const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
-    try {
-      if (!this._playbackContext || this._playbackContext.state === "closed") {
-        this._playbackContext = new AudioContext();
+    const play = async () => {
+      const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
+      try {
+        if (!this._playbackContext || this._playbackContext.state === "closed") {
+          this._playbackContext = new AudioContext();
+        }
+        const playbackContext = this._playbackContext;
+        await playbackContext.resume();
+        const response = await window.fetch.call(window, target, { credentials: "same-origin" });
+        if (!response.ok) throw new Error(`audio request ${response.status}`);
+        const buffer = await playbackContext.decodeAudioData(await response.arrayBuffer());
+        const source = playbackContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(playbackContext.destination);
+        await new Promise((resolve) => { source.onended = resolve; source.start(); });
+      } catch (error) {
+        this._status = `Playback error // ${error?.message || "audio blocked"}`;
+        this._paintStatus();
       }
-      const playbackContext = this._playbackContext;
-      await playbackContext.resume();
-      const response = await window.fetch.call(window, target, { credentials: "same-origin" });
-      if (!response.ok) throw new Error(`audio request ${response.status}`);
-      const buffer = await playbackContext.decodeAudioData(await response.arrayBuffer());
-      const source = playbackContext.createBufferSource();
-      source.buffer = buffer;
-      source.connect(playbackContext.destination);
-      await new Promise((resolve) => { source.onended = resolve; source.start(); });
-    } catch (error) {
-      this._status = `Playback error // ${error?.message || "audio blocked"}`;
-      this._paintStatus();
-    }
+    };
+    this._playbackQueue = this._playbackQueue.catch(() => {}).then(play);
+    return this._playbackQueue;
   }
   async _stop(render = true, keepStatus = false) {
     clearTimeout(this._restartTimer);
@@ -3038,14 +3049,26 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
 }
 
 class JarvisOrchestrationPerformanceCard extends JarvisBaseCard {
+  static getConfigElement() { return document.createElement("hui-generic-entity-row"); }
   static getStubConfig() { return { type: "custom:jarvis-orchestration-performance-card", title: "Jarvis Cognitive Performance" }; }
   render() {
     if (!this.shadowRoot) return;
-    const read = (entity) => this._hass?.states?.[entity]?.state ?? "0";
-    const p95Entity = this._config?.p95_entity || "sensor.jarvis_p95_latency";
-    const details = this._hass?.states?.[p95Entity]?.attributes || {};
-    const values = [["Median ms", read(this._config?.p50_entity || "sensor.jarvis_median_latency")], ["P95 ms", read(p95Entity)], ["Success", `${read(this._config?.success_entity || "sensor.jarvis_success_rate")}%`], ["Cache hit", `${read(this._config?.cache_entity || "sensor.jarvis_cache_hit_rate")}%`]];
-    this.shadowRoot.innerHTML = `<style>:host{display:block}ha-card{padding:16px;color:#e8fbff;background:linear-gradient(145deg,#020914,#06233a);border:1px solid rgba(22,215,255,.7)}header{font:900 12px monospace;letter-spacing:.14em;color:#16d7ff;text-transform:uppercase}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.metric{padding:10px;text-align:center;background:rgba(22,215,255,.06);border:1px solid rgba(22,215,255,.22)}b{display:block;font:900 20px monospace;color:#16d7ff}span,.route{font:700 8px monospace;color:#9edbea;text-transform:uppercase}.route{margin-top:10px}@media(max-width:520px){.grid{grid-template-columns:1fr 1fr}}</style><ha-card><header>${escapeHtml(this._config?.title || "Jarvis Cognitive Performance")}</header><div class="grid">${values.map(([label,value]) => `<div class="metric"><b>${escapeHtml(value)}</b><span>${label}</span></div>`).join("")}</div><div class="route">LAST ROUTE // ${escapeHtml(details.last_route || "none")} &nbsp; REQUESTS // ${escapeHtml(details.requests || 0)}</div></ha-card>`;
+    const read = (entity, fallback = "0") => this._hass?.states?.[entity]?.state ?? fallback;
+    const p95 = read(this._config?.p95_entity || "sensor.jarvis_p95_latency");
+    const p50 = read(this._config?.p50_entity || "sensor.jarvis_median_latency");
+    const success = read(this._config?.success_entity || "sensor.jarvis_success_rate");
+    const cache = read(this._config?.cache_entity || "sensor.jarvis_cache_hit_rate");
+    const details = this._hass?.states?.[this._config?.p95_entity || "sensor.jarvis_p95_latency"]?.attributes || {};
+    this.shadowRoot.innerHTML = `<style>
+      :host{display:block}ha-card{padding:16px;color:#e8fbff;background:linear-gradient(145deg,#020914,#06233a);border:1px solid rgba(22,215,255,.7)}
+      header{font:900 12px ui-monospace,monospace;letter-spacing:.14em;color:#16d7ff;text-transform:uppercase;border-bottom:1px solid rgba(22,215,255,.35);padding-bottom:10px}
+      .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.metric{padding:10px 8px;text-align:center;background:rgba(22,215,255,.06);border:1px solid rgba(22,215,255,.22)}
+      b{display:block;font:900 20px ui-monospace,monospace;color:#16d7ff}span{font:700 8px ui-monospace,monospace;letter-spacing:.09em;color:#9edbea;text-transform:uppercase}.route{margin-top:10px;font:700 9px ui-monospace,monospace;color:#9edbea}
+      @media(max-width:520px){.grid{grid-template-columns:1fr 1fr}}
+    </style><ha-card><header>${escapeHtml(this._config?.title || "Jarvis Cognitive Performance")}</header><div class="grid">
+      <div class="metric"><b>${escapeHtml(p50)}</b><span>Median ms</span></div><div class="metric"><b>${escapeHtml(p95)}</b><span>P95 ms</span></div>
+      <div class="metric"><b>${escapeHtml(success)}%</b><span>Success</span></div><div class="metric"><b>${escapeHtml(cache)}%</b><span>Cache hit</span></div>
+    </div><div class="route">LAST ROUTE // ${escapeHtml(details.last_route || "none")} &nbsp; REQUESTS // ${escapeHtml(details.requests || 0)}</div></ha-card>`;
   }
 }
 
