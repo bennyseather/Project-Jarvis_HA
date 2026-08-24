@@ -72,8 +72,12 @@ class ResponsiveVoiceCoordinator:
             if not stream_state["enabled"]:
                 stream_state["pending"].append(value)
                 return
+            # Mark delivery before queueing back onto the event loop. The
+            # model worker can finish immediately after emitting its final
+            # sentence; without this guard _complete may also speak the full
+            # answer before the queued sentence callback runs.
+            stream_state["streamed"] = True
             def deliver():
-                stream_state["streamed"] = True
                 asyncio.create_task(self._safe_speak(route, value))
             loop.call_soon_threadsafe(deliver)
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.30
+
+- Prevent streamed sentence delivery from racing with full-answer completion and producing overlapping speech.
+- Reuse broader stable cached answers for shorter equivalent requests while preserving detail direction and current-information bypasses.
+
 ## 0.45.29
 
 - Correct the M58 local-reasoning configuration indentation so the add-on starts cleanly.

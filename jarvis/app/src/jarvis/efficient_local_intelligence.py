@@ -234,9 +234,15 @@ class EfficientLocalIntelligence:
                 continue
             if signature[1:] != candidate[1:]:
                 continue
-            union = signature[0] | candidate[0]
-            score = len(signature[0] & candidate[0]) / max(1, len(union))
-            if score >= 0.78 and score > best[0]:
+            common = signature[0] & candidate[0]
+            # A broader cached answer may satisfy a shorter equivalent
+            # request, but never use a shorter cached answer for a request
+            # asking for additional aspects. This generalises by intent
+            # coverage rather than maintaining topic-specific aliases.
+            coverage = len(common) / max(1, len(signature[0]))
+            candidate_is_broad_enough = len(candidate[0]) >= len(signature[0])
+            score = coverage
+            if len(common) >= 3 and candidate_is_broad_enough and score >= 0.8 and score > best[0]:
                 best = (score, result)
         return best[1]
 
