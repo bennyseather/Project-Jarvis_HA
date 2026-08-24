@@ -89,9 +89,16 @@ class ResponsiveVoiceCoordinator:
             task = asyncio.create_task(operation)
         finally:
             sentence_sink.reset(token)
-        done, _ = await asyncio.wait(
-            {task}, timeout=self.policy.progress_deadline_seconds
-        )
+        # Explanations and comparisons usually produce enough speech that TTS
+        # preparation, rather than model execution, becomes the visible delay.
+        # Put them on the two-stage voice path immediately so a fast model
+        # result cannot still leave the speaker silent for several seconds.
+        if self._needs_immediate_progress(text):
+            done = set()
+        else:
+            done, _ = await asyncio.wait(
+                {task}, timeout=self.policy.progress_deadline_seconds
+            )
         if done:
             return await task
 
@@ -225,9 +232,9 @@ class ResponsiveVoiceCoordinator:
         elif any(word in lower for word in ("calculate", "compute", "count", "convert", "equation")):
             messages = ("Calculating.", "Computing.", "Processing figures.")
         elif any(word in lower for word in ("why", "explain", "compare", "plan", "analyse", "analyze")):
-            messages = ("Working.", "Checking.", "One moment.")
+            messages = ("Working.", "Please wait.", "Processing.")
         else:
-            messages = ("Processing.", "Working.", "One moment.")
+            messages = ("Processing.", "Working.", "Please wait.")
         message = messages[(self._progress_sequence - 1) % len(messages)]
         return {
             "status": "in_progress",
@@ -255,6 +262,14 @@ class ResponsiveVoiceCoordinator:
     @staticmethod
     def _normalise(text):
         return " ".join(str(text).casefold().strip(" .?!").split())
+
+    @staticmethod
+    def _needs_immediate_progress(text):
+        return bool(re.search(
+            r"\b(why|explain|compare|analyse|analyze|summarise|summarize|describe)\b",
+            str(text),
+            re.IGNORECASE,
+        ))
 
     @staticmethod
     def _valid_route(route):

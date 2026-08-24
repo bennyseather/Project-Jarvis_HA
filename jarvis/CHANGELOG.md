@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.45.35
+
+- Route explanation and comparison requests through immediate two-stage voice
+  delivery so TTS preparation cannot cause a long silent wait after fast local
+  reasoning.
+- Restrict general reasoning progress cues to the CosyVoice-friendly phrases
+  `Working`, `Please wait`, and `Processing`.
+
 ## 0.45.34
 
 - Replace the poorly articulated `Compiling` cue with the clearer rotating
