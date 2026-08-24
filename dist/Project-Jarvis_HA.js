@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.30";
+const JARVIS_UI_VERSION = "0.47.31";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1102,6 +1102,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._pipelineGeneration = 0;
     this._followUpDeliveryQueue = Promise.resolve();
     this._playbackQueue = Promise.resolve();
+    this._receivedDeliveryIds = new Set();
   }
   setConfig(config) {
     super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
@@ -1116,6 +1117,12 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (!this._followUpEventSubscription && value?.connection?.subscribeEvents) {
       this._followUpEventSubscription = value.connection.subscribeEvents(
         (event) => {
+          const deliveryId = event?.data?.delivery_id;
+          if (deliveryId && this._receivedDeliveryIds.has(deliveryId)) return;
+          if (deliveryId) {
+            this._receivedDeliveryIds.add(deliveryId);
+            if (this._receivedDeliveryIds.size > 128) this._receivedDeliveryIds.delete(this._receivedDeliveryIds.values().next().value);
+          }
           this._followUpDeliveryQueue = this._followUpDeliveryQueue
             .catch(() => {})
             .then(() => this._receiveFollowUp(event?.data || {}))

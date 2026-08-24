@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.33
+
+- Add unified source/target voice sessions, endpoint-scoped playback leases,
+  ordered delivery identifiers, browser deduplication and privacy-safe delivery
+  diagnostics as the M59 room-satellite foundation.
+
 ## 0.45.32
 
 - Replaces the poorly articulated `Analyzing` progress cue with short, distinct

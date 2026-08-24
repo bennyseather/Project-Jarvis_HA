@@ -10,6 +10,7 @@ import time
 import uuid
 
 from jarvis.sentence_stream import sentence_sink
+from jarvis.voice_sessions import VoiceSessionCoordinator
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,11 +49,13 @@ class ResponsiveVoiceCoordinator:
         self._job_by_source: dict[str, str] = {}
         self._job_by_request: dict[tuple[str, str], str] = {}
         self._progress_sequence = 0
+        self.sessions = VoiceSessionCoordinator(clock=clock)
 
     async def execute(self, operation, *, text, conversation_id, source_id, route):
         if not self._valid_route(route) or self.client is None:
             return await operation
         source = str(source_id or conversation_id or "local-default")
+        session = self.sessions.open(conversation_id, source, route)
         request_key = (source, self._normalise(text))
         existing_id = self._job_by_request.get(request_key)
         existing = self._jobs.get(existing_id) if existing_id else None
@@ -78,7 +81,7 @@ class ResponsiveVoiceCoordinator:
             # answer before the queued sentence callback runs.
             stream_state["streamed"] = True
             def deliver():
-                asyncio.create_task(self._safe_speak(route, value))
+                asyncio.create_task(self._safe_speak(route, value, session=session))
             loop.call_soon_threadsafe(deliver)
 
         token = sentence_sink.set(stream_sentence)
@@ -101,6 +104,7 @@ class ResponsiveVoiceCoordinator:
             "request_key": request_key,
             "started": self.clock(),
             "stream_state": stream_state,
+            "session": session,
         }
         self._jobs[job_id] = job
         self._job_by_source[source] = job_id
@@ -113,7 +117,7 @@ class ResponsiveVoiceCoordinator:
             progress["message"] = pending.pop(0)
             stream_state["streamed"] = True
             for sentence in pending:
-                asyncio.create_task(self._safe_speak(route, sentence))
+                asyncio.create_task(self._safe_speak(route, sentence, session=session))
             pending.clear()
         return progress
 
@@ -130,12 +134,13 @@ class ResponsiveVoiceCoordinator:
                 await self._safe_speak(
                     job["route"],
                     "Still working. A required service is responding slowly.",
+                    session=job["session"],
                 )
             message = str(result.get("message", "")).strip()
             if not message:
                 message = self._actionable_blocker(result)
             if not job.get("stream_state", {}).get("streamed"):
-                await self._speak(job["route"], message)
+                await self._speak(job["route"], message, session=job["session"])
             if self.logger:
                 elapsed = round((self.clock() - job["started"]) * 1000)
                 self.logger.info(f"Responsive voice follow-up {job['id']} delivered in {elapsed}ms")
@@ -148,21 +153,30 @@ class ResponsiveVoiceCoordinator:
                 job["route"],
                 "I could not complete that because a required service failed. "
                 "Please check the Jarvis add-on log for the specific cause.",
+                session=job["session"],
             )
         finally:
             self._remove(job)
 
-    async def _safe_speak(self, route, message):
+    async def _safe_speak(self, route, message, session=None):
         try:
-            await self._speak(route, message)
+            await self._speak(route, message, session=session)
         except Exception as error:
             if self.logger:
                 self.logger.warning(
                     f"Responsive voice diagnostic delivery failed safely: {error}"
                 )
 
-    async def _speak(self, route, message):
+    async def _speak(self, route, message, session=None):
         spoken = self._spoken(message)
+        session = session or self.sessions.open("delivery", route.get("source_id"), route)
+        delivery_id, sequence = self.sessions.next_delivery(session)
+        started = self.clock()
+        async with self.sessions.lease(session.endpoint):
+            await self._deliver(route, spoken, session, delivery_id, sequence)
+        self.sessions.record(session, "delivered", round((self.clock() - started) * 1000))
+
+    async def _deliver(self, route, spoken, session, delivery_id, sequence):
         if route.get("event_type"):
             await self.client.dispatch_event(
                 route["event_type"],
@@ -170,6 +184,9 @@ class ResponsiveVoiceCoordinator:
                     "message": spoken,
                     "source_id": str(route.get("source_id", ""))[:200],
                     "target_id": str(route.get("target_id", ""))[:200],
+                    "session_id": session.session_id,
+                    "delivery_id": delivery_id,
+                    "sequence": sequence,
                 },
             )
             return
