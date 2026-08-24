@@ -1,6 +1,6 @@
 project:
   name: "Project Jarvis"
-  version: "0.45.35"
+  version: "0.45.36"
 
 system:
   debug: false

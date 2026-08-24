@@ -64,6 +64,8 @@ class LocalKnowledgeRouter:
                 "Answer from stable general knowledge in concise British English. "
                 + (f"Use at most {sentence_limit} short spoken sentences. " if voice_mode else "")
                 + (subject_instruction + " " if subject_instruction else "")
+                + "Start directly with the answer. Do not use a greeting, acknowledgement, "
+                "the user's name, or any other preface. "
                 + "State uncertainty plainly. Do not claim current facts, browse the web, "
                 "or perform Home Assistant actions."
             ),

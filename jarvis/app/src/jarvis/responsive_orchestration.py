@@ -257,6 +257,17 @@ class ResponsiveVoiceCoordinator:
         text = re.sub(r"\[([^]]+)\]\(https?://[^)]+\)", r"\1", str(message))
         text = re.sub(r"https?://\S+", "", text)
         text = re.sub(r"[*#>`_]+", "", text)
+        # Streamed model sentences reach this boundary before the personality
+        # presenter sees the completed response. Remove conversational filler
+        # here as well so raw salutations and vocatives are never spoken.
+        text = re.sub(
+            r"^(?:(?:certainly|of course|sure|absolutely|understood|very good)"
+            r"[,!.]?\s*)+",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(r"^Benny[,!.]?\s*", "", text, flags=re.IGNORECASE)
         return " ".join(text.split())[:700].strip()
 
     @staticmethod

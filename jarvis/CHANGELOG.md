@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.36
+
+- Apply direct-answer speech cleanup to each streamed model sentence before it
+  reaches TTS, removing raw acknowledgements and user-name preambles.
+- Instruct local reasoning to begin with the factual answer rather than a
+  greeting or conversational preface.
+
 ## 0.45.35
 
 - Route explanation and comparison requests through immediate two-stage voice
