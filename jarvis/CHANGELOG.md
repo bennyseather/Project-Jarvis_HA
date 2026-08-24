@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.34
+
+- Replace the poorly articulated `Compiling` cue with the clearer rotating
+  phrases `Working`, `Checking`, and `One moment`.
+
 ## 0.45.33
 
 - Add unified source/target voice sessions, endpoint-scoped playback leases,

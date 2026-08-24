@@ -225,7 +225,7 @@ class ResponsiveVoiceCoordinator:
         elif any(word in lower for word in ("calculate", "compute", "count", "convert", "equation")):
             messages = ("Calculating.", "Computing.", "Processing figures.")
         elif any(word in lower for word in ("why", "explain", "compare", "plan", "analyse", "analyze")):
-            messages = ("Compiling.", "Processing.", "Computing.")
+            messages = ("Working.", "Checking.", "One moment.")
         else:
             messages = ("Processing.", "Working.", "One moment.")
         message = messages[(self._progress_sequence - 1) % len(messages)]
