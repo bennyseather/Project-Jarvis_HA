@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.31";
+const JARVIS_UI_VERSION = "0.47.32";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1103,6 +1103,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._followUpDeliveryQueue = Promise.resolve();
     this._playbackQueue = Promise.resolve();
     this._receivedDeliveryIds = new Set();
+    this._followUpOwnershipStarted = false;
+    this._releaseFollowUpOwnership = undefined;
   }
   setConfig(config) {
     super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
@@ -1114,8 +1116,20 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
   set hass(value) {
     this._hass = value;
-    if (!this._followUpEventSubscription && value?.connection?.subscribeEvents) {
-      this._followUpEventSubscription = value.connection.subscribeEvents(
+    if (!this._followUpOwnershipStarted && value?.connection?.subscribeEvents) {
+      this._followUpOwnershipStarted = true;
+      this._acquireFollowUpOwnership(value.connection);
+    }
+    const entity = stateObject(value, this._config?.satellite_entity);
+    const signature = JSON.stringify([entity?.state, entity?.attributes?.friendly_name]);
+    if (this._mode === "idle" && (!this.shadowRoot.querySelector("ha-card") || signature !== this._satelliteSignature)) {
+      this._satelliteSignature = signature;
+      this.render();
+    } else this._paintStatus();
+  }
+  async _acquireFollowUpOwnership(connection) {
+    const subscribe = async () => {
+      this._followUpEventSubscription = await connection.subscribeEvents(
         (event) => {
           const deliveryId = event?.data?.delivery_id;
           if (deliveryId && this._receivedDeliveryIds.has(deliveryId)) return;
@@ -1133,13 +1147,24 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
         },
         "jarvis_voice_follow_up",
       );
+    };
+    const locks = globalThis.navigator?.locks;
+    if (!locks?.request) {
+      globalThis.__jarvisFollowUpOwners ||= new Map();
+      const target = this._config?.follow_up_target || "development_computer";
+      if (globalThis.__jarvisFollowUpOwners.has(target)) return;
+      globalThis.__jarvisFollowUpOwners.set(target, this);
+      await subscribe();
+      return;
     }
-    const entity = stateObject(value, this._config?.satellite_entity);
-    const signature = JSON.stringify([entity?.state, entity?.attributes?.friendly_name]);
-    if (this._mode === "idle" && (!this.shadowRoot.querySelector("ha-card") || signature !== this._satelliteSignature)) {
-      this._satelliteSignature = signature;
-      this.render();
-    } else this._paintStatus();
+    const target = String(this._config?.follow_up_target || "development_computer").replace(/[^a-z0-9_-]/gi, "_");
+    await locks.request(`jarvis-voice-follow-up-${target}`, { mode: "exclusive" }, async () => {
+      await subscribe();
+      await new Promise((resolve) => { this._releaseFollowUpOwnership = resolve; });
+      const unsubscribe = await this._followUpEventSubscription;
+      this._followUpEventSubscription = undefined;
+      unsubscribe?.();
+    });
   }
   disconnectedCallback() {
     this._stop(false);
@@ -1149,6 +1174,11 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
     Promise.resolve(this._followUpEventSubscription).then((unsubscribe) => unsubscribe?.());
     this._followUpEventSubscription = undefined;
+    this._releaseFollowUpOwnership?.();
+    this._releaseFollowUpOwnership = undefined;
+    const owners = globalThis.__jarvisFollowUpOwners;
+    const target = this._config?.follow_up_target || "development_computer";
+    if (owners?.get(target) === this) owners.delete(target);
   }
   render() {
     if (!this._config) return;
