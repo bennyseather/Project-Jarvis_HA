@@ -191,6 +191,7 @@ class ResponsiveVoiceCoordinator:
                     "message": spoken,
                     "source_id": str(route.get("source_id", ""))[:200],
                     "target_id": str(route.get("target_id", ""))[:200],
+                    "conversation_id": session.conversation_id[:200],
                     "session_id": session.session_id,
                     "delivery_id": delivery_id,
                     "sequence": sequence,

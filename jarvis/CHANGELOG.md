@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.37
+
+- Give each browser voice target one active microphone/pipeline owner so several
+  open dashboards cannot answer the same wake-word request in chorus.
+- Bind streamed follow-up events to the originating browser conversation in
+  addition to the configured target.
+
 ## 0.45.36
 
 - Apply direct-answer speech cleanup to each streamed model sentence before it

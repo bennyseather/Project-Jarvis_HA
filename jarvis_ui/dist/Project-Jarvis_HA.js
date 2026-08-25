@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.32";
+const JARVIS_UI_VERSION = "0.47.33";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1105,6 +1105,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._receivedDeliveryIds = new Set();
     this._followUpOwnershipStarted = false;
     this._releaseFollowUpOwnership = undefined;
+    this._activationLockHeld = false;
+    this._releaseActivationOwnership = undefined;
   }
   setConfig(config) {
     super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
@@ -1217,6 +1219,11 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       return;
     }
     await this._stop(false);
+    if (!await this._acquireActivationOwnership()) {
+      this._status = "Voice satellite already active in another dashboard";
+      this._paintStatus();
+      return;
+    }
     this._mode = mode;
     this._dialogueTurns = 0;
     this._endDialogue = false;
@@ -1244,6 +1251,23 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._status = `Microphone error // ${error?.message || "permission denied"}`;
       await this._stop(false, true);
     }
+  }
+  async _acquireActivationOwnership() {
+    if (this._activationLockHeld) return true;
+    const locks = globalThis.navigator?.locks;
+    if (!locks?.request) return true;
+    const target = String(this._config?.follow_up_target || "development_computer").replace(/[^a-z0-9_-]/gi, "_");
+    let report;
+    const acquired = new Promise((resolve) => { report = resolve; });
+    locks.request(`jarvis-voice-activation-${target}`, { mode: "exclusive", ifAvailable: true }, async (lock) => {
+      if (!lock) { report(false); return; }
+      this._activationLockHeld = true;
+      report(true);
+      await new Promise((resolve) => { this._releaseActivationOwnership = resolve; });
+      this._releaseActivationOwnership = undefined;
+      this._activationLockHeld = false;
+    }).catch(() => report(false));
+    return acquired;
   }
   async _runPipeline(followUp = false) {
     clearTimeout(this._followUpTimer);
@@ -1451,6 +1475,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   async _receiveFollowUp(data) {
     const configuredTarget = this._config?.follow_up_target || "development_computer";
     if (!configuredTarget || data?.target_id !== configuredTarget) return;
+    if (data?.conversation_id && data.conversation_id !== this._conversationId) return;
     const message = String(data?.message || "").trim().slice(0, 700);
     if (!message) return;
     const restartWake = this._mode === "wake";
@@ -1531,6 +1556,9 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (this._stream) { this._stream.getTracks().forEach((track) => track.stop()); this._stream = undefined; }
     globalThis.JarvisNativeAudio?.stop?.();
     if (globalThis.jarvisNativeAudioSamples) delete globalThis.jarvisNativeAudioSamples;
+    this._releaseActivationOwnership?.();
+    this._releaseActivationOwnership = undefined;
+    this._activationLockHeld = false;
     this._mode = "idle";
     if (!keepStatus) this._status = "Muted // microphone offline";
     if (render) this.render(); else this._paintStatus();
