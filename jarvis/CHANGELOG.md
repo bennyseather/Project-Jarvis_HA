@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.38
+
+- Retire previously cached one-word progress clips and use new, clearer
+  three-word acknowledgements that are more stable in zero-shot CosyVoice.
+
 ## 0.45.37
 
 - Give each browser voice target one active microphone/pipeline owner so several
