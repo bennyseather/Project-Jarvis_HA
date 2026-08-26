@@ -229,13 +229,13 @@ class ResponsiveVoiceCoordinator:
         lower = text.casefold()
         self._progress_sequence += 1
         if any(word in lower for word in ("latest", "current", "today", "search", "release")):
-            messages = ("Searching sources.", "Verifying data.", "Querying databases.")
+            messages = ("Searching the available sources.", "Verifying the current data.", "Querying the relevant databases.")
         elif any(word in lower for word in ("calculate", "compute", "count", "convert", "equation")):
-            messages = ("Calculating.", "Computing.", "Processing figures.")
+            messages = ("Calculating the requested result.", "Computing the relevant figures.", "Processing the supplied values.")
         elif any(word in lower for word in ("why", "explain", "compare", "plan", "analyse", "analyze")):
-            messages = ("Processing your request.", "Checking the details.", "Preparing your answer.")
+            messages = ("Processing the available information.", "Checking the relevant details.", "Preparing the complete answer.")
         else:
-            messages = ("Preparing your answer.", "Processing your request.", "Checking the details.")
+            messages = ("Preparing the complete answer.", "Processing the available information.", "Checking the relevant details.")
         message = messages[(self._progress_sequence - 1) % len(messages)]
         return {
             "status": "in_progress",
