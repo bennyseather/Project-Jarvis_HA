@@ -226,16 +226,8 @@ class ResponsiveVoiceCoordinator:
         await self.client.call_service("tts", "speak", data)
 
     def _progress(self, text, job_id, duplicate=False):
-        lower = text.casefold()
         self._progress_sequence += 1
-        if any(word in lower for word in ("latest", "current", "today", "search", "release")):
-            messages = ("Searching the available sources.", "Verifying the current data.", "Querying the relevant databases.")
-        elif any(word in lower for word in ("calculate", "compute", "count", "convert", "equation")):
-            messages = ("Calculating the requested result.", "Computing the relevant figures.", "Processing the supplied values.")
-        elif any(word in lower for word in ("why", "explain", "compare", "plan", "analyse", "analyze")):
-            messages = ("Processing the available information.", "Checking the relevant details.", "Preparing the complete answer.")
-        else:
-            messages = ("Preparing the complete answer.", "Processing the available information.", "Checking the relevant details.")
+        messages = ("Working through the request.", "Preparing the response now.")
         message = messages[(self._progress_sequence - 1) % len(messages)]
         return {
             "status": "in_progress",
