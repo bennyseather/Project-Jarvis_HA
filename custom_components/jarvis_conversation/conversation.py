@@ -130,14 +130,18 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             # channel. Letting Assist speak the progress result while Jarvis
             # dispatches the final follow-up creates two independent browser
             # playback paths and allows retained HA media to leak between them.
-            self.hass.async_create_task(
-                self._async_fire_browser_progress(
-                    answer,
-                    source_id,
-                    browser_target,
-                    conversation_id,
-                    user_input.context,
-                )
+            self.hass.bus.async_fire(
+                "jarvis_voice_follow_up",
+                {
+                    "message": answer,
+                    "source_id": str(source_id)[:200],
+                    "target_id": str(browser_target)[:200],
+                    "conversation_id": str(conversation_id)[:200],
+                    "session_id": str(conversation_id)[:200],
+                    "delivery_id": f"progress:{getattr(user_input.context, 'id', conversation_id)}",
+                    "sequence": 0,
+                },
+                context=user_input.context,
             )
             routed = True
         if external_voice:
@@ -152,25 +156,6 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             response=result,
             continue_conversation=payload.get("status")
             == "requires_confirmation",
-        )
-
-    async def _async_fire_browser_progress(
-        self, message, source_id, browser_target, conversation_id, context
-    ):
-        """Dispatch progress after Assist has closed its initial speech path."""
-        await asyncio.sleep(0.1)
-        self.hass.bus.async_fire(
-            "jarvis_voice_follow_up",
-            {
-                "message": message,
-                "source_id": str(source_id)[:200],
-                "target_id": str(browser_target)[:200],
-                "conversation_id": str(conversation_id)[:200],
-                "session_id": str(conversation_id)[:200],
-                "delivery_id": f"progress:{getattr(context, 'id', conversation_id)}",
-                "sequence": 0,
-            },
-            context=context,
         )
 
     @staticmethod
