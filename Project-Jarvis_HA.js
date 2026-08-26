@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.33";
+const JARVIS_UI_VERSION = "0.47.34";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1102,6 +1102,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._pipelineGeneration = 0;
     this._followUpDeliveryQueue = Promise.resolve();
     this._playbackQueue = Promise.resolve();
+    this._playbackGeneration = 0;
+    this._activePlaybackSource = undefined;
     this._receivedDeliveryIds = new Set();
     this._followUpOwnershipStarted = false;
     this._releaseFollowUpOwnership = undefined;
@@ -1453,7 +1455,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
           this._status = `Pipeline error // ${error.message}`; this._paintStatus();
         }), continueDialogue ? 250 : 600);
       });
-    } else this._stop(false);
+    } else this._stop(false, false, false);
   }
   _isDialogueExit(text) {
     const normalized = String(text || "").toLowerCase().replace(/[^a-z\s]/g, "").trim();
@@ -1520,7 +1522,9 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._paintStatus();
       return;
     }
+    const generation = this._playbackGeneration;
     const play = async () => {
+      if (generation !== this._playbackGeneration) return;
       const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
       try {
         if (!this._playbackContext || this._playbackContext.state === "closed") {
@@ -1531,10 +1535,19 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
         const response = await window.fetch.call(window, target, { credentials: "same-origin" });
         if (!response.ok) throw new Error(`audio request ${response.status}`);
         const buffer = await playbackContext.decodeAudioData(await response.arrayBuffer());
+        if (generation !== this._playbackGeneration) return;
+        this._activePlaybackSource?.stop?.();
         const source = playbackContext.createBufferSource();
+        this._activePlaybackSource = source;
         source.buffer = buffer;
         source.connect(playbackContext.destination);
-        await new Promise((resolve) => { source.onended = resolve; source.start(); });
+        await new Promise((resolve) => {
+          source.onended = () => {
+            if (this._activePlaybackSource === source) this._activePlaybackSource = undefined;
+            resolve();
+          };
+          source.start();
+        });
       } catch (error) {
         this._status = `Playback error // ${error?.message || "audio blocked"}`;
         this._paintStatus();
@@ -1543,11 +1556,23 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._playbackQueue = this._playbackQueue.catch(() => {}).then(play);
     return this._playbackQueue;
   }
-  async _stop(render = true, keepStatus = false) {
+  _cancelPlayback() {
+    this._playbackGeneration += 1;
+    const source = this._activePlaybackSource;
+    this._activePlaybackSource = undefined;
+    if (source) {
+      try { source.stop(); } catch (_error) { /* source already ended */ }
+      try { source.disconnect(); } catch (_error) { /* context already closed */ }
+    }
+    this._playbackQueue = Promise.resolve();
+    this._ttsPromise = undefined;
+  }
+  async _stop(render = true, keepStatus = false, cancelPlayback = true) {
     clearTimeout(this._restartTimer);
     clearTimeout(this._followUpTimer);
     this._pipelineGeneration += 1;
     this._followUpMode = false;
+    if (cancelPlayback) this._cancelPlayback();
     if (this._handlerId !== undefined && this._hass?.connection?.socket) this._finishAudio();
     this._handlerId = undefined;
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = undefined; }
