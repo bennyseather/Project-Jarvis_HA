@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.35";
+const JARVIS_UI_VERSION = "0.47.36";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1212,7 +1212,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     const ptt = root.querySelector(".ptt");
     if (ptt) ptt.textContent = this._mode === "ptt" ? "Listening · auto send" : "Push to talk";
   }
-  async _start(mode) {
+  async _start(mode, followUp = false) {
     const nativeAudio = globalThis.JarvisNativeAudio;
     const nativeAvailable = Boolean(nativeAudio?.available?.());
     if (!this._hass?.connection?.subscribeMessage || (!navigator.mediaDevices?.getUserMedia && !nativeAvailable)) {
@@ -1233,7 +1233,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._paintStatus();
     try {
       if (!navigator.mediaDevices?.getUserMedia && nativeAvailable) {
-        await this._runPipeline();
+        await this._runPipeline(followUp);
         globalThis.jarvisNativeAudioSamples = (encoded) => this._sendNativePcm(encoded);
         nativeAudio.start();
         return;
@@ -1248,7 +1248,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       source.connect(this._processor);
       this._processor.connect(this._audioContext.destination);
       this._processor.onaudioprocess = (event) => this._sendSamples(event.inputBuffer.getChannelData(0));
-      await this._runPipeline();
+      await this._runPipeline(followUp);
     } catch (error) {
       this._status = `Microphone error // ${error?.message || "permission denied"}`;
       await this._stop(false, true);
@@ -1481,11 +1481,18 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     const message = String(data?.message || "").trim().slice(0, 700);
     if (!message) return;
     const restartWake = this._mode === "wake";
+    const isProgress = String(data?.delivery_id || "").startsWith("progress:");
     await this._stop(false);
     this._status = "Follow-up answer ready // speaking";
     this._paintStatus();
     await this._speakFollowUpText(message);
-    if (restartWake) await this._start("wake");
+    if (restartWake) {
+      const continueDialogue = !isProgress
+        && this._config.conversational_mode !== false
+        && !this._endDialogue
+        && this._dialogueTurns < Number(this._config.max_dialogue_turns || 3);
+      await this._start("wake", continueDialogue);
+    }
     else {
       this._status = "Follow-up delivered // microphone offline";
       this._paintStatus();
