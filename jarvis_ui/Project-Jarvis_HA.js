@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.34";
+const JARVIS_UI_VERSION = "0.47.35";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2942,6 +2942,7 @@ class JarvisClockDashboardCard extends HTMLElement {
     const alarmTime = this.entity("alarm_time_entity", "input_datetime.jarvis_clock_alarm_time")?.state || "07:00:00";
     const alarmEnabled = this.entity("alarm_enabled_entity", "input_boolean.jarvis_clock_alarm_enabled")?.state === "on";
     const alarmActive = this.entity("alarm_active_entity", "input_boolean.jarvis_clock_alarm_active")?.state === "on";
+    const alarmPlaybackAcknowledged = this.entity("playback_ack_entity", "input_boolean.jarvis_clock_alarm_playback_ack")?.state === "on";
     const alarmMode = this.entity("alarm_mode_entity", "input_select.jarvis_clock_alarm_mode")?.state || "Jarvis";
     const volume = this.entity("alarm_volume_entity", "input_number.jarvis_clock_alarm_volume")?.state || "50";
     const spotify = this.entity("alarm_spotify_entity", "input_text.jarvis_clock_alarm_spotify_uri")?.state || "";
@@ -2985,7 +2986,9 @@ class JarvisClockDashboardCard extends HTMLElement {
     this.shadowRoot.querySelector("#cancel-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_cancel"));
     this.shadowRoot.querySelector("#snooze-alarm")?.addEventListener("click", () => this.call("script", "turn_on", "script.jarvis_clock_alarm_snooze"));
     this._alarmIsActive = alarmActive;
-    if (alarmActive && alarmMode === "Jarvis") this.startAlarmVoice(); else this.stopAlarmTone();
+    if (alarmActive && alarmMode === "Jarvis" && (!alarmPlaybackAcknowledged || this._voiceRequested)) {
+      this.startAlarmVoice();
+    } else this.stopAlarmTone();
     const afterChoice = this.entity("after_briefing_entity", "input_select.jarvis_clock_after_briefing")?.state;
     const shouldPlayLocalRadio = wakeMediaActive && afterChoice === "Radio Norge";
     const voiceBusy = this._satellite._mode === "ptt"
