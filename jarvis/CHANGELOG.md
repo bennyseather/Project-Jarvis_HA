@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.42
+
+- Replace contaminated Home Assistant progress-audio cache keys with two new
+  deterministic CosyVoice cue-bank phrases.
+- Keep the initial response below two seconds without reusing historical media
+  URLs retained by long-running browser satellites.
+
 ## 0.45.38
 
 - Retire previously cached one-word progress clips and use new, clearer

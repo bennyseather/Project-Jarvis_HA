@@ -227,7 +227,10 @@ class ResponsiveVoiceCoordinator:
 
     def _progress(self, text, job_id, duplicate=False):
         self._progress_sequence += 1
-        messages = ("Working through the request!", "Preparing the response now!")
+        # These phrases have dedicated, verified cue-bank assets and entirely
+        # new HA TTS cache keys. Do not reuse retired phrases: some clients can
+        # retain their historical media URLs across dashboard reloads.
+        messages = ("Checking the request now.", "Reviewing the request now.")
         message = messages[(self._progress_sequence - 1) % len(messages)]
         return {
             "status": "in_progress",
