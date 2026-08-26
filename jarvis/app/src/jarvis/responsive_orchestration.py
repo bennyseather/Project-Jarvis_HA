@@ -227,7 +227,7 @@ class ResponsiveVoiceCoordinator:
 
     def _progress(self, text, job_id, duplicate=False):
         self._progress_sequence += 1
-        messages = ("Working through the request.", "Preparing the response now.")
+        messages = ("Working through the request!", "Preparing the response now!")
         message = messages[(self._progress_sequence - 1) % len(messages)]
         return {
             "status": "in_progress",
