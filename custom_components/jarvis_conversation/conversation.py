@@ -122,12 +122,34 @@ class JarvisConversationEntity(conversation.ConversationEntity):
         )
 
         routed = False
+        browser_progress = bool(
+            browser_target and payload.get("status") == "in_progress" and answer
+        )
+        if browser_progress:
+            # Keep both stages of a slow browser request on one scoped delivery
+            # channel. Letting Assist speak the progress result while Jarvis
+            # dispatches the final follow-up creates two independent browser
+            # playback paths and allows retained HA media to leak between them.
+            self.hass.bus.async_fire(
+                "jarvis_voice_follow_up",
+                {
+                    "message": answer,
+                    "source_id": str(source_id)[:200],
+                    "target_id": str(browser_target)[:200],
+                    "conversation_id": str(conversation_id)[:200],
+                    "session_id": str(conversation_id)[:200],
+                    "delivery_id": f"progress:{getattr(user_input.context, 'id', conversation_id)}",
+                    "sequence": 0,
+                },
+                context=user_input.context,
+            )
+            routed = True
         if external_voice:
             routed = await self._async_speak_externally(answer, user_input.context)
 
         result = intent.IntentResponse(language=user_input.language)
         result.async_set_speech(
-            "" if routed and suppress_local_audio(self.entry.options) else answer
+            "" if browser_progress or (routed and suppress_local_audio(self.entry.options)) else answer
         )
         return conversation.ConversationResult(
             conversation_id=conversation_id,
