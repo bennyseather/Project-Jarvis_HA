@@ -4,10 +4,15 @@ import os
 from jarvis.core.application import JarvisApplication
 from jarvis.homeassistant.bridge_server import ConversationBridgeServer
 from jarvis.homeassistant.conversation_bridge import JarvisConversationBridge
+from jarvis.startup import connect_when_ready
 
 
 async def main():
-    app = JarvisApplication(); app.load_configuration(); app.initialize_services(); await app.connect_services(); await app.startup_checks()
+    app = JarvisApplication()
+    app.load_configuration()
+    app.initialize_services()
+    await connect_when_ready(app.connect_services, app.container.logger)
+    await app.startup_checks()
     key = os.environ.get("JARVIS_BRIDGE_API_KEY")
     if not key: raise RuntimeError("JARVIS_BRIDGE_API_KEY is required")
     server = ConversationBridgeServer(JarvisConversationBridge(app), key, asyncio.get_running_loop())
