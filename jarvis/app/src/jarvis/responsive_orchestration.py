@@ -230,7 +230,7 @@ class ResponsiveVoiceCoordinator:
         # These phrases have dedicated, verified cue-bank assets and entirely
         # new HA TTS cache keys. Do not reuse retired phrases: some clients can
         # retain their historical media URLs across dashboard reloads.
-        messages = ("Checking the request now.", "Reviewing the request now.")
+        messages = ("Request received.", "Processing request.")
         message = messages[(self._progress_sequence - 1) % len(messages)]
         return {
             "status": "in_progress",

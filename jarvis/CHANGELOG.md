@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.43
+
+- Use Benny-approved whole-utterance acknowledgement clips: "Request received."
+  and "Processing request." No detached trailing "now".
+- Keep the full-answer voice and browser playback route unchanged.
+
 ## 0.45.42
 
 - Replace contaminated Home Assistant progress-audio cache keys with two new
