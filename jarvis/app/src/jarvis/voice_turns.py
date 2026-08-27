@@ -72,7 +72,11 @@ class VoiceTurnController:
         try:
             done, _ = await asyncio.wait({task}, timeout=self.deadline)
             if not done:
-                await self._emit(turn, "progress", "Request received.")
+                try:
+                    await self._emit(turn, "progress", "Request received.")
+                except Exception:
+                    # A failed progress transport must never abandon the answer.
+                    pass
             result = await task
             message = sanitize_spoken_response(str(result.get("message") or "A required service returned no answer. Check the Jarvis log and integration status."))
             await self._emit(turn, "final", message)
@@ -82,7 +86,10 @@ class VoiceTurnController:
         except Exception as error:
             if self.logger:
                 self.logger.warning(f"Voice turn {turn['request']} failed: {type(error).__name__}")
-            await self._emit(turn, "final", "A required service failed. Check the Jarvis log and the Home Assistant integration status.")
+            try:
+                await self._emit(turn, "final", "A required service failed. Check the Jarvis log and the Home Assistant integration status.")
+            except Exception:
+                turn["delivery_error"] = "Home Assistant event transport unavailable"
         finally:
             turn["done"] = True
             if self.active.get(turn["endpoint"]) == turn["key"]:
@@ -102,7 +109,17 @@ class VoiceTurnController:
                        target_id=turn["endpoint"], stage=stage,
                        sequence=turn["sequence"], message=message,
                        delivery_id=f"{turn['request']}:{turn['sequence']}")
-        await self.client.dispatch_event("jarvis_voice_follow_up", payload)
+        for attempt in range(4):
+            if self.active.get(turn["endpoint"]) != turn["key"]:
+                return
+            try:
+                await self.client.dispatch_event("jarvis_voice_follow_up", payload)
+                break
+            except Exception:
+                if attempt == 3:
+                    turn["delivery_error"] = "Home Assistant event transport unavailable"
+                    raise
+                await asyncio.sleep(2 ** attempt)
         turn["events"].append({**payload, "dispatched_ms": round((time.monotonic() - turn["started"]) * 1000)})
         if self.logger:
             digest = hashlib.sha256(message.encode()).hexdigest()[:16]
@@ -113,5 +130,5 @@ class VoiceTurnController:
         """Authenticated inspection only; dispatch is not playback acknowledgement."""
         for turn in self.turns.values():
             if turn["request"] == request_id and time.monotonic() - turn["started"] <= 1200:
-                return {"request_id": request_id, "done": turn["done"], "events": list(turn["events"])}
+                return {"request_id": request_id, "done": turn["done"], "events": list(turn["events"]), "delivery_error": turn.get("delivery_error")}
         return {"request_id": request_id, "state": "unknown_or_expired"}

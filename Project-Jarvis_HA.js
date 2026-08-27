@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.38";
+const JARVIS_UI_VERSION = "0.47.39";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1070,6 +1070,16 @@ class JarvisVoiceCard extends JarvisBaseCard {
 // One request-scoped queue. Admission and playback both validate identity so a
 // queued event cannot survive mute, a new request, reconnect or dashboard reload.
 class JarvisVoiceTurn {
+  static chunks(text, maximum = 220) {
+    const parts = [];
+    let chunk = "";
+    for (const word of String(text).trim().split(/\s+/)) {
+      if (chunk && chunk.length + word.length + 1 > maximum) { parts.push(chunk); chunk = ""; }
+      chunk += (chunk ? " " : "") + word;
+    }
+    if (chunk) parts.push(chunk);
+    return parts;
+  }
   constructor(requestId, play, complete) {
     this.requestId = requestId;
     this.play = play;
@@ -1189,6 +1199,10 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
         },
         "jarvis_voice_follow_up",
       );
+      if (ownership !== this._ownershipGeneration) {
+        this._followUpEventSubscription?.();
+        return;
+      }
       this._followUpOwned = true;
     };
     const locks = globalThis.navigator?.locks;
@@ -1198,12 +1212,14 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       if (globalThis.__jarvisFollowUpOwners.has(target)) return;
       globalThis.__jarvisFollowUpOwners.set(target, this);
       await subscribe();
+      if (ownership !== this._ownershipGeneration) return;
       return;
     }
     const target = String(this._config?.follow_up_target || "development_computer").replace(/[^a-z0-9_-]/gi, "_");
     await locks.request(`jarvis-voice-follow-up-${target}`, { mode: "exclusive" }, async () => {
       if (ownership !== this._ownershipGeneration) return;
       await subscribe();
+      if (ownership !== this._ownershipGeneration) return;
       await new Promise((resolve) => { this._releaseFollowUpOwnership = resolve; });
       const unsubscribe = await this._followUpEventSubscription;
       this._followUpEventSubscription = undefined;
@@ -1320,6 +1336,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     return acquired;
   }
   async _runPipeline(followUp = false) {
+    this._reliableSubmitted = false;
     if (this._config.reliable_voice === true) {
       this._voiceTurn?.cancel();
       const uuid = () => globalThis.crypto.randomUUID();
@@ -1328,7 +1345,12 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._conversationId = `jarvis-voice-v3:${encodeURIComponent(this._config.follow_up_target || "development_computer")}:${this._reliableSession}:${request}`;
       this._reliableWake = this._mode === "wake";
       this._voiceTurn = new JarvisVoiceTurn(request,
-        (text) => this._speakFollowUpText(text), async () => {
+        async (text) => {
+          for (const chunk of JarvisVoiceTurn.chunks(text)) {
+            if (this._voiceTurn?.requestId !== request || !this._voiceTurn.active) return;
+            await this._speakFollowUpText(chunk);
+          }
+        }, async () => {
           this._dialogueTurns += 1;
           if (this._reliableWake) {
             const follow = this._config.conversational_mode !== false && !this._endDialogue
@@ -1401,6 +1423,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     else if (type === "stt-end") {
       this._handlerId = undefined;
       const text = data.stt_output?.text || "";
+      this._reliableSubmitted = Boolean(text.trim());
       this._endDialogue = this._isDialogueExit(text);
       this._status = `Heard // ${text || "processing"}`;
     }
@@ -1511,7 +1534,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._paintStatus();
   }
   _pipelineEnded() {
-    if (this._config.reliable_voice === true && !this._endDialogue) {
+    if (this._config.reliable_voice === true && this._reliableSubmitted && !this._endDialogue) {
       // Event playback owns completion; Assist run-end is not answer-end.
       this._stop(false, true, false);
       return;
