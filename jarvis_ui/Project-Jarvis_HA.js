@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.36";
+const JARVIS_UI_VERSION = "0.47.37";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1272,6 +1272,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     return acquired;
   }
   async _runPipeline(followUp = false) {
+    this._intentHasSpeech = false;
     clearTimeout(this._followUpTimer);
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = undefined; }
     const generation = ++this._pipelineGeneration;
@@ -1336,9 +1337,13 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
     else if (type === "intent-end") {
       this._conversationId = data.intent_output?.conversation_id || this._conversationId;
+      const speech = data.intent_output?.response?.speech;
+      this._intentHasSpeech = Boolean(String(speech?.plain?.speech || speech?.ssml?.speech || "").trim());
       this._status = "Response ready";
     } else if (type === "tts-end") {
-      this._ttsPromise = this._playTts(data.url || data.tts_output?.url);
+      // An event-delivered reply has no local speech. Ignore any residual
+      // TTS URL instead of trusting cancellation timing to suppress it.
+      if (this._intentHasSpeech) this._ttsPromise = this._playTts(data.url || data.tts_output?.url);
     }
     else if (type === "error") {
       clearTimeout(this._followUpTimer);

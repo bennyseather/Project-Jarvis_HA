@@ -148,9 +148,10 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             routed = await self._async_speak_externally(answer, user_input.context)
 
         result = intent.IntentResponse(language=user_input.language)
-        result.async_set_speech(
-            "" if browser_progress or (routed and suppress_local_audio(self.entry.options)) else answer
-        )
+        # Omit speech entirely when another delivery path owns it. An empty
+        # speech field can still enter HA's TTS stage and replay cached audio.
+        if not (browser_progress or (routed and suppress_local_audio(self.entry.options))):
+            result.async_set_speech(answer)
         return conversation.ConversationResult(
             conversation_id=conversation_id,
             response=result,
