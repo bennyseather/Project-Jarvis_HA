@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.37";
+const JARVIS_UI_VERSION = "0.47.42";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1067,6 +1067,51 @@ class JarvisVoiceCard extends JarvisBaseCard {
   }
 }
 
+// One request-scoped queue. Admission and playback both validate identity so a
+// queued event cannot survive mute, a new request, reconnect or dashboard reload.
+class JarvisVoiceTurn {
+  static chunks(text, maximum = 220) {
+    const parts = [];
+    let chunk = "";
+    for (const word of String(text).trim().split(/\s+/)) {
+      if (chunk && chunk.length + word.length + 1 > maximum) { parts.push(chunk); chunk = ""; }
+      chunk += (chunk ? " " : "") + word;
+    }
+    if (chunk) parts.push(chunk);
+    return parts;
+  }
+  constructor(requestId, play, complete) {
+    this.requestId = requestId;
+    this.play = play;
+    this.complete = complete;
+    this.active = true;
+    this.sequence = 0;
+    this.final = false;
+    this.queue = Promise.resolve();
+    this.trace = [];
+  }
+  cancel() { this.active = false; }
+  accept(data) {
+    if (!this.active || this.final || data.request_id !== this.requestId
+      || !["progress", "final"].includes(data.stage)
+      || !Number.isInteger(data.sequence) || data.sequence <= this.sequence) return this.queue;
+    this.sequence = data.sequence;
+    this.final = data.stage === "final";
+    this.queue = this.queue.then(async () => {
+      if (!this.active) return;
+      this.trace.push({stage: data.stage, state: "playing", sequence: data.sequence});
+      await this.play(String(data.message || ""));
+      if (!this.active) return;
+      this.trace.push({stage: data.stage, state: "played", sequence: data.sequence});
+      if (data.stage === "final") {
+        this.active = false;
+        await this.complete();
+      }
+    });
+    return this.queue;
+  }
+}
+
 class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Voice Satellite";
@@ -1112,6 +1157,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
   setConfig(config) {
     super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
+    if (this._config.reliable_voice === undefined) this._config.reliable_voice = this._config.follow_up_target === "development_computer";
     if (!this._conversationId) {
       const target = encodeURIComponent(this._config.follow_up_target || "development_computer");
       const session = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1132,7 +1178,9 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     } else this._paintStatus();
   }
   async _acquireFollowUpOwnership(connection) {
+    const ownership = this._ownershipGeneration = (this._ownershipGeneration || 0) + 1;
     const subscribe = async () => {
+      if (ownership !== this._ownershipGeneration) return;
       this._followUpEventSubscription = await connection.subscribeEvents(
         (event) => {
           const deliveryId = event?.data?.delivery_id;
@@ -1151,6 +1199,11 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
         },
         "jarvis_voice_follow_up",
       );
+      if (ownership !== this._ownershipGeneration) {
+        this._followUpEventSubscription?.();
+        return;
+      }
+      this._followUpOwned = true;
     };
     const locks = globalThis.navigator?.locks;
     if (!locks?.request) {
@@ -1159,18 +1212,25 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       if (globalThis.__jarvisFollowUpOwners.has(target)) return;
       globalThis.__jarvisFollowUpOwners.set(target, this);
       await subscribe();
+      if (ownership !== this._ownershipGeneration) return;
       return;
     }
     const target = String(this._config?.follow_up_target || "development_computer").replace(/[^a-z0-9_-]/gi, "_");
     await locks.request(`jarvis-voice-follow-up-${target}`, { mode: "exclusive" }, async () => {
+      if (ownership !== this._ownershipGeneration) return;
       await subscribe();
+      if (ownership !== this._ownershipGeneration) return;
       await new Promise((resolve) => { this._releaseFollowUpOwnership = resolve; });
       const unsubscribe = await this._followUpEventSubscription;
       this._followUpEventSubscription = undefined;
       unsubscribe?.();
+      this._followUpOwned = false;
     });
   }
   disconnectedCallback() {
+    this._ownershipGeneration = (this._ownershipGeneration || 0) + 1;
+    this._followUpOwnershipStarted = false;
+    this._followUpOwned = false;
     this._stop(false);
     if (this._playbackContext) {
       this._playbackContext.close();
@@ -1213,6 +1273,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (ptt) ptt.textContent = this._mode === "ptt" ? "Listening · auto send" : "Push to talk";
   }
   async _start(mode, followUp = false) {
+    if (!followUp) this._dialogueOrigin = mode;
     const nativeAudio = globalThis.JarvisNativeAudio;
     const nativeAvailable = Boolean(nativeAudio?.available?.());
     if (!this._hass?.connection?.subscribeMessage || (!navigator.mediaDevices?.getUserMedia && !nativeAvailable)) {
@@ -1220,6 +1281,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._paintStatus();
       return;
     }
+    this._voiceTurn?.cancel();
     await this._stop(false);
     if (!await this._acquireActivationOwnership()) {
       this._status = "Voice satellite already active in another dashboard";
@@ -1227,8 +1289,10 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       return;
     }
     this._mode = mode;
-    this._dialogueTurns = 0;
-    this._endDialogue = false;
+    if (!followUp) {
+      this._dialogueTurns = 0;
+      this._endDialogue = false;
+    }
     this._status = "Requesting microphone permission";
     this._paintStatus();
     try {
@@ -1255,6 +1319,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
   }
   async _acquireActivationOwnership() {
+    if (this._config.reliable_voice === true && !this._followUpOwned) return false;
     if (this._activationLockHeld) return true;
     const locks = globalThis.navigator?.locks;
     if (!locks?.request) return true;
@@ -1272,6 +1337,35 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     return acquired;
   }
   async _runPipeline(followUp = false) {
+    this._voiceTiming = {};
+    this._reliableSubmitted = false;
+    if (this._config.reliable_voice === true) {
+      this._voiceTurn?.cancel();
+      const uuid = () => globalThis.crypto.randomUUID();
+      this._reliableSession ||= uuid();
+      const request = uuid();
+      this._conversationId = `jarvis-voice-v3:${encodeURIComponent(this._config.follow_up_target || "development_computer")}:${this._reliableSession}:${request}`;
+      this._reliableWake = this._mode === "wake";
+      this._voiceTurn = new JarvisVoiceTurn(request,
+        async (text) => {
+          for (const chunk of JarvisVoiceTurn.chunks(text)) {
+            if (this._voiceTurn?.requestId !== request || !this._voiceTurn.active) return;
+            await this._speakFollowUpText(chunk);
+          }
+        }, async () => {
+          this._dialogueTurns += 1;
+          if (this._dialogueEnabled()) {
+            await this._finishDialogueTurn();
+          } else if (this._reliableWake) {
+            const follow = this._config.conversational_mode !== false && !this._endDialogue
+              && this._dialogueTurns < Number(this._config.max_dialogue_turns || 3);
+            await this._start("wake", follow);
+          } else {
+            this._status = "Answer delivered // microphone offline";
+            this._paintStatus();
+          }
+        });
+    }
     this._intentHasSpeech = false;
     clearTimeout(this._followUpTimer);
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = undefined; }
@@ -1302,6 +1396,10 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (this._config.pipeline_id && this._config.pipeline_id !== "preferred") message.pipeline = this._config.pipeline_id;
     if (this._config.device_id) message.device_id = this._config.device_id;
     if (this._conversationId) message.conversation_id = this._conversationId;
+    if (this._dialogueEnabled()) {
+      message.type = "jarvis_conversation/listen";
+      message.input = { sample_rate: 16000 };
+    }
     this._unsubscribe = await this._hass.connection.subscribeMessage(
       (payload) => {
         if (generation === this._pipelineGeneration) this._pipelineEvent(payload?.event || payload, generation);
@@ -1315,7 +1413,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       if (this._followUpMode) {
         this._followUpTimer = setTimeout(
           () => this._followUpTimedOut(generation),
-          Number(this._config.follow_up_timeout || 7) * 1000,
+          (this._dialogueEnabled() ? 10 : Number(this._config.follow_up_timeout || 7)) * 1000,
         );
       }
     }
@@ -1331,8 +1429,16 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._status = this._followUpMode ? "Follow-up detected // listening" : "Command detected // listening";
     }
     else if (type === "stt-end") {
+      this._voiceTiming = { transcript_ready: performance.now() };
+      this._handlerId = undefined;
       const text = data.stt_output?.text || "";
+      this._reliableSubmitted = Boolean(text.trim());
       this._endDialogue = this._isDialogueExit(text);
+      if (this._endDialogue && this._dialogueEnabled()) {
+        this._status = "Conversation ended // microphone offline";
+        this._stop(false, true);
+        return;
+      }
       this._status = `Heard // ${text || "processing"}`;
     }
     else if (type === "intent-end") {
@@ -1407,7 +1513,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._pttLastSpeechAt = now;
       return;
     }
-    const silenceMs = Number(this._config.silence_timeout || 0.9) * 1000;
+    const silenceMs = (this._dialogueEnabled() ? 1.8 : Number(this._config.silence_timeout || 0.9)) * 1000;
     if (now - this._pttLastSpeechAt >= silenceMs) this._finishAudio();
   }
   _sendNativePcm(encoded) {
@@ -1431,7 +1537,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       return;
     }
     if (level > 0.007) this._pttLastSpeechAt = now;
-    else if (now - this._pttLastSpeechAt >= Number(this._config.silence_timeout || 0.9) * 1000) this._finishAudio();
+    else if (now - this._pttLastSpeechAt >= (this._dialogueEnabled() ? 1.8 : Number(this._config.silence_timeout || 0.9)) * 1000) this._finishAudio();
   }
   _finishAudio() {
     if (this._handlerId === undefined || this._handlerId === null) return;
@@ -1442,6 +1548,18 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._paintStatus();
   }
   _pipelineEnded() {
+    if (this._config.reliable_voice === true && this._reliableSubmitted && !this._endDialogue && !this._intentHasSpeech) {
+      // Event playback owns completion; Assist run-end is not answer-end.
+      this._stop(false, true, false);
+      return;
+    }
+    if (this._dialogueEnabled() && this._reliableSubmitted && this._intentHasSpeech) {
+      const generation = this._pipelineGeneration;
+      Promise.resolve(this._ttsPromise).then(() => {
+        if (generation === this._pipelineGeneration) return this._finishDialogueTurn();
+      }).catch(() => this._stop(false, true));
+      return;
+    }
     if (this._mode === "wake") {
       this._status = this._ttsPromise ? "Speaking response" : "Rearming wake word";
       this._paintStatus();
@@ -1467,6 +1585,12 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     return ["thank you", "thanks", "thats all", "that is all", "cancel", "stop listening", "goodbye"].includes(normalized);
   }
   _followUpTimedOut(generation) {
+    if (this._dialogueEnabled()) {
+      if (generation !== this._pipelineGeneration || !this._followUpMode) return;
+      if (this._dialogueOrigin === "wake") this._start("wake", false);
+      else this._stop(false);
+      return;
+    }
     if (generation !== this._pipelineGeneration || !this._followUpMode || this._mode !== "wake") return;
     this._pipelineGeneration += 1;
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = undefined; }
@@ -1479,10 +1603,34 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._status = `Pipeline error // ${error.message}`; this._paintStatus();
     }), 400);
   }
+  _dialogueEnabled() {
+    return this._config?.reliable_voice === true
+      && this._config?.follow_up_target === "development_computer"
+      && this._config?.hands_free !== false;
+  }
+  async _finishDialogueTurn() {
+    if (this._endDialogue || this._config.conversational_mode === false) {
+      await this._stop(false);
+      return;
+    }
+    await this._start(this._dialogueOrigin || "ptt", true);
+  }
   async _receiveFollowUp(data) {
     const configuredTarget = this._config?.follow_up_target || "development_computer";
     if (!configuredTarget || data?.target_id !== configuredTarget) return;
     if (data?.conversation_id && data.conversation_id !== this._conversationId) return;
+    if (this._config.reliable_voice === true) {
+      const turn = this._voiceTurn;
+      if (data.protocol !== 2 || data.request_id !== turn?.requestId || !turn.active) return;
+      this._voiceTiming ||= {};
+      this._voiceTiming[`${data.stage}_received`] = performance.now();
+      await this._stop(false, true, false);
+      if (turn !== this._voiceTurn || !turn.active) return;
+      this._status = data.stage === "final" ? "Speaking answer" : "Working";
+      this._paintStatus();
+      await turn.accept(data);
+      return;
+    }
     const message = String(data?.message || "").trim().slice(0, 700);
     if (!message) return;
     const restartWake = this._mode === "wake";
@@ -1507,6 +1655,19 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     return new Promise(async (resolve, reject) => {
       let playback;
       let unsubscribe;
+      let settled = false;
+      const generation = this._playbackGeneration;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        unsubscribe?.();
+        if (this._ttsCancel === cancel) this._ttsCancel = undefined;
+        error ? reject(error) : resolve();
+      };
+      const cancel = () => finish(new Error("Speech cancelled"));
+      this._ttsCancel = cancel;
+      const timer = setTimeout(() => finish(new Error("Speech service did not complete; check Jarvis Voice")), 60000);
       const message = {
         type: "assist_pipeline/run", start_stage: "tts", end_stage: "tts",
         input: { text }, timeout: 300,
@@ -1515,17 +1676,19 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       if (this._config.device_id) message.device_id = this._config.device_id;
       try {
         unsubscribe = await this._hass.connection.subscribeMessage((payload) => {
+          if (settled || generation !== this._playbackGeneration) return;
           const event = payload?.event || payload;
           const data = event?.data || {};
           if (event?.type === "tts-end") playback = this._playTts(data.url || data.tts_output?.url);
           else if (event?.type === "error") {
-            unsubscribe?.();
-            reject(new Error(data.message || data.code || "TTS pipeline failed"));
+            finish(new Error(data.message || data.code || "TTS pipeline failed"));
           } else if (event?.type === "run-end") {
-            Promise.resolve(playback).then(resolve, reject).finally(() => unsubscribe?.());
+            if (!playback) finish(new Error("Speech service returned no audio"));
+            else Promise.resolve(playback).then(() => finish(), finish);
           }
         }, message);
-      } catch (error) { reject(error); }
+        if (settled) unsubscribe?.();
+      } catch (error) { finish(error); }
     });
   }
   async _playTts(url) {
@@ -1559,10 +1722,18 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
             resolve();
           };
           source.start();
+          if (this._dialogueEnabled()) {
+            const baseline = this._voiceTiming?.transcript_ready;
+            console.info("Jarvis voice timing", {
+              transcript_to_audio_ms: baseline ? Math.round(performance.now() - baseline) : null,
+              final_received: Boolean(this._voiceTiming?.final_received),
+            });
+          }
         });
       } catch (error) {
         this._status = `Playback error // ${error?.message || "audio blocked"}`;
         this._paintStatus();
+        if (this._config.reliable_voice === true) throw error;
       }
     };
     this._playbackQueue = this._playbackQueue.catch(() => {}).then(play);
@@ -1570,6 +1741,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
   _cancelPlayback() {
     this._playbackGeneration += 1;
+    this._ttsCancel?.();
     const source = this._activePlaybackSource;
     this._activePlaybackSource = undefined;
     if (source) {
@@ -1580,6 +1752,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._ttsPromise = undefined;
   }
   async _stop(render = true, keepStatus = false, cancelPlayback = true) {
+    if (cancelPlayback) this._voiceTurn?.cancel();
     clearTimeout(this._restartTimer);
     clearTimeout(this._followUpTimer);
     this._pipelineGeneration += 1;
@@ -2527,7 +2700,7 @@ class JarvisClockDashboardCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this._satellite = new JarvisVoiceSatelliteCard();
+    this._satellite = document.createElement("jarvis-voice-satellite-card");
     this._satellite.setConfig({
       title: "Bedroom Jarvis Satellite", follow_up_target: "bedroom_clock",
       pipeline_id: "preferred", wake_word_phrase: "Hey Jarvis", conversational_mode: true,
@@ -3027,7 +3200,7 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = {}; this._forecast = null; this._forecastLoading = false; this._forecastLoadedAt = 0;
     this._activeMenu = null; this._actionFeedback = "";
-    this._satellite = new JarvisVoiceSatelliteCard();
+    this._satellite = document.createElement("jarvis-voice-satellite-card");
     this._satellite.setConfig({ title: "NSPanel Jarvis", follow_up_target: "nspanel_test", pipeline_id: "preferred", silence_timeout: 0.9, conversational_mode: false });
     this._voiceTicker = setInterval(() => {
       const status = this.shadowRoot?.querySelector(".voice-status");
@@ -3039,7 +3212,29 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
   set hass(value) { this._hass = value; this._satellite.hass = value; this.loadForecast(); this.render(); }
   getCardSize() { return 1; }
   extendedForecastEnabled() { return this._config.extended_forecast === true || new URLSearchParams(window.location.search).get("forecast") === "extended"; }
-  advancedControlsEnabled() { return this._config.advanced_controls === true || new URLSearchParams(window.location.search).get("controls") === "advanced"; }
+  advancedControlsEnabled() { return this._config.advanced_controls !== false; }
+  lightTargets() { return [...new Set([this._config.light_entity || "light.interior_lights", ...(this._config.light_extra_entities ?? ["switch.lights_windows_living_room"])])]; }
+  lightsOn() { return this.lightTargets().some((id) => this._hass?.states?.[id]?.state === "on"); }
+  async toggleLights() {
+    if (this._lightsBusy) return;
+    this._lightsBusy = true;
+    try {
+      await this._hass.callService("homeassistant", this.lightsOn() ? "turn_off" : "turn_on", {}, {entity_id: this.lightTargets()});
+      this._lightFeedback = "";
+    } catch (error) { this._lightFeedback = `LIGHTS FAILED // ${error?.message || "Check connection"}`; }
+    finally { this._lightsBusy = false; this.render(); }
+  }
+  actionUnavailable(action) {
+    if (!action) return "Control not configured";
+    const [, domain, service, entityId] = action;
+    const entity = this._hass?.states?.[entityId];
+    if (!entity) return "Entity missing in HA";
+    if (entity.state === "unavailable" || (domain !== "button" && entity.state === "unknown")) return "Device unavailable";
+    if (!this._hass?.services?.[domain]?.[service]) return "Action unavailable in HA";
+    const mask = domain === "vacuum" ? {start:8192, pause:4, stop:8, return_to_base:16}[service] : domain === "lawn_mower" && service === "pause" ? 2 : 0;
+    if (mask && !(Number(entity.attributes?.supported_features || 0) & mask)) return "Device does not support this action";
+    return "";
+  }
   state(key, fallback) { return this._hass?.states?.[this._config[key] || fallback]; }
   call(domain, service, entity) { return this._hass?.callService(domain, service, { entity_id: entity }); }
   async loadForecast() {
@@ -3077,20 +3272,24 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
         ["RETURN TO DOCK", "vacuum", "return_to_base", vacuum, "mdi:home-import-outline"],
       ],
       washer: [
-        ["START", "button", "press", this._config.washer_start_entity || "button.vaskepott_start", "mdi:play"],
+        ["START WASHING", "button", "press", this._config.washer_start_entity || "button.vaskepott_start", "mdi:play"],
         ["PAUSE", "button", "press", this._config.washer_pause_entity || "button.vaskepott_pause", "mdi:pause"],
         ["SHUT DOWN", "button", "press", this._config.washer_stop_entity || "button.vaskepott_shutdown", "mdi:power"],
       ],
     }[menu] || [];
   }
   async runAction(action) {
+    if (this._actionBusy) return;
+    const unavailable = this.actionUnavailable(action);
+    if (unavailable) { this._actionFeedback = unavailable; this.render(); return; }
     const [label, domain, service, entityId] = action;
+    this._actionBusy = true;
     this._actionFeedback = `SENDING // ${label}`; this.render();
     try {
       await this._hass.callService(domain, service, {}, { entity_id: entityId });
-      this._actionFeedback = `COMMAND ACCEPTED // ${label}`; this.render();
-      setTimeout(() => { this._activeMenu = null; this._actionFeedback = ""; this.render(); }, 900);
+      this._actionFeedback = `SENT TO HA // ${label}. Check device status.`;
     } catch (error) { this._actionFeedback = `COMMAND FAILED // ${error?.message || "SERVICE UNAVAILABLE"}`; this.render(); }
+    finally { this._actionBusy = false; this.render(); }
   }
   closeMenu() {
     if (this._activeMenu === "voice") this._satellite._stop(false);
@@ -3099,7 +3298,7 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
   render() {
     if (!this.shadowRoot) return;
     const lightId = this._config.light_entity || "light.interior_lights";
-    const coverId = this._config.cover_entity || "cover.all_blinds";
+    const coverId = this._config.cover_entity || "cover.living_room_blinds";
     const light = this.state("light_entity", lightId);
     const cover = this.state("cover_entity", coverId);
     const weather = this.state("weather_entity", "weather.forecast_home");
@@ -3126,9 +3325,11 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     const actions = this.menuActions(this._activeMenu);
     const overlay = !this._activeMenu ? "" : this._activeMenu === "voice"
       ? `<div class="overlay"><section class="dialog voice-dialog"><button class="close" data-close>×</button><ha-icon class="voice-orb" icon="mdi:microphone-message"></ha-icon><h2>ASK JARVIS</h2><div class="voice-status">${escapeHtml(this._satellite._status)}</div><button class="voice-start" data-voice>${this._satellite._mode === "ptt" ? "LISTENING · AUTO SEND" : "START LISTENING"}</button><small>Audio streams to Home Assistant only</small></section></div>`
-      : `<div class="overlay"><section class="dialog"><button class="close" data-close>×</button><div class="dialog-title">${escapeHtml(this._activeMenu)} CONTROL</div><div class="dialog-state">CURRENT // ${escapeHtml(activeState?.state || "unavailable")}</div><div class="actions">${actions.map((action, index) => { const target = this._hass?.states?.[action[3]]; const disabled = !target || target.state === "unavailable"; return `<button data-command="${index}" ${disabled ? "disabled" : ""}><ha-icon icon="${action[4]}"></ha-icon>${action[0]}</button>`; }).join("")}</div><div class="feedback">${escapeHtml(this._actionFeedback || "SELECT OPERATION")}</div></section></div>`;
+      : `<div class="overlay"><section class="dialog"><button class="close" data-close aria-label="Close menu">×</button><div class="dialog-title">${escapeHtml(this._activeMenu)} CONTROL</div><div class="dialog-state">CURRENT // ${escapeHtml(activeState?.state || "unavailable")}</div>${this._activeMenu === "washer" ? '<div class="device-help">Prepare the program and close the door. Enable remote start on the machine if required.</div>' : ""}<div class="actions">${actions.map((action, index) => { const reason = this.actionUnavailable(action); const disabled = reason || this._actionBusy; return `<button data-command="${index}" ${disabled ? "disabled" : ""}><ha-icon icon="${action[4]}"></ha-icon>${action[0]}${reason ? `<small>${escapeHtml(reason)}</small>` : ""}</button>`; }).join("")}</div><div class="feedback" role="status">${escapeHtml(this._actionFeedback || "SELECT OPERATION")}</div></section></div>`;
     this.shadowRoot.innerHTML = `<style>
+      .device-help{font:11px/1.35 monospace;color:#9edbea;margin-top:10px;padding-right:8px}.actions small{font:9px/1.2 monospace}.dialog-title{padding-right:45px}.hint{flex-wrap:wrap;overflow-wrap:anywhere}.dialog{max-height:calc(100vh - 24px)!important}.overlay{padding:12px!important}
       :host{position:fixed;inset:0;z-index:9999;display:block;color:#e8fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden;background:#020914}*{box-sizing:border-box}
+      ${new URLSearchParams(window.location.search).get("edit") === "1" ? ":host{position:relative;inset:auto;z-index:auto;height:480px}" : ""}
       .deck{height:100%;padding:8px;display:grid;grid-template-rows:30px ${extendedForecast ? "78px" : "58px"} 1fr 100px;gap:7px;background:radial-gradient(circle at 50% 22%,rgba(0,153,255,.2),transparent 42%),linear-gradient(145deg,#020914,#05213a);overflow:hidden}
       header{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;border-bottom:1px solid #16d7ff;font:800 10px/1 monospace;letter-spacing:.16em;color:#16d7ff;text-transform:uppercase}header b{font-size:15px;color:#e8fbff}.jarvis-mic{width:30px;height:26px;border:1px solid #16d7ff;background:rgba(22,215,255,.08);color:#16d7ff;display:grid;place-items:center;padding:0}.jarvis-mic ha-icon{--mdc-icon-size:18px}
       .weather{padding:5px 9px;display:grid;grid-template-columns:126px 1fr;align-items:center;gap:7px}.current{height:100%;padding-right:7px;border-right:1px solid rgba(22,215,255,.35);display:grid;grid-template-columns:36px 1fr;align-items:center;gap:6px}.current ha-icon{width:32px;height:32px;--mdc-icon-size:32px;color:#16d7ff;filter:drop-shadow(0 0 10px rgba(22,215,255,.45))}.current strong{display:block;font:900 11px monospace;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.current span{display:block;margin-top:2px;font:700 8px monospace;color:#9edbea;text-transform:uppercase}.temperature{font:900 20px monospace;color:#16d7ff}.days{height:100%;display:grid;grid-template-columns:repeat(4,1fr);align-items:center}.day{min-width:0;text-align:center;border-left:1px solid rgba(22,215,255,.16)}.day:first-child{border-left:0}.day b{display:block;font:900 8px monospace;letter-spacing:.06em;color:#9edbea}.day ha-icon{display:block;margin:3px auto;width:25px;height:25px;--mdc-icon-size:25px;color:#16d7ff}.day span{font:900 10px monospace;white-space:nowrap}.day i{font-style:normal;color:#7da9b7}
@@ -3138,10 +3339,10 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
       .statuses{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.status{padding:10px;display:grid;grid-template-columns:38px 1fr;align-items:center;gap:7px}.status.interactive{cursor:pointer;touch-action:manipulation}.status.interactive:active{background:#16d7ff;color:#00131c}.glyph{width:30px;height:30px;color:#16d7ff;filter:drop-shadow(0 0 8px rgba(22,215,255,.4))}.status strong{display:block;font:900 9px monospace;letter-spacing:.12em;color:#16d7ff}.status span{display:block;margin-top:5px;font:800 12px monospace;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .overlay{position:fixed;inset:0;z-index:20;background:rgba(0,5,12,.9);display:grid;place-items:center;padding:20px}.dialog{width:min(430px,100%);max-height:440px;padding:20px;border:1px solid #16d7ff;background:linear-gradient(145deg,#03101c,#07304b);box-shadow:0 0 35px rgba(22,215,255,.25);position:relative}.close{position:absolute;right:10px;top:8px;width:44px;height:40px;border:1px solid #16d7ff;background:#061826;color:#e8fbff;font-size:25px}.dialog-title{font:900 18px monospace;letter-spacing:.12em;color:#16d7ff;text-transform:uppercase}.dialog-state,.feedback{margin-top:8px;font:800 10px monospace;letter-spacing:.1em;color:#9edbea;text-transform:uppercase}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.actions button,.voice-start{min-height:70px;border:1px solid #16d7ff;background:#061826;color:#e8fbff;font:900 11px monospace;display:grid;place-items:center;gap:5px}.actions button ha-icon{--mdc-icon-size:28px;color:#16d7ff}.actions button:disabled{opacity:.28}.feedback{min-height:14px;text-align:center}.voice-dialog{text-align:center}.voice-orb{width:90px;height:90px;--mdc-icon-size:70px;color:#16d7ff;filter:drop-shadow(0 0 18px #16d7ff)}.voice-dialog h2{font:900 20px monospace;color:#16d7ff}.voice-status{min-height:34px;font:800 10px monospace;text-transform:uppercase}.voice-start{width:100%;margin-top:12px}.voice-dialog small{display:block;margin-top:12px;color:#9edbea;font:700 8px monospace;text-transform:uppercase}
     </style><div class="deck"><header><span>Jarvis Home Control</span>${advancedControls ? '<button class="jarvis-mic" data-menu="voice"><ha-icon icon="mdi:microphone"></ha-icon></button>' : ""}<b>${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</b></header>${extendedForecast ? `<section class="panel weather"><div class="current"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><span>${humidity == null ? "CURRENT" : `HUM ${escapeHtml(humidity)}%`}</span></div></div><div class="days">${forecastHtml || '<div class="day"><b>FORECAST</b><span>LOADING</span></div>'}</div></section>` : `<section class="panel weather basic"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><span>Home forecast${humidity == null ? "" : ` · Humidity ${escapeHtml(humidity)}%`}</span></div><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div></section>`}<div class="controls">
-      <section class="panel main" data-panel="light"><div class="label">INTERIOR LIGHTS</div><div class="value"><ha-icon icon="mdi:lightbulb-group"></ha-icon>${escapeHtml(light?.state || "unavailable")}</div><div class="hint"><span>TOUCH TO TOGGLE</span><span>${light?.state === "on" ? "ACTIVE" : "STANDBY"}</span></div></section>
-      <section class="panel main" data-panel="cover"><div class="label">ALL BLINDS</div><div class="value"><ha-icon icon="mdi:blinds-horizontal"></ha-icon>${escapeHtml(cover?.state || "unavailable")}</div><div class="hint"><span>TOUCH ${["open","opening"].includes(cover?.state) ? "TO LOWER" : "TO RAISE"}</span><span>${["open","opening"].includes(cover?.state) ? "OPEN" : "CLOSED"}</span></div></section>
+      <section class="panel main" data-panel="light"><div class="label">INTERIOR LIGHTS</div><div class="value"><ha-icon icon="mdi:lightbulb-group"></ha-icon>${this.lightsOn() ? "on" : "off"}</div><div class="hint"><span>${escapeHtml(this._lightFeedback || (this.lightTargets().length > 1 ? "INCLUDING WINDOW LIGHTS" : "TOUCH TO TOGGLE"))}</span><span>${this.lightsOn() ? "ACTIVE" : "STANDBY"}</span></div></section>
+      <section class="panel main" data-panel="cover"><div class="label">LIVING ROOM BLINDS</div><div class="value"><ha-icon icon="mdi:blinds-horizontal"></ha-icon>${escapeHtml(cover?.state || "unavailable")}</div><div class="hint"><span>TOUCH ${["open","opening"].includes(cover?.state) ? "TO LOWER" : "TO RAISE"}</span><span>${["open","opening"].includes(cover?.state) ? "OPEN" : "CLOSED"}</span></div></section>
     </div><div class="statuses">${status.map(([key,name,item,icon]) => `<section class="panel status ${advancedControls ? "interactive" : ""}" ${advancedControls ? `data-menu="${key}"` : ""}><ha-icon class="glyph" icon="${icon}"></ha-icon><div><strong>${name}</strong><span>${escapeHtml(item?.state || "unavailable")}</span></div></section>`).join("")}</div></div>${overlay}`;
-    this.shadowRoot.querySelector('[data-panel="light"]')?.addEventListener("click", () => this.call("light", "toggle", lightId));
+    this.shadowRoot.querySelector('[data-panel="light"]')?.addEventListener("click", () => this.toggleLights());
     this.shadowRoot.querySelector('[data-panel="cover"]')?.addEventListener("click", () => this.call("cover", ["open", "opening"].includes(cover?.state) ? "close_cover" : "open_cover", coverId));
     this.shadowRoot.querySelectorAll("[data-menu]").forEach((node) => node.addEventListener("click", () => { this._activeMenu = node.dataset.menu; this._actionFeedback = ""; this.render(); }));
     this.shadowRoot.querySelector("[data-close]")?.addEventListener("click", () => this.closeMenu());
@@ -3256,6 +3457,11 @@ const CARD_DOMAINS = new Map([
 ]);
 
 window.customCards = window.customCards || [];
+// Dashboards can upgrade synchronously when registered. Register their embedded
+// satellite first, and reuse the registered constructor across resource reloads.
+if (!customElements.get("jarvis-voice-satellite-card")) {
+  customElements.define("jarvis-voice-satellite-card", JarvisVoiceSatelliteCard);
+}
 for (const [tag, klass, name, description] of CARD_DEFINITIONS) {
   if (!customElements.get(tag)) customElements.define(tag, klass);
   if (!window.customCards.some((card) => card.type === tag)) {

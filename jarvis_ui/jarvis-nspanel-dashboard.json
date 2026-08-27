@@ -14,6 +14,9 @@
             {
               "type": "custom:jarvis-nspanel-dashboard-card",
               "light_entity": "light.interior_lights",
+              "light_extra_entities": ["switch.lights_windows_living_room"],
+              "advanced_controls": true,
+              "extended_forecast": true,
               "cover_entity": "cover.living_room_blinds",
               "mower_entity": "lawn_mower.edward_scissorhand_lawn_mower",
               "vacuum_entity": "sensor.alfred_status",

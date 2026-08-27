@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.41";
+const JARVIS_UI_VERSION = "0.47.42";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2700,7 +2700,7 @@ class JarvisClockDashboardCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this._satellite = new JarvisVoiceSatelliteCard();
+    this._satellite = document.createElement("jarvis-voice-satellite-card");
     this._satellite.setConfig({
       title: "Bedroom Jarvis Satellite", follow_up_target: "bedroom_clock",
       pipeline_id: "preferred", wake_word_phrase: "Hey Jarvis", conversational_mode: true,
@@ -3200,7 +3200,7 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = {}; this._forecast = null; this._forecastLoading = false; this._forecastLoadedAt = 0;
     this._activeMenu = null; this._actionFeedback = "";
-    this._satellite = new JarvisVoiceSatelliteCard();
+    this._satellite = document.createElement("jarvis-voice-satellite-card");
     this._satellite.setConfig({ title: "NSPanel Jarvis", follow_up_target: "nspanel_test", pipeline_id: "preferred", silence_timeout: 0.9, conversational_mode: false });
     this._voiceTicker = setInterval(() => {
       const status = this.shadowRoot?.querySelector(".voice-status");
@@ -3212,7 +3212,29 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
   set hass(value) { this._hass = value; this._satellite.hass = value; this.loadForecast(); this.render(); }
   getCardSize() { return 1; }
   extendedForecastEnabled() { return this._config.extended_forecast === true || new URLSearchParams(window.location.search).get("forecast") === "extended"; }
-  advancedControlsEnabled() { return this._config.advanced_controls === true || new URLSearchParams(window.location.search).get("controls") === "advanced"; }
+  advancedControlsEnabled() { return this._config.advanced_controls !== false; }
+  lightTargets() { return [...new Set([this._config.light_entity || "light.interior_lights", ...(this._config.light_extra_entities ?? ["switch.lights_windows_living_room"])])]; }
+  lightsOn() { return this.lightTargets().some((id) => this._hass?.states?.[id]?.state === "on"); }
+  async toggleLights() {
+    if (this._lightsBusy) return;
+    this._lightsBusy = true;
+    try {
+      await this._hass.callService("homeassistant", this.lightsOn() ? "turn_off" : "turn_on", {}, {entity_id: this.lightTargets()});
+      this._lightFeedback = "";
+    } catch (error) { this._lightFeedback = `LIGHTS FAILED // ${error?.message || "Check connection"}`; }
+    finally { this._lightsBusy = false; this.render(); }
+  }
+  actionUnavailable(action) {
+    if (!action) return "Control not configured";
+    const [, domain, service, entityId] = action;
+    const entity = this._hass?.states?.[entityId];
+    if (!entity) return "Entity missing in HA";
+    if (entity.state === "unavailable" || (domain !== "button" && entity.state === "unknown")) return "Device unavailable";
+    if (!this._hass?.services?.[domain]?.[service]) return "Action unavailable in HA";
+    const mask = domain === "vacuum" ? {start:8192, pause:4, stop:8, return_to_base:16}[service] : domain === "lawn_mower" && service === "pause" ? 2 : 0;
+    if (mask && !(Number(entity.attributes?.supported_features || 0) & mask)) return "Device does not support this action";
+    return "";
+  }
   state(key, fallback) { return this._hass?.states?.[this._config[key] || fallback]; }
   call(domain, service, entity) { return this._hass?.callService(domain, service, { entity_id: entity }); }
   async loadForecast() {
@@ -3250,20 +3272,24 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
         ["RETURN TO DOCK", "vacuum", "return_to_base", vacuum, "mdi:home-import-outline"],
       ],
       washer: [
-        ["START", "button", "press", this._config.washer_start_entity || "button.vaskepott_start", "mdi:play"],
+        ["START WASHING", "button", "press", this._config.washer_start_entity || "button.vaskepott_start", "mdi:play"],
         ["PAUSE", "button", "press", this._config.washer_pause_entity || "button.vaskepott_pause", "mdi:pause"],
         ["SHUT DOWN", "button", "press", this._config.washer_stop_entity || "button.vaskepott_shutdown", "mdi:power"],
       ],
     }[menu] || [];
   }
   async runAction(action) {
+    if (this._actionBusy) return;
+    const unavailable = this.actionUnavailable(action);
+    if (unavailable) { this._actionFeedback = unavailable; this.render(); return; }
     const [label, domain, service, entityId] = action;
+    this._actionBusy = true;
     this._actionFeedback = `SENDING // ${label}`; this.render();
     try {
       await this._hass.callService(domain, service, {}, { entity_id: entityId });
-      this._actionFeedback = `COMMAND ACCEPTED // ${label}`; this.render();
-      setTimeout(() => { this._activeMenu = null; this._actionFeedback = ""; this.render(); }, 900);
+      this._actionFeedback = `SENT TO HA // ${label}. Check device status.`;
     } catch (error) { this._actionFeedback = `COMMAND FAILED // ${error?.message || "SERVICE UNAVAILABLE"}`; this.render(); }
+    finally { this._actionBusy = false; this.render(); }
   }
   closeMenu() {
     if (this._activeMenu === "voice") this._satellite._stop(false);
@@ -3272,7 +3298,7 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
   render() {
     if (!this.shadowRoot) return;
     const lightId = this._config.light_entity || "light.interior_lights";
-    const coverId = this._config.cover_entity || "cover.all_blinds";
+    const coverId = this._config.cover_entity || "cover.living_room_blinds";
     const light = this.state("light_entity", lightId);
     const cover = this.state("cover_entity", coverId);
     const weather = this.state("weather_entity", "weather.forecast_home");
@@ -3299,9 +3325,11 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     const actions = this.menuActions(this._activeMenu);
     const overlay = !this._activeMenu ? "" : this._activeMenu === "voice"
       ? `<div class="overlay"><section class="dialog voice-dialog"><button class="close" data-close>×</button><ha-icon class="voice-orb" icon="mdi:microphone-message"></ha-icon><h2>ASK JARVIS</h2><div class="voice-status">${escapeHtml(this._satellite._status)}</div><button class="voice-start" data-voice>${this._satellite._mode === "ptt" ? "LISTENING · AUTO SEND" : "START LISTENING"}</button><small>Audio streams to Home Assistant only</small></section></div>`
-      : `<div class="overlay"><section class="dialog"><button class="close" data-close>×</button><div class="dialog-title">${escapeHtml(this._activeMenu)} CONTROL</div><div class="dialog-state">CURRENT // ${escapeHtml(activeState?.state || "unavailable")}</div><div class="actions">${actions.map((action, index) => { const target = this._hass?.states?.[action[3]]; const disabled = !target || target.state === "unavailable"; return `<button data-command="${index}" ${disabled ? "disabled" : ""}><ha-icon icon="${action[4]}"></ha-icon>${action[0]}</button>`; }).join("")}</div><div class="feedback">${escapeHtml(this._actionFeedback || "SELECT OPERATION")}</div></section></div>`;
+      : `<div class="overlay"><section class="dialog"><button class="close" data-close aria-label="Close menu">×</button><div class="dialog-title">${escapeHtml(this._activeMenu)} CONTROL</div><div class="dialog-state">CURRENT // ${escapeHtml(activeState?.state || "unavailable")}</div>${this._activeMenu === "washer" ? '<div class="device-help">Prepare the program and close the door. Enable remote start on the machine if required.</div>' : ""}<div class="actions">${actions.map((action, index) => { const reason = this.actionUnavailable(action); const disabled = reason || this._actionBusy; return `<button data-command="${index}" ${disabled ? "disabled" : ""}><ha-icon icon="${action[4]}"></ha-icon>${action[0]}${reason ? `<small>${escapeHtml(reason)}</small>` : ""}</button>`; }).join("")}</div><div class="feedback" role="status">${escapeHtml(this._actionFeedback || "SELECT OPERATION")}</div></section></div>`;
     this.shadowRoot.innerHTML = `<style>
+      .device-help{font:11px/1.35 monospace;color:#9edbea;margin-top:10px;padding-right:8px}.actions small{font:9px/1.2 monospace}.dialog-title{padding-right:45px}.hint{flex-wrap:wrap;overflow-wrap:anywhere}.dialog{max-height:calc(100vh - 24px)!important}.overlay{padding:12px!important}
       :host{position:fixed;inset:0;z-index:9999;display:block;color:#e8fbff;font-family:Inter,Roboto,sans-serif;overflow:hidden;background:#020914}*{box-sizing:border-box}
+      ${new URLSearchParams(window.location.search).get("edit") === "1" ? ":host{position:relative;inset:auto;z-index:auto;height:480px}" : ""}
       .deck{height:100%;padding:8px;display:grid;grid-template-rows:30px ${extendedForecast ? "78px" : "58px"} 1fr 100px;gap:7px;background:radial-gradient(circle at 50% 22%,rgba(0,153,255,.2),transparent 42%),linear-gradient(145deg,#020914,#05213a);overflow:hidden}
       header{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;border-bottom:1px solid #16d7ff;font:800 10px/1 monospace;letter-spacing:.16em;color:#16d7ff;text-transform:uppercase}header b{font-size:15px;color:#e8fbff}.jarvis-mic{width:30px;height:26px;border:1px solid #16d7ff;background:rgba(22,215,255,.08);color:#16d7ff;display:grid;place-items:center;padding:0}.jarvis-mic ha-icon{--mdc-icon-size:18px}
       .weather{padding:5px 9px;display:grid;grid-template-columns:126px 1fr;align-items:center;gap:7px}.current{height:100%;padding-right:7px;border-right:1px solid rgba(22,215,255,.35);display:grid;grid-template-columns:36px 1fr;align-items:center;gap:6px}.current ha-icon{width:32px;height:32px;--mdc-icon-size:32px;color:#16d7ff;filter:drop-shadow(0 0 10px rgba(22,215,255,.45))}.current strong{display:block;font:900 11px monospace;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.current span{display:block;margin-top:2px;font:700 8px monospace;color:#9edbea;text-transform:uppercase}.temperature{font:900 20px monospace;color:#16d7ff}.days{height:100%;display:grid;grid-template-columns:repeat(4,1fr);align-items:center}.day{min-width:0;text-align:center;border-left:1px solid rgba(22,215,255,.16)}.day:first-child{border-left:0}.day b{display:block;font:900 8px monospace;letter-spacing:.06em;color:#9edbea}.day ha-icon{display:block;margin:3px auto;width:25px;height:25px;--mdc-icon-size:25px;color:#16d7ff}.day span{font:900 10px monospace;white-space:nowrap}.day i{font-style:normal;color:#7da9b7}
@@ -3311,10 +3339,10 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
       .statuses{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.status{padding:10px;display:grid;grid-template-columns:38px 1fr;align-items:center;gap:7px}.status.interactive{cursor:pointer;touch-action:manipulation}.status.interactive:active{background:#16d7ff;color:#00131c}.glyph{width:30px;height:30px;color:#16d7ff;filter:drop-shadow(0 0 8px rgba(22,215,255,.4))}.status strong{display:block;font:900 9px monospace;letter-spacing:.12em;color:#16d7ff}.status span{display:block;margin-top:5px;font:800 12px monospace;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .overlay{position:fixed;inset:0;z-index:20;background:rgba(0,5,12,.9);display:grid;place-items:center;padding:20px}.dialog{width:min(430px,100%);max-height:440px;padding:20px;border:1px solid #16d7ff;background:linear-gradient(145deg,#03101c,#07304b);box-shadow:0 0 35px rgba(22,215,255,.25);position:relative}.close{position:absolute;right:10px;top:8px;width:44px;height:40px;border:1px solid #16d7ff;background:#061826;color:#e8fbff;font-size:25px}.dialog-title{font:900 18px monospace;letter-spacing:.12em;color:#16d7ff;text-transform:uppercase}.dialog-state,.feedback{margin-top:8px;font:800 10px monospace;letter-spacing:.1em;color:#9edbea;text-transform:uppercase}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.actions button,.voice-start{min-height:70px;border:1px solid #16d7ff;background:#061826;color:#e8fbff;font:900 11px monospace;display:grid;place-items:center;gap:5px}.actions button ha-icon{--mdc-icon-size:28px;color:#16d7ff}.actions button:disabled{opacity:.28}.feedback{min-height:14px;text-align:center}.voice-dialog{text-align:center}.voice-orb{width:90px;height:90px;--mdc-icon-size:70px;color:#16d7ff;filter:drop-shadow(0 0 18px #16d7ff)}.voice-dialog h2{font:900 20px monospace;color:#16d7ff}.voice-status{min-height:34px;font:800 10px monospace;text-transform:uppercase}.voice-start{width:100%;margin-top:12px}.voice-dialog small{display:block;margin-top:12px;color:#9edbea;font:700 8px monospace;text-transform:uppercase}
     </style><div class="deck"><header><span>Jarvis Home Control</span>${advancedControls ? '<button class="jarvis-mic" data-menu="voice"><ha-icon icon="mdi:microphone"></ha-icon></button>' : ""}<b>${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</b></header>${extendedForecast ? `<section class="panel weather"><div class="current"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div><span>${humidity == null ? "CURRENT" : `HUM ${escapeHtml(humidity)}%`}</span></div></div><div class="days">${forecastHtml || '<div class="day"><b>FORECAST</b><span>LOADING</span></div>'}</div></section>` : `<section class="panel weather basic"><ha-icon icon="${this.weatherIcon(weather?.state)}"></ha-icon><div><strong>${escapeHtml(condition)}</strong><span>Home forecast${humidity == null ? "" : ` · Humidity ${escapeHtml(humidity)}%`}</span></div><div class="temperature">${temperature == null ? "--" : `${Math.round(temperature)}°`}</div></section>`}<div class="controls">
-      <section class="panel main" data-panel="light"><div class="label">INTERIOR LIGHTS</div><div class="value"><ha-icon icon="mdi:lightbulb-group"></ha-icon>${escapeHtml(light?.state || "unavailable")}</div><div class="hint"><span>TOUCH TO TOGGLE</span><span>${light?.state === "on" ? "ACTIVE" : "STANDBY"}</span></div></section>
-      <section class="panel main" data-panel="cover"><div class="label">ALL BLINDS</div><div class="value"><ha-icon icon="mdi:blinds-horizontal"></ha-icon>${escapeHtml(cover?.state || "unavailable")}</div><div class="hint"><span>TOUCH ${["open","opening"].includes(cover?.state) ? "TO LOWER" : "TO RAISE"}</span><span>${["open","opening"].includes(cover?.state) ? "OPEN" : "CLOSED"}</span></div></section>
+      <section class="panel main" data-panel="light"><div class="label">INTERIOR LIGHTS</div><div class="value"><ha-icon icon="mdi:lightbulb-group"></ha-icon>${this.lightsOn() ? "on" : "off"}</div><div class="hint"><span>${escapeHtml(this._lightFeedback || (this.lightTargets().length > 1 ? "INCLUDING WINDOW LIGHTS" : "TOUCH TO TOGGLE"))}</span><span>${this.lightsOn() ? "ACTIVE" : "STANDBY"}</span></div></section>
+      <section class="panel main" data-panel="cover"><div class="label">LIVING ROOM BLINDS</div><div class="value"><ha-icon icon="mdi:blinds-horizontal"></ha-icon>${escapeHtml(cover?.state || "unavailable")}</div><div class="hint"><span>TOUCH ${["open","opening"].includes(cover?.state) ? "TO LOWER" : "TO RAISE"}</span><span>${["open","opening"].includes(cover?.state) ? "OPEN" : "CLOSED"}</span></div></section>
     </div><div class="statuses">${status.map(([key,name,item,icon]) => `<section class="panel status ${advancedControls ? "interactive" : ""}" ${advancedControls ? `data-menu="${key}"` : ""}><ha-icon class="glyph" icon="${icon}"></ha-icon><div><strong>${name}</strong><span>${escapeHtml(item?.state || "unavailable")}</span></div></section>`).join("")}</div></div>${overlay}`;
-    this.shadowRoot.querySelector('[data-panel="light"]')?.addEventListener("click", () => this.call("light", "toggle", lightId));
+    this.shadowRoot.querySelector('[data-panel="light"]')?.addEventListener("click", () => this.toggleLights());
     this.shadowRoot.querySelector('[data-panel="cover"]')?.addEventListener("click", () => this.call("cover", ["open", "opening"].includes(cover?.state) ? "close_cover" : "open_cover", coverId));
     this.shadowRoot.querySelectorAll("[data-menu]").forEach((node) => node.addEventListener("click", () => { this._activeMenu = node.dataset.menu; this._actionFeedback = ""; this.render(); }));
     this.shadowRoot.querySelector("[data-close]")?.addEventListener("click", () => this.closeMenu());
@@ -3429,6 +3457,11 @@ const CARD_DOMAINS = new Map([
 ]);
 
 window.customCards = window.customCards || [];
+// Dashboards can upgrade synchronously when registered. Register their embedded
+// satellite first, and reuse the registered constructor across resource reloads.
+if (!customElements.get("jarvis-voice-satellite-card")) {
+  customElements.define("jarvis-voice-satellite-card", JarvisVoiceSatelliteCard);
+}
 for (const [tag, klass, name, description] of CARD_DEFINITIONS) {
   if (!customElements.get(tag)) customElements.define(tag, klass);
   if (!window.customCards.some((card) => card.type === tag)) {
