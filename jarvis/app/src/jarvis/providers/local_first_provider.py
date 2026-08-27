@@ -154,14 +154,18 @@ class LocalFirstReasoningProvider:
         bounded = [item for item in messages if isinstance(item, dict)][
             -self.policy.maximum_input_messages:
         ]
-        for item in bounded:
+        # Reserve space for the current question first, not oldest history.
+        # Otherwise a long preceding answer can silently erase the new request.
+        selected = []
+        for item in reversed(bounded):
             content = str(item.get("content", ""))[:max(0, remaining)]
             if not content:
                 continue
-            ollama_messages.append({
+            selected.append({
                 "role": str(item.get("role", "user")), "content": content
             })
             remaining -= len(content)
+        ollama_messages.extend(reversed(selected))
         payload = {
             "model": model or self.policy.model,
             "messages": ollama_messages,

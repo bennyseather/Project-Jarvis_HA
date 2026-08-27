@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.37";
+const JARVIS_UI_VERSION = "0.47.38";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1067,6 +1067,41 @@ class JarvisVoiceCard extends JarvisBaseCard {
   }
 }
 
+// One request-scoped queue. Admission and playback both validate identity so a
+// queued event cannot survive mute, a new request, reconnect or dashboard reload.
+class JarvisVoiceTurn {
+  constructor(requestId, play, complete) {
+    this.requestId = requestId;
+    this.play = play;
+    this.complete = complete;
+    this.active = true;
+    this.sequence = 0;
+    this.final = false;
+    this.queue = Promise.resolve();
+    this.trace = [];
+  }
+  cancel() { this.active = false; }
+  accept(data) {
+    if (!this.active || this.final || data.request_id !== this.requestId
+      || !["progress", "final"].includes(data.stage)
+      || !Number.isInteger(data.sequence) || data.sequence <= this.sequence) return this.queue;
+    this.sequence = data.sequence;
+    this.final = data.stage === "final";
+    this.queue = this.queue.then(async () => {
+      if (!this.active) return;
+      this.trace.push({stage: data.stage, state: "playing", sequence: data.sequence});
+      await this.play(String(data.message || ""));
+      if (!this.active) return;
+      this.trace.push({stage: data.stage, state: "played", sequence: data.sequence});
+      if (data.stage === "final") {
+        this.active = false;
+        await this.complete();
+      }
+    });
+    return this.queue;
+  }
+}
+
 class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Voice Satellite";
@@ -1112,6 +1147,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
   setConfig(config) {
     super.setConfig({ title: "Jarvis Voice Satellite", follow_up_target: "development_computer", wake_timeout: 15, silence_timeout: 0.9, conversational_mode: true, follow_up_timeout: 7, max_dialogue_turns: 3, ...config });
+    if (this._config.reliable_voice === undefined) this._config.reliable_voice = this._config.follow_up_target === "development_computer";
     if (!this._conversationId) {
       const target = encodeURIComponent(this._config.follow_up_target || "development_computer");
       const session = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1132,7 +1168,9 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     } else this._paintStatus();
   }
   async _acquireFollowUpOwnership(connection) {
+    const ownership = this._ownershipGeneration = (this._ownershipGeneration || 0) + 1;
     const subscribe = async () => {
+      if (ownership !== this._ownershipGeneration) return;
       this._followUpEventSubscription = await connection.subscribeEvents(
         (event) => {
           const deliveryId = event?.data?.delivery_id;
@@ -1151,6 +1189,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
         },
         "jarvis_voice_follow_up",
       );
+      this._followUpOwned = true;
     };
     const locks = globalThis.navigator?.locks;
     if (!locks?.request) {
@@ -1163,14 +1202,19 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
     const target = String(this._config?.follow_up_target || "development_computer").replace(/[^a-z0-9_-]/gi, "_");
     await locks.request(`jarvis-voice-follow-up-${target}`, { mode: "exclusive" }, async () => {
+      if (ownership !== this._ownershipGeneration) return;
       await subscribe();
       await new Promise((resolve) => { this._releaseFollowUpOwnership = resolve; });
       const unsubscribe = await this._followUpEventSubscription;
       this._followUpEventSubscription = undefined;
       unsubscribe?.();
+      this._followUpOwned = false;
     });
   }
   disconnectedCallback() {
+    this._ownershipGeneration = (this._ownershipGeneration || 0) + 1;
+    this._followUpOwnershipStarted = false;
+    this._followUpOwned = false;
     this._stop(false);
     if (this._playbackContext) {
       this._playbackContext.close();
@@ -1220,6 +1264,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._paintStatus();
       return;
     }
+    this._voiceTurn?.cancel();
     await this._stop(false);
     if (!await this._acquireActivationOwnership()) {
       this._status = "Voice satellite already active in another dashboard";
@@ -1227,8 +1272,10 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       return;
     }
     this._mode = mode;
-    this._dialogueTurns = 0;
-    this._endDialogue = false;
+    if (!followUp) {
+      this._dialogueTurns = 0;
+      this._endDialogue = false;
+    }
     this._status = "Requesting microphone permission";
     this._paintStatus();
     try {
@@ -1255,6 +1302,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
   }
   async _acquireActivationOwnership() {
+    if (this._config.reliable_voice === true && !this._followUpOwned) return false;
     if (this._activationLockHeld) return true;
     const locks = globalThis.navigator?.locks;
     if (!locks?.request) return true;
@@ -1272,6 +1320,26 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     return acquired;
   }
   async _runPipeline(followUp = false) {
+    if (this._config.reliable_voice === true) {
+      this._voiceTurn?.cancel();
+      const uuid = () => globalThis.crypto.randomUUID();
+      this._reliableSession ||= uuid();
+      const request = uuid();
+      this._conversationId = `jarvis-voice-v3:${encodeURIComponent(this._config.follow_up_target || "development_computer")}:${this._reliableSession}:${request}`;
+      this._reliableWake = this._mode === "wake";
+      this._voiceTurn = new JarvisVoiceTurn(request,
+        (text) => this._speakFollowUpText(text), async () => {
+          this._dialogueTurns += 1;
+          if (this._reliableWake) {
+            const follow = this._config.conversational_mode !== false && !this._endDialogue
+              && this._dialogueTurns < Number(this._config.max_dialogue_turns || 3);
+            await this._start("wake", follow);
+          } else {
+            this._status = "Answer delivered // microphone offline";
+            this._paintStatus();
+          }
+        });
+    }
     this._intentHasSpeech = false;
     clearTimeout(this._followUpTimer);
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = undefined; }
@@ -1331,6 +1399,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._status = this._followUpMode ? "Follow-up detected // listening" : "Command detected // listening";
     }
     else if (type === "stt-end") {
+      this._handlerId = undefined;
       const text = data.stt_output?.text || "";
       this._endDialogue = this._isDialogueExit(text);
       this._status = `Heard // ${text || "processing"}`;
@@ -1442,6 +1511,11 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._paintStatus();
   }
   _pipelineEnded() {
+    if (this._config.reliable_voice === true && !this._endDialogue) {
+      // Event playback owns completion; Assist run-end is not answer-end.
+      this._stop(false, true, false);
+      return;
+    }
     if (this._mode === "wake") {
       this._status = this._ttsPromise ? "Speaking response" : "Rearming wake word";
       this._paintStatus();
@@ -1483,6 +1557,16 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     const configuredTarget = this._config?.follow_up_target || "development_computer";
     if (!configuredTarget || data?.target_id !== configuredTarget) return;
     if (data?.conversation_id && data.conversation_id !== this._conversationId) return;
+    if (this._config.reliable_voice === true) {
+      const turn = this._voiceTurn;
+      if (data.protocol !== 2 || data.request_id !== turn?.requestId || !turn.active) return;
+      await this._stop(false, true, false);
+      if (turn !== this._voiceTurn || !turn.active) return;
+      this._status = data.stage === "final" ? "Speaking answer" : "Working";
+      this._paintStatus();
+      await turn.accept(data);
+      return;
+    }
     const message = String(data?.message || "").trim().slice(0, 700);
     if (!message) return;
     const restartWake = this._mode === "wake";
@@ -1507,6 +1591,19 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     return new Promise(async (resolve, reject) => {
       let playback;
       let unsubscribe;
+      let settled = false;
+      const generation = this._playbackGeneration;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        unsubscribe?.();
+        if (this._ttsCancel === cancel) this._ttsCancel = undefined;
+        error ? reject(error) : resolve();
+      };
+      const cancel = () => finish(new Error("Speech cancelled"));
+      this._ttsCancel = cancel;
+      const timer = setTimeout(() => finish(new Error("Speech service did not complete; check Jarvis Voice")), 60000);
       const message = {
         type: "assist_pipeline/run", start_stage: "tts", end_stage: "tts",
         input: { text }, timeout: 300,
@@ -1515,17 +1612,19 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       if (this._config.device_id) message.device_id = this._config.device_id;
       try {
         unsubscribe = await this._hass.connection.subscribeMessage((payload) => {
+          if (settled || generation !== this._playbackGeneration) return;
           const event = payload?.event || payload;
           const data = event?.data || {};
           if (event?.type === "tts-end") playback = this._playTts(data.url || data.tts_output?.url);
           else if (event?.type === "error") {
-            unsubscribe?.();
-            reject(new Error(data.message || data.code || "TTS pipeline failed"));
+            finish(new Error(data.message || data.code || "TTS pipeline failed"));
           } else if (event?.type === "run-end") {
-            Promise.resolve(playback).then(resolve, reject).finally(() => unsubscribe?.());
+            if (!playback) finish(new Error("Speech service returned no audio"));
+            else Promise.resolve(playback).then(() => finish(), finish);
           }
         }, message);
-      } catch (error) { reject(error); }
+        if (settled) unsubscribe?.();
+      } catch (error) { finish(error); }
     });
   }
   async _playTts(url) {
@@ -1563,6 +1662,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       } catch (error) {
         this._status = `Playback error // ${error?.message || "audio blocked"}`;
         this._paintStatus();
+        if (this._config.reliable_voice === true) throw error;
       }
     };
     this._playbackQueue = this._playbackQueue.catch(() => {}).then(play);
@@ -1570,6 +1670,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   }
   _cancelPlayback() {
     this._playbackGeneration += 1;
+    this._ttsCancel?.();
     const source = this._activePlaybackSource;
     this._activePlaybackSource = undefined;
     if (source) {
@@ -1580,6 +1681,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._ttsPromise = undefined;
   }
   async _stop(render = true, keepStatus = false, cancelPlayback = true) {
+    if (cancelPlayback) this._voiceTurn?.cancel();
     clearTimeout(this._restartTimer);
     clearTimeout(this._followUpTimer);
     this._pipelineGeneration += 1;

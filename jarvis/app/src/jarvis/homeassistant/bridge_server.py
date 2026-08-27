@@ -2,6 +2,7 @@
 from __future__ import annotations
 import asyncio
 import json
+from urllib.parse import urlparse, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
@@ -22,6 +23,12 @@ class ConversationBridgeServer:
                         payload = outer._bridge._application.container.contextual_routines.insights()
                     elif self.path == "/v1/orchestration":
                         payload = outer._bridge._application.container.efficient_intelligence.metrics()
+                    elif urlparse(self.path).path == "/v1/voice/turn":
+                        controller = outer._bridge._voice_turns
+                        request_id = parse_qs(urlparse(self.path).query).get("request_id", [""])[0]
+                        payload = (asyncio.run_coroutine_threadsafe(
+                            controller.inspect(request_id), outer._loop).result(timeout=5)
+                            if controller else {"state": "not_started"})
                     else:
                         self.send_response(404); self.end_headers(); return
                     body = json.dumps(payload).encode()

@@ -790,7 +790,7 @@ class JarvisApplication:
         )
         request_lock = (
             asyncio.Lock()
-            if route in {"general_reasoning", "current_information"}
+            if route in {"general_reasoning", "current_information"} and not lock_key.startswith("jarvis-voice-v3:")
             else self._request_locks.setdefault(lock_key, asyncio.Lock())
         )
         async with request_lock:
@@ -1032,12 +1032,19 @@ class JarvisApplication:
                 text, self.container.home_reference_context
             )
         )
+        if identifier.startswith("jarvis-voice-v3:"):
+            from jarvis.voice_turns import is_follow_up
+            # Explicit new questions do not inherit unrelated model answers.
+            # Follow-ups receive the last completed exchange, never a cue.
+            history = history[-3:] if is_follow_up(text) else history[-1:]
         context["home_assistant"]["situational"] = (
             self.container.situational_intelligence.context(identifier)
         )
         context["conversation_subject"] = (
             self.container.adaptive_intelligence.subject_context(text, identifier)
         )
+        if identifier.startswith("jarvis-voice-v3:"):
+            context["conversation_subject"] = {"subject": "", "is_follow_up": is_follow_up(text), "instruction": ""}
         if (
             self.container.local_knowledge_router is not None
             and self.container.local_knowledge_router.requires_live_research(text)

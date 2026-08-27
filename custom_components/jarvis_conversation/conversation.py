@@ -40,6 +40,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
     async def _async_handle_message(self, user_input, chat_log):
         conversation_id = user_input.conversation_id or chat_log.conversation_id
         browser_target = self._browser_voice_target(conversation_id)
+        reliable_browser = bool(browser_target and str(conversation_id).startswith("jarvis-voice-v3:"))
         satellite_device_id = None
         if user_input.satellite_id:
             satellite = er.async_get(self.hass).async_get(user_input.satellite_id)
@@ -96,6 +97,14 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                     )
                 ),
             }
+        if reliable_browser:
+            external_voice = False
+            proactive_voice_route = {
+                "event_type": "jarvis_voice_follow_up", "target_id": browser_target,
+                "source_id": str(conversation_id).rsplit(":", 1)[0], "protocol": 2,
+                "request_id": str(conversation_id).rsplit(":", 1)[1],
+                "wire_conversation_id": conversation_id,
+            }
         async with session.post(
             self.entry.data["bridge_url"] + "/v1/conversation",
             json={
@@ -117,13 +126,14 @@ class JarvisConversationEntity(conversation.ConversationEntity):
         answer = str(payload.get("message", "Jarvis is unavailable."))
         if voice_mode:
             answer = sanitize_spoken_reply(answer)
-        chat_log.async_add_assistant_content_without_tools(
-            AssistantContent(agent_id=user_input.agent_id, content=answer)
-        )
+        if payload.get("status") != "in_progress":
+            chat_log.async_add_assistant_content_without_tools(
+                AssistantContent(agent_id=user_input.agent_id, content=answer)
+            )
 
         routed = False
         browser_progress = bool(
-            browser_target and payload.get("status") == "in_progress" and answer
+            browser_target and not reliable_browser and payload.get("status") == "in_progress" and answer
         )
         if browser_progress:
             # Keep both stages of a slow browser request on one scoped delivery
@@ -150,7 +160,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
         result = intent.IntentResponse(language=user_input.language)
         # Omit speech entirely when another delivery path owns it. An empty
         # speech field can still enter HA's TTS stage and replay cached audio.
-        if not (browser_progress or (routed and suppress_local_audio(self.entry.options))):
+        if not (reliable_browser or browser_progress or (routed and suppress_local_audio(self.entry.options))):
             result.async_set_speech(answer)
         return conversation.ConversationResult(
             conversation_id=conversation_id,
@@ -163,7 +173,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
     def _browser_voice_target(conversation_id):
         """Read the explicit target carried by a Jarvis browser voice session."""
         value = str(conversation_id or "")
-        if not value.startswith("jarvis-voice:"):
+        if not value.startswith(("jarvis-voice:", "jarvis-voice-v3:")):
             return None
         parts = value.split(":", 2)
         target = unquote(parts[1]).strip() if len(parts) == 3 else ""

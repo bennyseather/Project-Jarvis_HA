@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import deque
+from jarvis.voice_turns import VoiceTurnController, reliable_turn
 
 
 class JarvisConversationBridge:
@@ -22,6 +23,7 @@ class JarvisConversationBridge:
         self._pending_by_conversation: dict[str, tuple[str, str]] = {}
         self._recent_activations: deque[str] = deque(maxlen=128)
         self._activation_results: dict[str, dict[str, object]] = {}
+        self._voice_turns = None
 
     async def process(
         self,
@@ -33,6 +35,17 @@ class JarvisConversationBridge:
         source_id: str | None = None,
         activation_id: str | None = None,
     ) -> dict[str, object]:
+        if proactive_voice_route and proactive_voice_route.get("protocol") == 2:
+            if self._voice_turns is None:
+                coordinator = self._application.container.responsive_voice
+                self._voice_turns = VoiceTurnController(coordinator.client, coordinator.logger)
+            # The wire identifier includes the turn; application history does not.
+            identifier = str(conversation_id).rsplit(":", 1)[0]
+            return await self._voice_turns.execute(
+                self.process(text, confirmation_token, identifier, voice_mode,
+                             None, source_id, activation_id),
+                route=proactive_voice_route, conversation_id=identifier,
+            )
         identifier = self._conversation_identifier(conversation_id)
         activation_key = (
             f"{identifier}:{source_id or 'unknown'}:{activation_id}"
@@ -119,7 +132,7 @@ class JarvisConversationBridge:
         intelligence = getattr(
             self._application.container, "efficient_intelligence", None
         )
-        if intelligence is not None:
+        if intelligence is not None and not reliable_turn.get():
             envelope = intelligence.envelope(
                 request_text,
                 conversation_id=identifier,
