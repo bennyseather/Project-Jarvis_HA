@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.40";
+const JARVIS_UI_VERSION = "0.47.41";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1273,6 +1273,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (ptt) ptt.textContent = this._mode === "ptt" ? "Listening · auto send" : "Push to talk";
   }
   async _start(mode, followUp = false) {
+    if (!followUp) this._dialogueOrigin = mode;
     const nativeAudio = globalThis.JarvisNativeAudio;
     const nativeAvailable = Boolean(nativeAudio?.available?.());
     if (!this._hass?.connection?.subscribeMessage || (!navigator.mediaDevices?.getUserMedia && !nativeAvailable)) {
@@ -1336,6 +1337,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     return acquired;
   }
   async _runPipeline(followUp = false) {
+    this._voiceTiming = {};
     this._reliableSubmitted = false;
     if (this._config.reliable_voice === true) {
       this._voiceTurn?.cancel();
@@ -1352,7 +1354,9 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
           }
         }, async () => {
           this._dialogueTurns += 1;
-          if (this._reliableWake) {
+          if (this._dialogueEnabled()) {
+            await this._finishDialogueTurn();
+          } else if (this._reliableWake) {
             const follow = this._config.conversational_mode !== false && !this._endDialogue
               && this._dialogueTurns < Number(this._config.max_dialogue_turns || 3);
             await this._start("wake", follow);
@@ -1392,6 +1396,10 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (this._config.pipeline_id && this._config.pipeline_id !== "preferred") message.pipeline = this._config.pipeline_id;
     if (this._config.device_id) message.device_id = this._config.device_id;
     if (this._conversationId) message.conversation_id = this._conversationId;
+    if (this._dialogueEnabled()) {
+      message.type = "jarvis_conversation/listen";
+      message.input = { sample_rate: 16000 };
+    }
     this._unsubscribe = await this._hass.connection.subscribeMessage(
       (payload) => {
         if (generation === this._pipelineGeneration) this._pipelineEvent(payload?.event || payload, generation);
@@ -1405,7 +1413,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       if (this._followUpMode) {
         this._followUpTimer = setTimeout(
           () => this._followUpTimedOut(generation),
-          Number(this._config.follow_up_timeout || 7) * 1000,
+          (this._dialogueEnabled() ? 10 : Number(this._config.follow_up_timeout || 7)) * 1000,
         );
       }
     }
@@ -1421,10 +1429,16 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._status = this._followUpMode ? "Follow-up detected // listening" : "Command detected // listening";
     }
     else if (type === "stt-end") {
+      this._voiceTiming = { transcript_ready: performance.now() };
       this._handlerId = undefined;
       const text = data.stt_output?.text || "";
       this._reliableSubmitted = Boolean(text.trim());
       this._endDialogue = this._isDialogueExit(text);
+      if (this._endDialogue && this._dialogueEnabled()) {
+        this._status = "Conversation ended // microphone offline";
+        this._stop(false, true);
+        return;
+      }
       this._status = `Heard // ${text || "processing"}`;
     }
     else if (type === "intent-end") {
@@ -1499,7 +1513,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._pttLastSpeechAt = now;
       return;
     }
-    const silenceMs = Number(this._config.silence_timeout || 0.9) * 1000;
+    const silenceMs = (this._dialogueEnabled() ? 1.8 : Number(this._config.silence_timeout || 0.9)) * 1000;
     if (now - this._pttLastSpeechAt >= silenceMs) this._finishAudio();
   }
   _sendNativePcm(encoded) {
@@ -1523,7 +1537,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       return;
     }
     if (level > 0.007) this._pttLastSpeechAt = now;
-    else if (now - this._pttLastSpeechAt >= Number(this._config.silence_timeout || 0.9) * 1000) this._finishAudio();
+    else if (now - this._pttLastSpeechAt >= (this._dialogueEnabled() ? 1.8 : Number(this._config.silence_timeout || 0.9)) * 1000) this._finishAudio();
   }
   _finishAudio() {
     if (this._handlerId === undefined || this._handlerId === null) return;
@@ -1537,6 +1551,13 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (this._config.reliable_voice === true && this._reliableSubmitted && !this._endDialogue && !this._intentHasSpeech) {
       // Event playback owns completion; Assist run-end is not answer-end.
       this._stop(false, true, false);
+      return;
+    }
+    if (this._dialogueEnabled() && this._reliableSubmitted && this._intentHasSpeech) {
+      const generation = this._pipelineGeneration;
+      Promise.resolve(this._ttsPromise).then(() => {
+        if (generation === this._pipelineGeneration) return this._finishDialogueTurn();
+      }).catch(() => this._stop(false, true));
       return;
     }
     if (this._mode === "wake") {
@@ -1564,6 +1585,12 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     return ["thank you", "thanks", "thats all", "that is all", "cancel", "stop listening", "goodbye"].includes(normalized);
   }
   _followUpTimedOut(generation) {
+    if (this._dialogueEnabled()) {
+      if (generation !== this._pipelineGeneration || !this._followUpMode) return;
+      if (this._dialogueOrigin === "wake") this._start("wake", false);
+      else this._stop(false);
+      return;
+    }
     if (generation !== this._pipelineGeneration || !this._followUpMode || this._mode !== "wake") return;
     this._pipelineGeneration += 1;
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = undefined; }
@@ -1576,6 +1603,18 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._status = `Pipeline error // ${error.message}`; this._paintStatus();
     }), 400);
   }
+  _dialogueEnabled() {
+    return this._config?.reliable_voice === true
+      && this._config?.follow_up_target === "development_computer"
+      && this._config?.hands_free !== false;
+  }
+  async _finishDialogueTurn() {
+    if (this._endDialogue || this._config.conversational_mode === false) {
+      await this._stop(false);
+      return;
+    }
+    await this._start(this._dialogueOrigin || "ptt", true);
+  }
   async _receiveFollowUp(data) {
     const configuredTarget = this._config?.follow_up_target || "development_computer";
     if (!configuredTarget || data?.target_id !== configuredTarget) return;
@@ -1583,6 +1622,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     if (this._config.reliable_voice === true) {
       const turn = this._voiceTurn;
       if (data.protocol !== 2 || data.request_id !== turn?.requestId || !turn.active) return;
+      this._voiceTiming ||= {};
+      this._voiceTiming[`${data.stage}_received`] = performance.now();
       await this._stop(false, true, false);
       if (turn !== this._voiceTurn || !turn.active) return;
       this._status = data.stage === "final" ? "Speaking answer" : "Working";
@@ -1681,6 +1722,13 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
             resolve();
           };
           source.start();
+          if (this._dialogueEnabled()) {
+            const baseline = this._voiceTiming?.transcript_ready;
+            console.info("Jarvis voice timing", {
+              transcript_to_audio_ms: baseline ? Math.round(performance.now() - baseline) : null,
+              final_received: Boolean(this._voiceTiming?.final_received),
+            });
+          }
         });
       } catch (error) {
         this._status = `Playback error // ${error?.message || "audio blocked"}`;
