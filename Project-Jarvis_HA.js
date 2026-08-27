@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.39";
+const JARVIS_UI_VERSION = "0.47.40";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -1534,7 +1534,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     this._paintStatus();
   }
   _pipelineEnded() {
-    if (this._config.reliable_voice === true && this._reliableSubmitted && !this._endDialogue) {
+    if (this._config.reliable_voice === true && this._reliableSubmitted && !this._endDialogue && !this._intentHasSpeech) {
       // Event playback owns completion; Assist run-end is not answer-end.
       this._stop(false, true, false);
       return;
