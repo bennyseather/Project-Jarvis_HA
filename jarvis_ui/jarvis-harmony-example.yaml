@@ -1,0 +1,6 @@
+type: custom:jarvis-harmony-remote-card
+name: Jarvis Entertainment
+remote_entity: remote.your_harmony_hub
+inventory_url: /local/jarvis/harmony-inventory.json
+volume_device: Yamaha AV Receiver
+accent: cyan

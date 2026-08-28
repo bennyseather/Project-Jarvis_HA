@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.43";
+const JARVIS_UI_VERSION = "0.47.44";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -3390,6 +3390,125 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
   }
 }
 
+function normalizeHarmonyInventory(raw) {
+  if (!raw?.Devices || !raw?.Activities) throw new Error("Invalid Harmony inventory");
+  const devices = Object.entries(raw.Devices).map(([name, item]) => {
+    if (!item || !/^\d+$/.test(String(item.id)) || !Array.isArray(item.commands)) throw new Error("Invalid Harmony device");
+    return { name, id: String(item.id), commands: [...new Set(item.commands.filter(c => typeof c === "string" && c.length < 100))] };
+  }).filter(d => d.commands.length);
+  const activities = Object.entries(raw.Activities).filter(([id, name]) => id !== "-1" && /^\d+$/.test(id) && typeof name === "string").map(([id, name]) => ({id, name}));
+  if (!devices.length) throw new Error("No controllable Harmony devices found");
+  return {devices, activities};
+}
+
+class JarvisHarmonyRemoteCard extends JarvisBaseCard {
+  static requiresEntity = false;
+  static gridRows = 9;
+  static getStubConfig(hass) {
+    return {remote_entity: Object.keys(hass?.states || {}).find(id => id.startsWith("remote.") && hass.states[id].attributes?.current_activity !== undefined) || "", inventory_url: "/local/jarvis/harmony-inventory.json", volume_device: "Yamaha AV Receiver", accent: "cyan"};
+  }
+  static getConfigForm() { return [
+    {name:"name",selector:{text:{}}},
+    {name:"remote_entity",required:true,selector:{entity:{domain:"remote"}}},
+    {name:"inventory_url",selector:{text:{}}},
+    {name:"volume_device",selector:{text:{}}},
+    {name:"accent",selector:{select:{options:["cyan","blue","amber","red","green","purple"]}}},
+  ]; }
+  setConfig(config) {
+    if (config.remote_entity && !config.remote_entity.startsWith("remote.")) throw new Error("Choose a remote entity");
+    this._abort?.abort(); this._loading = false; this._inventory = null; this._device = null; this._error = ""; this._feedback = "";
+    super.setConfig(config);
+    this.loadInventory();
+  }
+  set hass(value) { this._hass = value; this.render(); }
+  set preview(value) { this._preview = value; this.render(); }
+  get preview() { return this._preview; }
+  connectedCallback() { this.loadInventory(); this.render(); }
+  disconnectedCallback() { this._abort?.abort(); this._loading = false; }
+  async loadInventory() {
+    if (!this._config || jarvisDashboardPreview(this) || this._loading || this._inventory) return;
+    const abort = new AbortController(); this._abort = abort; this._loading = true; this._error = "";
+    const timeout = setTimeout(() => abort.abort(), 8000);
+    try {
+      const url = new URL(this._config.inventory_url || "/local/jarvis/harmony-inventory.json", window.location.href);
+      if (url.origin !== window.location.origin || !url.pathname.startsWith("/local/")) throw new Error("Inventory must be a same-origin /local/ JSON file");
+      const result = await fetch(url, {signal:abort.signal, cache:"no-store"});
+      if (!result.ok) throw new Error(`Inventory HTTP ${result.status}`);
+      const body = await result.text();
+      if (body.length > 250000) throw new Error("Inventory too large");
+      const inventory = normalizeHarmonyInventory(JSON.parse(body));
+      if (this._abort !== abort || abort.signal.aborted) return;
+      this._inventory = inventory; this._device = inventory.devices[0].id;
+    } catch (error) {
+      if (this._abort === abort) this._error = abort.signal.aborted ? "Inventory timed out. Retry when HA is reachable." : error.message;
+    } finally {
+      clearTimeout(timeout);
+      if (this._abort === abort) { this._loading = false; this.render(); }
+    }
+  }
+  selectedDevice() { return this._inventory?.devices.find(d => d.id === this._device); }
+  volumeDevice() { const name = this._config.volume_device || "Yamaha AV Receiver"; return this._inventory?.devices.find(d => d.id === name || d.name === name); }
+  unavailable() {
+    const remote = this._hass?.states?.[this._config.remote_entity];
+    return !remote || ["unavailable","unknown"].includes(remote.state);
+  }
+  async send(kind, value, deviceId) {
+    if (jarvisDashboardPreview(this) || this._busy) return;
+    let service, data;
+    if (kind === "command") {
+      const device = this._inventory?.devices.find(d => d.id === deviceId);
+      if (!device?.commands.includes(value)) { this._feedback = "Unsupported device command"; this.render(); return; }
+      service = "send_command"; data = {device:device.id, command:value, num_repeats:1};
+    } else if (kind === "activity" && this._inventory?.activities.some(a => a.id === value)) {
+      service = "turn_on"; data = {activity:value};
+    } else if (kind === "off") { service = "turn_off"; data = {}; }
+    else return;
+    if (this.unavailable() || !this._hass?.services?.remote?.[service]) { this._feedback = "Harmony unavailable or action not registered"; this.render(); return; }
+    this._busy = true; this._feedback = "Sending…"; this.render();
+    try {
+      await this._hass.callService("remote", service, data, {entity_id:this._config.remote_entity});
+      this._feedback = `Sent to HA: ${kind === "off" ? "End activity" : value}. Device response is not confirmed.`;
+    } catch (error) { this._feedback = `Command failed: ${error?.message || "Check Harmony connection"}`; }
+    finally { this._busy = false; this.render(); }
+  }
+  render() {
+    if (!this._config || !this.shadowRoot) return;
+    if (jarvisDashboardPreview(this)) {
+      this.shell('<div class="j-layout"><div class="eyebrow">Entertainment control</div><div class="name">Jarvis Harmony Remote</div><p>Inactive editor preview. Activities, devices, navigation and volume controls appear on the dashboard.</p></div>', {interactive:false});
+      return;
+    }
+    const e = escapeHtml, inventory = this._inventory, device = this.selectedDevice(), volume = this.volumeDevice();
+    const disabled = this._busy || this.unavailable();
+    const button = (label, command, target=device, icon="") => !target?.commands.includes(command) ? "" : `<button data-command="${e(command)}" data-device="${e(target.id)}" aria-label="${e(label)}" ${disabled ? "disabled" : ""}>${icon ? `<ha-icon icon="mdi:${icon}"></ha-icon>` : ""}<span>${e(label)}</span></button>`;
+    const first = (...options) => options.find(c => device?.commands.includes(c));
+    const options = (items, selected) => items.map(d => `<option value="${e(d.id)}" ${d.id===selected ? "selected" : ""}>${e(d.name)}</option>`).join("");
+    const remote = this._hass?.states?.[this._config.remote_entity];
+    this.shell(`<div class="harmony"><div class="eyebrow">Entertainment control</div><div class="name">${e(this._config.name || "Jarvis Harmony Remote")}</div><div class="current">HA activity: ${e(remote?.attributes?.current_activity || "Unknown")}</div>
+      ${!inventory ? `<p>${e(this._error || "Loading Harmony inventory…")}</p><button data-reload ${this._loading ? "disabled" : ""}>Retry inventory</button>` : `
+      <label>Activity<select data-activity aria-label="Harmony activity" ${disabled ? "disabled" : ""}><option value="">Choose activity</option>${options(inventory.activities,this._activity)}</select></label><div class="row"><button data-start ${disabled || !this._activity ? "disabled" : ""}>Start activity</button><button data-end ${disabled ? "disabled" : ""}>End activity</button></div>
+      <label>Device<select data-select-device aria-label="Harmony device">${options(inventory.devices,this._device)}</select></label>
+      <div class="volume-label">Volume target: ${e(volume?.name || "Not configured")}</div><div class="row">${button("Volume down","VolumeDown",volume,"volume-minus")}${button("Mute","Mute",volume,"volume-mute")}${button("Volume up","VolumeUp",volume,"volume-plus")}</div>
+      <div class="pad"><span></span>${button("Up","DirectionUp",device,"chevron-up")}<span></span>${button("Left","DirectionLeft",device,"chevron-left")}${button("OK",first("OK","Select","Enter"))}${button("Right","DirectionRight",device,"chevron-right")}<span></span>${button("Down","DirectionDown",device,"chevron-down")}<span></span></div>
+      <div class="row">${button("Back",first("Back","Return"))}${button("Home","Home")}${button("Menu",first("Menu","TopMenu"))}</div>
+      <div class="row">${button("Play",first("Play","Play/Pause"),device,"play")}${button("Pause","Pause",device,"pause")}${button("Stop","Stop",device,"stop")}${button("Previous",first("SkipBack","ChapterPrev","PreviousTrack"),device,"skip-previous")}${button("Next",first("SkipForward","ChapterNext","NextTrack"),device,"skip-next")}</div>
+      <div class="row">${button("Channel −","ChannelDown")}${button("Channel +","ChannelUp")}</div>
+      <details ${this._advanced ? "open" : ""}><summary>Advanced device commands</summary><p>Power/input commands can desynchronise an activity. Use Start/End activity for normal power control.</p><select data-advanced aria-label="Advanced Harmony command"><option value="">Choose command</option>${device?.commands.map(c => `<option value="${e(c)}" ${this._command===c ? "selected" : ""}>${e(c)}</option>`).join("")}</select><button data-send-advanced ${disabled || !this._command ? "disabled" : ""}>Send selected command</button></details>
+      <button data-reload ${this._busy ? "disabled" : ""}>Reload inventory</button>`}
+      <p role="status" aria-live="polite">${e(this._feedback || (this.unavailable() ? "Harmony unavailable" : "Ready. Commands are actions, not confirmed device states."))}</p></div>
+      <style>.harmony{padding:20px;display:grid;gap:12px}.current,.volume-label{font:600 11px monospace;color:var(--j-accent)}label{display:grid;gap:6px;font:700 12px monospace}select{width:100%;min-width:0;min-height:42px;background:#071d2c;color:#e7fbff;border:1px solid var(--j-accent);font:inherit;padding:8px}.row{display:flex;flex-wrap:wrap;gap:6px}.row button{flex:1;min-width:66px}.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:280px;width:100%;justify-self:center}button{min-height:44px;padding:8px;display:grid;place-items:center;gap:4px}button:disabled{opacity:.4;cursor:not-allowed}ha-icon{--mdc-icon-size:22px}p{margin:0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}details{border:1px solid var(--j-line);padding:10px}summary{cursor:pointer;font:700 12px monospace}details p,details select,details button{margin-top:10px}</style>`, {interactive:false});
+    const root=this.shadowRoot;
+    root.querySelector('[data-activity]')?.addEventListener('change',ev=>{this._activity=ev.target.value;this.render();});
+    root.querySelector('[data-select-device]')?.addEventListener('change',ev=>{this._device=ev.target.value;this._command="";this.render();});
+    root.querySelector('[data-start]')?.addEventListener('click',()=>this.send('activity',this._activity));
+    root.querySelector('[data-end]')?.addEventListener('click',()=>this.send('off'));
+    root.querySelectorAll('[data-command]').forEach(b=>b.addEventListener('click',()=>this.send('command',b.dataset.command,b.dataset.device)));
+    root.querySelector('[data-advanced]')?.addEventListener('change',ev=>{this._command=ev.target.value;this._advanced=true;this.render();});
+    root.querySelector('details')?.addEventListener('toggle',ev=>{this._advanced=ev.target.open;});
+    root.querySelector('[data-send-advanced]')?.addEventListener('click',()=>this.send('command',this._command,this._device));
+    root.querySelector('[data-reload]')?.addEventListener('click',()=>{this._inventory=null;this._command="";this._activity="";this.loadInventory();this.render();});
+  }
+}
+
 class JarvisOrchestrationPerformanceCard extends JarvisBaseCard {
   static getConfigElement() { return document.createElement("hui-generic-entity-row"); }
   static getStubConfig() { return { type: "custom:jarvis-orchestration-performance-card", title: "Jarvis Cognitive Performance" }; }
@@ -3415,6 +3534,7 @@ class JarvisOrchestrationPerformanceCard extends JarvisBaseCard {
 }
 
 const CARD_DEFINITIONS = [
+  ["jarvis-harmony-remote-card", JarvisHarmonyRemoteCard, "Jarvis Harmony Remote", "Activity and device commands through HA Harmony"],
   ["jarvis-nspanel-dashboard-card", JarvisNSPanelDashboardCard, "Jarvis NSPanel Dashboard", "No-scroll lighting, blinds and appliance status interface"],
   ["jarvis-clock-dashboard-card", JarvisClockDashboardCard, "Jarvis Smart Clock", "Full-screen clock, weather, lighting and alarm interface"],
   ["jarvis-button-card", JarvisButtonCard, "Jarvis Button", "HUD action, navigation, scene or script button"],
