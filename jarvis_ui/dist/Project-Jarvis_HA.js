@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.42";
+const JARVIS_UI_VERSION = "0.47.43";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -2695,6 +2695,21 @@ class JarvisCoverageCard extends JarvisBaseCard {
   }
 }
 
+function jarvisDashboardPreview(card) {
+  if (card.preview === true || card.isConnected === false) return true;
+  const editors = new Set(["hui-card-preview", "hui-card-picker", "hui-dialog-edit-card", "hui-dialog-create-card", "hui-dialog-edit-dashboard"]);
+  let node = card;
+  while (node) {
+    if (editors.has(node.localName)) return true;
+    node = node.parentNode || node.getRootNode?.()?.host;
+  }
+  return new URLSearchParams(window.location.search).get("edit") === "1";
+}
+
+function jarvisDashboardPreviewMarkup(title) {
+  return `<style>:host{display:block;position:relative!important;inset:auto!important;z-index:auto!important;contain:content;height:220px;background:#041523;color:#dffcff;border:1px solid #20d8ff;border-radius:12px}section{padding:24px;font:600 14px Roboto,sans-serif}h2{color:#20d8ff;font:700 20px monospace}p{line-height:1.5}</style><section><h2>${title}</h2><p>Full-screen dashboard card</p><p>Safe editor preview. Voice, alarms and device controls are inactive here.</p></section>`;
+}
+
 class JarvisClockDashboardCard extends HTMLElement {
   static requiresEntity = false;
   constructor() {
@@ -2725,9 +2740,13 @@ class JarvisClockDashboardCard extends HTMLElement {
     this.stopLocalRadio();
     this._satellite.disconnectedCallback();
   }
+  connectedCallback() { this.render(); }
+  set preview(value) { this._preview = value; if (this.shadowRoot) this.render(); }
+  get preview() { return this._preview; }
   setConfig(config) { this._config = config || {}; this.render(); }
   set hass(value) {
     this._hass = value;
+    if (jarvisDashboardPreview(this)) { this.render(); return; }
     this._satellite.hass = value;
     this.publishHeartbeat();
     this.loadForecast();
@@ -2738,6 +2757,7 @@ class JarvisClockDashboardCard extends HTMLElement {
 
   entity(key, fallback) { return this._hass?.states?.[this._config?.[key] || fallback]; }
   async loadForecast() {
+    if (jarvisDashboardPreview(this)) return;
     if (!this._hass || this._forecastLoading || this._forecast) return;
     this._forecastLoading = true;
     const entityId = this._config.weather_entity || "weather.forecast_home";
@@ -2753,10 +2773,12 @@ class JarvisClockDashboardCard extends HTMLElement {
   }
 
   call(domain, service, entityId, data = {}) {
+    if (jarvisDashboardPreview(this)) return;
     return this._hass?.callService(domain, service, data, { entity_id: entityId });
   }
 
   publishHeartbeat(force = false) {
+    if (jarvisDashboardPreview(this)) return;
     if (!this._hass) return;
     const now = Date.now();
     if (!force && now - this._lastHeartbeatAt < 30000) return;
@@ -3115,6 +3137,10 @@ class JarvisClockDashboardCard extends HTMLElement {
 
   render() {
     if (!this.shadowRoot || !this._config) return;
+    if (jarvisDashboardPreview(this)) {
+      this.shadowRoot.innerHTML = jarvisDashboardPreviewMarkup("Jarvis Smart Clock");
+      return;
+    }
     const now = new Date();
     const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
     const date = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
@@ -3195,6 +3221,9 @@ class JarvisClockDashboardCard extends HTMLElement {
 }
 
 class JarvisNSPanelDashboardCard extends HTMLElement {
+  connectedCallback() { this.render(); }
+  set preview(value) { this._preview = value; if (this.shadowRoot) this.render(); }
+  get preview() { return this._preview; }
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -3209,13 +3238,14 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
   }
   disconnectedCallback() { clearInterval(this._voiceTicker); this._satellite.disconnectedCallback(); }
   setConfig(config) { this._config = config || {}; this.render(); }
-  set hass(value) { this._hass = value; this._satellite.hass = value; this.loadForecast(); this.render(); }
+  set hass(value) { this._hass = value; if (jarvisDashboardPreview(this)) { this.render(); return; } this._satellite.hass = value; this.loadForecast(); this.render(); }
   getCardSize() { return 1; }
   extendedForecastEnabled() { return this._config.extended_forecast === true || new URLSearchParams(window.location.search).get("forecast") === "extended"; }
   advancedControlsEnabled() { return this._config.advanced_controls !== false; }
   lightTargets() { return [...new Set([this._config.light_entity || "light.interior_lights", ...(this._config.light_extra_entities ?? ["switch.lights_windows_living_room"])])]; }
   lightsOn() { return this.lightTargets().some((id) => this._hass?.states?.[id]?.state === "on"); }
   async toggleLights() {
+    if (jarvisDashboardPreview(this)) return;
     if (this._lightsBusy) return;
     this._lightsBusy = true;
     try {
@@ -3236,9 +3266,10 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     return "";
   }
   state(key, fallback) { return this._hass?.states?.[this._config[key] || fallback]; }
-  call(domain, service, entity) { return this._hass?.callService(domain, service, { entity_id: entity }); }
+  call(domain, service, entity) { if (jarvisDashboardPreview(this)) return; return this._hass?.callService(domain, service, { entity_id: entity }); }
   async loadForecast() {
     if (!this.extendedForecastEnabled() || !this._hass || this._forecastLoading || Date.now() - this._forecastLoadedAt < 30 * 60_000) return;
+    if (jarvisDashboardPreview(this)) return;
     this._forecastLoading = true;
     const entityId = this._config.weather_entity || "weather.forecast_home";
     try {
@@ -3279,6 +3310,7 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
     }[menu] || [];
   }
   async runAction(action) {
+    if (jarvisDashboardPreview(this)) return;
     if (this._actionBusy) return;
     const unavailable = this.actionUnavailable(action);
     if (unavailable) { this._actionFeedback = unavailable; this.render(); return; }
@@ -3297,6 +3329,10 @@ class JarvisNSPanelDashboardCard extends HTMLElement {
   }
   render() {
     if (!this.shadowRoot) return;
+    if (jarvisDashboardPreview(this)) {
+      this.shadowRoot.innerHTML = jarvisDashboardPreviewMarkup("Jarvis NSPanel Dashboard");
+      return;
+    }
     const lightId = this._config.light_entity || "light.interior_lights";
     const coverId = this._config.cover_entity || "cover.living_room_blinds";
     const light = this.state("light_entity", lightId);
@@ -3467,7 +3503,7 @@ for (const [tag, klass, name, description] of CARD_DEFINITIONS) {
   if (!window.customCards.some((card) => card.type === tag)) {
     const domains = CARD_DOMAINS.get(klass);
     window.customCards.push({
-      type: tag, name, description, preview: !klass.requiresEntity,
+      type: tag, name, description, preview: !klass.requiresEntity && ![JarvisClockDashboardCard, JarvisNSPanelDashboardCard].includes(klass),
       documentationURL: "https://github.com/bennyseather/Project-Jarvis_HA",
       ...(domains ? {
         getEntitySuggestion: (_hass, entityId) =>
