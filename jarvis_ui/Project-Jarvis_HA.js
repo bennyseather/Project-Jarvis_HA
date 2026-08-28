@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.44";
+const JARVIS_UI_VERSION = "0.47.45";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -3420,7 +3420,32 @@ class JarvisHarmonyRemoteCard extends JarvisBaseCard {
     super.setConfig(config);
     this.loadInventory();
   }
-  set hass(value) { this._hass = value; this.render(); }
+  set hass(value) {
+    this._hass = value;
+    // HA updates unrelated entities frequently. Never replace native selects
+    // during those updates: doing so closes their open popup and loses focus.
+    if (this.shadowRoot?.querySelector('.harmony') && !jarvisDashboardPreview(this)) this.updateLiveState();
+    else this.render();
+  }
+  updateLiveState() {
+    const root = this.shadowRoot;
+    if (!root || !this._config) return;
+    const activity = root.querySelector('.current');
+    const name = this._hass?.states?.[this._config.remote_entity]?.attributes?.current_activity || "Unknown";
+    const activityText = `HA activity: ${name}`;
+    if (activity && activity.textContent !== activityText) activity.textContent = activityText;
+    const disabled = Boolean(this._busy || this.unavailable());
+    root.querySelectorAll('[data-command], [data-end], [data-activity]').forEach(el => {
+      if (el.disabled !== disabled) el.disabled = disabled;
+    });
+    for (const [selector, selected] of [['[data-start]', this._activity], ['[data-send-advanced]', this._command]]) {
+      const el = root.querySelector(selector);
+      if (el) el.disabled = disabled || !selected;
+    }
+    const status = root.querySelector('[role="status"]');
+    const message = this._feedback || (this.unavailable() ? "Harmony unavailable" : "Ready. Commands are actions, not confirmed device states.");
+    if (status && status.textContent !== message) status.textContent = message;
+  }
   set preview(value) { this._preview = value; this.render(); }
   get preview() { return this._preview; }
   connectedCallback() { this.loadInventory(); this.render(); }
@@ -3497,12 +3522,12 @@ class JarvisHarmonyRemoteCard extends JarvisBaseCard {
       <p role="status" aria-live="polite">${e(this._feedback || (this.unavailable() ? "Harmony unavailable" : "Ready. Commands are actions, not confirmed device states."))}</p></div>
       <style>.harmony{padding:20px;display:grid;gap:12px}.current,.volume-label{font:600 11px monospace;color:var(--j-accent)}label{display:grid;gap:6px;font:700 12px monospace}select{width:100%;min-width:0;min-height:42px;background:#071d2c;color:#e7fbff;border:1px solid var(--j-accent);font:inherit;padding:8px}.row{display:flex;flex-wrap:wrap;gap:6px}.row button{flex:1;min-width:66px}.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:280px;width:100%;justify-self:center}button{min-height:44px;padding:8px;display:grid;place-items:center;gap:4px}button:disabled{opacity:.4;cursor:not-allowed}ha-icon{--mdc-icon-size:22px}p{margin:0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}details{border:1px solid var(--j-line);padding:10px}summary{cursor:pointer;font:700 12px monospace}details p,details select,details button{margin-top:10px}</style>`, {interactive:false});
     const root=this.shadowRoot;
-    root.querySelector('[data-activity]')?.addEventListener('change',ev=>{this._activity=ev.target.value;this.render();});
+    root.querySelector('[data-activity]')?.addEventListener('change',ev=>{this._activity=ev.target.value;this.updateLiveState();});
     root.querySelector('[data-select-device]')?.addEventListener('change',ev=>{this._device=ev.target.value;this._command="";this.render();});
     root.querySelector('[data-start]')?.addEventListener('click',()=>this.send('activity',this._activity));
     root.querySelector('[data-end]')?.addEventListener('click',()=>this.send('off'));
     root.querySelectorAll('[data-command]').forEach(b=>b.addEventListener('click',()=>this.send('command',b.dataset.command,b.dataset.device)));
-    root.querySelector('[data-advanced]')?.addEventListener('change',ev=>{this._command=ev.target.value;this._advanced=true;this.render();});
+    root.querySelector('[data-advanced]')?.addEventListener('change',ev=>{this._command=ev.target.value;this._advanced=true;this.updateLiveState();});
     root.querySelector('details')?.addEventListener('toggle',ev=>{this._advanced=ev.target.open;});
     root.querySelector('[data-send-advanced]')?.addEventListener('click',()=>this.send('command',this._command,this._device));
     root.querySelector('[data-reload]')?.addEventListener('click',()=>{this._inventory=null;this._command="";this._activity="";this.loadInventory();this.render();});
