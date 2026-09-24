@@ -78,7 +78,11 @@ class EfficientLocalIntelligence:
             source_id = envelope.source_id
         text = str(text or "")
         route = self.classify(text)
-        cacheable = self._cacheable(text, route)
+        # A text-mode answer may be much longer than the spoken budget; voice
+        # follow-ups also depend on dialogue state. Do not reuse the shared cache.
+        cacheable = self._cacheable(text, route) and not (
+            envelope is not None and envelope.voice_mode
+        )
         key = self._key(text) if cacheable else None
         started = self.clock()
         cached = self._cache_get(key) if key else None
@@ -100,7 +104,7 @@ class EfficientLocalIntelligence:
         else:
             result = await operation
         actual_route = self._actual_route(route, result)
-        if key and actual_route == "general_reasoning" and result.get("status") == "success":
+        if key and actual_route == "general_reasoning" and result.get("status") == "success" and result.get("cacheable", True):
             self._cache_put(key, result, text)
         result = dict(result)
         result.setdefault("cache", "miss" if cacheable else "bypass")
@@ -174,6 +178,7 @@ class EfficientLocalIntelligence:
             and not self._CURRENT.search(value)
             and not self._HOME.search(value)
             and not self._PERSONAL.search(value)
+            and not re.search(r"\b(travel|trip|itinerary|flight|stopover|layover|connection|arrive|arrival)\b", value)
         )
 
     @staticmethod

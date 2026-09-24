@@ -30,8 +30,7 @@ class LocalWeatherIntelligence:
         day_index = 1 if "tomorrow" in normalized else 0
         try:
             response = await self._client.call_service_response(
-                "weather",
-                "get_forecasts",
+                "weather", "get_forecasts",
                 {"entity_id": preferred.entity_id, "type": "daily"},
             )
             forecast = response.get(preferred.entity_id, {}).get("forecast", ())

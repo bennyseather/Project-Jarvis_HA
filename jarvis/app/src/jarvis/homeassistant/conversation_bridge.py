@@ -94,6 +94,8 @@ class JarvisConversationBridge:
             confirmation_token is None
             and text.strip().startswith("confirm ")
             and not text.strip().casefold().startswith("confirm memory ")
+            and normalized != "confirm household change"
+            and normalized != "confirm emrik stay"
         ):
             confirmation_token = text.strip().split(maxsplit=1)[1]
         if confirmation_token is not None:
@@ -132,7 +134,9 @@ class JarvisConversationBridge:
         intelligence = getattr(
             self._application.container, "efficient_intelligence", None
         )
-        if intelligence is not None and not reliable_turn.get():
+        # The legacy cache has no profile revision/subject partition. Opted-in
+        # household sessions bypass it entirely until partitioning is deployed.
+        if intelligence is not None and not reliable_turn.get() and getattr(self._application.container, "household_profile", None) is None:
             envelope = intelligence.envelope(
                 request_text,
                 conversation_id=identifier,

@@ -17,6 +17,7 @@ from jarvis.core.container import ServiceContainer
 from jarvis.core.context_builder import ContextBuilder
 from jarvis.homeassistant.client import HomeAssistantClient
 from jarvis.homeassistant.weather_intelligence import LocalWeatherIntelligence
+from jarvis.homeassistant.travel_calendar_intelligence import TravelCalendarIntelligence
 from jarvis.current_information import (
     CurrentInformationIntelligence,
     CurrentInformationPolicy,
@@ -71,6 +72,10 @@ from jarvis.homeassistant.home_references import build_home_references
 from jarvis.memory.repeated_context import RepeatedContextExtractor, RepeatedContextLearner
 from jarvis.management.natural_memory import NaturalMemoryController
 from jarvis.persona import JarvisPersona
+from jarvis.household_profile import HouseholdProfile
+from jarvis.household_dialogue import HouseholdDialogue
+from jarvis.household_calendar import HouseholdCalendar
+from jarvis.household_stay import HouseholdStay
 from jarvis.personality import PersonalityManager, PersonalityProfile
 from jarvis.personality_presentation import PersonalityPresenter
 from jarvis.reflection.manager import ReflectiveLearningManager
@@ -259,6 +264,13 @@ class JarvisApplication:
             raise ValueError(
                 "reflection.context_limit must be an integer between 0 and 10"
             )
+        household_path = self.general.get("household_profile_path")
+        if household_path is not None and (not isinstance(household_path, str) or not household_path.strip()):
+            raise ValueError("household_profile_path must be a nonempty path or null")
+        self.container.household_profile = (
+            HouseholdProfile.load(self.container.config_loader.config_folder / household_path)
+            if household_path else None
+        )
         persona_config = self.general.get("persona", {})
         if not isinstance(persona_config, dict):
             raise ValueError("persona must be a mapping")
@@ -701,10 +713,25 @@ class JarvisApplication:
             self.container.personality_manager
         )
         self.container.proactive_allowed_entities = allowed_reads
+        profile = getattr(self.container, "household_profile", None)
+        self.container.household_calendar = (
+            HouseholdCalendar(profile, self.container.home_assistant, allowed_reads)
+            if profile is not None else None
+        )
+        self.container.household_stay = HouseholdStay(self.container.home_assistant, profile) if profile is not None else None
         self.container.weather_intelligence = LocalWeatherIntelligence(
             self.container.home_assistant,
             self.container.entity_registry,
             allowed_reads,
+        )
+        travel_config = self.general.get("travel_calendar", {})
+        self.container.travel_calendar_intelligence = TravelCalendarIntelligence(
+            self.container.home_assistant,
+            self.container.entity_registry,
+            allowed_reads,
+            entity_id=travel_config.get("entity_id", "calendar.jarvis_travels"),
+            lookahead_days=travel_config.get("lookahead_days", 180),
+            reasoning=self.container.local_reasoning_provider,
         )
         timeline_config = self.general.get("event_timeline", {})
         if (
@@ -777,6 +804,58 @@ class JarvisApplication:
     ) -> dict[str, object]:
         """Route one user request through the configured safe assistant slice."""
 
+        profile = getattr(self.container, "household_profile", None)
+        if profile is not None:
+            identity = profile.identity_answer(text)
+            if identity is not None:
+                return identity
+            edit_result = await asyncio.to_thread(profile.edit_request, text, conversation_id)
+            if edit_result is not None:
+                previous = getattr(self.container, 'household_dialogue', None)
+                if previous is not None:
+                    previous.clear(conversation_id)
+                return edit_result
+            routine_result = profile.routine_answer(text)
+            if routine_result is not None:
+                dialogue = getattr(self.container, 'household_dialogue', None)
+                if dialogue is not None:
+                    dialogue.clear(conversation_id)
+                return routine_result
+            calendar = getattr(self.container, "household_calendar", None)
+            stay = getattr(self.container, 'household_stay', None)
+            if stay is not None:
+                stay_result = await stay.handle(text, conversation_id)
+                if stay_result is not None:
+                    previous = getattr(self.container, 'household_dialogue', None)
+                    if previous is not None:
+                        previous.clear(conversation_id)
+                    return stay_result
+            if calendar is not None:
+                calendar_result = await calendar.handle(text)
+                if calendar_result is not None:
+                    previous = getattr(self.container, 'household_dialogue', None)
+                    if previous is not None:
+                        previous.clear(conversation_id)
+                    return calendar_result
+            # Preserve the established travel route before sticky household
+            # dialogue. Results stay outside global household history/cache.
+            approval = profile._data.get('sharing_policy', {}).get('additional_category_approval', {})
+            travel = getattr(self.container, 'travel_calendar_intelligence', None)
+            if travel is not None and approval.get('source') and approval.get('recorded_on') and 'benny_travel_details' in approval.get('categories', []):
+                travel_result = await travel.handle(text, conversation_id=conversation_id)
+                if travel_result is not None:
+                    previous = getattr(self.container, 'household_dialogue', None)
+                    if previous is not None:
+                        previous.clear(conversation_id)
+                    return {**travel_result, 'cacheable': False}
+            dialogue = getattr(self.container, "household_dialogue", None)
+            if dialogue is None:
+                dialogue = HouseholdDialogue(profile, self.container.local_reasoning_provider)
+                self.container.household_dialogue = dialogue
+            household_result = await asyncio.to_thread(dialogue.handle, text, conversation_id)
+            if household_result is not None:
+                return household_result
+
         started = time.monotonic()
         lock_key = self.container.conversation_store.normalize_conversation_id(
             conversation_id
@@ -803,6 +882,12 @@ class JarvisApplication:
             if " ".join(text.casefold().strip(" .?!").split()) == "clear conversation history":
                 self.container.conversation_store.clear()
                 self.container.adaptive_intelligence.clear()
+                self.container.travel_calendar_intelligence.clear_context()
+            if " ".join(text.casefold().strip(" .?!").split()) in {
+                "clear my recent conversations", "clear recent conversations",
+                "forget my recent conversations",
+            }:
+                self.container.travel_calendar_intelligence.clear_context()
             if not self.container.episodic_manager.is_command(text):
                 self.container.episodic_manager.observe(identifier)
             presented = self.container.personality_presenter.present(
@@ -834,6 +919,12 @@ class JarvisApplication:
         user_message = conversation_store.add_message(identifier, "user", text)
         self.container.read_only_assistant.activate_conversation(identifier)
 
+        household_profile = getattr(self.container, "household_profile", None)
+        identity_result = household_profile.identity_answer(text) if household_profile else None
+        if identity_result is not None:
+            conversation_store.add_message(identifier, "assistant", self._user_message(identity_result))
+            return identity_result
+
         personality_result = self.container.personality_manager.handle(
             text, identifier
         )
@@ -842,6 +933,15 @@ class JarvisApplication:
                 identifier, "assistant", self._user_message(personality_result)
             )
             return personality_result
+        # Resolve narrowly gated personal calendar questions before broad
+        # memory/goal/routine controllers can interpret "When am I going...".
+        travel_result = await self.container.travel_calendar_intelligence.handle(text, conversation_id=identifier)
+        if travel_result is not None:
+            travel_result["cacheable"] = False
+            conversation_store.add_message(
+                identifier, "assistant", self._user_message(travel_result)
+            )
+            return travel_result
         blueprint_result = self.container.blueprint_planner.handle(text, identifier)
         if blueprint_result is not None:
             conversation_store.add_message(identifier, "assistant", self._user_message(blueprint_result))

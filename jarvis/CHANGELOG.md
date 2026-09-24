@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.45.47
+
+- Reconcile tested household profiles, confirmed routine edits and temporary stay
+  handling into the managed add-on source. Persistent profiles remain in /config;
+  no household data or credentials are shipped with this release.
+- Restore dedicated calendar-backed travel routing and shared-context access guards.
+- Preserve the deployed voice generation and streaming behaviour; experimental
+  speech changes are not included.
+- Retain source and recovery artifacts for rollback. Focused household, bridge and
+  travel tests and synthetic startup/data-preservation checks cover this release.
+
 ## 0.45.43
 
 - Use Benny-approved whole-utterance acknowledgement clips: "Request received."

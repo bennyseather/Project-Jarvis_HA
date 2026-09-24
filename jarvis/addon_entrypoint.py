@@ -44,6 +44,10 @@ local_reasoning["voice_model"] = str(options.get("local_voice_reasoning_model", 
 local_reasoning["embedding_model"] = str(options.get("local_embedding_model", "qwen3-embedding:0.6b"))
 local_reasoning["timeout_seconds"] = int(options.get("local_reasoning_timeout", 90))
 local_reasoning["fallback_to_openai"] = bool(options.get("openai_fallback_enabled", True))
+# Opt in only when a household profile was explicitly installed in private
+# persistent add-on storage. Keep profiles out of the public image/repository.
+if Path('/config/household_profile.json').is_file():
+    general['household_profile_path'] = '/config/household_profile.json'
 general_path.write_text(
     yaml.safe_dump(general, sort_keys=False, allow_unicode=True)
 )

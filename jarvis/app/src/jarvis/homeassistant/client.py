@@ -216,7 +216,27 @@ class HomeAssistantClient:
         service: str,
         service_data: dict,
     ) -> dict:
-        """Call a read-style Home Assistant service and return its response."""
+        """Call a read-style service on an isolated socket and return its response.
+
+        The primary socket is also used by periodic entity refreshes. A response
+        service must not share that receive stream because either coroutine can
+        otherwise consume the other's result.
+        """
+        reader = HomeAssistantClient(self.url, self.token, self.logger)
+        await reader._connect_socket()
+        try:
+            return await reader._call_service_response_once(
+                domain, service, service_data
+            )
+        finally:
+            await reader.disconnect()
+
+    async def _call_service_response_once(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict,
+    ) -> dict:
         request = {
             "id": self.get_next_message_id(),
             "type": "call_service",
