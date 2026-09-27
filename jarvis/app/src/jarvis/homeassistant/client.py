@@ -117,6 +117,20 @@ class HomeAssistantClient:
                 f"Unexpected authentication response: {auth_response}"
             )
 
+    async def get_household_today(self):
+        """Use the dashboard's authenticated read-only command on a separate socket."""
+        client = HomeAssistantClient(self.url, self.token, self.logger)
+        try:
+            async with asyncio.timeout(18):
+                await client._connect_socket()
+                await client.send_json({'id':1,'type':'jarvis_conversation/household'})
+                response = await client.receive_json()
+                if response.get('id') != 1 or response.get('type') != 'result' or not response.get('success'):
+                    raise RuntimeError('Shared daily overview unavailable')
+                return response['result']
+        finally:
+            await client.disconnect()
+
     async def get_states(self) -> list:
         """
         Retrieve all entity states from Home Assistant.

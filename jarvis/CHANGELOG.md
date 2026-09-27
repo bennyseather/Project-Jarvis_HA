@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.49
+
+- Read-only Today at home questions and bounded, conversation-scoped follow-ups.
+- Retrieve the dashboard's authenticated daily summary afresh for every answer.
+- Preserve unknown presence/calendar states, never guess private facts or actions.
+- No changes to voice generation, streaming, models, or household data.
+
 ## 0.45.48
 
 - Add an authenticated, read-only shared household overview endpoint.

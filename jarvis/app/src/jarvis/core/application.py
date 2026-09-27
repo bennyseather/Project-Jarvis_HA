@@ -806,6 +806,19 @@ class JarvisApplication:
 
         profile = getattr(self.container, "household_profile", None)
         if profile is not None:
+            today = getattr(self.container, 'household_today_dialogue', None)
+            client = getattr(self.container, 'home_assistant', None)
+            if today is None and client is not None:
+                from jarvis.household_today_dialogue import HouseholdTodayDialogue
+                today = HouseholdTodayDialogue(client.get_household_today)
+                self.container.household_today_dialogue = today
+            if today is not None:
+                today_result = await today.handle(text, conversation_id)
+                if today_result is not None:
+                    previous = getattr(self.container, 'household_dialogue', None)
+                    if previous is not None:
+                        previous.clear(conversation_id)
+                    return today_result
             identity = profile.identity_answer(text)
             if identity is not None:
                 return identity
