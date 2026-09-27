@@ -19,7 +19,10 @@ class ConversationBridgeServer:
                 if self.headers.get("Authorization") != f"Bearer {outer._api_key}":
                     self.send_response(401); self.end_headers(); return
                 try:
-                    if self.path == "/v1/learning":
+                    if self.path == "/v1/household":
+                        from jarvis.household_overview import overview
+                        payload = overview(getattr(outer._bridge._application.container, "household_profile", None))
+                    elif self.path == "/v1/learning":
                         payload = outer._bridge._application.container.contextual_routines.insights()
                     elif self.path == "/v1/orchestration":
                         payload = outer._bridge._application.container.efficient_intelligence.metrics()
@@ -32,7 +35,7 @@ class ConversationBridgeServer:
                     else:
                         self.send_response(404); self.end_headers(); return
                     body = json.dumps(payload).encode()
-                    self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+                    self.send_response(200); self.send_header("Cache-Control", "no-store"); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
                 except Exception:
                     self.send_response(503); self.end_headers()
             def do_POST(self):

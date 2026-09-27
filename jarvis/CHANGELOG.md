@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.48
+
+- Add an authenticated, read-only shared household overview endpoint.
+- Reuse existing profile visibility rules and current authoritative data.
+- Exclude raw private profile and audit content. Voice behaviour unchanged.
+
 ## 0.45.47
 
 - Reconcile tested household profiles, confirmed routine edits and temporary stay
