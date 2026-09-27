@@ -117,13 +117,15 @@ class HomeAssistantClient:
                 f"Unexpected authentication response: {auth_response}"
             )
 
-    async def get_household_today(self):
+    async def get_household_today(self, period='today'):
         """Use the dashboard's authenticated read-only command on a separate socket."""
+        if period not in ('today','tomorrow','week_ahead','this_week','next_week'):
+            raise ValueError('Unsupported household period')
         client = HomeAssistantClient(self.url, self.token, self.logger)
         try:
             async with asyncio.timeout(18):
                 await client._connect_socket()
-                await client.send_json({'id':1,'type':'jarvis_conversation/household'})
+                await client.send_json({'id':1,'type':'jarvis_conversation/household',**({'period':period} if period!='today' else {})})
                 response = await client.receive_json()
                 if response.get('id') != 1 or response.get('type') != 'result' or not response.get('success'):
                     raise RuntimeError('Shared daily overview unavailable')

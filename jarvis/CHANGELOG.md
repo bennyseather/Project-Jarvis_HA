@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.51
+
+- Read-only household planning for tomorrow, the next seven days and next week.
+- Keep the selected period in bounded follow-ups; re-read the shared HA summary.
+- Requires the updated HA household planning handler. Reject wrong-date responses.
+- No changes to voice generation, models, device actions or stored household facts.
+
 ## 0.45.50
 
 - Fix daily household routing for apostrophe-free `whats` and common question variants.
