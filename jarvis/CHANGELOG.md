@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.50
+
+- Fix daily household routing for apostrophe-free `whats` and common question variants.
+- Clarify unsupported household-day time scopes locally instead of general fallback.
+- Preserve separate routing for unrelated, travel and compound device requests.
+
 ## 0.45.49
 
 - Read-only Today at home questions and bounded, conversation-scoped follow-ups.

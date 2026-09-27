@@ -8,6 +8,14 @@ from zoneinfo import ZoneInfo
 
 ZONE = ZoneInfo('Europe/Oslo')
 
+def normalize_question(text):
+    """Tolerate ordinary typing/STT punctuation without fuzzy entity guessing."""
+    value=' '.join(text.casefold().replace('’', "'").strip(' .?!').split())
+    value=re.sub(r'^please\s+','',value)
+    value=re.sub(r',?\s+please$','',value).rstrip(' .?!')
+    value=re.sub(r"^what'?s\b",'what is',value)
+    return value
+
 class HouseholdTodayDialogue:
     def __init__(self, loader, *, clock=time.monotonic, day=None):
         self.loader, self.clock = loader, clock
@@ -23,17 +31,18 @@ class HouseholdTodayDialogue:
         return await self._handle(text, conversation_id)
 
     async def _handle(self, text, conversation_id):
-        value=' '.join(text.casefold().replace('’', "'").strip(' .?!').split())
+        value=normalize_question(text)
         key=str(conversation_id) if conversation_id else None
         now,date=self.clock(),self.day()
         self.sessions=OrderedDict((k,v) for k,v in self.sessions.items() if v[0]>now and v[1]==date)
         previous=self.sessions.pop(key,None)
         topic=None
-        if value in ("what's happening at home today", 'what is happening at home today',
-                     "what's happening today", 'what is happening today', 'today at home',
-                     'show today at home', "what's on at home today", 'household summary for today'):
+        if value in ('what is happening at home today', 'what is happening today',
+                     'what is going on at home today', 'what is on at home today',
+                     'what is planned at home today', 'what are our plans for today',
+                     'today at home', 'show today at home', 'household summary for today'):
             topic='all'
-        elif re.fullmatch(r"(?:what does mia have (?:planned|on)(?: today)?|what (?:are mia's|does mia have for) (?:plans|appointments|activities)(?: today)?|what is mia doing today)",value):
+        elif re.fullmatch(r"(?:what does mia have (?:planned|on)(?: today)?|what (?:are mia'?s|does mia have for) (?:plans|appointments|activities)(?: today)?|what is mia doing today)",value):
             topic='mia'
         elif re.fullmatch(r'(?:when|what time) does linda (?:finish(?: work)?|end work) today',value):
             topic='linda'
@@ -48,7 +57,12 @@ class HouseholdTodayDialogue:
                 else:return self.result('Whose plans do you mean? Please use their name.', 'clarification_required')
             elif value in ('what about tomorrow','and tomorrow'):
                 return self.result('This overview covers today in Norway. Please ask separately for a named person’s calendar or routine tomorrow.', 'clarification_required')
-        if topic is None:return None  # Unrelated questions clear this topic; never trap device/travel routes.
+        if topic is None:
+            # A recognizably household-day question with an unsupported time scope
+            # should clarify locally, not become an unrelated general/web answer.
+            if re.fullmatch(r'what is (?:happening|going on|planned|on) at home(?: (?:today|tomorrow|tonight|this week))?',value):
+                return self.result('I can read the shared Today at home summary for today in Norway. Is that the overview you want?', 'clarification_required')
+            return None  # Unrelated questions clear this topic; never trap device/travel routes.
         pending=(now+300,date,topic)
         if key:
             self.sessions[key]=pending
