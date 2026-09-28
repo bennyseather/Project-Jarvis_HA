@@ -809,8 +809,8 @@ class JarvisApplication:
             today = getattr(self.container, 'household_today_dialogue', None)
             client = getattr(self.container, 'home_assistant', None)
             if today is None and client is not None:
-                from jarvis.household_today_dialogue import HouseholdTodayDialogue
-                today = HouseholdTodayDialogue(client.get_household_today)
+                from jarvis.household_planning import HouseholdConversation
+                today = HouseholdConversation(client.get_household_today, getattr(self.container, 'local_reasoning_provider', None))
                 self.container.household_today_dialogue = today
             if today is not None:
                 today_result = await today.handle(text, conversation_id)

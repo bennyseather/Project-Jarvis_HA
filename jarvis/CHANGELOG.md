@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.45.52
+
+- Broader read-only household planning with bounded local-only interpretation.
+- Named weekdays, ISO dates, weekends and context-aware following-week questions.
+- Shared school/work/calendar views and after-school event overlaps.
+- Preserve accepted fast paths; validate dates/subjects and suppress internal JSON speech.
+- Requires the matching HA custom-date household handler. No voice configuration,
+  household fact, calendar write, device action or private-identity changes.
+
 ## 0.45.51
 
 - Read-only household planning for tomorrow, the next seven days and next week.

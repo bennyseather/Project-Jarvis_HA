@@ -117,22 +117,6 @@ class HomeAssistantClient:
                 f"Unexpected authentication response: {auth_response}"
             )
 
-    async def get_household_today(self, period='today'):
-        """Use the dashboard's authenticated read-only command on a separate socket."""
-        if period not in ('today','tomorrow','week_ahead','this_week','next_week'):
-            raise ValueError('Unsupported household period')
-        client = HomeAssistantClient(self.url, self.token, self.logger)
-        try:
-            async with asyncio.timeout(18):
-                await client._connect_socket()
-                await client.send_json({'id':1,'type':'jarvis_conversation/household',**({'period':period} if period!='today' else {})})
-                response = await client.receive_json()
-                if response.get('id') != 1 or response.get('type') != 'result' or not response.get('success'):
-                    raise RuntimeError('Shared daily overview unavailable')
-                return response['result']
-        finally:
-            await client.disconnect()
-
     async def get_states(self) -> list:
         """
         Retrieve all entity states from Home Assistant.
@@ -146,6 +130,30 @@ class HomeAssistantClient:
             )
             await self._connect_socket()
             return await self._get_states_once()
+
+    async def get_household_today(self, period='today', *, start_date=None, end_date=None):
+        """Use the dashboard's authenticated read-only command on a separate socket."""
+        if period not in ('today','tomorrow','week_ahead','this_week','next_week','custom'):
+            raise ValueError('Unsupported household period')
+        bounds = {}
+        if period=='custom':
+            from jarvis.household_planning import validate_range, ZONE
+            from datetime import datetime
+            validate_range(start_date,end_date,datetime.now(ZONE).date().isoformat())
+            bounds={'start_date':start_date,'end_date':end_date}
+        elif start_date is not None or end_date is not None:
+            raise ValueError('Dates require custom period')
+        client = HomeAssistantClient(self.url, self.token, self.logger)
+        try:
+            async with asyncio.timeout(18):
+                await client._connect_socket()
+                await client.send_json({'id':1,'type':'jarvis_conversation/household',**({'period':period} if period!='today' else {}),**bounds})
+                response = await client.receive_json()
+                if response.get('id') != 1 or response.get('type') != 'result' or not response.get('success'):
+                    raise RuntimeError('Shared daily overview unavailable')
+                return response['result']
+        finally:
+            await client.disconnect()
 
     async def _get_states_once(self) -> list:
         """Retrieve entity states once on the current authenticated socket."""
