@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.53
+
+- Keep local planning interpretation context only for elliptical follow-ups.
+- A new household-schedule question no longer inherits a preceding after-school
+  filter. Verified with combined end-to-end HA Assist text acceptance.
+
 ## 0.45.52
 
 - Broader read-only household planning with bounded local-only interpretation.

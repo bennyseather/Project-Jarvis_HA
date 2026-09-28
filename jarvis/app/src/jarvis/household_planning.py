@@ -103,7 +103,7 @@ def eligible(text, previous):
     if OTHER_DOMAIN.search(text) or re.search(r'\b(usually|every|birthday|born|job|profession)\b', text): return False
     if ACTION_WORDS.search(text): return False
     if previous and followup(text): return True
-    household = names_in(text) or re.search(r'\b(home|household|family|our|we)\b', text)
+    household = names_in(text) or re.search(r'\b(home|household|family|our|we|after school)\b', text)
     question = re.match(r'^(what|when|which|is|are|does|do|will|can|could|show|tell|give|how|any)\b', text)
     return bool(household and question and PLAN_WORDS.search(text))
 
@@ -115,6 +115,7 @@ focus must be overview, school, school_end, work_finish, calendar, after_school,
 school_end = when school finishes; school = school routine; work_finish = finishing work,
 NOT getting home or starting work. after_school = appointments after school ends.
 calendar = appointments/activities/events; overview = broader plans/routines.
+An overall household schedule includes routines as well as calendar entries: overview.
 stay = reported Emrik stay, never live presence. Plain 'And Linda?' means overview.
 'And the following week?' retains previous focus. Pronouns refer only to a single
 previous subject; otherwise clarify. Set clarify true for ambiguous, unrelated or
@@ -152,16 +153,27 @@ class HouseholdPlanningDialogue:
         return record
 
     def interpret(self, text, options, previous):
+        # Date-only and explicit topic-selector follow-ups have no new semantic
+        # intent to infer. Preserve that context in code, not probabilistic text.
+        remainder=DATE_PATTERN.sub('',text).strip()
+        if previous and (re.fullmatch(r'(?:and|what about|how about)',remainder) or
+                         text in ('tell me more','more details','show more')):
+            return previous.focus
+        if previous and re.fullmatch(r'(?:and|what about|how about) (?:'+'|'.join(PEOPLE)+r')',remainder):
+            return 'overview'
         # Contextvars propagate through to_thread: explicitly suppress the voice
         # sentence sink so internal JSON can never be spoken, even in voice mode.
         from jarvis.sentence_stream import sentence_sink
         token = sentence_sink.set(None)
         try:
+            # Only elliptical follow-ups inherit a view. A fully specified new
+            # question must not be narrowed by the preceding after-school view.
+            inherited = previous if followup(text) and not names_in(text) else None
             method = getattr(self.provider, 'reason_local', None)
             if method is None: raise RuntimeError('No local interpreter')
             response = method(instructions=INSTRUCTIONS,
                 input_messages=[{'role':'user','content':json.dumps({'question':text,
-                    'subject_options':list(options), 'previous_focus':previous.focus if previous else None})}],
+                    'subject_options':list(options), 'previous_focus':inherited.focus if inherited else None})}],
                 timeout_seconds=10, maximum_output_tokens=120)
             if response.get('status')!='success': raise RuntimeError('Local interpreter unavailable')
             raw = response.get('message','')
@@ -181,7 +193,7 @@ class HouseholdPlanningDialogue:
             if re.search(r'\bwork\b',text) and re.search(r'\b(finish\w*|end\w*)\b',text): allowed.add('work_finish')
             if re.search(r'\b(plan\w*|appointment\w*|activit\w*|schedul\w*|events?|calendar|booked|on)\b',text): allowed.add('calendar')
             if re.search(r'\b(stay\w*|here|reported)\b',text): allowed.add('stay')
-            if previous and followup(text): allowed.add(previous.focus)
+            if inherited: allowed.add(inherited.focus)
             if focus not in allowed: raise ValueError('Please clarify which planning information you want.')
             if focus in ('school','school_end','work_finish','after_school','stay') and options==('all',):
                 raise ValueError('Whose routine do you mean? Please use their name.')
