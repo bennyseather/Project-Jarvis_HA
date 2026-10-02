@@ -312,8 +312,9 @@ class ContextualRoutineController:
         self.store.audit("automation_draft_created", item.routine_id, {"path": str(filename)}, self._clock())
         return {"status": "success", "message": f"A disabled Home Assistant automation draft was created for {item.description}. Review it before enabling it."}
 
-    def insights(self):
-        self.refresh_statuses()
+    def insights(self, *, refresh=True):
+        if refresh:
+            self.refresh_statuses()
         items = self.store.list()
         return {
             "state": len(items),

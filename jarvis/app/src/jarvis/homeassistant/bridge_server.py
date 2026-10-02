@@ -12,6 +12,11 @@ class ConversationBridgeServer:
         self._bridge, self._api_key, self._loop = bridge, api_key, loop
         self._server = None
 
+    async def _learning_snapshot(self):
+        # SQLite belongs to the application loop, not the HTTP worker thread.
+        # A monitoring GET must not update stored routine statuses.
+        return self._bridge._application.container.contextual_routines.insights(refresh=False)
+
     def start(self, host="0.0.0.0", port=8099) -> None:
         outer = self
         class Handler(BaseHTTPRequestHandler):
@@ -23,7 +28,12 @@ class ConversationBridgeServer:
                         from jarvis.household_overview import overview
                         payload = overview(getattr(outer._bridge._application.container, "household_profile", None))
                     elif self.path == "/v1/learning":
-                        payload = outer._bridge._application.container.contextual_routines.insights()
+                        future = asyncio.run_coroutine_threadsafe(outer._learning_snapshot(), outer._loop)
+                        try:
+                            payload = future.result(timeout=5)
+                        except TimeoutError:
+                            future.cancel()
+                            raise
                     elif self.path == "/v1/orchestration":
                         payload = outer._bridge._application.container.efficient_intelligence.metrics()
                     elif urlparse(self.path).path == "/v1/voice/turn":

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.54
+
+- Restore Learning Insights by reading SQLite on its owning application loop.
+- Monitoring reads no longer rewrite routine statuses; authentication and no-store
+  responses remain intact. No voice, model, profile or device-control changes.
+
 ## 0.45.53
 
 - Keep local planning interpretation context only for elliptical follow-ups.
