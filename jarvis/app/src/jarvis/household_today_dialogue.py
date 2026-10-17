@@ -5,6 +5,7 @@ from datetime import date as Date, datetime, timedelta
 import re
 import time
 from zoneinfo import ZoneInfo
+from jarvis.household_wording import render_groups
 
 ZONE = ZoneInfo('Europe/Oslo')
 PERIOD_NAMES={'today':'Today','tomorrow':'Tomorrow','week_ahead':'Week ahead','this_week':'Rest of this week','next_week':'Next week'}
@@ -121,17 +122,11 @@ class HouseholdTodayDialogue:
                 if routine.get('work_days'):
                     return self.result('No usual work shift is listed for Linda today. This is her recorded routine, not confirmation of her actual plans.')
             return self.result('No approved shared information is available for that part of today. That does not confirm anyone is absent or has no plans.')
-        limit=3 if topic=='all' else 20
-        parts=[]
+        groups=OrderedDict()
         for card in selected:
-            lines=card['lines'][:limit]
-            # Event names remain quoted data. They never become prompts or actions.
-            if card['title']=='Mia · familiekalender':
-                line='; '.join('“'+s+'”' for s in lines)
-            else:line=' '.join(lines)
-            parts.append(card['title'].replace(' · ', ': ')+': '+line)
-            if len(card['lines'])>limit:parts.append(f"There are {len(card['lines'])-limit} more entries; ask what Mia has planned for the details.")
-        return self.result('Today in Norway ('+summary['date']+'). '+' '.join(parts))
+            groups[(card['title'],tuple(card['lines']))]=[summary['date']]
+        return self.result(render_groups(groups, reference=reference, more=more,
+                                        focus='stay' if topic=='emrik' else 'overview'))
 
     def format_planning(self,snapshot,days,topic,period,more):
         groups=OrderedDict()
@@ -144,16 +139,8 @@ class HouseholdTodayDialogue:
                     selected=[{'title':'Linda · usual work','lines':['No usual shift listed on this date; actual plans are not confirmed.']}]
                 else:selected=[{'title':'Shared information','lines':['No approved information for this date; plans and presence are unknown.']}]
             for card in selected:
-                lines=card['lines'][:20 if more or topic!='all' else 3]
-                if len(lines)<len(card['lines']):lines=lines+[f"{len(card['lines'])-len(lines)} more calendar entries; ask about Mia or read the dashboard."]
+                lines=card['lines']
                 key=(card['title'],tuple(lines))
                 groups.setdefault(key,[]).append(day['date'])
-        pieces=[]
-        for (title,lines),dates in groups.items():
-            dates=', '.join(Date.fromisoformat(d).strftime('%a %d %b') for d in dates)
-            text='; '.join('“'+line+'”' if title=='Mia · familiekalender' else line for line in lines)
-            pieces.append(dates+' — '+title.replace(' · ',': ')+': '+text)
-        limit=60 if more else 12
-        notice=f' {len(pieces)-limit} further items are available: say tell me more or open the Household page.' if len(pieces)>limit else ''
-        dates=days[0]['date'] if len(days)==1 else days[0]['date']+' to '+days[-1]['date']
-        return self.result(PERIOD_NAMES[period]+' in Norway ('+dates+'). '+'\n'.join(pieces[:limit])+notice)
+        return self.result(render_groups(groups, reference=self.day(), more=more,
+                                        focus='stay' if topic=='emrik' else 'overview'))

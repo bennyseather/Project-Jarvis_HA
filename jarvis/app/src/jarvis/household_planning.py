@@ -13,6 +13,7 @@ import time
 from zoneinfo import ZoneInfo
 
 from jarvis.household_today_dialogue import HouseholdTodayDialogue, expected_dates, normalize_question
+from jarvis.household_wording import render_groups
 
 ZONE = ZoneInfo('Europe/Oslo')
 PEOPLE = ('mia', 'linda', 'emrik', 'benny', 'madelen', 'johan', 'vinh', 'sunniva')
@@ -275,6 +276,8 @@ def after_school(day, subject):
     hours = next((c['lines'][0] for c in cards if c['title']==name+' · usual school'), '')
     match = re.fullmatch(r'(\d{2}:\d{2})–(\d{2}:\d{2})',hours)
     if not match:
+        if any(c['title']==name+' · school' and c['lines'][0].startswith('No school in the usual weekend') for c in cards):
+            return ['No school in the usual weekend routine; no after-school window applies.']
         return ['No school-finish time applies or is recorded for this date; I cannot define an after-school window.']
     cutoff = datetime.combine(date.fromisoformat(day['date']),Time.fromisoformat(match[2]),ZONE)
     calendar = day.get('calendar',{})
@@ -314,15 +317,8 @@ def render(snapshot, plan, more=False):
                     if match: lines[0]='Usual school finish: '+match[1]+'.'
                 if card['title'].endswith(' · familiekalender'): lines=['“'+line+'”' for line in lines]
                 groups.setdefault((card['title'],tuple(lines)),[]).append(day['date'])
-    pieces=[]
-    for (title,lines),dates in groups.items():
-        label=', '.join(date.fromisoformat(d).strftime('%a %d %b') for d in dates)
-        pieces.append(label+' — '+title.replace(' · ',': ')+': '+' '.join(lines))
-    limit=60 if more else 12
-    end=(date.fromisoformat(plan.end)-timedelta(days=1)).isoformat()
-    period=plan.start if end==plan.start else plan.start+' to '+end
-    notice=' Further items are available: ask about one person/date or say tell me more.' if len(pieces)>limit else ''
-    return 'Household plans in Norway ('+period+').\n'+'\n'.join(pieces[:limit])+notice
+    return render_groups(groups, focus=plan.focus,
+                         reference=snapshot['planning']['generated_on'], more=more)
 
 
 class HouseholdConversation:
