@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import re
+import asyncio
 
 
 class HouseholdCalendar:
@@ -14,6 +15,60 @@ class HouseholdCalendar:
     @staticmethod
     def result(message, status='success'):
         return {'status': status, 'message': message, 'provider': 'household_calendar', 'cacheable': False}
+
+    async def handle_shared_owner(self, text):
+        """Explicit calendar ownership, independent of a speaker's permissions."""
+        from jarvis.household_speaker import shared_knowledge_enabled, ACTION
+        if not shared_knowledge_enabled(self.profile._data) or ACTION.search(text):
+            return None
+        value = text.casefold()
+        # Mia's calendar/routine planner is already richer; preserve that route.
+        people = [p for p in self.profile._data['members'] if re.search(r'\b'+re.escape(p['preferred_name'])+r'\b', value, re.I)]
+        if len(people) != 1 or people[0]['id'] == 'mia' or not re.search(r'\b(calendar|appointments?|events?)\b', value):
+            return None
+        person = people[0]
+        if person['id'] != 'benny':
+            return self.result("I don't have a connected personal calendar for "+person['preferred_name']+". Their known routines are still available.", 'unavailable')
+        entity = 'calendar.jarvis_travels'
+        if entity not in self.allowed:
+            return self.result("Benny's travel calendar connection is unavailable.", 'unavailable')
+        now = self.clock().astimezone(self.zone)
+        from jarvis.household_planning import resolve_dates
+        try:
+            start, end = resolve_dates(value, now.date().isoformat())
+        except ValueError:
+            return self.result("Which date or week should I check in Benny's travel calendar?", 'clarification_required')
+        start = datetime.fromisoformat(start).replace(tzinfo=self.zone)
+        end = datetime.fromisoformat(end).replace(tzinfo=self.zone)
+        try:
+            response = await asyncio.wait_for(self.client.call_service_response('calendar', 'get_events', {
+                'entity_id': entity, 'start_date_time': start.isoformat(), 'end_date_time': end.isoformat()}), 20)
+            events = response[entity]['events']
+            if not isinstance(events, list):
+                raise ValueError('Missing events')
+            entries = []
+            for event in events:
+                raw = event['start']
+                if isinstance(raw, dict):
+                    raw = raw.get('dateTime') or raw.get('date')
+                dt = datetime.fromisoformat(raw.replace('Z', '+00:00'))
+                if len(raw) == 10:
+                    dt = dt.replace(tzinfo=self.zone)
+                    stamp = dt.strftime('%a %d %b')+', all day'
+                else:
+                    if dt.tzinfo is None:
+                        raise ValueError('Ambiguous timezone')
+                    dt = dt.astimezone(self.zone)
+                    stamp = dt.strftime('%a %d %b at %H:%M')
+                if not start <= dt < end:
+                    continue
+                entries.append((dt, stamp+': '+' '.join(str(event.get('summary') or 'Untitled event').split())[:160]))
+            entries.sort(key=lambda item:item[0])
+        except Exception:
+            return self.result("I couldn't read Benny's travel calendar reliably just now. That does not mean there are no plans.", 'unavailable')
+        if not entries:
+            return self.result("No entries were returned from Benny's travel calendar for that period. This calendar covers travel, not every personal appointment.")
+        return self.result("Benny's travel calendar, in Norway time: "+'; '.join(item[1] for item in entries[:6])+('. More entries are available.' if len(entries)>6 else '.'))
 
     async def handle(self, text):
         value = ' '.join(text.casefold().strip(' .?!').split())

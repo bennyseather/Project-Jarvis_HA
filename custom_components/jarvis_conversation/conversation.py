@@ -105,11 +105,24 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                 "request_id": str(conversation_id).rsplit(":", 1)[1],
                 "wire_conversation_id": conversation_id,
             }
+        # Optional trusted pairing can select only already-shared read wording.
+        # Keep the original wire ID for audio delivery; isolate Brain history.
+        request_text, request_conversation = user_input.text, conversation_id
+        speaker_reference = None
+        speaker = getattr(self.hass, 'data', {}).get('jarvis_conversation', {}).get('speaker_bridge')
+        if speaker is not None and reliable_browser:
+            try:
+                turn = await speaker.context(user_input.text, conversation_id)
+                request_text, request_conversation = turn
+                speaker_reference = turn.reference
+            except Exception:
+                pass
         async with session.post(
             self.entry.data["bridge_url"] + "/v1/conversation",
             json={
-                "text": user_input.text,
-                "conversation_id": conversation_id,
+                "text": request_text,
+                "conversation_id": request_conversation,
+                "speaker_context": speaker_reference,
                 "source_id": source_id,
                 "voice_mode": voice_mode,
                 "device_id": user_input.device_id,

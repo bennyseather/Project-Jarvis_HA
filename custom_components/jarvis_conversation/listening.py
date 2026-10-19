@@ -30,6 +30,42 @@ async def listen(hass, connection, msg):
     queue = asyncio.Queue(maxsize=600)
     task = None
     acknowledged = False
+    capture = None
+    capture_timer = None
+
+    def capture_call(method, *args):
+        nonlocal capture
+        if capture is None:
+            return
+        try:
+            getattr(capture, method)(*args)
+        except Exception:
+            failed, capture = capture, None
+            try:
+                failed.abort()
+            except Exception:
+                pass
+
+    def pipeline_event(event):
+        # The normal event and audio paths never await optional recognition.
+        connection.send_event(msg["id"], event)
+        capture_call("on_event", event)
+
+    # Only an explicit private-operator pairing enables this optional tap.
+    # Browser conversation/device IDs or a shared HA user do not authorise it.
+    # The factory is memory-only; no network/model work belongs on this path.
+    try:
+        factory = getattr(hass, "data", {}).get("jarvis_conversation", {}).get("speaker_capture_factory")
+    except Exception:
+        factory = None
+    if factory is not None:
+        try:
+            capture = factory(connection, msg["conversation_id"], msg["start_stage"])
+            if capture is not None:
+                capture_timer = asyncio.get_running_loop().call_later(35, capture_call, "abort")
+        except Exception:
+            capture_call("abort")
+            capture = None
     def audio_received(_hass, _connection, data):
         if queue.full():
             if task is not None:
@@ -39,13 +75,14 @@ async def listen(hass, connection, msg):
     handler, unregister = connection.async_register_binary_handler(audio_received)
     async def stream():
         while chunk := await queue.get():
+            capture_call("feed", chunk)
             yield chunk
     try:
         pipeline = async_get_pipeline(hass, msg.get("pipeline"))
         run = PipelineRun(
             hass, context=connection.context(msg), pipeline=pipeline,
             start_stage=PipelineStage(msg["start_stage"]), end_stage=PipelineStage.TTS,
-            event_callback=lambda event: connection.send_event(msg["id"], event),
+            event_callback=pipeline_event,
             runner_data={"stt_binary_handler_id": handler, "timeout": msg["timeout"]},
             wake_word_settings=WakeWordSettings(timeout=15) if msg["start_stage"] == "wake_word" else None,
             audio_settings=AudioSettings(silence_seconds=1.8),
@@ -77,6 +114,9 @@ async def listen(hass, connection, msg):
         else:
             connection.send_error(msg["id"], "listening_failed", "Check the HA pipeline configuration")
     finally:
+        if capture_timer is not None:
+            capture_timer.cancel()
+        capture_call("abort")
         unregister()
         connection.subscriptions.pop(msg["id"], None)
         if task is not None and not task.done():

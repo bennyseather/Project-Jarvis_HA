@@ -4,13 +4,24 @@ from homeassistant.const import Platform
 async def async_setup_entry(hass, entry):
     from homeassistant.components import websocket_api
     from .listening import listen
+    from .household import household
     websocket_api.async_register_command(hass, listen)
+    websocket_api.async_register_command(hass, household)
+    from .speaker_bridge import register as register_speaker
+    await register_speaker(hass)
     await hass.config_entries.async_forward_entry_setups(entry, [Platform.CONVERSATION, Platform.SENSOR])
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
 async def async_unload_entry(hass, entry):
-    return await hass.config_entries.async_unload_platforms(entry, [Platform.CONVERSATION, Platform.SENSOR])
+    unloaded = await hass.config_entries.async_unload_platforms(entry, [Platform.CONVERSATION, Platform.SENSOR])
+    if unloaded:
+        domain = hass.data.get('jarvis_conversation', {})
+        bridge = domain.pop('speaker_bridge', None)
+        domain.pop('speaker_capture_factory', None)
+        if bridge:
+            await bridge.close()
+    return unloaded
 
 
 async def async_migrate_entry(hass, entry):

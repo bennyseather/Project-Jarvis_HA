@@ -806,6 +806,18 @@ class JarvisApplication:
 
         profile = getattr(self.container, "household_profile", None)
         if profile is not None:
+            from jarvis.household_speaker import resolve_question, travel_subject, employment_answer, birthday_answer
+            text, speaker_result = resolve_question(text, getattr(profile, '_data', {}))
+            if speaker_result is not None:
+                return speaker_result
+            fact = employment_answer(text, getattr(profile, '_data', {})) or birthday_answer(text, getattr(profile, '_data', {}))
+            if fact is not None:
+                return fact
+            calendar = getattr(self.container, 'household_calendar', None)
+            if calendar is not None and hasattr(calendar, 'handle_shared_owner'):
+                personal_calendar = await calendar.handle_shared_owner(text)
+                if personal_calendar is not None:
+                    return personal_calendar
             today = getattr(self.container, 'household_today_dialogue', None)
             client = getattr(self.container, 'home_assistant', None)
             if today is None and client is not None:
@@ -855,7 +867,10 @@ class JarvisApplication:
             approval = profile._data.get('sharing_policy', {}).get('additional_category_approval', {})
             travel = getattr(self.container, 'travel_calendar_intelligence', None)
             if travel is not None and approval.get('source') and approval.get('recorded_on') and 'benny_travel_details' in approval.get('categories', []):
-                travel_result = await travel.handle(text, conversation_id=conversation_id)
+                travel_text, travel_missing = travel_subject(text, getattr(profile, '_data', {}))
+                if travel_missing is not None:
+                    return travel_missing
+                travel_result = await travel.handle(travel_text, conversation_id=conversation_id)
                 if travel_result is not None:
                     previous = getattr(self.container, 'household_dialogue', None)
                     if previous is not None:
@@ -1185,10 +1200,16 @@ class JarvisApplication:
                 )
             return research_result
         if self.container.local_knowledge_router is not None:
+            # Only the local reasoning pass receives household knowledge.
+            # Do not attach it to public research or cloud-capable tool proposals.
+            local_context = dict(context)
+            profile = getattr(self.container, 'household_profile', None)
+            if profile is not None:
+                local_context['household'] = profile.reasoning_context(text)
             local_result = await asyncio.to_thread(
                 self.container.local_knowledge_router.handle,
                 text,
-                context,
+                local_context,
                 voice_mode=voice_mode,
                 response_plan=response_plan,
             )

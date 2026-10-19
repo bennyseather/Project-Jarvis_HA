@@ -62,6 +62,7 @@ class ConversationBridgeServer:
                             payload.get("proactive_voice_route"),
                             payload.get("source_id"),
                             payload.get("activation_id"),
+                            speaker_context=payload.get("speaker_context"),
                         ),
                         outer._loop,
                     ).result(timeout=60)

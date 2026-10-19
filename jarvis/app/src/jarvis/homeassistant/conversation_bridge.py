@@ -26,6 +26,17 @@ class JarvisConversationBridge:
         self._voice_turns = None
 
     async def process(
+        self, text: str, confirmation_token=None, conversation_id=None,
+        voice_mode=False, proactive_voice_route=None, source_id=None, activation_id=None,
+        speaker_context=None,
+    ) -> dict[str, object]:
+        from jarvis.household_speaker import speaker_scope
+        profile = getattr(self._application.container, 'household_profile', None)
+        with speaker_scope(speaker_context, profile, conversation_id):
+            return await self._process(text, confirmation_token, conversation_id, voice_mode,
+                                       proactive_voice_route, source_id, activation_id)
+
+    async def _process(
         self,
         text: str,
         confirmation_token: str | None = None,
@@ -40,7 +51,8 @@ class JarvisConversationBridge:
                 coordinator = self._application.container.responsive_voice
                 self._voice_turns = VoiceTurnController(coordinator.client, coordinator.logger)
             # The wire identifier includes the turn; application history does not.
-            identifier = str(conversation_id).rsplit(":", 1)[0]
+            identifier = (str(conversation_id).rsplit(":", 1)[0]
+                          if str(conversation_id).startswith('jarvis-voice-v3:') else str(conversation_id))
             return await self._voice_turns.execute(
                 self.process(text, confirmation_token, identifier, voice_mode,
                              None, source_id, activation_id),

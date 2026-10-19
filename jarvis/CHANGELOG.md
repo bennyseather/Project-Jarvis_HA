@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.45.56
+
+- Support explicitly approved shared household knowledge, including confirmed
+  employment and biography facts. Never infer new facts or connector access.
+- Resolve first-person reads from request-local speaker relevance; unknown
+  speakers clarify, named questions remain shared, and voice grants no authority.
+- Keep speaker history partitions intact across reliable voice turns. Preserve
+  action confirmations, existing speaker enrolment and recognition thresholds.
+- Route personal calendars to their actual owner; keep household references
+  local and outside public-search/cloud tool-proposal payloads.
+- Include the separately deployed optional Windows speaker adapter/status card
+  and existing complete-short-answer voice handling in the maintained sources.
+- Requires the matching conversation adapter and explicit persisted sharing
+  approval. No automatic voice enrolment, household-data import or device action.
+
+## 0.45.55
+
+- Natural, appointments-first household replies with combined routines and
+  concise qualifications, without changing date interpretation or source facts.
+
 ## 0.45.54
 
 - Restore Learning Insights by reading SQLite on its owning application loop.
