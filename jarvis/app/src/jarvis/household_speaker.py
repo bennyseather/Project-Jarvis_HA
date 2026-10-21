@@ -138,7 +138,24 @@ def employment_answer(text, document):
             'provider':'household_profile', 'cacheable':False}
 
 
-def birthday_answer(text, document):
+def age_fields(record, *, today=None):
+    """Derive ages on every read; never persist an age that becomes stale."""
+    from datetime import date, datetime
+    from zoneinfo import ZoneInfo
+    if record.get('status') != 'confirmed':
+        return {}
+    today = today or datetime.now(ZoneInfo('Europe/Oslo')).date()
+    try:
+        birth = date.fromisoformat(record['value'])
+    except (KeyError, ValueError, TypeError):
+        return {}
+    if birth > today:
+        return {}
+    return {'age_years': today.year-birth.year-((today.month,today.day)<(birth.month,birth.day)),
+            'age_as_of': today.isoformat()}
+
+
+def birthday_answer(text, document, *, today=None):
     """Speak confirmed birthdays/ages naturally without model arithmetic."""
     if not shared_knowledge_enabled(document) or ACTION.search(text):
         return None
@@ -148,7 +165,7 @@ def birthday_answer(text, document):
     person = people[0]
     name = re.escape(person['preferred_name'])
     birthday = bool(re.match(r"^(?:when is|what is|what's) "+name+r"['’]s birthday(?:\?|\.|$)", text, re.I))
-    age = bool(re.fullmatch(r'how old is '+name+r'[ .?!]*', text, re.I))
+    age = bool(re.fullmatch(r'(?:how old is '+name+r'|(?:what is|what\'s) '+name+r"['’]s age)[ .?!]*", text, re.I))
     if not birthday and not age:
         return None
     record = person.get('birth_date', {})
@@ -165,10 +182,10 @@ def birthday_answer(text, document):
         subject = 'Your birthday is' if own else person['preferred_name']+"'s birthday is"
         message = f'{subject} on {birth.day} {birth:%B}.'
     else:
-        today = datetime.now(ZoneInfo('Europe/Oslo')).date()
-        years = today.year-birth.year-((today.month,today.day)<(birth.month,birth.day))
-        if years < 0:
+        calculated = age_fields(record, today=today)
+        if not calculated:
             return None
+        years = calculated['age_years']
         subject = 'You are' if own else person['preferred_name']+' is'
         message = f'{subject} {years} years old.'
     return {'status':'success', 'message':message,'provider':'household_profile','cacheable':False}

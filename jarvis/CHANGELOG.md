@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.45.57
+
+- Recalculate confirmed household ages from birth dates on every read in Norway
+  time, and provide dated age values to the local reasoning model. Do not store
+  mutable ages or rewrite birthdays, household facts or conversation history.
+- Recognize direct age-question variants without model arithmetic. Preserve
+  shared knowledge, request-local speaker relevance and action permissions.
+- Companion UI0.47.70 adds opt-in whole-day calendars, stable Insights scrolling,
+  semantic door badges and explicit seasonal mower display. Speech sectioning
+  uses punctuation/commas, never arbitrary word boundaries; the separate Node
+  speech worker needs its offline maintenance update for full compatibility.
+
 ## 0.45.56
 
 - Support explicitly approved shared household knowledge, including confirmed

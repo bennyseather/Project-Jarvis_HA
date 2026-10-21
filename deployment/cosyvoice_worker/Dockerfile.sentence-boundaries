@@ -1,0 +1,3 @@
+# Offline child of the installed worker. No model, reference or engine changes.
+FROM sha256:4c3eaa0a831c42eed1d23fd4ccf35451b81a550af62a992be653de97399838c2
+COPY deployment/cosyvoice_worker/server.py deployment/cosyvoice_worker/speech_chunks.py /app/

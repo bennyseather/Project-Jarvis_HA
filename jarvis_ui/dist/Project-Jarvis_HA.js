@@ -1,4 +1,4 @@
-const JARVIS_UI_VERSION = "0.47.45";
+const JARVIS_UI_VERSION = "0.47.70";
 const relativeTime = (value) => { const time = Date.parse(value || ""); if (!Number.isFinite(time)) return "recent"; const minutes = Math.max(0, Math.round((Date.now() - time) / 60000)); return minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`; };
 
 const HISTORY_CACHE = new Map();
@@ -234,6 +234,10 @@ function escapeHtml(value) {
 function formatState(state, config) {
   if (!state) return "Entity unavailable";
   const raw = config.attribute ? state.attributes?.[config.attribute] : state.state;
+  if (!config.attribute && config.out_of_season === true && entityDomain(config.entity || state.entity_id) === "lawn_mower") return "Out of season";
+  const deviceClass = config.display_class || state.attributes?.device_class;
+  if (!config.attribute && entityDomain(config.entity || state.entity_id) === "binary_sensor"
+      && ["door", "window", "opening", "garage_door"].includes(deviceClass) && ["on", "off"].includes(raw)) return raw === "on" ? "Open" : "Closed";
   const unit = config.unit ?? state.attributes?.unit_of_measurement ?? "";
   return `${formatValue(raw)}${unit ? ` ${unit}` : ""}`;
 }
@@ -1071,13 +1075,19 @@ class JarvisVoiceCard extends JarvisBaseCard {
 // queued event cannot survive mute, a new request, reconnect or dashboard reload.
 class JarvisVoiceTurn {
   static chunks(text, maximum = 220) {
+    let remaining = String(text).trim().replace(/\s+/g, " ");
+    if (remaining.length > 12000) throw new Error("Speech exceeds the complete-answer limit");
+    if (remaining.split(" ").some(word=>word.length>maximum)) throw new Error("Speech contains an oversized word");
     const parts = [];
-    let chunk = "";
-    for (const word of String(text).trim().split(/\s+/)) {
-      if (chunk && chunk.length + word.length + 1 > maximum) { parts.push(chunk); chunk = ""; }
-      chunk += (chunk ? " " : "") + word;
+    while (remaining.length > maximum) {
+      const boundaries = [...remaining.matchAll(/[.!?;:,](?=\s|$)/g)].map(m=>m.index+1);
+      const before = boundaries.filter(n=>n<=maximum);
+      const boundary = before.length ? before.at(-1) : (boundaries.find(n=>n>maximum) || remaining.length);
+      if (boundary > 2000) throw new Error("Speech clause exceeds the complete-section limit; refusing to split mid-sentence");
+      parts.push(remaining.slice(0, boundary).trim());
+      remaining = remaining.slice(boundary).trim();
     }
-    if (chunk) parts.push(chunk);
+    if (remaining) parts.push(remaining);
     return parts;
   }
   constructor(requestId, play, complete) {
@@ -1348,10 +1358,8 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       this._reliableWake = this._mode === "wake";
       this._voiceTurn = new JarvisVoiceTurn(request,
         async (text) => {
-          for (const chunk of JarvisVoiceTurn.chunks(text)) {
-            if (this._voiceTurn?.requestId !== request || !this._voiceTurn.active) return;
-            await this._speakFollowUpText(chunk);
-          }
+          if (this._voiceTurn?.requestId !== request || !this._voiceTurn.active) return;
+          await this._speakFollowUpText(text);
         }, async () => {
           this._dialogueTurns += 1;
           if (this._dialogueEnabled()) {
@@ -1631,7 +1639,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       await turn.accept(data);
       return;
     }
-    const message = String(data?.message || "").trim().slice(0, 700);
+    const message = String(data?.message || "").trim();
     if (!message) return;
     const restartWake = this._mode === "wake";
     const isProgress = String(data?.delivery_id || "").startsWith("progress:");
@@ -1652,22 +1660,47 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
     }
   }
   async _speakFollowUpText(text) {
+    const chunks = JarvisVoiceTurn.chunks(text);
+    if (!chunks.length) throw new Error("No speech text");
+    if (chunks.length === 1) return this._speakSpeechSection(chunks[0]);
+    const generation = this._playbackGeneration;
+    // Exactly one look-ahead request. Reflect failures immediately so a failed
+    // prefetch cannot become an unhandled rejection while current audio plays.
+    const prepare = (chunk) => this._speakSpeechSection(chunk, true).then(
+      buffer => ({ buffer }), error => ({ error }),
+    );
+    let pending = prepare(chunks[0]);
+    for (let index = 0; index < chunks.length; index += 1) {
+      const prepared = await pending;
+      if (generation !== this._playbackGeneration) throw new Error("Speech cancelled");
+      if (prepared.error) throw prepared.error;
+      if (index + 1 < chunks.length) pending = prepare(chunks[index + 1]);
+      try {
+        await this._playTts(undefined, prepared.buffer);
+      } catch (error) {
+        this._ttsCancel?.();
+        throw error;
+      }
+    }
+    if (generation !== this._playbackGeneration) throw new Error("Speech cancelled");
+  }
+  async _speakSpeechSection(text, prepareOnly = false) {
     return new Promise(async (resolve, reject) => {
       let playback;
       let unsubscribe;
       let settled = false;
       const generation = this._playbackGeneration;
-      const finish = (error) => {
+      const finish = (error, value) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         unsubscribe?.();
         if (this._ttsCancel === cancel) this._ttsCancel = undefined;
-        error ? reject(error) : resolve();
+        error ? reject(error) : resolve(value);
       };
       const cancel = () => finish(new Error("Speech cancelled"));
       this._ttsCancel = cancel;
-      const timer = setTimeout(() => finish(new Error("Speech service did not complete; check Jarvis Voice")), 60000);
+      let timer = setTimeout(() => finish(new Error("Speech service did not complete; check Jarvis Voice")), 310000);
       const message = {
         type: "assist_pipeline/run", start_stage: "tts", end_stage: "tts",
         input: { text }, timeout: 300,
@@ -1679,37 +1712,61 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
           if (settled || generation !== this._playbackGeneration) return;
           const event = payload?.event || payload;
           const data = event?.data || {};
-          if (event?.type === "tts-end") playback = this._playTts(data.url || data.tts_output?.url);
+          if (event?.type === "tts-end") {
+            if (playback) return; // Duplicate end events must not replay audio.
+            if (prepareOnly) {
+              playback = this._prepareTts(data.url || data.tts_output?.url, generation);
+              Promise.resolve(playback).then(buffer => finish(null, buffer), finish);
+              return;
+            }
+            clearTimeout(timer); // Synthesis is complete; playback owns its lifecycle.
+            timer = setTimeout(() => finish(new Error("Speech playback did not complete")), 600000);
+            playback = this._playTts(data.url || data.tts_output?.url);
+            Promise.resolve(playback).then(() => finish(), finish);
+          }
           else if (event?.type === "error") {
             finish(new Error(data.message || data.code || "TTS pipeline failed"));
           } else if (event?.type === "run-end") {
             if (!playback) finish(new Error("Speech service returned no audio"));
-            else Promise.resolve(playback).then(() => finish(), finish);
+            else Promise.resolve(playback).then(value => finish(null, value), finish);
           }
         }, message);
         if (settled) unsubscribe?.();
       } catch (error) { finish(error); }
     });
   }
-  async _playTts(url) {
-    if (!url) {
+  async _prepareTts(url, generation = this._playbackGeneration) {
+    if (!url) throw new Error("Response audio unavailable");
+    if (generation !== this._playbackGeneration) throw new Error("Speech cancelled");
+    if (!this._playbackContext || this._playbackContext.state === "closed") this._playbackContext = new AudioContext();
+    const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
+    const controller = new AbortController();
+    this._ttsFetchControllers ||= new Set();
+    this._ttsFetchControllers.add(controller);
+    try {
+      const response = await window.fetch.call(window, target, { credentials: "same-origin", signal: controller.signal });
+      if (!response.ok) throw new Error(`audio request ${response.status}`);
+      const buffer = await this._playbackContext.decodeAudioData(await response.arrayBuffer());
+      if (generation !== this._playbackGeneration) throw new Error("Speech cancelled");
+      return buffer;
+    } finally { this._ttsFetchControllers.delete(controller); }
+  }
+  async _playTts(url, preparedBuffer) {
+    if (!url && !preparedBuffer) {
       this._status = "Response audio unavailable";
       this._paintStatus();
-      return;
+      throw new Error("Response audio unavailable");
     }
     const generation = this._playbackGeneration;
     const play = async () => {
       if (generation !== this._playbackGeneration) return;
-      const target = this._hass.hassUrl ? this._hass.hassUrl(url) : url;
       try {
         if (!this._playbackContext || this._playbackContext.state === "closed") {
           this._playbackContext = new AudioContext();
         }
         const playbackContext = this._playbackContext;
         await playbackContext.resume();
-        const response = await window.fetch.call(window, target, { credentials: "same-origin" });
-        if (!response.ok) throw new Error(`audio request ${response.status}`);
-        const buffer = await playbackContext.decodeAudioData(await response.arrayBuffer());
+        const buffer = preparedBuffer || await this._prepareTts(url, generation);
         if (generation !== this._playbackGeneration) return;
         this._activePlaybackSource?.stop?.();
         const source = playbackContext.createBufferSource();
@@ -1733,7 +1790,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
       } catch (error) {
         this._status = `Playback error // ${error?.message || "audio blocked"}`;
         this._paintStatus();
-        if (this._config.reliable_voice === true) throw error;
+        throw error;
       }
     };
     this._playbackQueue = this._playbackQueue.catch(() => {}).then(play);
@@ -1742,6 +1799,7 @@ class JarvisVoiceSatelliteCard extends JarvisBaseCard {
   _cancelPlayback() {
     this._playbackGeneration += 1;
     this._ttsCancel?.();
+    for (const controller of this._ttsFetchControllers || []) controller.abort();
     const source = this._activePlaybackSource;
     this._activePlaybackSource = undefined;
     if (source) {
@@ -2021,14 +2079,20 @@ class JarvisMowerCard extends JarvisEntityCard {
   static cardName = "Jarvis Robot Mower";
   static domains = ["lawn_mower", "vacuum"];
   static gridRows = 4;
+  static getConfigForm() {
+    const form = commonForm(true);
+    form.schema.push({name:"out_of_season",selector:{boolean:{}}});
+    return form;
+  }
   render() {
     if (!this._config) return;
     const state = this.cardState();
     const domain = entityDomain(this._config.entity);
     const services = domain === "lawn_mower" ? ["start_mowing", "pause", "dock"] : ["start", "pause", "return_to_base"];
-    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Robotic Mower")}<div class="j-value">${escapeHtml(String(state?.state || "unknown").toUpperCase())}</div></div><div class="j-controls">${services.map((service) => `<button data-service="${service}">${service.replaceAll("_", " ")}</button>`).join("")}</div></div>`,
+    const seasonal = this._config.out_of_season === true;
+    this.shell(`<div class="j-layout"><div class="j-header">${this.entityHeader("Robotic Mower")}<div class="j-value">${escapeHtml(formatState(state || {entity_id:this._config.entity,state:"unavailable"}, this._config).toUpperCase())}</div></div><div class="j-controls">${services.map((service) => `<button data-service="${service}" ${seasonal ? "disabled" : ""}>${service.replaceAll("_", " ")}</button>`).join("")}</div></div>`,
       { ariaLabel: friendlyName(state, this._config) });
-    this.shadowRoot.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => this.call(domain, button.dataset.service)));
+    this.shadowRoot.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => { if (!seasonal) this.call(domain, button.dataset.service); }));
   }
 }
 
@@ -2451,10 +2515,32 @@ class JarvisClimateOverviewCard extends JarvisSummaryPanel { static cardName = "
 class JarvisPerimeterCard extends JarvisSummaryPanel { static cardName = "Jarvis Security Perimeter"; static icon = "jarvis:security"; static kicker = "Doors, windows and locks"; }
 class JarvisEnergyFlowCard extends JarvisSummaryPanel { static cardName = "Jarvis Energy Flow"; static icon = "jarvis:solar"; static kicker = "Solar, grid and battery"; }
 
+function jarvisDateKey(now = new Date(), zone = "Europe/Oslo") {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {timeZone:zone,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(now).map(p=>[p.type,p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+function jarvisShiftDay(day, offset) {
+  const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate()+offset); return d.toISOString().slice(0,10);
+}
+function jarvisDayRange(day, zone = "Europe/Oslo") {
+  const midnight = key => {
+    const [y,m,d] = key.split("-").map(Number), wall = Date.UTC(y,m-1,d);
+    let stamp = wall;
+    const formatter = new Intl.DateTimeFormat("en-GB", {timeZone:zone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"});
+    for (let n=0;n<3;n++) {
+      const p = Object.fromEntries(formatter.formatToParts(new Date(stamp)).map(x=>[x.type,x.value]));
+      stamp += wall-Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second);
+    }
+    return new Date(stamp);
+  };
+  return {start:midnight(day),end:midnight(jarvisShiftDay(day,1))};
+}
+
 class JarvisCalendarCard extends JarvisBaseCard {
   static requiresEntity = false;
   static cardName = "Jarvis Calendar";
   static gridRows = 7;
+  setConfig(config) { this._dayRevision=(this._dayRevision||0)+1; super.setConfig(config); }
   static getConfigForm() { return { schema: [
     { name: "name", selector: { text: {} } },
     { name: "entities", required: true, selector: { entity: { domain: "calendar", multiple: true } } },
@@ -2463,18 +2549,38 @@ class JarvisCalendarCard extends JarvisBaseCard {
     ...Array.from({ length: 6 }, (_, index) => ({ name: `calendar_${index + 1}_accent`, selector: { select: { options: ["automatic", "cyan", "blue", "green", "amber", "purple", "red"] } } })),
   ] }; }
   static getStubConfig(hass) { return { name: "Calendar Agenda", entities: Object.keys(hass?.states || {}).filter((id) => entityDomain(id) === "calendar").slice(0, 2), accent: "cyan", appointment_limit: 10 }; }
-  calendarView() { return "agenda"; }
-  connectedCallback() { this._visible = false; this._observer = new IntersectionObserver((entries) => { this._visible = entries.some((entry) => entry.isIntersecting); if (this._visible) this.loadEvents(); }, { rootMargin: "160px" }); this._observer.observe(this); }
-  disconnectedCallback() { this._observer?.disconnect(); }
+  calendarView() { return this._config?.view === "day" ? "day" : "agenda"; }
+  connectedCallback() {
+    this._visible = false;
+    this._observer = new IntersectionObserver(entries=>{this._visible=entries.some(e=>e.isIntersecting);if(this._visible){this._checkCalendarDay();this.loadEvents();}}, {rootMargin:"160px"});
+    this._observer.observe(this);
+    this._dayTimer = setInterval(()=>{if(this._visible && !document.hidden){this._checkCalendarDay();this.loadEvents();}},30000);
+    this._dayWake = ()=>{if(!document.hidden){this._checkCalendarDay();if(this._visible)this.loadEvents();}};
+    document.addEventListener("visibilitychange",this._dayWake);
+  }
+  disconnectedCallback() { this._observer?.disconnect(); clearInterval(this._dayTimer);document.removeEventListener("visibilitychange",this._dayWake); }
+  set hass(value) {
+    this._hass=value;
+    if (!this.shadowRoot.querySelector(".calendar-content")) this.render();
+    this._checkCalendarDay();
+    if(this._visible)this.loadEvents();
+  }
+  _checkCalendarDay() {
+    const today=jarvisDateKey(new Date(),this._hass?.config?.time_zone || "Europe/Oslo");
+    if(this._calendarToday && this._calendarToday!==today && this.calendarView()==="day"){this._offset=0;this._dayRevision=(this._dayRevision||0)+1;}
+    this._calendarToday=today;
+  }
   render() {
     if (!this._config) return;
     this._offset = this._offset || 0;
     const view = this.calendarView();
+    if(view==="day"){this.renderDay();return;}
     this.shell(`<div class="calendar"><div class="calendar-head"><div><div class="eyebrow">Schedule channel</div><div class="title">${escapeHtml(this._config.name || "Calendar")}</div></div><div class="nav"><button data-nav="-1">&lt;</button><b>${view.toUpperCase()}</b><button data-nav="1">&gt;</button></div></div><div class="calendar-content"><span>CALENDAR LOADING</span></div></div><style>.calendar{padding:18px;min-height:300px}.calendar-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.title{font-size:21px;font-weight:700}.nav{display:flex;align-items:center;gap:7px}.nav b{font:700 9px monospace;color:var(--j-accent)}.nav button{min-width:36px}.calendar-content{margin-top:14px}.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.day{min-height:45px;padding:5px;border:1px solid rgba(32,216,255,.12);font:700 10px monospace}.day.has{border-color:var(--day-accent,var(--j-accent));background:color-mix(in srgb,var(--day-accent,var(--j-accent)) 10%,transparent)}.event-dots{display:flex;gap:2px;flex-wrap:wrap;margin-top:5px}.event-dot{width:5px;height:5px;background:var(--event-accent,var(--j-accent));box-shadow:0 0 5px var(--event-accent,var(--j-accent))}.agenda{display:grid;gap:10px}.agenda-day h3{margin:6px 0;font:700 10px monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--j-accent)}.event{display:grid;grid-template-columns:70px 1fr;gap:9px;padding:8px;border-left:3px solid var(--event-accent,var(--j-accent));background:color-mix(in srgb,var(--event-accent,var(--j-accent)) 7%,transparent)}.event time{font:700 9px monospace;color:var(--event-accent,var(--j-accent))}.event span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@container(max-width:430px){.month-grid{display:none}.calendar{min-height:230px}}</style>`, { interactive: false });
     this.shadowRoot.querySelectorAll("[data-nav]").forEach((button) => button.addEventListener("click", () => { this._offset += Number(button.dataset.nav); CALENDAR_CACHE.clear(); this.loadEvents(); }));
     if (this._visible) this.loadEvents();
   }
   async loadEvents() {
+    if(this.calendarView()==="day")return this.loadDayEvents();
     const host = this.shadowRoot?.querySelector(".calendar-content");
     const entities = this._config?.entities || [];
     if (!host || !this._hass?.callApi || !entities.length || this._loadingEvents) return;
@@ -2504,6 +2610,44 @@ class JarvisCalendarCard extends JarvisBaseCard {
     const palette = { cyan: "#20d8ff", blue: "#4d8dff", green: "#49e59a", amber: "#ffbd45", purple: "#b985ff", red: "#ff5a6f" };
     const selected = this._config?.[`calendar_${index + 1}_accent`] || "automatic";
     return palette[selected] || Object.values(palette)[index % Object.keys(palette).length];
+  }
+  renderDay() {
+    this.shell(`<div class="calendar"><header><div><div class="eyebrow">Whole-day schedule</div><div class="title">${escapeHtml(this._config.name || "Calendar")}</div></div><nav><button data-day="-1" aria-label="Previous day">&lt;</button><button data-today>Today</button><button data-day="1" aria-label="Next day">&gt;</button></nav></header><h3 class="selected-day"></h3><div class="calendar-content" tabindex="0" role="region" aria-label="All appointments for the selected day">CALENDAR LOADING</div></div><style>.calendar{padding:18px;min-height:300px}.calendar header{display:flex;justify-content:space-between;gap:12px;align-items:center}.title{font-size:21px;font-weight:700}nav{display:flex;gap:6px}h3{font:700 12px monospace;color:var(--j-accent)}.calendar-content{max-height:420px;overflow:auto;overscroll-behavior:contain;overflow-anchor:none;scrollbar-gutter:stable;outline-offset:2px}.event{display:grid;grid-template-columns:100px minmax(0,1fr);gap:9px;padding:10px;margin-bottom:8px;border-left:3px solid var(--event-accent,var(--j-accent));background:rgba(32,216,255,.05)}.event time{font:700 10px monospace;color:var(--event-accent,var(--j-accent))}.event span{white-space:normal;overflow-wrap:anywhere;line-height:1.4}.empty,.error{padding:12px;font:700 11px monospace}.error{color:var(--j-red)}@container(max-width:430px){.calendar{padding:12px}.event{grid-template-columns:78px minmax(0,1fr)}nav button{min-width:30px}}</style>`,{interactive:false});
+    this.shadowRoot.querySelectorAll("[data-day]").forEach(button=>button.addEventListener("click",()=>{this._offset=(this._offset||0)+Number(button.dataset.day);this._dayRevision=(this._dayRevision||0)+1;this.loadEvents();}));
+    this.shadowRoot.querySelector("[data-today]").addEventListener("click",()=>{this._offset=0;this._dayRevision=(this._dayRevision||0)+1;this.loadEvents();});
+    this._checkCalendarDay();if(this._visible)this.loadEvents();
+  }
+  async loadDayEvents() {
+    const host=this.shadowRoot.querySelector(".calendar-content");
+    const entities=(this._config?.entities || []).map(x=>typeof x==="string"?x:x.entity).filter(Boolean);
+    if(!host || !this._hass?.callApi || !entities.length)return;
+    if(this._loadingDay){this._reloadDay=true;return;}
+    this._checkCalendarDay();
+    const zone=this._hass.config?.time_zone || "Europe/Oslo",day=jarvisShiftDay(this._calendarToday,this._offset||0);
+    const {start,end}=jarvisDayRange(day,zone),revision=this._dayRevision||0;
+    const key=`day:${zone}:${day}:${JSON.stringify(this._config)}`;
+    this.shadowRoot.querySelector(".selected-day").textContent=new Date(`${day}T12:00:00Z`).toLocaleDateString([],{timeZone:"UTC",weekday:"long",day:"numeric",month:"long",year:"numeric"});
+    let cached=CALENDAR_CACHE.get(key);
+    this._loadingDay=true;
+    try {
+      if(!cached || Date.now()-cached.time>DATA_CACHE_TTL){
+        const batches=await Promise.all(entities.map(async(id,index)=>{
+          const response=await this._hass.callApi("GET",`calendars/${encodeURIComponent(id)}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`);
+          if(!Array.isArray(response))throw Error("Invalid calendar response");
+          return response.map(e=>({...e,_jarvisAccent:this._calendarAccent(index)}));
+        }));
+        cached={time:Date.now(),events:batches.flat().sort((a,b)=>String(a.start?.dateTime||a.start?.date||"").localeCompare(String(b.start?.dateTime||b.start?.date||"")))};
+        CALENDAR_CACHE.set(key,cached);
+      }
+      if(revision!==(this._dayRevision||0) || !this.shadowRoot.contains(host))return;
+      const clock=value=>new Date(value).toLocaleTimeString([],{timeZone:zone,hour:"2-digit",minute:"2-digit"});
+      const markup=cached.events.map(e=>{
+        const label=e.start?.date ? "All day" : `${jarvisDateKey(new Date(e.start.dateTime),zone)<day?"Continues":clock(e.start.dateTime)}${e.end?.dateTime?"–"+clock(e.end.dateTime):""}`;
+        return `<div class="event" style="--event-accent:${e._jarvisAccent}"><time>${escapeHtml(label)}</time><span>${escapeHtml(e.summary || "Calendar event")}</span></div>`;
+      }).join("") || '<div class="empty">No calendar entries for this day.</div>';
+      if(host.innerHTML!==markup){const scroll=host.scrollTop;host.innerHTML=markup;host.scrollTop=scroll;}
+    } catch(_error){if(revision===(this._dayRevision||0))host.innerHTML='<div class="error">Calendar unavailable — entries could not be loaded.</div>';}
+    finally{this._loadingDay=false;if(this._reloadDay){this._reloadDay=false;this.loadEvents();}}
   }
 }
 
@@ -2642,15 +2786,31 @@ class JarvisLearningInsightsCard extends JarvisBaseCard {
     { name: "show_evidence", selector: { boolean: {} } },
   ] }; }
   static getStubConfig() { return { name: "Learning Insights", entity: "sensor.jarvis_learning_insights", routine_limit: 8, show_evidence: true }; }
+  set hass(value) { this._hass = value; this.render(); }
+  setConfig(config) { this._insightSignature = undefined; super.setConfig(config); }
   render() {
     if (!this._config || !this._hass) return;
     const state = this._hass.states?.[this._config.entity];
     const attributes = state?.attributes || {};
     const routines = (attributes.routines || []).slice(0, Number(this._config.routine_limit) || 8);
+    const signature = JSON.stringify([isUnavailable(state), this._config, routines,
+      ...["observed", "suggested", "approved", "declining"].map(k=>attributes[k] || 0)]);
+    if (signature === this._insightSignature && this.shadowRoot.querySelector(".routines")) return;
+    const scrollTop = this.shadowRoot.querySelector(".routines")?.scrollTop || 0;
+    const focused = this.shadowRoot.activeElement?.classList?.contains("routines");
+    this._insightSignature = signature;
     const counts = ["observed", "suggested", "approved", "declining"].map((status) =>
       `<div class="metric ${status}"><b>${Number(attributes[status] || 0)}</b><span>${status}</span></div>`).join("");
     const rows = routines.map((routine) => `<article class="${escapeHtml(routine.status || "observed")}"><div><b>${escapeHtml(routine.description || "Routine insight")}</b><small>${escapeHtml(routine.day_type || "")}${routine.time_period ? ` · ${escapeHtml(routine.time_period)}` : ""}${routine.area ? ` · ${escapeHtml(routine.area)}` : ""}</small></div><em>${escapeHtml(routine.status || "observed")}</em>${this._config.show_evidence !== false ? `<footer><i style="width:${Math.round(Number(routine.confidence || 0) * 100)}%"></i><span>${(routine.evidence_days || []).length} DAYS · ${Math.round(Number(routine.confidence || 0) * 100)}%</span></footer>` : ""}</article>`).join("");
     this.shell(`<div class="learning"><header><div><div class="eyebrow">Adaptive pattern ledger</div><div class="title">${escapeHtml(this._config.name || "Learning Insights")}</div></div><ha-icon icon="mdi:brain"></ha-icon></header><div class="metrics">${counts}</div><div class="routines">${rows || `<div class="empty">OBSERVING HOME ROUTINES // NO PATTERN READY</div>`}</div></div><style>.learning{padding:18px;min-height:260px}.learning header{display:flex;justify-content:space-between;align-items:center}.learning header ha-icon{--mdc-icon-size:34px;color:var(--j-accent)}.title{font-size:21px;font-weight:700}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:14px 0}.metric{padding:8px;border:1px solid rgba(32,216,255,.16);text-align:center}.metric b{display:block;font:800 20px monospace;color:var(--j-accent)}.metric span{font:700 8px monospace;text-transform:uppercase}.metric.suggested b{color:var(--j-amber)}.metric.approved b{color:var(--j-green)}.metric.declining b{color:var(--j-red)}.routines{display:grid;gap:7px;max-height:330px;overflow:auto}article{display:grid;grid-template-columns:1fr auto;gap:7px;padding:9px;border-left:2px solid var(--j-accent);background:rgba(32,216,255,.04)}article.suggested{border-color:var(--j-amber)}article.approved{border-color:var(--j-green)}article.declining{border-color:var(--j-red)}article b{font-size:12px;line-height:1.3}article small,article em,footer span{font:700 8px monospace;text-transform:uppercase;color:var(--secondary-text-color)}article em{color:var(--j-accent);font-style:normal}footer{grid-column:1/-1;height:11px;position:relative;border:1px solid rgba(32,216,255,.12)}footer i{display:block;height:100%;background:rgba(32,216,255,.35)}footer span{position:absolute;inset:1px 4px;text-align:right}.empty{padding:20px;font:700 9px monospace;color:var(--secondary-text-color)}@container(max-width:430px){.learning{padding:13px}.metrics{grid-template-columns:repeat(2,1fr)}article{grid-template-columns:1fr}}</style>`, { interactive: false });
+    const viewport = this.shadowRoot.querySelector(".routines");
+    if (viewport) {
+      viewport.scrollTop = scrollTop;
+      viewport.setAttribute("tabindex", "0");
+      viewport.setAttribute("role", "region");
+      viewport.setAttribute("aria-label", "Learning insights");
+      if (focused) viewport.focus({preventScroll:true});
+    }
   }
 }
 
