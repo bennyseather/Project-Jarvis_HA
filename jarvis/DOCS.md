@@ -1,6 +1,48 @@
 # Project Jarvis add-on
 
-Set an OpenAI API key and a long random bridge API key in the add-on options.
+Set a long random bridge API key in the add-on options. An OpenAI API key is
+optional: leave it empty and disable OpenAI fallback for local-only operation.
+An empty key never falls back to a development computer's environment key.
+
+## Household personalisation (0.45.59)
+
+With an approved household profile and shared conversational updates enabled,
+try `Give me my briefing today`, `What does my day look like tomorrow?`,
+`What's next for me?`, `Give us a household briefing for next week`, followed by
+`And the following week?` or `Tell me more` in the same conversation.
+
+Current voice relevance selects whose "my" to use; an unknown speaker is asked
+to name a person. Voice does not grant administrator authority, prove presence
+or enrol other people. Named household information remains shared. The existing
+family calendar is attributed to its configured person; connected work/travel
+calendars are not treated as every household member's personal calendar.
+Briefings distinguish recorded routines, planned appointments, empty responses
+and unavailable sources. Overlap notices do not modify appointments or assign
+a child's activity to a parent. Dates/times use Europe/Oslo.
+
+Ask `What do you remember about me?` or `Show household notes` to review saved
+information. `Remember I prefer concise answers` uses a current voice match;
+otherwise use an explicit name. Review the proposal and say `confirm household
+change` or `yes` in that same conversation. A later unrelated question clears
+the pending proposal. Nothing is saved just because Jarvis understood a statement.
+
+For example, after saving `Mia likes painting`, say `Change "Mia likes painting"
+to "Mia likes drawing"` or `Forget "Mia likes painting"`. Quote an existing note
+exactly, or use its displayed ID. Confirm each proposed change. `Cancel household
+change` discards it; `Undo last household change` proposes a confirmed reversal.
+Removal retains protected undo history and is not secure erasure. Notes never
+change structured schedules, alarms, devices or permissions by themselves.
+
+Confirmed concise/detailed answer preferences affect the new briefings and local
+model presentation only. Whole relevant notes are selected with a bounded context;
+the full saved list stays on the household information page. Passwords and API
+keys must not be stored as conversational notes.
+
+For bridge-key maintenance, change the add-on credential and use the integration's
+supported Reconfigure flow to validate the replacement against its existing URL.
+The flow preserves voice-routing options. Old backups may contain old credentials:
+do not undo a security rotation by restoring those options. Disabling/removing
+an OpenAI key locally does not revoke that key in the OpenAI account.
 
 ## Responsive voice follow-ups
 
