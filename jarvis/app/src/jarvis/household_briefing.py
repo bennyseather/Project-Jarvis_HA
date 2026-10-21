@@ -121,7 +121,7 @@ class HouseholdBriefing:
         start,end=resolve_dates(dates,now.date().isoformat())
         return Brief(subject,start,end,next_question)
 
-    async def handle(self,text,key,*,resolved=None):
+    async def handle(self,text,key,*,resolved=None,structured_only=False,targets=None,window='all_day'):
         if not shared_knowledge_enabled(getattr(self.profile,'_data',{})):return None
         if len(text)>1000:
             self.clear(key);return None
@@ -132,6 +132,9 @@ class HouseholdBriefing:
                 validate_range(resolved.start,resolved.end,self.now().astimezone(ZONE).date().isoformat())
                 brief=resolved
             else:brief=self.request(text,key)
+            if targets is not None and (not targets or not set(targets).issubset({p['id'] for p in self.profile._data['members']})):
+                raise ValueError('Invalid briefing targets.')
+            if window not in ('all_day','morning','afternoon','evening'):raise ValueError('Invalid planning window.')
         except ValueError as error:return result(str(error),'clarification_required')
         if brief is None:return None
         hint=speaker_context(self.profile._data)
@@ -143,8 +146,9 @@ class HouseholdBriefing:
             self.sessions[str(key)]=pending
             while len(self.sessions)>100:self.sessions.popitem(last=False)
         start,end=(datetime.fromisoformat(x).replace(tzinfo=ZONE) for x in (brief.start,brief.end))
-        source_names=['family'] if brief.subject in ('all','mia') else []
-        if brief.subject in ('all','benny'):source_names+=['work','travel']
+        selected=set(targets) if targets is not None else ({p['id'] for p in self.profile._data['members']} if brief.subject=='all' else {brief.subject})
+        source_names=['family'] if 'mia' in selected else []
+        if 'benny' in selected:source_names+=['work','travel']
         async def calendar(name):
             entity=SOURCES[name]
             if entity not in self.allowed:return name,None,'not connected or not shared'
@@ -197,6 +201,10 @@ class HouseholdBriefing:
             owner='mia' if event['source']=='family' else 'benny'
             identity=(owner,event['start'],event['end'],event['title'])
             if identity not in seen:unique.append(event);seen.add(identity)
+        if structured_only:
+            from jarvis.calendar_evidence import calendar_evidence
+            return {**result('Fresh planning evidence checked.'),'provider':'household_briefing','read_only':True,
+                'evidence':calendar_evidence(self.profile,brief,unique,snapshot,sources,unavailable,now,targets=targets,window=window)}
         person=next((p for p in self.profile._data['members'] if p['id']==brief.subject),None)
         own=person is not None and person['id']==hint['member_id']
         who='your' if own else (person['preferred_name']+"'s" if person else 'the household')

@@ -173,7 +173,7 @@ class JarvisConversationBridge:
         else:
             result = await operation
         if result.get('provider') in ('household_edits', 'household_memory', 'household_briefing',
-                                      'planning_preparation', 'personal_reminders', 'household_understanding'):
+                                      'planning_preparation', 'personal_reminders', 'household_understanding','household_thinking'):
             # A new household topic/proposal must not leave an older generic
             # memory confirmation waiting to consume the next spoken "yes".
             prior = self._pending_by_conversation.pop(identifier, None)

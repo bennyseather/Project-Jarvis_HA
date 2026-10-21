@@ -1,5 +1,26 @@
 # Project Jarvis add-on
 
+## Calendar understanding (0.45.61)
+
+Ask about preparation, a person's day/week, which day looks busiest, appointment
+conflicts or fitting an activity into a time window. A matched speaker resolves
+"my"; named household questions still use shared knowledge. Date follow-ups keep
+the person and purpose. After a duration clarification, "About 30 minutes" stays
+in the same calendar conversation.
+
+Jarvis calculates timing relationships, calendar load, overlaps and possible
+calendar-only gaps, then uses the local model for a concise connected explanation.
+Model output is buffered and checked, with at most one correction. A verified
+calculation-based answer may replace an unsafe model draft; this is not evidence
+of frontier-model general intelligence or perfect semantic accuracy.
+
+Usual routines do not prove attendance. Missing/empty calendars do not prove
+availability. Simultaneous events for different people may require coordination,
+but do not assign transport or childcare. No calendar events are changed by these
+questions. No speaker enrolment, microphone, STT/TTS or voice-worker change is
+needed. Existing action confirmations and non-calendar inference defaults remain.
+This update does not resume the separately deferred accent/reminder human tests.
+
 Set a long random bridge API key in the add-on options. An OpenAI API key is
 optional: leave it empty and disable OpenAI fallback for local-only operation.
 An empty key never falls back to a development computer's environment key.

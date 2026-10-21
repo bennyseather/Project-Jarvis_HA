@@ -747,6 +747,10 @@ class JarvisApplication:
                 profile, self.container.home_assistant, self.container.entity_registry, allowed_reads,
                 reminders=self.container.personal_reminders,
                 travel=self.container.travel_calendar_intelligence)
+            from jarvis.household_thinking import HouseholdThinking
+            self.container.household_thinking = HouseholdThinking(profile,self.container.home_assistant,
+                allowed_reads,self.container.local_reasoning_provider,
+                weather=self.container.planning_preparation.weather,reminders=self.container.personal_reminders)
             self.container.personal_reminder_task = asyncio.create_task(self.container.personal_reminders.run())
         timeline_config = self.general.get("event_timeline", {})
         if (
@@ -829,6 +833,8 @@ class JarvisApplication:
                     self.container.household_understanding = understanding
                 text, understood = understanding.process(text, conversation_id)
                 if understood is not None:
+                    thinking = getattr(self.container, 'household_thinking', None)
+                    if thinking is not None: thinking.clear(conversation_id)
                     preparation = getattr(self.container, 'planning_preparation', None)
                     if preparation is not None: preparation.clear(conversation_id)
                     reminders = getattr(self.container, 'personal_reminders', None)
@@ -840,6 +846,8 @@ class JarvisApplication:
             if reminders is not None:
                 reminder_result = reminders.handle(text, conversation_id)
                 if reminder_result is not None:
+                    thinking = getattr(self.container, 'household_thinking', None)
+                    if thinking is not None: thinking.clear(conversation_id)
                     preparation = getattr(self.container, 'planning_preparation', None)
                     if preparation is not None: preparation.clear(conversation_id)
                     edits = getattr(profile, '_edits', None)
@@ -853,12 +861,23 @@ class JarvisApplication:
             from jarvis.household_memory import memory_question
             memory_result = memory_question(text, profile)
             if memory_result is not None:
+                thinking = getattr(self.container, 'household_thinking', None)
+                if thinking is not None: thinking.clear(conversation_id)
                 preparation = getattr(self.container, 'planning_preparation', None)
                 if preparation is not None: preparation.clear(conversation_id)
                 briefing = getattr(self.container, 'household_briefing', None)
                 if briefing is not None: briefing.clear(conversation_id)
                 return memory_result
             client = getattr(self.container, 'home_assistant', None)
+            thinking = getattr(self.container, 'household_thinking', None)
+            if thinking is not None:
+                thought = await thinking.handle(text, conversation_id)
+                if thought is not None:
+                    preparation = getattr(self.container, 'planning_preparation', None)
+                    if preparation is not None: preparation.clear(conversation_id)
+                    briefing = getattr(self.container, 'household_briefing', None)
+                    if briefing is not None: briefing.clear(conversation_id)
+                    return thought
             preparation = getattr(self.container, 'planning_preparation', None)
             if preparation is not None:
                 prepared = await preparation.handle(text, conversation_id)

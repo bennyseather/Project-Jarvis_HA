@@ -79,13 +79,14 @@ class LocalFirstReasoningProvider:
                 return self.fallback.reason(instructions=instructions, input_messages=input_messages, model=model, timeout_seconds=timeout_seconds)
             return {"status": "unavailable", "message": "Local reasoning is temporarily unavailable."}
 
-    def reason_local(self, *, instructions, input_messages, timeout_seconds, model=None, maximum_output_tokens=None):
+    def reason_local(self, *, instructions, input_messages, timeout_seconds, model=None, maximum_output_tokens=None, response_schema=None, temperature=None):
         """Run exactly one local pass without invoking the external fallback."""
         try:
             message = self._chat(
                 instructions, input_messages, timeout_seconds=timeout_seconds,
                 model=model,
                 maximum_output_tokens=maximum_output_tokens,
+                response_schema=response_schema, temperature=temperature,
             )
             return {
                 "status": "success",
@@ -138,7 +139,7 @@ class LocalFirstReasoningProvider:
             self.logger.warning(f"Local reasoning warm-up deferred: {exc}")
             return {"ready": False, "provider": "ollama", "model": self.policy.model}
 
-    def _chat(self, instructions, messages, *, json_output=False, timeout_seconds=None, model=None, maximum_output_tokens=None):
+    def _chat(self, instructions, messages, *, json_output=False, timeout_seconds=None, model=None, maximum_output_tokens=None, response_schema=None, temperature=None):
         import time
         if time.monotonic() < self._local_unavailable_until:
             raise RuntimeError("local worker is in a short recovery cooldown")
@@ -173,7 +174,7 @@ class LocalFirstReasoningProvider:
             "think": False,
             "keep_alive": -1,
             "options": {
-                "temperature": 0.2,
+                "temperature": 0.2 if temperature is None else float(temperature),
                 "num_ctx": self.policy.context_tokens,
                 "num_predict": 512 if json_output else min(
                     self.policy.maximum_output_tokens,
@@ -183,6 +184,12 @@ class LocalFirstReasoningProvider:
         }
         if json_output:
             payload["format"] = "json"
+        if response_schema is not None:
+            if not isinstance(response_schema,dict) or len(json.dumps(response_schema))>4000:
+                raise ValueError("Invalid bounded local response schema")
+            payload['format']=response_schema
+        if not 0<=payload['options']['temperature']<=2:
+            raise ValueError('Invalid local sampling temperature')
         try:
             response = (
                 self._post_chat_stream(payload, timeout_seconds=timeout_seconds)

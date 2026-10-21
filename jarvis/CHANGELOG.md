@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.45.61
+
+- Interpret the practical calendar question using fresh, owner-attributed events,
+  usual routines and code-calculated timing relationships, load and conflicts.
+  Explain the conclusion rather than returning a source-by-source ledger.
+- Distinguish individual double bookings from simultaneous family commitments,
+  calendar gaps from actual availability, and usual timetables from attendance.
+  Retain dates/person across follow-ups, including an activity-duration reply.
+- Buffer and check local-model answers before speech, with one bounded correction
+  and a clearly identified calculation-based recovery for supported conclusions.
+  Quarantine instruction-like titles; no model action tools or cloud fallback.
+- Keep existing inference defaults outside this calendar path, saved voice,
+  microphone pairing, STT/TTS settings, calendar contents and action confirmations.
+  Remaining accent and real-reminder human tests stay on hold.
+
 ## 0.45.60
 
 - Add on-demand personal/household preparation combining fresh approved calendar
