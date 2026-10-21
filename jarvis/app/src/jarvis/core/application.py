@@ -842,6 +842,25 @@ class JarvisApplication:
                     edits = getattr(profile, '_edits', None)
                     if edits is not None: edits.observe_turn('question clarification', conversation_id)
                     return understood
+                from jarvis.household_reasoning import HouseholdReasoning
+                from jarvis.household_speaker import shared_knowledge_enabled
+                if shared_knowledge_enabled(profile._data):
+                    household_reasoning = getattr(self.container, 'household_reasoning', None)
+                    if household_reasoning is None:
+                        household_reasoning = HouseholdReasoning(profile, getattr(self.container, 'local_reasoning_provider', None))
+                        self.container.household_reasoning = household_reasoning
+                    text, clarification = household_reasoning.resolve(text, conversation_id)
+                    if clarification is not None:
+                        edits = getattr(profile, '_edits', None)
+                        if edits is not None: edits.observe_turn('household question clarification', conversation_id)
+                        return clarification
+                    if household_reasoning.compound(text):
+                        combined = await household_reasoning.handle(text, conversation_id,
+                            calendar=getattr(self.container, 'household_thinking', None))
+                        if combined is not None:
+                            edits = getattr(profile, '_edits', None)
+                            if edits is not None: edits.observe_turn('combined household question', conversation_id)
+                            return combined
             reminders = getattr(self.container, 'personal_reminders', None)
             if reminders is not None:
                 reminder_result = reminders.handle(text, conversation_id)
@@ -963,6 +982,14 @@ class JarvisApplication:
                     if previous is not None:
                         previous.clear(conversation_id)
                     return {**travel_result, 'cacheable': False}
+            household_reasoning = getattr(self.container, 'household_reasoning', None)
+            if household_reasoning is not None:
+                reasoned = await household_reasoning.handle(text, conversation_id,
+                    calendar=getattr(self.container, 'household_thinking', None))
+                if reasoned is not None:
+                    previous = getattr(self.container, 'household_dialogue', None)
+                    if previous is not None: previous.clear(conversation_id)
+                    return reasoned
             dialogue = getattr(self.container, "household_dialogue", None)
             if dialogue is None:
                 dialogue = HouseholdDialogue(profile, self.container.local_reasoning_provider)

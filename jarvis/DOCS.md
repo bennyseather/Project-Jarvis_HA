@@ -119,6 +119,23 @@ independent. Do not switch to Norwegian just because English has a Norwegian
 accent. Compare intended question with STT text first, then trial supported
 English variants on the same microphone without changing the saved voice.
 
+## Household conversation understanding (0.45.63)
+
+Flexible named-household fact questions use bounded local Qwen task interpretation,
+code-owned approved facts, short composition and a grounding/usefulness check.
+Exact birthdays/ages/jobs and clear commands retain their existing fast paths.
+An explicit person focus survives direct answers: for example, ask an age, then
+"And her school?", or ask about a day's plans, then "How old is she?".
+Focus expires after five minutes and resets on speaker, profile revision, Norway
+date, unrelated topic or action changes. A voice hint is relevance, not permission.
+
+Compound facts and one person's calendar can share a connected reply. Calendar
+reads/dates remain in the existing code-owned calendar path; missing calendars
+never establish an empty or available day. Complex multi-person calendar requests
+or mixed availability questions may require narrowing. This is bounded household
+understanding, not a general autonomous agent or universal paraphrase guarantee.
+No new actions, notifications, recordings, enrolment or voice-setting changes.
+
 ## Responsive voice follow-ups
 
 Companion app text/native Assist replies stay on the original request until the

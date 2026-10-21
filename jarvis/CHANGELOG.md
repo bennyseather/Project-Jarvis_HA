@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.45.63
+
+- Extend local household interpretation to flexible fact questions, combined
+  person/topic requests, school/room/relationship questions and remembered notes.
+  Keep exact facts and commands on their established fast paths.
+- Retain explicit person focus across fast answers and calendar follow-ups, scoped
+  to speaker/conversation, profile revision and Norway date, with bounded expiry.
+  Unknown first-person references and ambiguous pronouns are clarified, not guessed.
+- Calculate current ages and next birthdays in code, honour approved routine
+  overrides, and keep work departure distinct from work start or arrival home.
+- Buffer/check local composition against approved facts. Combine verified profile
+  answers with the established read-only calendar interpretation without letting a
+  profile-only pass invent calendar conclusions. Missing sources remain unknown.
+- Recover a verified one-day routine/empty-calendar answer when a rejected model
+  draft implies availability. Empty calendar results still never establish free time.
+- Preserve the Companion final-reply fix, saved voices/pairing, STT/TTS settings,
+  permissions and action confirmations. No new model action tools or cloud fallback.
+
 ## 0.45.62
 
 - Keep the completed answer on the original Companion/native Assist request.

@@ -13,7 +13,7 @@ import time
 from zoneinfo import ZoneInfo
 
 from jarvis.household_briefing import Brief, HouseholdBriefing
-from jarvis.calendar_insights import insights, purpose, duration_minutes, grounded_reply, routine_with_calendar_gap
+from jarvis.calendar_insights import insights, purpose, duration_minutes, grounded_reply, routine_with_calendar_gap, routine_with_empty_calendar
 from jarvis.household_memory import clean, result, response_style
 from jarvis.household_planning import DATE_PATTERN, Plan, resolve_dates
 from jarvis.household_speaker import shared_knowledge_enabled, speaker_context
@@ -321,7 +321,7 @@ class HouseholdThinking:
                     raw=json.dumps(context,ensure_ascii=False,separators=(',',':'))
             if changed():return reply('That question was superseded or its context changed. Please ask again.','unavailable')
         except Exception as error:
-            recovery=grounded_reply(board,evidence['people'].get(plan['speaker']))
+            recovery=grounded_reply(board,evidence['people'].get(plan['speaker'])) or routine_with_empty_calendar(evidence,plan['speaker'])
             if recovery and not changed():
                 try:
                     recovery=self.validate_compact(json.dumps({'answer':recovery}),evidence,plan['speaker'])
@@ -445,7 +445,9 @@ class HouseholdThinking:
             conditional_check=bool(re.search(r'\b(?:check|confirm|consider)\b.*\b(?:if|whether|needs?)\b',text,re.I))
             attendance_claim=bool(re.search(r'\b(attend\w*|go(?:es|ing)? to school|at school|school day|workday|work hours|shift starts?)\b',text,re.I))
             routine_clock=bool(re.search(r'\d{1,2}:\d{2}|\d{1,2}\s*[ap]m',text,re.I) and re.search(r'\b(school|work|leav\w*|finish\w*|shift|timetable)\b',text,re.I))
-            if not conditional_check and (attendance_claim or routine_clock) and any(f['kind']=='routine' for f in cited):
+            uncertainty_only=bool(re.search(r'\bunknown|\bunconfirmed|\bnot (?:provided|recorded|confirmed|known)',text,re.I)
+                and not re.search(r'\b(attends?|attending|go(?:es|ing)? to school|at school|at work|school day|workday|shift starts?)\b',text,re.I))
+            if not conditional_check and not uncertainty_only and (attendance_claim or routine_clock) and any(f['kind']=='routine' for f in cited):
                 if not re.search(r'\b(usual|usually|typically|routine|timetable|normally|recorded)\b',text,re.I):raise ValueError('Routine treated as attendance')
             if 'work start' in reference.lower() and re.search(r'\b(work starts?|starts? work|works? from|working from|work hours are|shift starts?)\b',text,re.I):
                 raise ValueError('Work departure is not a work start')

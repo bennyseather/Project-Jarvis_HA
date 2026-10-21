@@ -1,5 +1,6 @@
 """Local transport defaults stay unchanged; calendar can request strict JSON."""
 import logging
+import json
 import unittest
 from jarvis.providers.local_first_provider import LocalFirstReasoningProvider,LocalReasoningPolicy
 from jarvis.household_thinking import ANSWER_SCHEMA,clock_values,HouseholdThinking
@@ -45,6 +46,28 @@ class LocalContractTests(unittest.TestCase):
         e=evidence({'id':'F1','kind':'routine','owners':['mia'],'text':'Usual school 08:15–12:50'})
         self.assertIn('confirm',HouseholdThinking.validate_compact('{"answer":"Consider confirming the school schedule and any necessary materials beforehand."}',e,'benny'))
         with self.assertRaises(ValueError):HouseholdThinking.validate_compact('{"answer":"Mia is definitely attending school."}',e,'benny')
+
+
+    def test_explicit_attendance_gap_is_not_a_positive_routine_claim(self):
+        e=evidence({'id':'F1','kind':'routine','owners':['mia'],'text':'Usual school 08:15–12:50. Attendance unknown.'})
+        self.assertIn('unknown',HouseholdThinking.validate_compact('{"answer":"Actual attendance is unknown."}',e,'benny'))
+
+    def test_uncertainty_clause_does_not_erase_positive_attendance_claim(self):
+        e=evidence({'id':'F1','kind':'routine','owners':['mia'],'text':'Usual school 08:15–12:50. Attendance unknown.'})
+        with self.assertRaises(ValueError):
+            HouseholdThinking.validate_compact('{"answer":"Mia is at school, though attendance is unconfirmed."}',e,'benny')
+
+
+    def test_empty_calendar_recovery_is_scoped_not_free_time(self):
+        from jarvis.calendar_insights import routine_with_empty_calendar
+        e=evidence({'id':'F1','kind':'routine','owners':['mia'],'text':'Mia usual school: 08:15–12:50'},
+                   {'id':'F2','kind':'coverage','owners':['mia'],'text':'Calendar entries are not free time','returned_entries':0})
+        e.update(people={'mia':'Mia'},start='2026-10-23',end_exclusive='2026-10-24')
+        answer=routine_with_empty_calendar(e,None)
+        self.assertIn('usual school timetable',answer);self.assertIn('outside that calendar',answer)
+        self.assertEqual(HouseholdThinking.validate_compact(json.dumps({'answer':answer}),e,None),answer)
+        for field,value in (('source_failures',['offline']),('truncated',True),('end_exclusive','2026-10-25')):
+            changed={**e,field:value};self.assertIsNone(routine_with_empty_calendar(changed,None))
 
 
 if __name__=='__main__':unittest.main()

@@ -213,6 +213,27 @@ def grounded_reply(board, speaker_name):
     return None
 
 
+def routine_with_empty_calendar(evidence, speaker):
+    """Verified one-day recovery; no returned events never means available."""
+    if evidence['source_failures'] or evidence['truncated'] or len(evidence['people'])!=1:return None
+    if (datetime.fromisoformat(evidence['end_exclusive'])-datetime.fromisoformat(evidence['start'])).days!=1:return None
+    coverage=[f for f in evidence['facts'] if f['kind']=='coverage']
+    if not coverage or any(f['returned_entries']!=0 for f in coverage):return None
+    person=next(iter(evidence['people']));name=evidence['people'][person]
+    possessive='Your' if person==speaker else name+"'s"
+    lead=''
+    for fact in evidence['facts']:
+        if fact['kind']!='routine' or person not in fact['owners']:continue
+        match=re.search(r'usual school.*?(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})',fact['text'],re.I)
+        if match:
+            lead=possessive+' usual school timetable is '+match[1]+'–'+match[2]+'. '
+            break
+        if re.search(r'no school.*usual weekend',fact['text'],re.I):
+            lead=('You have' if person==speaker else name+' has')+' no school in the usual weekend routine. '
+            break
+    return lead+'I do not see any appointments in the connected calendar for that date. Plans outside that calendar may still exist.'
+
+
 def routine_with_calendar_gap(evidence, speaker):
     """Useful confirmed routine when a personal calendar was never connected."""
     if len(evidence['people'])!=1 or not any('no connected personal calendar' in reason for reason in evidence['source_failures']):return None

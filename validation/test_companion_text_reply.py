@@ -54,7 +54,9 @@ class CompanionTextReplyTests(unittest.IsolatedAsyncioTestCase):
             out = await bridge.process('Explain our plans', conversation_id=identifier, voice_mode=True,
                 proactive_voice_route={'event_type': 'jarvis_voice_follow_up', 'target_id': 'desk'})
             self.assertEqual(out['status'], 'in_progress')
-            await asyncio.sleep(0.05)
+            for _ in range(100):
+                if self.events: break
+                await asyncio.sleep(0.01)
             self.assertEqual(len(self.events), 1)
             self.assertEqual(self.events[0][1]['target_id'], 'desk')
             self.assertEqual(self.events[0][1]['message'], 'The final, verified answer.')
