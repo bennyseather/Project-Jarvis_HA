@@ -9,6 +9,7 @@ import unittest
 class FlowTests(unittest.IsolatedAsyncioTestCase):
     def flow(self, status=200, failure=None):
         path=Path('home_assistant/custom_components/jarvis_conversation/config_flow.py')
+        if not path.exists():path=Path('custom_components/jarvis_conversation/config_flow.py')
         cls=next(n for n in ast.parse(path.read_text()).body if isinstance(n,ast.ClassDef) and n.name=='ConfigFlow')
         method=next(n for n in cls.body if isinstance(n,ast.AsyncFunctionDef) and n.name=='async_step_reconfigure')
         calls=[]

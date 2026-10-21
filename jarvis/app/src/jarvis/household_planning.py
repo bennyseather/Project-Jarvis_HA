@@ -296,7 +296,7 @@ def after_school(day, subject):
     return lines
 
 
-def render(snapshot, plan, more=False):
+def render(snapshot, plan, more=False, *, omit_missing=False):
     groups = OrderedDict()
     for day in snapshot['planning']['days']:
         for subject in plan.subjects:
@@ -309,6 +309,7 @@ def render(snapshot, plan, more=False):
             elif plan.focus=='calendar': cards=[c for c in cards if ' · familiekalender' in c['title']]
             elif plan.focus=='stay': cards=[c for c in cards if c['title']==name+' · reported stay']
             if not cards:
+                if omit_missing:continue
                 cards=[{'title':name if subject!='all' else 'Household','lines':['No approved shared information for this view on this date; actual plans are unknown.']}]
             for card in cards:
                 lines=list(card['lines'])
@@ -317,6 +318,7 @@ def render(snapshot, plan, more=False):
                     if match: lines[0]='Usual school finish: '+match[1]+'.'
                 if card['title'].endswith(' · familiekalender'): lines=['“'+line+'”' for line in lines]
                 groups.setdefault((card['title'],tuple(lines)),[]).append(day['date'])
+    if omit_missing and not groups:return ''
     return render_groups(groups, focus=plan.focus,
                          reference=snapshot['planning']['generated_on'], more=more)
 
@@ -328,6 +330,11 @@ class HouseholdConversation:
         self.planning = HouseholdPlanningDialogue(loader,provider,**kwargs)
 
     async def handle(self,text,key):
+        # Same shared satellite/conversation is not proof of the same speaker.
+        # Only topic relevance is separated; named shared reads remain shared.
+        from jarvis.household_speaker import current_speaker
+        speaker = current_speaker.get().member_id
+        if key and speaker:key=str(key)+'::household-speaker:'+speaker
         result = await self.fast.handle(text,key)
         if result is not None:
             self.planning.clear(key)

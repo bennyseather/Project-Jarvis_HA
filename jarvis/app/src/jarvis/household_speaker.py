@@ -14,7 +14,7 @@ class SpeakerReference:
 current_speaker = ContextVar('household_speaker_reference', default=SpeakerReference())
 ACTION = re.compile(r'\b(?:remember|save|forget|delete|confirm|approve|add|create|change|set|turn|switch|open|close|unlock|lock|book|cancel|send|buy|pay)\b', re.I)
 PERSONAL = re.compile(r"\b(?:my|mine|myself)\b|\b(?:am|was|do|did|have|had|will|should|can) i\b|\babout me\b|\bwho am i\b", re.I)
-TOPIC = re.compile(r'\b(?:birthdays?|born|age|old|jobs?|profession|occupation|employ\w*|qualifications?|education|skills|work|travel\w*|trips?|flights?|fly|flying|itinerar\w*|calendars?|appointments?|plans|schedule|family|wife|husband|spouse|son|daughter|children|kids|routine|bedtime|wake|preferences|school|bus|arrive|leave|name|myself)\b|\babout me\b|\bwho am i\b', re.I)
+TOPIC = re.compile(r'\b(?:birthdays?|born|age|old|jobs?|profession|occupation|employ\w*|qualifications?|education|skills|work|travel\w*|trips?|flights?|fly|flying|itinerar\w*|calendars?|appointments?|plans|schedule|family|wife|husband|spouse|son|daughter|children|kids|routine|bedtime|wake|preferences|prefer\w*|likes?|dislikes?|favourit\w*|favorit\w*|school|bus|arrive|leave|name|myself)\b|\babout me\b|\bwho am i\b', re.I)
 
 
 def shared_knowledge_enabled(document):

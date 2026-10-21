@@ -806,6 +806,25 @@ class JarvisApplication:
 
         profile = getattr(self.container, "household_profile", None)
         if profile is not None:
+            edits = getattr(profile, '_edits', None)
+            if edits is not None:
+                edits.observe_turn(text, conversation_id)
+            from jarvis.household_memory import memory_question
+            memory_result = memory_question(text, profile)
+            if memory_result is not None:
+                briefing = getattr(self.container, 'household_briefing', None)
+                if briefing is not None: briefing.clear(conversation_id)
+                return memory_result
+            client = getattr(self.container, 'home_assistant', None)
+            if client is not None and hasattr(profile, '_data'):
+                from jarvis.household_briefing import HouseholdBriefing
+                briefing = getattr(self.container, 'household_briefing', None)
+                if briefing is None:
+                    briefing = HouseholdBriefing(profile, client, getattr(self.container, 'proactive_allowed_entities', ()))
+                    self.container.household_briefing = briefing
+                brief_result = await briefing.handle(text, conversation_id)
+                if brief_result is not None:
+                    return brief_result
             from jarvis.household_speaker import resolve_question, travel_subject, employment_answer, birthday_answer
             text, speaker_result = resolve_question(text, getattr(profile, '_data', {}))
             if speaker_result is not None:

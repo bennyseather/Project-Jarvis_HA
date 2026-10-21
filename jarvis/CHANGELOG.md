@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.45.59
+
+- Add speaker-aware day/week briefings and next-up answers using the existing
+  approved household routines, family calendar, Benny work and travel calendars.
+  Read calendars concurrently, retain unknown/outage distinctions, use city
+  names on recognised flight routes and flag same-person appointment overlaps.
+- Add natural review, first-person note binding, quoted corrections/removal,
+  duplicate protection and context-bound yes/no confirmation. Keep the existing
+  atomic profile, revision conflicts, cancellation and reversible undo history.
+- Reuse explicitly confirmed concise/detailed reply preferences for presentation
+  only; select bounded relevant whole notes for local-model context. Separate
+  planning follow-ups by request-local speaker. Voice never grants authority.
+- Preserve enrolled voice data, action policies, household/calendar facts and
+  the punctuation-bound speech path. No automatic devices, alarms or reminders.
+
 ## 0.45.58
 
 - Allow explicit empty cloud credentials without preventing local-only startup.

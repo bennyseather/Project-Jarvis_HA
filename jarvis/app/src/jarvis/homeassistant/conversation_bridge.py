@@ -171,6 +171,12 @@ class JarvisConversationBridge:
             )
         else:
             result = await operation
+        if result.get('provider') in ('household_edits', 'household_memory', 'household_briefing'):
+            # A new household topic/proposal must not leave an older generic
+            # memory confirmation waiting to consume the next spoken "yes".
+            prior = self._pending_by_conversation.pop(identifier, None)
+            if prior is not None and prior[0] == 'memory':
+                self._application.container.natural_memory_controller.cancel_confirmation(prior[1])
         if result.get("status") == "requires_confirmation":
             action_token = result.get("token")
             action_payload = result.pop("action_payload", None)
