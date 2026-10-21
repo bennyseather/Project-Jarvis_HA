@@ -108,6 +108,7 @@ class JarvisConversationBridge:
             and not text.strip().casefold().startswith("confirm memory ")
             and normalized != "confirm household change"
             and normalized != "confirm emrik stay"
+            and normalized != "confirm reminder"
         ):
             confirmation_token = text.strip().split(maxsplit=1)[1]
         if confirmation_token is not None:
@@ -171,7 +172,8 @@ class JarvisConversationBridge:
             )
         else:
             result = await operation
-        if result.get('provider') in ('household_edits', 'household_memory', 'household_briefing'):
+        if result.get('provider') in ('household_edits', 'household_memory', 'household_briefing',
+                                      'planning_preparation', 'personal_reminders', 'household_understanding'):
             # A new household topic/proposal must not leave an older generic
             # memory confirmation waiting to consume the next spoken "yes".
             prior = self._pending_by_conversation.pop(identifier, None)

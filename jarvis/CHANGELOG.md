@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.45.60
+
+- Add on-demand personal/household preparation combining fresh approved calendar
+  reads, recorded routines, saved reminders and date-matched home weather.
+  Keep missing sources, destination weather and departure-from-home times explicit;
+  never infer a child's transport assignment or change an appointment.
+- Add confirmed personal reminders, inspection, rescheduling, cancellation and
+  completion. Persist atomically in addon_config, reject duplicates and stale
+  confirmations, and deliver bounded/idempotent HA persistent notifications only.
+  No automatic voice announcements, phone-alarm guarantees or calendar writes.
+- Understand bounded non-native English question variants and selected Norwegian
+  household questions, retaining English replies and exact household identities.
+  Strengthen local-Qwen read-only interpretation without changing STT or TTS.
+- Add short-lived, speaker/session-local “What did you hear me say?” diagnostics.
+  No new audio capture, permanent transcript log, cloud key, voice re-enrolment,
+  model download or new Home Assistant permissions.
+
 ## 0.45.59
 
 - Add speaker-aware day/week briefings and next-up answers using the existing

@@ -44,6 +44,60 @@ The flow preserves voice-routing options. Old backups may contain old credential
 do not undo a security rotation by restoring those options. Disabling/removing
 an OpenAI key locally does not revoke that key in the OpenAI account.
 
+## Planning, preparation and understanding (0.45.60)
+
+Ask `What should I prepare for tomorrow?`, `Help us plan next week`, or
+`What should Mia prepare for tomorrow?`. Follow with `And Friday?` or `And the
+following week?` in the same speaker's conversation. These are on-demand reads,
+not autonomous planning or household actions. Home-area weather is matched to
+the requested dates, not assumed to be destination weather. Missing forecast
+coverage, calendar outages and recorded routines remain explicit. No travel
+time from home is invented. `Help me prepare for my next trip` reuses Benny's
+approved travel source; other people do not inherit his travel calendar.
+
+Use `Remind me to check my bag tomorrow at 08:00` or `Remind Mia tomorrow at
+08:00 to check her bag`. Review the owner, task, precise Norway time and delivery
+channel, then reply `yes` or `confirm reminder`; `no` discards the proposal.
+`In 20 minutes` works too. Ambiguous am/pm, past times and DST fold/gap clock
+times require clarification. A voice match supplies relevance, not authority.
+Named reminders remain shared like the household's other knowledge.
+
+`Show my reminders`, `Show Mia's reminders`, and `Show all reminders` show the
+saved task, time, state and ID. `Move my reminder to check my bag to tomorrow at
+09:00` and `Cancel my reminder to check my bag` propose a change only if that
+exact task selects one reminder. Otherwise use `Reschedule reminder <id> to
+tomorrow at 09:00`, `Cancel reminder <id>` or `Complete reminder <id>`.
+Every mutation requires confirmation. Unrelated questions, changed speakers,
+expiry or concurrent changes invalidate pending confirmation. Calendar
+appointments are separate and never edited by these commands.
+
+Confirmed reminders are stored in `personal_reminders.json` next to the profile
+in addon_config. Briefings/preparation can include them. Delivery creates a
+Home Assistant persistent notification within roughly 30 seconds while the
+add-on/HA are healthy. It is NOT spoken audio, push-to-phone or an alarm clock.
+Three failed delivery attempts leave a visible failed state; reschedule to
+retry. After more than seven days of downtime a due reminder becomes missed,
+not a burst of old announcements. A stable notification ID prevents duplicate
+notification cards on uncertain retries; it does not prove a person read one.
+Cancellation/completion never removes a notification already displayed. Do not
+depend on this feature for safety-critical wakeups. Capacity is bounded; corrupt
+storage is not silently reset. No reminder file exists until a mutation is confirmed.
+
+Question repair handles a bounded set such as `When Mia finish school tomorrow?`
+and `Når slutter Mia på skolen i morgen?`. It never guesses a different person's
+name or rewrites device/memory/reminder actions. Replies remain English; this
+is not unrestricted bilingual support or acoustic accent calibration.
+`What did you hear me say?` echoes the recent received question in that exact
+speaker/conversation for up to five minutes, in memory only, excluding obvious
+credentials. It shows STT text, not a recording or proof of what was spoken.
+Existing HA/provider retention policies are unchanged.
+
+The current live Project Jarvis pipeline uses Home Assistant Cloud STT/en-US,
+local Qwen reasoning and the existing English voice. STT language and TTS are
+independent. Do not switch to Norwegian just because English has a Norwegian
+accent. Compare intended question with STT text first, then trial supported
+English variants on the same microphone without changing the saved voice.
+
 ## Responsive voice follow-ups
 
 Jarvis returns ordinary fast answers through the active Assist pipeline. When a

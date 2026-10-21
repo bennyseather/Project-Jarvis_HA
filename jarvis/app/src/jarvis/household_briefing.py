@@ -53,10 +53,11 @@ def event_title(event):
 
 
 class HouseholdBriefing:
-    def __init__(self, profile, client, allowed_entities=(), *, now=None, clock=time.monotonic):
+    def __init__(self, profile, client, allowed_entities=(), *, now=None, clock=time.monotonic, reminders=None):
         self.profile,self.client,self.allowed=profile,client,frozenset(allowed_entities)
         self.now=now or (lambda:datetime.now(ZONE))
         self.clock,self.sessions=clock,OrderedDict()
+        self.reminders=reminders
 
     def clear(self,key):
         if key:self.sessions.pop(str(key),None)
@@ -120,11 +121,17 @@ class HouseholdBriefing:
         start,end=resolve_dates(dates,now.date().isoformat())
         return Brief(subject,start,end,next_question)
 
-    async def handle(self,text,key):
+    async def handle(self,text,key,*,resolved=None):
         if not shared_knowledge_enabled(getattr(self.profile,'_data',{})):return None
         if len(text)>1000:
             self.clear(key);return None
-        try:brief=self.request(text,key)
+        try:
+            if resolved is not None:
+                if not isinstance(resolved,Brief) or resolved.subject not in {'all',*(p['id'] for p in self.profile._data['members'])}:
+                    raise ValueError('Invalid briefing subject.')
+                validate_range(resolved.start,resolved.end,self.now().astimezone(ZONE).date().isoformat())
+                brief=resolved
+            else:brief=self.request(text,key)
         except ValueError as error:return result(str(error),'clarification_required')
         if brief is None:return None
         hint=speaker_context(self.profile._data)
@@ -246,5 +253,14 @@ class HouseholdBriefing:
         if person and person['id'] not in ('mia','benny'):
             lines.append('I do not have a connected personal calendar for '+person['preferred_name']+'; this briefing uses recorded routines only.')
         if unavailable:lines.append('I could not reliably read: '+'; '.join(unavailable)+'. Those appointments are unknown, not empty.')
+        if self.reminders is not None:
+            try:
+                reminders=self.reminders.upcoming(brief.subject,start,end)
+                reminders=sorted((r for r in reminders if not (brief.upcoming and r['state']=='delivered'
+                    and datetime.fromisoformat(r['due'])<=now)),key=lambda r:r['due'])
+                if reminders:
+                    lines.append('Saved reminders: '+'; '.join(self.reminders.describe(r) for r in reminders[:limit])+'.')
+                    if len(reminders)>limit:lines.append('More reminders exist; ask to show reminders.')
+            except Exception:lines.append('Saved reminders could not be read; they are unknown, not empty.')
         return {**result(' '.join(lines)),'provider':'household_briefing','read_only':True,
                 'period':{'start':brief.start,'end':brief.end},'sources_checked':sources}

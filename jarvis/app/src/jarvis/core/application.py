@@ -208,6 +208,10 @@ class JarvisApplication:
                     self.container.proactive_task.cancel()
                 if self.container.stewardship_task is not None:
                     self.container.stewardship_task.cancel()
+                reminder_task = getattr(self.container, 'personal_reminder_task', None)
+                if reminder_task is not None:
+                    reminder_task.cancel()
+                    await asyncio.gather(reminder_task, return_exceptions=True)
                 if self.container.timeline_client is not None:
                     await self.container.timeline_client.disconnect()
                 if self.container.proactive_client is not None:
@@ -733,6 +737,17 @@ class JarvisApplication:
             lookahead_days=travel_config.get("lookahead_days", 180),
             reasoning=self.container.local_reasoning_provider,
         )
+        if profile is not None and getattr(profile, '_source_path', None):
+            from jarvis.personal_reminders import PersonalReminders, IsolatedReminderDelivery
+            from jarvis.planning_preparation import PlanningPreparation
+            self.container.personal_reminders = PersonalReminders(
+                profile, profile._source_path.with_name('personal_reminders.json'),
+                IsolatedReminderDelivery(self.container.home_assistant))
+            self.container.planning_preparation = PlanningPreparation(
+                profile, self.container.home_assistant, self.container.entity_registry, allowed_reads,
+                reminders=self.container.personal_reminders,
+                travel=self.container.travel_calendar_intelligence)
+            self.container.personal_reminder_task = asyncio.create_task(self.container.personal_reminders.run())
         timeline_config = self.general.get("event_timeline", {})
         if (
             self.container.timeline_policy.enabled
@@ -806,21 +821,55 @@ class JarvisApplication:
 
         profile = getattr(self.container, "household_profile", None)
         if profile is not None:
+            if hasattr(profile, '_data'):
+                from jarvis.household_understanding import HouseholdUnderstanding
+                understanding = getattr(self.container, 'household_understanding', None)
+                if understanding is None:
+                    understanding = HouseholdUnderstanding(profile)
+                    self.container.household_understanding = understanding
+                text, understood = understanding.process(text, conversation_id)
+                if understood is not None:
+                    preparation = getattr(self.container, 'planning_preparation', None)
+                    if preparation is not None: preparation.clear(conversation_id)
+                    reminders = getattr(self.container, 'personal_reminders', None)
+                    if reminders is not None: reminders.clear(conversation_id)
+                    edits = getattr(profile, '_edits', None)
+                    if edits is not None: edits.observe_turn('question clarification', conversation_id)
+                    return understood
+            reminders = getattr(self.container, 'personal_reminders', None)
+            if reminders is not None:
+                reminder_result = reminders.handle(text, conversation_id)
+                if reminder_result is not None:
+                    preparation = getattr(self.container, 'planning_preparation', None)
+                    if preparation is not None: preparation.clear(conversation_id)
+                    edits = getattr(profile, '_edits', None)
+                    if edits is not None: edits.observe_turn('reminder request', conversation_id)
+                    briefing = getattr(self.container, 'household_briefing', None)
+                    if briefing is not None: briefing.clear(conversation_id)
+                    return reminder_result
             edits = getattr(profile, '_edits', None)
             if edits is not None:
                 edits.observe_turn(text, conversation_id)
             from jarvis.household_memory import memory_question
             memory_result = memory_question(text, profile)
             if memory_result is not None:
+                preparation = getattr(self.container, 'planning_preparation', None)
+                if preparation is not None: preparation.clear(conversation_id)
                 briefing = getattr(self.container, 'household_briefing', None)
                 if briefing is not None: briefing.clear(conversation_id)
                 return memory_result
             client = getattr(self.container, 'home_assistant', None)
+            preparation = getattr(self.container, 'planning_preparation', None)
+            if preparation is not None:
+                prepared = await preparation.handle(text, conversation_id)
+                if prepared is not None:
+                    return prepared
             if client is not None and hasattr(profile, '_data'):
                 from jarvis.household_briefing import HouseholdBriefing
                 briefing = getattr(self.container, 'household_briefing', None)
                 if briefing is None:
-                    briefing = HouseholdBriefing(profile, client, getattr(self.container, 'proactive_allowed_entities', ()))
+                    briefing = HouseholdBriefing(profile, client, getattr(self.container, 'proactive_allowed_entities', ()),
+                                                reminders=getattr(self.container, 'personal_reminders', None))
                     self.container.household_briefing = briefing
                 brief_result = await briefing.handle(text, conversation_id)
                 if brief_result is not None:
