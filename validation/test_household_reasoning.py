@@ -324,5 +324,26 @@ class ApplicationTests(unittest.IsolatedAsyncioTestCase):
             result=await handle(app,'How old am I?','s')
         self.assertTrue(result['message'].startswith('You are '));self.assertEqual(provider.calls,[])
 
+    async def test_next_birthday_precedes_full_legacy_calendar_route(self):
+        from jarvis.household_calendar import HouseholdCalendar
+        for question in ('How old will Mia be on her next birthday?',
+                         "When is Mia's upcoming birthday?"):
+            handle,app,p,provider=self.app()
+            p._data['members'][1]['preferred_name']='Mia'
+            class NoCalendarReads:
+                async def call_service_response(self,*args,**kwargs):
+                    raise AssertionError('Profile birthday query reached calendar')
+            app.container.household_calendar=HouseholdCalendar(p,NoCalendarReads(),())
+            provider.tasks=[{'subject':'sam','topic':'next_birthday'}]
+            provider.answer='Mia will be 10 on 21 August 2027.'
+            result=await handle(app,question,'s')
+            self.assertEqual(result['status'],'success')
+            self.assertEqual(result['provider'],'household_reasoning')
+            self.assertIn('10',result['message']);self.assertIn('2027',result['message'])
+
+    def test_next_birthday_gate_is_not_next_school_or_action_classifier(self):
+        self.assertFalse(HouseholdReasoning.next_birthday('When is the next school day?'))
+        self.assertFalse(HouseholdReasoning.next_birthday('What is planned on Friday?'))
+
 
 if __name__=='__main__': unittest.main()

@@ -854,7 +854,10 @@ class JarvisApplication:
                         edits = getattr(profile, '_edits', None)
                         if edits is not None: edits.observe_turn('household question clarification', conversation_id)
                         return clarification
-                    if household_reasoning.compound(text):
+                    # A next-birthday question can contain "on", which the
+                    # legacy calendar gate treats as an event request. Resolve
+                    # this explicit profile calculation before that older gate.
+                    if household_reasoning.compound(text) or household_reasoning.next_birthday(text):
                         combined = await household_reasoning.handle(text, conversation_id,
                             calendar=getattr(self.container, 'household_thinking', None))
                         if combined is not None:

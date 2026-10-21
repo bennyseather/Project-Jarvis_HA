@@ -99,6 +99,10 @@ class HouseholdReasoning:
         return birthday_answer(text, self.profile._data) or employment_answer(text, self.profile._data)
 
     @staticmethod
+    def next_birthday(text):
+        return bool(re.search(r'\b(?:next|upcoming) birthday\b', text, re.I))
+
+    @staticmethod
     def compound(text):
         if not re.search(r'\b(and|plus|also|both)\b', text, re.I): return False
         groups = (r'\bage|old\b', r'birthday|born', r'job|work|living|occupation',

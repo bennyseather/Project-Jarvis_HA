@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.45.64
+
+- Route explicit next/upcoming birthday calculations before the legacy calendar
+  fallback. "How old will Mia be on her next birthday?" must not be mistaken for
+  an event-edit request just because it contains "on".
+- Cover the older calendar handler in the routing regression test. Keep calendar
+  permissions, saved voice, normal fast facts and household controls unchanged.
+
 ## 0.45.63
 
 - Extend local household interpretation to flexible fact questions, combined
