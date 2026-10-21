@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.58
+
+- Allow explicit empty cloud credentials without preventing local-only startup.
+  Do not use ambient OpenAI credentials when disabled, and never log API error
+  bodies that may contain credentials. No model, household fact or voice changes.
+
 ## 0.45.57
 
 - Recalculate confirmed household ages from birth dates on every read in Norway

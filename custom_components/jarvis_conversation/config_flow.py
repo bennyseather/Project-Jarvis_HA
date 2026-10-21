@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from homeassistant import config_entries
 from homeassistant.helpers import selector
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import aiohttp
 import voluptuous as vol
 
 from .const import (
@@ -22,6 +24,39 @@ from .const import (
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 3
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Rotate credentials using HA's supported flow, never raw storage edits.
+
+        The destination is the existing trusted entry, not user-supplied input.
+        Never echo a credential in errors, defaults or logging.
+        """
+        entry = self._get_reconfigure_entry()
+        errors = {}
+        if user_input is not None:
+            key = user_input.get('api_key', '')
+            if not isinstance(key, str) or not 32 <= len(key) <= 512 or any(c.isspace() for c in key):
+                errors['base'] = 'invalid_auth'
+            else:
+                try:
+                    session = async_get_clientsession(self.hass)
+                    async with session.get(
+                        entry.data['bridge_url'].rstrip('/') + '/v1/household',
+                        headers={'Authorization': 'Bearer ' + key},
+                        timeout=aiohttp.ClientTimeout(total=10),
+                        allow_redirects=False,
+                    ) as response:
+                        if response.status != 200:
+                            errors['base'] = 'invalid_auth' if response.status in (401, 403) else 'cannot_connect'
+                except (aiohttp.ClientError, TimeoutError):
+                    errors['base'] = 'cannot_connect'
+                if not errors:
+                    return self.async_update_reload_and_abort(entry, data_updates={'api_key': key})
+        return self.async_show_form(
+            step_id='reconfigure', errors=errors,
+            data_schema=vol.Schema({vol.Required('api_key'): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))}),
+        )
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:

@@ -23,7 +23,9 @@ class OpenAIProvider:
         usage_ledger=None,
     ):
         self.logger = logger
-        self.client = OpenAI(api_key=api_key)
+        # An explicitly empty key disables cloud use. Never fall back to an
+        # ambient development-machine credential while local Jarvis starts.
+        self.client = OpenAI(api_key=api_key) if isinstance(api_key, str) and api_key.strip() else None
         self.default_model = default_model
         self.usage_ledger = usage_ledger
 
@@ -32,6 +34,8 @@ class OpenAIProvider:
         Send input to OpenAI.
         """
 
+        if self.client is None:
+            return "External AI is disabled; local Jarvis remains available."
         if self.usage_ledger is not None and not self.usage_ledger.permitted(0.01):
             self.logger.warning("OpenAI request blocked by the monthly AI budget.")
             return "External AI budget reached."
@@ -52,7 +56,7 @@ class OpenAIProvider:
             return response.output_text
 
         except Exception as exc:
-            self.logger.error(f"OpenAI request failed: {exc}")
+            self.logger.error(f"OpenAI request failed ({type(exc).__name__}).")
             return "I'm sorry, I couldn't contact OpenAI."
 
     def reason(
@@ -64,6 +68,9 @@ class OpenAIProvider:
         timeout_seconds: int,
     ) -> dict[str, object]:
         """Implement the provider-neutral reasoning contract."""
+        if self.client is None:
+            return {'status': 'unavailable', 'message': 'External AI is disabled; local Jarvis remains available.',
+                    'provider': 'openai', 'model': model}
         if self.usage_ledger is not None and not self.usage_ledger.permitted(0.01):
             self.logger.warning("OpenAI reasoning blocked by the monthly AI budget.")
             return {
@@ -95,7 +102,7 @@ class OpenAIProvider:
                 "estimated_cost_usd": cost,
             }
         except Exception as exc:
-            self.logger.error(f"OpenAI reasoning request failed: {exc}")
+            self.logger.error(f"OpenAI reasoning request failed ({type(exc).__name__}).")
             return {
                 "status": "unavailable",
                 "message": "External reasoning is temporarily unavailable.",
@@ -116,6 +123,9 @@ class OpenAIProvider:
     ) -> dict[str, object]:
         """Answer with optional live web research and structured source metadata."""
 
+        if self.client is None:
+            return {'status': 'unavailable', 'message': 'External AI research is disabled; no live sources were fetched.',
+                    'sources': (), 'researched': False}
         tool: dict[str, object] = {
             "type": "web_search",
             "search_context_size": search_context_size,
@@ -142,7 +152,7 @@ class OpenAIProvider:
                 "researched": bool(sources),
             }
         except Exception as exc:
-            self.logger.error(f"OpenAI research request failed: {exc}")
+            self.logger.error(f"OpenAI research request failed ({type(exc).__name__}).")
             return {
                 "status": "unavailable",
                 "message": "Live research is temporarily unavailable. Please try again.",
