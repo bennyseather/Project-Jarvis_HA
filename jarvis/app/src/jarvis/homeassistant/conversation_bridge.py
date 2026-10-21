@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import deque
+from urllib.parse import unquote
 from jarvis.voice_turns import VoiceTurnController, reliable_turn
 
 
@@ -58,6 +59,21 @@ class JarvisConversationBridge:
                              None, source_id, activation_id),
                 route=proactive_voice_route, conversation_id=identifier,
             )
+        # Companion text/native Assist requests also carry device IDs. That is
+        # not evidence of a listener for Jarvis's separate browser reply event.
+        # Without an explicit matching browser wire ID, wait for the final answer
+        # on the original request instead of orphaning it after a progress cue.
+        if proactive_voice_route and proactive_voice_route.get("event_type"):
+            parts = str(conversation_id or "").split(":", 2)
+            target = unquote(parts[1]).strip() if len(parts) == 3 else ""
+            browser_route = (
+                len(parts) == 3 and parts[0] in ("jarvis-voice", "jarvis-voice-v3")
+                and target and all(c.isalnum() or c in "_-" for c in target)
+                and proactive_voice_route.get("event_type") == "jarvis_voice_follow_up"
+                and proactive_voice_route.get("target_id") == target
+            )
+            if not browser_route:
+                proactive_voice_route = None
         identifier = self._conversation_identifier(conversation_id)
         activation_key = (
             f"{identifier}:{source_id or 'unknown'}:{activation_id}"

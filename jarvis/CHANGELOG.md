@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.45.62
+
+- Keep the completed answer on the original Companion/native Assist request.
+  A phone device ID alone does not establish a listener for Jarvis browser events.
+- Accept legacy browser follow-up events only for an explicit matching browser
+  conversation/target. Keep the reliable browser protocol and configured external
+  TTS routes unchanged. No speaker enrolment, pairing or voice-setting changes.
+
 ## 0.45.61
 
 - Interpret the practical calendar question using fresh, owner-attributed events,

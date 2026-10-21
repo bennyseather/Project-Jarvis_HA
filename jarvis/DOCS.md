@@ -121,6 +121,12 @@ English variants on the same microphone without changing the saved voice.
 
 ## Responsive voice follow-ups
 
+Companion app text/native Assist replies stay on the original request until the
+answer completes. A device ID alone does not imply support for Jarvis's separate
+browser follow-up channel. Legacy browser event routes require an explicit
+matching `jarvis-voice:` conversation and target; the reliable browser protocol
+and explicitly configured external TTS routes retain their existing behavior.
+
 Jarvis returns ordinary fast answers through the active Assist pipeline. When a
 voice request is still running after the configured one-second backend deadline,
 Jarvis gives a short progress response and continues the same bounded job. The
