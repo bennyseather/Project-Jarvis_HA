@@ -836,6 +836,7 @@ class JarvisApplication:
                     connected = ConnectedUnderstanding(profile, getattr(self.container, 'local_reasoning_provider', None),
                         getattr(self.container, 'home_assistant', None), getattr(self.container, 'entity_registry', None),
                         getattr(self.container, 'proactive_allowed_entities', ()), weather=getattr(preparation, 'weather', None),
+                        weather_evidence=getattr(preparation, 'weather_evidence', None),
                         travel=getattr(self.container, 'travel_calendar_intelligence', None), public=getattr(self.container, 'current_information', None),
                         public_enabled=public_enabled)
                     self.container.connected_understanding = connected

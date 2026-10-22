@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from jarvis.connected_understanding import ConnectedUnderstanding
 from jarvis.household_speaker import speaker_scope
 from jarvis.sentence_stream import sentence_sink
+from jarvis.structured_facts import ForecastDay,ForecastReport
 from test_household_reasoning import profile
 
 ZONE=ZoneInfo('Europe/Oslo')
@@ -34,13 +35,14 @@ class Provider:
         if self.mutate: self.mutate()
         answer=self.answer
         context=json.loads(kw['input_messages'][0]['content'])
-        if answer=='The kitchen window is reported open now, so consider checking it again.' and any(
-                f['kind']=='home_weather' and 'rain.' in f['text'] for f in context['evidence']['facts']):
-            answer='HA currently reports the kitchen window open, so with rain forecast locally, consider rechecking it.'
-        if self.answer=='The kitchen window is reported open now, so consider checking it again.' and any(
-                f['kind']=='travel_summary' for f in context['evidence']['facts']):
-            answer='The selected trip is a flight to Fixture City on Friday at 12:00. HA currently reports the kitchen window open.'
-        return {'status':'success','message':json.dumps(self.review if kw['instructions'].startswith('Check ONLY') else {'answer':answer})}
+        if answer=='The kitchen window is reported open now, so consider checking it again.':
+            answer='. '.join('[['+k+']]' for k in context['required_clauses'])+'.'
+        if '[[' in answer:
+            import re
+            result={'segments':[{'fact':key,'before':'','after':'; ' if context['fact_clauses'][key]['kind']=='forecast' else '.'}
+                                for key in re.findall(r'\[\[([A-Z]\d+)\]\]',answer)]}
+        else:result={'answer':answer}
+        return {'status':'success','message':json.dumps(self.review if kw['instructions'].startswith('Check ONLY') else result)}
 
 
 class Client:
@@ -56,6 +58,9 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         self.public_calls=[]; self.weather_calls=[]; self.travel_calls=[]
         async def weather(a,b):
             self.weather_calls.append((a,b)); return 'Home-area forecast, not destination weather: Thursday 22 October: rain.'
+        async def typed_weather(a,b):
+            self.weather_calls.append((a,b))
+            return ForecastReport('weather.fixture',a,b,self.now[0].isoformat(),(ForecastDay(a,'rainy',80),)).data()
         async def public(text,**kw):
             assert sentence_sink.get() is None
             self.public_calls.append(text)
@@ -63,8 +68,8 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
                     'sources':[{'title':'Fixture releases','url':'https://example.com/releases'}]}
         async def travel(text,**kw):
             self.travel_calls.append(text); return {'status':'success','message':'Your next travel entry is a flight to Fixture City on Friday 23 October at 12:00.'}
-        self.r=ConnectedUnderstanding(self.p,self.provider,self.client,None,{'binary_sensor.kitchen','light.office'},
-            weather=weather,public=SimpleNamespace(handle=public),travel=SimpleNamespace(handle=travel),
+        self.r=ConnectedUnderstanding(self.p,self.provider,self.client,None,{'binary_sensor.kitchen','light.office','weather.fixture'},
+            weather=weather,weather_evidence=typed_weather,public=SimpleNamespace(handle=public),travel=SimpleNamespace(handle=travel),
             now=lambda:self.now[0],clock=lambda:self.clock[0])
     async def ask(self,q,key='s',speaker=None):
         with speaker_scope({'member_id':speaker,'basis':'voice_match' if speaker else 'unknown','conversation_id':key},self.p,key):
@@ -82,8 +87,8 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         evidence=self.provider.calls[0]['input_messages'][0]['content']
         self.assertNotIn('Excluded private door',evidence);self.assertNotIn('Doorbell',evidence)
         self.assertNotIn('camera.doorbell',evidence)
-        board=json.loads(evidence)['reasoning_board']
-        self.assertNotIn('key_appointments',board);self.assertNotIn('recorded_overlaps',board)
+        catalog=json.loads(evidence)['fact_clauses']
+        self.assertNotIn('A1',catalog);self.assertNotIn('O1',catalog)
         self.assertEqual(self.public_calls,[])
     async def test_predeparture_unknown_first_person_clarifies_before_reads(self):
         out=await self.ask('Is there anything I should sort out before leaving tomorrow?')
@@ -104,6 +109,28 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         out=await self.ask('And Friday?')
         self.assertEqual(out['period']['start'],'2026-10-23');self.assertEqual(self.client.calls,['states','states'])
         self.assertEqual(len(self.weather_calls),2)
+    async def test_underscore_weekday_followup_cannot_pass_by_retaining_previous_date(self):
+        self.now[0]=datetime(2026,10,21,12,tzinfo=ZONE)
+        await self.ask('How does weather affect things at home tomorrow?')
+        out=await self.ask('And Friday_?')
+        self.assertEqual(out['period']['start'],'2026-10-23')
+        self.assertEqual(self.weather_calls[-1],('2026-10-23','2026-10-24'))
+    async def test_literal_public_query_underscore_is_not_a_date_normalization_target(self):
+        await self.ask('How does weather affect things at home today, and check Fixture_')
+        self.assertEqual(self.public_calls,['Fixture_'])
+    async def test_typed_forecast_rejects_unpermitted_source_stale_read_and_wrong_property(self):
+        for variant in ('source','stale','property'):
+            async def invalid(a,b):
+                data=ForecastReport('weather.fixture',a,b,NOW.isoformat(),(ForecastDay(a,'cloudy',14),)).data()
+                if variant=='source':data['source']='weather.not_permitted'
+                if variant=='stale':data['checked_at']='2026-10-22T11:00:00+02:00'
+                if variant=='property':data['probability_property']='cloud_cover'
+                return data
+            self.r.weather_evidence=invalid
+            plan=self.r.request('How does weather affect things at home tomorrow?',None)
+            evidence,_=await self.r.collect(plan)
+            self.assertIn('weather could not be checked',evidence['source_failures'])
+            self.assertFalse(any(f['kind']=='home_weather' for f in evidence['facts']))
     async def test_scope_expiry_revision_day_speaker_and_unrelated_clear(self):
         mutations=(lambda:self.clock.__setitem__(0,301),lambda:self.p._data.__setitem__('revision',2),
                    lambda:self.now.__setitem__(0,datetime(2026,10,23,1,tzinfo=ZONE)))
@@ -148,7 +175,7 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out['status'],'unavailable')
     async def test_permission_revoke_and_unknown_states_do_not_report_all_clear(self):
         self.client.states[0]['state']='unavailable'
-        self.provider.answer='Some exposed window readings are unknown; with rain forecast, consider checking the kitchen window.'
+        self.provider.answer='[[H1]]. [[W1]], so [[I1]].'
         out=await self.ask('How does the weather affect things at home today?')
         self.assertTrue(out['partial']);self.assertIn("can't see every home sensor",out['message'])
         self.p._data['sharing_policy']['knowledge_access']['mode']='disabled'
@@ -167,18 +194,18 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out['status'],'success');self.assertTrue(out['partial'])
 
     async def test_unavailable_journey_does_not_require_invented_travel_facts(self):
-        self.provider.answer="Sam's requested trip details are unknown; HA currently reports the kitchen window open, so consider rechecking before leaving."
+        self.provider.answer='[[H1]]; consider checking again before leaving.'
         out=await self.ask('What should Sam prepare for the next trip and what is open at home?')
         self.assertEqual(out['status'],'success');self.assertTrue(out['partial']);self.assertEqual(self.travel_calls,[])
         context=json.loads(self.provider.calls[0]['input_messages'][0]['content'])
-        self.assertEqual([f['kind'] for f in context['evidence']['facts']].count('travel_summary'),0)
-        self.assertTrue(any(f['kind']=='source_gap' and f['owners']==['sam'] for f in context['evidence']['facts']))
+        self.assertNotIn('T1',context['fact_clauses'])
+        self.assertIn('could not fully check travel',out['message'])
     async def test_next_trip_and_exact_destination_are_not_substituted(self):
         self.p._data['members'][0]['id']='benny'
         self.p._data['sharing_policy']['additional_category_approval']={'source':'Fixture approval','recorded_on':'2026-10-22','categories':['benny_travel_details']}
         out=await self.ask('What should Alex prepare for the next trip and what is open at home?')
         self.assertEqual(out['status'],'success');self.assertEqual(self.travel_calls,['When is my next travel?'])
-        self.assertNotIn('conditional_connection',json.loads(self.provider.calls[0]['input_messages'][0]['content'])['reasoning_board'])
+        self.assertIn('T1',json.loads(self.provider.calls[0]['input_messages'][0]['content'])['fact_clauses'])
         await self.ask('And Friday?');self.assertEqual(self.travel_calls[-1],'When is my next travel?')
         await self.ask('What should Alex prepare for travel to Perth and what is open at home?')
         self.assertEqual(self.travel_calls[-1],'When is my travel to Perth?')
@@ -202,8 +229,7 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         self.client.states.append({'entity_id':'light.group','state':'on','attributes':{'entity_id':['light.office'],'friendly_name':'Fixture group'}})
         self.r.allowed=frozenset(set(self.r.allowed)|{'light.group'})
         await self.ask('How does weather affect things at home today?')
-        context=json.loads(self.provider.calls[0]['input_messages'][0]['content'])
-        lights=[json.loads(f['text']) for f in context['evidence']['facts'] if f['kind']=='home_state' and 'lights' in f['text']]
+        lights=[json.loads(f['text']) for f in await self.r.home() if 'lights' in f['text']]
         self.assertEqual(lights[0]['checked'],1)
     async def test_ambiguous_followup_after_public_lookup_clarifies(self):
         await self.ask('How does weather affect things at home today, and check the latest Fixture release?')
@@ -232,8 +258,8 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out['status'],'clarification_required');self.assertEqual(self.public_calls,[])
         self.assertEqual(self.client.calls,[])
     async def test_unavailable_forecast_is_explicit_partial_not_complete_success(self):
-        async def unavailable(a,b): return 'The home forecast is temporarily unavailable; I have not guessed destination weather.'
-        self.r.weather=unavailable
+        async def unavailable(a,b): return ForecastReport('weather.fixture',a,b,NOW.isoformat(),problem='unavailable').data()
+        self.r.weather_evidence=unavailable
         out=await self.ask('How does weather affect things at home today?')
         self.assertEqual(out['status'],'success');self.assertTrue(out['partial']);self.assertIn('forecast coverage',out['message'])
     async def test_failed_neural_departure_with_no_appointments_has_verified_home_recovery(self):
@@ -251,7 +277,7 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
     async def test_internal_rule_echo_is_not_a_natural_answer(self):
         self.provider.answer='The kitchen window is open. Do not claim rain will enter the home.'
         out=await self.ask('How does weather affect things at home today?')
-        self.assertEqual(out['status'],'unavailable');self.assertEqual(out['interpretation_failure'],'Not conversational')
+        self.assertEqual(out['status'],'unavailable');self.assertEqual(out['interpretation_failure'],'Invalid fact template')
     def test_appointment_before_leaving_is_not_misclassified_as_a_work_routine(self):
         evidence={'people':{'sam':'Sam'},'source_failures':[],'truncated':False,'facts':[
             {'id':'R1','kind':'routine','owners':['sam'],'text':'Sam usual school timetable: 08:15–12:50; attendance unknown.'},
@@ -280,7 +306,7 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_gap_note_dedup_does_not_cache_sensor_or_weather_reads(self):
         self.client.states[0]['state']='unknown'
-        self.provider.answer='The forecast calls for rain locally; consider checking any unknown window readings.'
+        self.provider.answer='[[H1]]. [[W1]], so [[I1]].'
         first=await self.ask('How does weather affect things at home tomorrow?')
         again=await self.ask('And Friday?')
         self.assertIn("can't see every home sensor",first['message'])

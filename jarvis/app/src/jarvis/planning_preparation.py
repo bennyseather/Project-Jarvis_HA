@@ -2,7 +2,6 @@
 import asyncio
 from collections import OrderedDict
 from datetime import datetime, timedelta
-import math
 import re
 import time
 from zoneinfo import ZoneInfo
@@ -11,6 +10,7 @@ from jarvis.household_briefing import HouseholdBriefing, Brief
 from jarvis.household_memory import clean, result
 from jarvis.household_planning import resolve_dates, Plan
 from jarvis.household_speaker import speaker_context, shared_knowledge_enabled
+from jarvis.structured_facts import ForecastDay, ForecastReport
 
 ZONE = ZoneInfo('Europe/Oslo')
 
@@ -137,10 +137,11 @@ class PlanningPreparation:
     def response(message, status='success'):
         return {**result(message, status), 'provider': 'planning_preparation'}
 
-    async def weather(self, start, end):
+    async def weather_evidence(self, start, end):
+        checked=self.now().astimezone(ZONE).isoformat()
         entities = [e for e in self.registry.all() if e.domain == 'weather' and e.entity_id in self.allowed] if self.registry else []
         if not entities:
-            return 'No home weather source is connected or shared; I have not guessed the forecast.'
+            return ForecastReport(None,start,end,checked,problem='not_connected').data()
         preferred = next((e for e in entities if e.entity_id == 'weather.forecast_home'), entities[0])
         try:
             raw = await asyncio.wait_for(self.client.call_service_response('weather', 'get_forecasts', {
@@ -150,35 +151,26 @@ class PlanningPreparation:
                 raise ValueError()
             forecasts = {}
             for item in items:
-                stamp = datetime.fromisoformat(item['datetime'].replace('Z', '+00:00'))
-                if stamp.tzinfo is None:
-                    raise ValueError()
-                date = stamp.astimezone(ZONE).date().isoformat()
+                row=ForecastDay.read(item)
+                date=row.date
                 if start <= date < end:
                     if date in forecasts:
                         raise ValueError()
-                    forecasts[date] = item
+                    forecasts[date] = row
             if not forecasts:
-                return 'The home forecast does not cover the requested dates; destination weather has not been checked.'
-            conditions = {'rainy': 'rain', 'pouring': 'heavy rain', 'snowy': 'snow', 'snowy-rainy': 'rain and snow',
-                          'sunny': 'sun', 'partlycloudy': 'some cloud', 'cloudy': 'cloud', 'fog': 'fog',
-                          'windy': 'wind', 'windy-variant': 'wind', 'lightning': 'thunderstorms', 'lightning-rainy': 'thunderstorms and rain',
-                          'clear-night': 'clear weather', 'exceptional': 'exceptional conditions'}
-            lines = []
-            wet = False
-            for day, item in sorted(forecasts.items())[:3]:
-                condition = conditions.get(item.get('condition'), 'unspecified conditions')
-                probability = item.get('precipitation_probability')
-                valid_probability = isinstance(probability, (int, float)) and not isinstance(probability, bool) and math.isfinite(probability) and 0 <= probability <= 100
-                stamp = datetime.fromisoformat(day).strftime('%A %d %B')
-                lines.append(stamp + ': ' + condition + (f', {probability:g}% chance of precipitation' if valid_probability else ''))
-                wet |= item.get('condition') in ('rainy', 'pouring', 'snowy', 'snowy-rainy', 'lightning-rainy') or (valid_probability and probability >= 60)
+                return ForecastReport(preferred.entity_id,start,end,checked,problem='not_covered').data()
             coverage = (datetime.fromisoformat(end) - datetime.fromisoformat(start)).days
-            message = 'Home-area forecast, not destination weather: ' + '; '.join(lines) + '.'
-            if len(forecasts) < coverage or len(forecasts) > 3:
-                message += ' Only the displayed dates are covered here; I have not filled missing days from old forecasts.'
-            if wet:
-                message += ' Consider rain protection if you will be outside; I do not know whether your activities are outdoors.'
-            return message
+            problem='partial_coverage' if len(forecasts)<coverage or len(forecasts)>3 else None
+            return ForecastReport(preferred.entity_id,start,end,checked,tuple(v for _,v in sorted(forecasts.items())[:3]),problem).data()
         except Exception:
-            return 'The home forecast is temporarily unavailable; I have not reused an old forecast or guessed destination weather.'
+            return ForecastReport(preferred.entity_id,start,end,checked,problem='unavailable').data()
+
+    async def weather(self, start, end):
+        report=ForecastReport.from_data(await self.weather_evidence(start,end),start,end)
+        if report.problem=='not_connected':return 'No home weather source is connected or shared; I have not guessed the forecast.'
+        if report.problem=='not_covered':return 'The home forecast does not cover the requested dates; destination weather has not been checked.'
+        if not report.days:return 'The home forecast is temporarily unavailable; I have not reused an old forecast or guessed destination weather.'
+        message='Home-area forecast, not destination weather: '+'; '.join(d.clause().split('forecast for ',1)[1] for d in report.days)+'.'
+        if report.problem:message+=' Only the displayed dates are covered here; I have not filled missing days from old forecasts.'
+        if any(d.relevance=='wet' for d in report.days):message+=' Consider rain protection if you will be outside; I do not know whether your activities are outdoors.'
+        return message

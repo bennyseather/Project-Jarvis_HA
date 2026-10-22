@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.45.67
+
+- Bind connected-planning weather values to their property, Norway date and source;
+  bind exposed home readings to their current observation, not a future plan date.
+- Use independently rendered factual clauses and weather relevance. Qwen selects
+  useful order and bounded conversational connectors, rather than rewriting values.
+  Preserve paragraph replies, existing calendar interpretation and fast fact paths.
+- Handle cloudy low/high/zero/unknown probabilities, rain/snow, conflicting fields,
+  unavailable forecasts and multi-day implications without inventing attendance.
+- Preserve saved voice/calibration, model, permissions and action paths. Audio and
+  real-reminder acceptance remain on hold; no new recordings or notifications.
+
 ## 0.45.66
 
 - Keep current HA observations separate from future planning dates. Reject inferred

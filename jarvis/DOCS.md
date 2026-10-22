@@ -1,5 +1,24 @@
 # Project Jarvis add-on
 
+## Source-bound connected replies (0.45.67)
+
+Connected departure/home/weather questions now keep the factual parts outside
+free-form model rewriting. A percentage remains precipitation probability for its
+own forecast date; a current HA contact report never becomes Friday's home state.
+Qwen chooses relevant ordering and conversational connectors around validated
+clauses. Output remains prose, not a source-list display. Existing single-source
+calendar interpretation, profile facts and birthday follow-ups retain their paths.
+
+Cloudy weather with a low precipitation probability does not automatically suggest
+rain preparation. Missing probability is not zero; contradictory condition/zero
+probability fields prompt a recheck. Practical low/possible/wet wording uses a
+code-owned heuristic, not a safety guarantee or knowledge of an activity's venue.
+Current readings still need checking nearer departure; connected sources do not
+confirm attendance. The local model's review is a usefulness check, not independent
+proof. Travel/public summaries retain their existing source adapters and are not
+newly independently extracted claims. This is a bounded repair, not a guarantee
+of universal understanding. Saved voice is preserved; audio/reminder tests stay held.
+
 ## Connected reply repair (0.45.66)
 
 Future-date follow-ups change plans and forecasts, not when sensors were observed.
