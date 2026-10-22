@@ -826,6 +826,38 @@ class JarvisApplication:
         profile = getattr(self.container, "household_profile", None)
         if profile is not None:
             if hasattr(profile, '_data'):
+                from jarvis.connected_understanding import ConnectedUnderstanding
+                connected = getattr(self.container, 'connected_understanding', None)
+                if connected is None:
+                    preparation = getattr(self.container, 'planning_preparation', None)
+                    research = getattr(self.container, 'research_controller', None)
+                    store = getattr(self.container, 'conversation_store', None)
+                    public_enabled = (lambda key: research.enabled(store.normalize_conversation_id(key))) if research is not None and store is not None else None
+                    connected = ConnectedUnderstanding(profile, getattr(self.container, 'local_reasoning_provider', None),
+                        getattr(self.container, 'home_assistant', None), getattr(self.container, 'entity_registry', None),
+                        getattr(self.container, 'proactive_allowed_entities', ()), weather=getattr(preparation, 'weather', None),
+                        travel=getattr(self.container, 'travel_calendar_intelligence', None), public=getattr(self.container, 'current_information', None),
+                        public_enabled=public_enabled)
+                    self.container.connected_understanding = connected
+                connected_result = await connected.handle(text, conversation_id)
+                if connected_result is not None:
+                    for name in ('household_thinking','planning_preparation','household_briefing','household_dialogue'):
+                        prior = getattr(self.container, name, None)
+                        if prior is not None: prior.clear(conversation_id)
+                    from jarvis.household_reasoning import HouseholdReasoning
+                    reasoning = getattr(self.container, 'household_reasoning', None)
+                    if reasoning is None:
+                        reasoning = HouseholdReasoning(profile, getattr(self.container, 'local_reasoning_provider', None))
+                        self.container.household_reasoning = reasoning
+                    reasoning.clear(conversation_id)
+                    subject = connected_result.get('subject')
+                    person = next((p for p in profile._data['members'] if p['id'] == subject), None)
+                    if connected_result.get('status') == 'success' and person:
+                        reasoning.resolve('Tell me about '+person['preferred_name'], conversation_id)
+                    edits = getattr(profile, '_edits', None)
+                    if edits is not None: edits.observe_turn('connected read-only question', conversation_id)
+                    return connected_result
+            if hasattr(profile, '_data'):
                 from jarvis.household_understanding import HouseholdUnderstanding
                 understanding = getattr(self.container, 'household_understanding', None)
                 if understanding is None:

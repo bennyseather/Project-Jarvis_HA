@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.45.65
+
+- Connect fresh permitted household plans, current exposed home readings, home
+  forecasts and explicitly selected travel details in a checked local explanation.
+  Preserve fast single-source facts and existing action/confirmation paths.
+- Keep person/date follow-ups scoped to speaker, conversation, profile revision,
+  Norway date and read permissions; refresh facts each time. Explicit profile-fact
+  follow-ups leave connected planning and retain the named person.
+- Research only an explicit literal public-lookup clause, respecting existing
+  research-disable controls. Never construct searches from private source data.
+- Use isolated state-read sockets, bounded evidence/inference, suppressed internal
+  streaming and at most one correction. Unknown sources remain explicit; no
+  safety assurances, inferred attendance, departure times or automatic actions.
+- Build a code-owned relevance board and reject internal-rule echoes. If rejected
+  departure wording has no recorded appointments in view, a narrow verified home
+  recheck may be returned as explicitly partial recovery, not neural interpretation.
+- Preserve saved voice, calibration, pairing and STT/TTS configuration. No enrolment,
+  background jobs, device/calendar writes or resumed audio/reminder acceptance.
+
 ## 0.45.64
 
 - Route explicit next/upcoming birthday calculations before the legacy calendar

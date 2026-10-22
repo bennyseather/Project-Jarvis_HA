@@ -1,5 +1,40 @@
 # Project Jarvis add-on
 
+## Connected understanding (0.45.65)
+
+Use a named person, a matched speaker, or the household for practical connected
+questions, such as:
+
+- “What should we sort out before leaving tomorrow?” followed by “And Friday?”
+- “How will the weather affect Mia's plans tomorrow?”
+- “What should Benny prepare for the next trip, and what is open at home?”
+- “How does the weather affect things at home today, and check the latest Home Assistant release?”
+
+Qwen explains fresh permitted facts, rather than issuing tools. Home checks cover
+exposed individual door/window contacts, lights, locks and covers only. Current HA
+reports do not establish future departure state, physical verification or safety;
+recheck relevant issues nearer departure. Unavailable readings and unconnected
+personal calendars remain unknown. A home forecast is never destination weather.
+Flight times are not leave-home times, and household routines are not attendance.
+
+An explicit public lookup uses only the literal lookup clause, never household
+context or source results as a search query. Personal/household identifiers in
+that clause are rejected; research-disable settings are respected. Source links
+remain in text. Public lookups are not automatically repeated on date follow-ups.
+Ambiguous references clarify. Next-trip and supported known-destination selectors
+reuse the existing travel adapter; unsupported selectors ask for a narrower query.
+
+Connected output is buffered and checked, with at most one correction and a total
+16-second bound. Simple facts/controls keep existing fast paths.
+If departure wording is rejected and no appointments are in the evidence, a
+verified home-state recheck can be returned with an explicit incomplete-planning
+notice. This is a partial code-calculated recovery, not an accepted model draft.
+It cannot suppress a recorded appointment, travel selection or public lookup.
+No device,
+calendar, recording or reminder is created. Your saved voice and STT/TTS settings
+are unchanged. This release does not resume deferred audio/accent or real-reminder
+human acceptance, and finite tests cannot guarantee every paraphrase is understood.
+
 ## Calendar understanding (0.45.61)
 
 Ask about preparation, a person's day/week, which day looks busiest, appointment

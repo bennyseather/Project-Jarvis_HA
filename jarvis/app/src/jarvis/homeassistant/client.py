@@ -131,6 +131,16 @@ class HomeAssistantClient:
             await self._connect_socket()
             return await self._get_states_once()
 
+    async def get_states_isolated(self) -> list:
+        """A bounded read that cannot consume another request's socket response."""
+        reader = HomeAssistantClient(self.url, self.token, self.logger)
+        try:
+            async with asyncio.timeout(5):
+                await reader._connect_socket()
+                return await reader._get_states_once()
+        finally:
+            await reader.disconnect()
+
     async def get_household_today(self, period='today', *, start_date=None, end_date=None):
         """Use the dashboard's authenticated read-only command on a separate socket."""
         if period not in ('today','tomorrow','week_ahead','this_week','next_week','custom'):
