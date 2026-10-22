@@ -25,14 +25,22 @@ STATES=[{'entity_id':'binary_sensor.kitchen','state':'on','attributes':{'device_
 class Provider:
     def __init__(self):
         self.calls=[]
-        self.answer='The kitchen window is reported open now, so consider checking it again before departure.'
+        self.answer='The kitchen window is reported open now, so consider checking it again.'
         self.review={'grounded':True,'useful':True,'issue':'none'}
         self.mutate=None
     def reason_local(self,**kw):
         assert sentence_sink.get() is None
         self.calls.append(kw)
         if self.mutate: self.mutate()
-        return {'status':'success','message':json.dumps(self.review if kw['instructions'].startswith('Check ONLY') else {'answer':self.answer})}
+        answer=self.answer
+        context=json.loads(kw['input_messages'][0]['content'])
+        if answer=='The kitchen window is reported open now, so consider checking it again.' and any(
+                f['kind']=='home_weather' and 'rain.' in f['text'] for f in context['evidence']['facts']):
+            answer='HA currently reports the kitchen window open, so with rain forecast locally, consider rechecking it.'
+        if self.answer=='The kitchen window is reported open now, so consider checking it again.' and any(
+                f['kind']=='travel_summary' for f in context['evidence']['facts']):
+            answer='The selected trip is a flight to Fixture City on Friday at 12:00. HA currently reports the kitchen window open.'
+        return {'status':'success','message':json.dumps(self.review if kw['instructions'].startswith('Check ONLY') else {'answer':answer})}
 
 
 class Client:
@@ -74,6 +82,8 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         evidence=self.provider.calls[0]['input_messages'][0]['content']
         self.assertNotIn('Excluded private door',evidence);self.assertNotIn('Doorbell',evidence)
         self.assertNotIn('camera.doorbell',evidence)
+        board=json.loads(evidence)['reasoning_board']
+        self.assertNotIn('key_appointments',board);self.assertNotIn('recorded_overlaps',board)
         self.assertEqual(self.public_calls,[])
     async def test_predeparture_unknown_first_person_clarifies_before_reads(self):
         out=await self.ask('Is there anything I should sort out before leaving tomorrow?')
@@ -138,9 +148,9 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out['status'],'unavailable')
     async def test_permission_revoke_and_unknown_states_do_not_report_all_clear(self):
         self.client.states[0]['state']='unavailable'
-        self.provider.answer='Some exposed window readings are unknown; consider checking the kitchen window before departure.'
+        self.provider.answer='Some exposed window readings are unknown; with rain forecast, consider checking the kitchen window.'
         out=await self.ask('How does the weather affect things at home today?')
-        self.assertTrue(out['partial']);self.assertIn('Still unknown',out['message'])
+        self.assertTrue(out['partial']);self.assertIn("can't see every home sensor",out['message'])
         self.p._data['sharing_policy']['knowledge_access']['mode']='disabled'
         self.assertIsNone(await self.ask('And Friday?'));self.assertEqual(self.r.sessions,{})
     async def test_seasonal_mower_and_unrelated_unavailable_devices_are_not_alerts(self):
@@ -155,12 +165,20 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         out=await self.ask('What should Sam prepare for the next trip and what is open at home?')
         self.assertEqual(self.travel_calls,[])
         self.assertEqual(out['status'],'success');self.assertTrue(out['partial'])
+
+    async def test_unavailable_journey_does_not_require_invented_travel_facts(self):
+        self.provider.answer="Sam's requested trip details are unknown; HA currently reports the kitchen window open, so consider rechecking before leaving."
+        out=await self.ask('What should Sam prepare for the next trip and what is open at home?')
+        self.assertEqual(out['status'],'success');self.assertTrue(out['partial']);self.assertEqual(self.travel_calls,[])
+        context=json.loads(self.provider.calls[0]['input_messages'][0]['content'])
+        self.assertEqual([f['kind'] for f in context['evidence']['facts']].count('travel_summary'),0)
+        self.assertTrue(any(f['kind']=='source_gap' and f['owners']==['sam'] for f in context['evidence']['facts']))
     async def test_next_trip_and_exact_destination_are_not_substituted(self):
         self.p._data['members'][0]['id']='benny'
         self.p._data['sharing_policy']['additional_category_approval']={'source':'Fixture approval','recorded_on':'2026-10-22','categories':['benny_travel_details']}
         out=await self.ask('What should Alex prepare for the next trip and what is open at home?')
         self.assertEqual(out['status'],'success');self.assertEqual(self.travel_calls,['When is my next travel?'])
-        self.assertIsNone(json.loads(self.provider.calls[0]['input_messages'][0]['content'])['reasoning_board']['conditional_connection'])
+        self.assertNotIn('conditional_connection',json.loads(self.provider.calls[0]['input_messages'][0]['content'])['reasoning_board'])
         await self.ask('And Friday?');self.assertEqual(self.travel_calls[-1],'When is my next travel?')
         await self.ask('What should Alex prepare for travel to Perth and what is open at home?')
         self.assertEqual(self.travel_calls[-1],'When is my travel to Perth?')
@@ -244,6 +262,133 @@ class ConnectedTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('17:00',result)
         with self.assertRaisesRegex(ValueError,'Routine treated as attendance'):
             self.r.validate(json.dumps({'answer':'Sam is at school at 08:15.'}),evidence,None)
+
+    async def test_destination_adapter_boilerplate_is_not_local_forecast_content(self):
+        plan=self.r.request('How does weather affect our plans tomorrow?','s')
+        evidence,_=await self.r.collect(plan)
+        weather=next(f for f in evidence['facts'] if f['kind']=='home_weather')
+        self.assertEqual(weather['scope'],'home_area_only')
+        self.assertIn('rain',weather['text']);self.assertNotIn('destination',weather['text'])
+
+    def test_coverage_note_is_short_and_unchanged_followup_does_not_repeat_it(self):
+        gaps=['other household personal calendars are not connected in this view','some exposed home readings are unknown']
+        evidence={'source_failures':gaps}
+        self.assertEqual(self.r.coverage_note(evidence,{}),"I can't see everyone's calendar or every home sensor.")
+        self.assertEqual(self.r.coverage_note(evidence,{'previous_gaps':tuple(sorted(gaps))}),'')
+        self.assertIn('weather',self.r.coverage_note({'source_failures':gaps+['weather could not be checked']},
+            {'previous_gaps':tuple(sorted(gaps))}))
+
+    async def test_gap_note_dedup_does_not_cache_sensor_or_weather_reads(self):
+        self.client.states[0]['state']='unknown'
+        self.provider.answer='The forecast calls for rain locally; consider checking any unknown window readings.'
+        first=await self.ask('How does weather affect things at home tomorrow?')
+        again=await self.ask('And Friday?')
+        self.assertIn("can't see every home sensor",first['message'])
+        self.assertNotIn("can't see every home sensor",again['message'])
+        self.assertTrue(first['partial']);self.assertTrue(again['partial'])
+        self.assertEqual(self.client.calls,['states','states']);self.assertEqual(len(self.weather_calls),2)
+
+
+class PilotSemanticRegressionTests(unittest.TestCase):
+    def setUp(self):
+        self.evidence={'people':{'benny':'Benny','mia':'Mia'},'source_failures':[],'truncated':False,'facts':[
+            {'id':'H1','kind':'home_state','owners':[],'text':json.dumps({'scope':'exposed door/window contacts only',
+                'checked':1,'active_count':1,'unknown_count':0,'active_examples':['Master bedroom window']})},
+            {'id':'W1','kind':'home_weather','owners':[],'text':'Home-area forecast: Friday 23 October: rain.'},
+            {'id':'C1','kind':'coverage','owners':['benny','mia'],'text':'Returned calendar entries are plans.',
+                'returned_entries':0},
+        ]}
+        self.plan={'sources':['home','calendar','weather'],'goal':'predeparture','start':'2026-10-23'}
+
+    def check(self,text,reason=None,plan=None):
+        if reason:
+            with self.assertRaisesRegex(ValueError,reason):
+                ConnectedUnderstanding.validate(json.dumps({'answer':text}),self.evidence,None,plan or self.plan)
+        else:return ConnectedUnderstanding.validate(json.dumps({'answer':text}),self.evidence,None,plan or self.plan)
+
+    def test_user_reported_future_reading_is_rejected_even_with_positive_model_review(self):
+        self.check("Friday's open contacts include the Master Bedroom window.",'Future home state inferred')
+        self.check('The master bedroom window will be open tomorrow.','Future home state inferred')
+        self.check('The master bedroom window is open on Friday.','Home snapshot needs current attribution')
+
+    def test_snapshot_now_and_future_recheck_are_not_conflated(self):
+        self.check('HA currently reports the master bedroom window open; with rain forecast for Friday, consider rechecking it before leaving.')
+        self.check('Before leaving on Friday, consider checking the window, which HA currently reports open; rain is forecast locally.')
+        self.check('These are the current HA readings. The bedroom window is open; with rain forecast for Friday, consider rechecking before leaving.')
+
+    def test_present_tense_home_check_without_future_day_is_not_rejected(self):
+        self.evidence['checked_on']=self.plan['start']
+        self.check('The bedroom window is open; rain is forecast locally, so consider rechecking it.')
+
+    def test_calendar_clash_never_assigns_a_work_location(self):
+        self.evidence['facts'].append({'id':'O1','kind':'overlap','owners':['benny'],
+            'text':'Benny has overlapping work meetings Friday.'})
+        for claim in ('Benny has overlapping meetings Friday, so confirm if he needs to stay home.',
+                      'Benny needs to work from home tomorrow.',
+                      'Confirm whether the meetings require attendance in person.'):
+            self.check(claim,'Unprovided location requirement')
+        self.check("Benny's calendar shows overlapping meetings Friday, so consider checking which commitments apply; rain is forecast locally.")
+
+    def test_conflict_needs_a_code_calculated_overlap_not_multiple_titles(self):
+        self.check('Benny has overlapping work meetings Friday.','Unprovided calendar conflict')
+
+    def test_real_overlap_cannot_be_dropped_to_evade_the_work_location_guard(self):
+        self.evidence['facts'].append({'id':'O1','kind':'overlap','owners':['benny'],
+            'text':'Benny has overlapping work meetings Friday.'})
+        self.check('HA currently reports the bedroom window open; with rain forecast, consider checking it.',
+            'Relevant calendar overlap omitted')
+        self.check("Benny's meetings coincide on Friday, so consider checking which applies; rain is forecast locally.")
+
+    def test_reported_mia_weather_evasion_and_destination_disclaimer_are_rejected(self):
+        plan={**self.plan,'sources':['calendar','weather'],'subject':'mia','goal':'connections'}
+        self.check("Mia's plans for tomorrow are not confirmed by the calendar, and the home-area forecast does not specify destination weather.",
+            'Unrequested destination commentary',plan)
+        self.check('The provided facts do not link weather to plans.','Available forecast omitted',plan)
+
+    def test_local_forecast_is_still_useful_when_no_extra_appointments_returned(self):
+        self.check("Rain is forecast locally for Friday, so if Mia is heading outside, rain protection could be useful. I found no extra appointments in her connected calendar.")
+
+    def test_destination_scope_can_be_discussed_for_an_actual_journey(self):
+        self.check('The local forecast calls for rain; destination weather was not checked.',
+            plan={**self.plan,'sources':['weather','travel']})
+
+    def test_explicit_public_airport_lookup_is_not_an_unrequested_destination_topic(self):
+        self.evidence['facts'].append({'id':'P1','kind':'public_information','owners':[],
+            'text':'The public airport update is available.'})
+        self.check('Rain is forecast locally; the public airport update is available.',
+            plan={**self.plan,'sources':['weather','public'],'query':'the public airport update'})
+
+    def test_requested_journey_cannot_be_dropped_after_a_home_wording_correction(self):
+        self.evidence['facts'].append({'id':'T1','kind':'travel_summary','owners':['benny'],'text':'Next journey to Perth.'})
+        self.check('HA currently reports the window open; rain is forecast locally.',
+            'Requested travel omitted',{**self.plan,'sources':['home','weather','travel']})
+        self.check('No travel preparation details were requested; rain is forecast.',
+            'Requested travel omitted',{**self.plan,'sources':['home','weather','travel']})
+
+    def test_weather_without_departure_request_does_not_invent_one(self):
+        self.check('Rain is forecast, so check the window before departure.','Unrequested departure commentary',
+            {**self.plan,'goal':'connections'})
+
+    def test_weather_plans_mentions_a_recorded_timed_commitment_not_only_the_forecast(self):
+        self.evidence['facts'].append({'id':'A1','kind':'appointment','owners':['mia'],'text':'Music rehearsal',
+            'start':'2026-10-23T17:00:00+02:00','end':'2026-10-23T18:00:00+02:00','local_start':'17:00','local_end':'18:00'})
+        plan={**self.plan,'goal':'connections','subject':'mia','sources':['calendar','weather']}
+        self.check('Rain is forecast locally; if Mia is going out, rain protection could be useful.',
+            'Weather plans appointment omitted',plan)
+        self.check('Mia has rehearsal scheduled at 17:00; with rain forecast locally, rain protection could be useful if going out.',plan=plan)
+
+    def test_unavailable_forecast_does_not_require_an_invented_weather_condition(self):
+        self.evidence['facts'][1]['text']='The home forecast is temporarily unavailable.'
+        self.check('The home forecast is unavailable; HA currently reports the master bedroom window open, so consider rechecking before leaving.')
+
+    def test_weather_cannot_classify_an_activity_as_indoor_or_unaffected(self):
+        self.check('Rain is forecast; music rehearsal is indoors and not affected by the weather.',
+            'Unprovided activity location',{**self.plan,'goal':'connections','sources':['calendar','weather']})
+
+    def test_conditional_outdoor_uncertainty_is_not_routine_attendance(self):
+        self.evidence['facts'].append({'id':'R1','kind':'routine','owners':['mia'],
+            'text':'Mia usual school 08:15 to 12:50; attendance unknown.'})
+        self.check('Rain is forecast; outdoor attendance is not confirmed, so rain protection could help if going out.')
 
 
 class IsolatedStateReaderTests(unittest.IsolatedAsyncioTestCase):

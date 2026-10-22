@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.45.66
+
+- Keep current HA observations separate from future planning dates. Reject inferred
+  stay-home/work-location requirements, unsupported clashes and activity locations.
+- Connect actual local weather to a person's recorded appointment or conditional
+  outdoor plans; omit irrelevant destination-weather disclaimers and retain journey
+  details and genuine calendar overlaps during a bounded wording correction.
+- Build source-specific reasoning context, without empty unqueried calendar fields.
+  Use short coverage notes and suppress unchanged repetition on scoped follow-ups,
+  while refreshing every source and keeping partial coverage explicit in metadata.
+- Preserve saved voice, permissions, local model and existing action paths. No new
+  notifications, recordings, enrolment or resumed audio/reminder tests.
+
 ## 0.45.65
 
 - Connect fresh permitted household plans, current exposed home readings, home

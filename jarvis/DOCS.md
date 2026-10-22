@@ -1,5 +1,17 @@
 # Project Jarvis add-on
 
+## Connected reply repair (0.45.66)
+
+Future-date follow-ups change plans and forecasts, not when sensors were observed.
+A recorded calendar clash is a reason to check which commitments apply, not proof
+that someone must stay home. Local-weather questions use the supplied forecast
+and a recorded appointment where available, with conditional advice if going out;
+they do not assume the event is indoors/outdoors or discuss unrelated destinations.
+Missing calendars/readings stay unknown. An unchanged coverage warning need not
+repeat on a scoped follow-up, but readings are fetched again and remain partial.
+This is a bounded local interpretation, not a universal semantic guarantee.
+Saved voice is preserved; real audio/accent and reminder acceptance remain held.
+
 ## Connected understanding (0.45.65)
 
 Use a named person, a matched speaker, or the household for practical connected
