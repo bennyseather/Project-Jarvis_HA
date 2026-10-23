@@ -36,10 +36,11 @@ class Provider:
         answer=self.answer
         context=json.loads(kw['input_messages'][0]['content'])
         if answer=='The kitchen window is reported open now, so consider checking it again.':
-            answer='. '.join('[['+k+']]' for k in context['required_clauses'])+'.'
+            keys=list(dict.fromkeys(context.get('lead_fact_ids',[])+context['required_clauses']))
+            answer='. '.join('[['+k+']]' for k in keys)+'.'
         if '[[' in answer:
             import re
-            result={'segments':[{'fact':key,'before':'','after':'; ' if context['fact_clauses'][key]['kind']=='forecast' else '.'}
+            result={'segments':[{'fact':key,'before':'','after':'; ' if context['fact_clauses'][key]['kind']=='forecast' and 'I'+key[1:] in context['fact_clauses'] else '.'}
                                 for key in re.findall(r'\[\[([A-Z]\d+)\]\]',answer)]}
         else:result={'answer':answer}
         return {'status':'success','message':json.dumps(self.review if kw['instructions'].startswith('Check ONLY') else result)}

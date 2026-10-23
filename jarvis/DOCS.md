@@ -1,5 +1,25 @@
 # Project Jarvis add-on
 
+## Purpose-first connected replies (0.45.68)
+
+When asking how weather affects a person's plans, their actual connected calendar
+entries come first. Same-day entries share one sentence; up to three entries are
+included, with an explicit remainder where needed. No returned appointment does
+not mean no plans; an unread calendar is reported differently from an empty one.
+
+Weather stays local and conditional on spending time outside near home. This does
+not establish the venue, whether an activity is indoors, attendance or transport.
+Low precipitation probabilities keep their exact values but no longer force an
+extra rain-preparation sentence. Other useful weather guidance remains bound to
+its own date/condition/probability. Relative dates use the evidence's Norway date.
+
+Technical contact prefixes can be removed using validated HA metadata. A generic
+opening becomes a friendly contact label, not an invented window/door. Conflicting
+type hints keep the original name. This changes reply wording, not HA entity names
+or device configuration. Readings remain current reports, not physical verification.
+Saved voice/calibration,permissions,models and action paths are unchanged. Audio,
+accent and real-reminder testing remain held pending separate user acceptance.
+
 ## Source-bound connected replies (0.45.67)
 
 Connected departure/home/weather questions now keep the factual parts outside

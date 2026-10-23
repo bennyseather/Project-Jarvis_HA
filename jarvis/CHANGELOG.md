@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.45.68
+
+- Lead personal weather/planning replies with recorded appointments. Group same-day
+  entries, preserve their times and show a scoped remainder instead of dropping it.
+- Use clearer current-reading labels from validated contact metadata. A generic
+  opening stays a contact, never an assumed window or door. No entities are renamed.
+- Use Norway-date-relative wording and conditional local outdoor relevance, without
+  inferring an event's venue, attendance or transport. Omit redundant low-probability
+  rain advice; keep moderate/wet/missing/conflicting forecast guidance source-bound.
+- Distinguish an empty connected calendar from a calendar that could not be read.
+  Preserve saved voice, model, permissions and existing actions; audio and real
+  reminder acceptance remain on hold.
+
 ## 0.45.67
 
 - Bind connected-planning weather values to their property, Norway date and source;

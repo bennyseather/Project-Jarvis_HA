@@ -156,22 +156,23 @@ class ConnectedUnderstanding:
             if category is None: continue
             state = str(row.get('state','unknown'))
             name = clean(attr.get('friendly_name') or identifier)[:90]
-            groups[category].append((name,state))
+            groups[category].append((name,state,attr.get('device_class') if category=='contacts' else None))
         if not any(groups.values()): raise ValueError('No exposed contacts, lights, locks or covers')
         facts=[]
         for kind,rows in groups.items():
             if not rows: continue
             rows.sort()
             allowed = {'contacts':('on','off'),'lights':('on','off'),'locks':('locked','unlocked'),'covers':('open','closed')}[kind]
-            unknown = sum(state not in allowed for _,state in rows)
-            active = [(name,state) for name,state in rows if state in ('on','unlocked','open')]
+            unknown = sum(state not in allowed for _,state,_ in rows)
+            active = [(name,state,device_class) for name,state,device_class in rows if state in ('on','unlocked','open')]
             label = {'contacts':'door/window contacts','lights':'lights','locks':'locks','covers':'blinds/covers'}[kind]
             data={
                 'category':kind,
                 'scope':'exposed '+label+' only; current Home Assistant report, not physical verification',
                 'checked':len(rows),'active_count':len(active),'unknown_count':unknown,
                 'meaning':'open' if kind in ('contacts','covers') else 'on' if kind=='lights' else 'unlocked',
-                'active_examples':[name for name,_ in active[:4]], 'examples_are_complete':len(active)<=4,
+                'active_examples':[name for name,_,_ in active[:4]], 'examples_are_complete':len(active)<=4,
+                'active_details':[{'name':name,'device_class':device_class} for name,_,device_class in active[:4]],
                 'warning':'Only these exposed entities were checked; this is a snapshot, not change history.',
                 'observed_at':self.now().astimezone(ZONE).isoformat()}
             facts.append({'kind':'home_state','owners':[], 'data':data,'text':json.dumps(data,ensure_ascii=False)})
@@ -417,6 +418,8 @@ class ConnectedUnderstanding:
                     'Example: {"segments":[{"fact":"H1","before":"Before you go, ","after":"; it is worth a quick check."}]}. '
                     'Never put dates, readings, numbers, names or weather facts in before/after; those are inserted from the chosen fact. '
                     'Weather implications are I facts: select them, do not write additional weather advice. '
+                    'Start with lead_fact_ids in their given order. A person asking about plans needs the appointment first, not a weather report. '
+                    'Low-probability forecasts already say only a small chance; no extra rain-preparation sentence is needed or offered. '
                     'Use conditional suggestions, not attendance, responsibilities or safety claims. Do not add facts. '
                     'If O1 exists, suggest checking which commitments apply. Recheck before leaving only for predeparture or a selected trip. '
                     'No headings, source list, rules, ritual disclaimers or comments about tokens. '
@@ -466,7 +469,7 @@ class ConnectedUnderstanding:
                     period={'start':plan['start'],'end':plan['end']},partial=bool(evidence['source_failures'] or evidence['truncated']))
         except Exception as error:
             from jarvis.household_thinking import ISSUES
-            known={'Invalid fact template','Missing or invalid fact binding','Invalid fact binding','Unbound quantity',
+            known={'Invalid fact template','Missing or invalid fact binding','Invalid fact binding','Question focus order','Unbound quantity',
                 'Unbound forecast or date claim','Unbound home observation','Unbound planning conclusion','Fact binding reversed',
                 'Invalid fact frame','Forecast relevance binding order','Bound answer too long','Invalid answer','Invalid sentence count','Not conversational','Unsupported time',
                 'Unsupported number','Unsupported weekday','Routine treated as attendance','Person not supported by cited evidence',

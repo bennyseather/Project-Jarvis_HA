@@ -5,7 +5,7 @@ import json
 import unittest
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
-from jarvis.structured_facts import FactContract,ForecastDay,ForecastReport
+from jarvis.structured_facts import FactContract,ForecastDay,ForecastReport,contact_name,conversational_date
 
 NOW=datetime(2026,10,22,12,tzinfo=ZoneInfo('Europe/Oslo'))
 
@@ -15,7 +15,7 @@ def report(condition='cloudy',probability=14,*,day='2026-10-23',start=None,end='
         (ForecastDay(day,condition,probability),)).data()
 
 
-def fixture(condition='cloudy',probability=14):
+def fixture(condition='cloudy',probability=50):
     data=report(condition,probability)
     evidence={'people':{'fixture':'Taylor'},'checked_on':'2026-10-22','checked_at':NOW.isoformat(),'source_failures':[],
         'truncated':False,'facts':[
@@ -69,8 +69,8 @@ class BindingTests(unittest.TestCase):
     def render(self,text):return self.c.render(json.dumps({'answer':text}))
     def test_natural_connective_prose_preserves_all_source_meanings(self):
         out=self.render('For Taylor, [[W1]], so [[I1]]. Meanwhile, [[H1]]; that is worth a quick check.')
-        self.assertIn('14% chance of precipitation',out);self.assertIn('HA currently reports',out)
-        self.assertIn('precipitation chance is low',out);self.assertNotIn('[[',out)
+        self.assertIn('50% chance of precipitation',out);self.assertIn('reporting open now',out)
+        self.assertIn('before spending time outdoors',out);self.assertNotIn('[[',out)
     def test_reported_failure_variants_cannot_bypass_the_binding_channel(self):
         for text in ("Friday's home state shows one open contact. [[W1]] [[I1]] [[H1]]",
                      '14% chance of cloud with no precipitation. [[W1]] [[I1]] [[H1]]',
@@ -81,7 +81,8 @@ class BindingTests(unittest.TestCase):
         for condition in ('cloudy','sunny','rainy','snowy','fog','windy','unknown'):
             for probability in (0,14,59,60,100,None):
                 e,p=fixture(condition,probability);c=FactContract(e,p)
-                out=c.render(json.dumps({'answer':'[[W1]], so [[I1]]. [[H1]]; consider checking again.'}))
+                out=c.render(json.dumps({'segments':[{'fact':key,'before':'','after':'; ' if key=='W1' and 'I1' in c.clauses else '.'}
+                    for key in c.required]}),require_structured=True)
                 if probability is not None:self.assertIn(f'{probability:g}% chance of precipitation',out)
                 else:self.assertNotIn('%',out)
                 self.assertNotIn('% chance of cloud',out)
@@ -94,16 +95,16 @@ class BindingTests(unittest.TestCase):
             with self.assertRaises(ValueError):self.render(frame+' [[W1]], so [[I1]].')
     def test_future_date_does_not_create_a_future_home_observation(self):
         out=self.render('Before heading out, consider checking again: [[H1]]. [[W1]], so [[I1]].')
-        self.assertIn('currently reports',out);self.assertIn('Friday 23 October',out)
+        self.assertIn('reporting open now',out);self.assertIn('Tomorrow',out)
         self.assertNotIn("Friday's home",out)
     def test_two_days_keep_different_probabilities_and_implications_bound(self):
         self.p['end']='2026-10-25'
         self.e['facts'][1]['data']=ForecastReport('weather.fixture','2026-10-23','2026-10-25',NOW.isoformat(),
-            (ForecastDay('2026-10-23','cloudy',14),ForecastDay('2026-10-24','rainy',90))).data()
+            (ForecastDay('2026-10-23','cloudy',50),ForecastDay('2026-10-24','rainy',90))).data()
         c=FactContract(self.e,self.p)
         out=c.render(json.dumps({'answer':'[[W1]], so [[I1]]; [[W2]], so [[I2]]. [[H1]]; consider checking it.'}))
-        self.assertIn('Friday 23 October calls for cloudy weather, with a 14%',out)
-        self.assertIn('Saturday 24 October calls for rain, with a 90%',out)
+        self.assertIn('Tomorrow looks cloudy around home, with a 50%',out)
+        self.assertIn('Saturday looks rainy around home, with a 90%',out)
     def test_unavailable_forecast_has_no_fabricated_probability(self):
         self.e['facts'][1]['data']=ForecastReport('weather.fixture',self.p['start'],self.p['end'],NOW.isoformat(),problem='unavailable').data()
         c=FactContract(self.e,self.p)
@@ -118,12 +119,12 @@ class BindingTests(unittest.TestCase):
             with self.assertRaises(ValueError):self.c.render(json.dumps(body),require_structured=True)
         good={'segments':[{'fact':'H1','before':'A useful check: ','after':'.'},
             {'fact':'W1','before':'','after':'; '},{'fact':'I1','before':'','after':'.'}]}
-        self.assertIn('14% chance of precipitation',self.c.render(json.dumps(good),require_structured=True))
+        self.assertIn('50% chance of precipitation',self.c.render(json.dumps(good),require_structured=True))
 
     def test_forecast_implications_cannot_be_swapped_between_dates(self):
         self.p['end']='2026-10-25'
         self.e['facts'][1]['data']=ForecastReport('weather.fixture','2026-10-23','2026-10-25',NOW.isoformat(),
-            (ForecastDay('2026-10-23','cloudy',14),ForecastDay('2026-10-24','rainy',90))).data()
+            (ForecastDay('2026-10-23','cloudy',50),ForecastDay('2026-10-24','rainy',90))).data()
         c=FactContract(self.e,self.p)
         bad={'segments':[{'fact':key,'before':'','after':'; ' if key.startswith('W') else '.'}
             for key in ('H1','W1','I2','W2','I1')]}
@@ -156,10 +157,10 @@ class BindingTests(unittest.TestCase):
     def test_rendered_weather_prose_has_no_dangling_connector_or_double_spacing(self):
         e,p=fixture('rainy',80);c=FactContract(e,p)
         out=c.render(json.dumps({'segments':[
-            {'fact':'W1','before':'Alongside that, ','after':'; '},
+            {'fact':'W1','before':'','after':'; '},
             {'fact':'I1','before':'In practical terms, ','after':'.'},
             {'fact':'H1','before':'','after':'.'}]}),require_structured=True)
-        self.assertTrue(out.startswith('The home-area forecast'))
+        self.assertTrue(out.startswith('Tomorrow looks rainy around home'))
         self.assertIn('an 80% chance of precipitation',out)
         self.assertNotIn('  ',out);self.assertNotIn('; In practical terms',out)
 
