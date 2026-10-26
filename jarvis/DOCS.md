@@ -1,5 +1,35 @@
 # Project Jarvis add-on
 
+## Activity meaning and source evidence (0.45.72)
+
+The local Node model still interprets supported calendar candidates, useful source
+clauses and approved notes. A separate evidence guard now requires a requested
+kind to be supported by a positive appointment title or description. Generic
+training cannot establish swimming/gymnastics; general music cannot establish
+piano or band. More specific evidence may support a broader request, not vice
+versa. Venue names, emoji, family habits and equipment notes are not activity proof.
+
+Known English/Norwegian activity words use a small explicit lexical vocabulary,
+not model-generated aliases or new personal facts. Unrecognised labels need literal
+source support; unsupported paraphrases may require clarification. This is not
+complete multilingual understanding. Mixed-language activity labels in English
+questions are tested; actual audio/accent tests remain held. Negative, uncertain,
+conditional, cancelled or truncated source clauses cannot prove an activity kind.
+Conflicting source clauses are treated conservatively and may require another check.
+
+The question's activity follows venue/date continuations in the same valid scope.
+An explicit appointment choice defines the referent, not a newly confirmed sport
+or attendance fact. No clarification or organiser detail saves itself to memory.
+Small broad-day preparation views of up to three source-bound appointments require
+coverage of all of them. Larger views still use bounded model selection and identify
+that more entries may exist. Code checks required coverage independently of model
+output; the model still selects useful clauses,notes and missing-detail questions.
+
+Date,owner,source,complete-clause and current-permission checks remain in force.
+Same-model semantic review is a safeguard,not independent proof of all meanings.
+Saved voice/calibration,models and permissions remain unchanged. No new device,
+calendar,memory,notification or public-search action; real reminders stay on hold.
+
 ## Answering appointment clarifications (0.45.71)
 
 After a plural venue question, a short appointment label answers Jarvis's pending

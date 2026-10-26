@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.45.72
+
+- Require positive appointment-title or description evidence before matching a
+  requested activity. Generic training, venues, emoji, habits and equipment notes
+  cannot establish a specific sport or a narrower music/gymnastics subtype.
+- Bridge explicit English/Norwegian activity labels with a bounded lexical
+  vocabulary; unknown labels require literal source support. Negated, conditional,
+  uncertain or cancelled clauses do not establish the activity. The local Node AI
+  still interprets supported candidates and useful preparation details.
+- Ask a useful clarification instead of substituting another activity or claiming
+  absence from routine profiles. Carry the activity through venue/date follow-ups,
+  while preserving the person and explicit appointment-choice workflow.
+- Require a small broad-day view to cover its source-bound commitments, rather
+  than silently dropping an appointment and destabilising later questions.
+- Preserve saved voice/calibration,model,permissions and action paths. Actual
+  audio/accent and real-reminder tests remain on hold.
+
 ## 0.45.71
 
 - Keep an appointment clarification active for short replies such as an activity
