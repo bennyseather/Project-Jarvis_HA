@@ -27,8 +27,9 @@ class Provider:
                 **{n['key']:'goggles' not in n['text'] for n in context['notes']}})}
         if self.respond:return self.respond(context)
         event=context['events'][0]
-        return {'status':'success','message':json.dumps({'events':[{'id':event['id'],
-            'excerpts':event['description_units'][:1]}],'notes':[n['id'] for n in context['approved_notes'][:1]],
+        return {'status':'success','message':json.dumps({'events':{e['id']:{'use':e['id']==event['id'],
+            'units':[0] if e['id']==event['id'] and e['description_units'] else []} for e in context['events']},
+            'notes':{n['id']:i==0 for i,n in enumerate(context['approved_notes'])},
             'suggestion':'none','question':'none'})}
 
 
@@ -84,6 +85,14 @@ class PreparationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.provider.calls),2)
         self.assertEqual((await self.ask('And Sunday?'))['status'],'clarification_required')
 
+    async def test_date_followup_keeps_activity_filter(self):
+        await self.ask('What should Mia bring for music rehearsal tomorrow?')
+        event=self.client.events['calendar.familiekalender'][0]
+        self.client.events['calendar.familiekalender'].append({**event,'start':'2026-10-25T17:00:00+01:00','end':'2026-10-25T18:00:00+01:00'})
+        await self.ask('And Sunday?')
+        self.assertTrue(self.provider.calls[-2]['activity_filter_required'])
+        self.assertIn('music rehearsal',self.provider.calls[-2]['previous_question'])
+
     async def test_short_venue_followup_and_unknown_pronoun(self):
         self.assertEqual((await self.ask('Where is her rehearsal tomorrow?'))['status'],'clarification_required')
         await self.ask()
@@ -128,6 +137,21 @@ class PreparationTests(unittest.IsolatedAsyncioTestCase):
         for field in ('description','location'):self.client.events['calendar.familiekalender'][0].pop(field)
         r=await self.ask();self.assertEqual(r['status'],'success')
         self.assertNotIn('folder',r['message']);self.assertNotIn('Fictional Hall',r['message'])
+
+    async def test_multiple_empty_description_events_are_usable(self):
+        first=self.client.events['calendar.familiekalender'][0];first['description']=''
+        self.client.events['calendar.familiekalender'].append({**first,'summary':'Art class',
+            'start':'2026-10-24T18:00:00+02:00','end':'2026-10-24T19:00:00+02:00'})
+        original=self.provider.reason_local
+        def choose(**kw):
+            if kw['instructions'].startswith('Judge activity relevance'):return original(**kw)
+            context=json.loads(kw['input_messages'][0]['content'])
+            return {'status':'success','message':json.dumps({'events':{e['id']:{'use':True,'units':[]} for e in context['events']},
+                'notes':{},'suggestion':'none','question':'requirements'})}
+        self.provider.reason_local=choose
+        r=await self.ask();self.assertEqual(r['status'],'success')
+        self.assertIn('Music rehearsal',r['message']);self.assertIn('Art class',r['message'])
+        self.assertNotIn('folder',r['message']);self.assertEqual(r['subject'],'mia')
 
     async def test_calendar_injection_and_html_not_in_model_or_answer(self):
         event=self.client.events['calendar.familiekalender'][0]
@@ -279,6 +303,67 @@ class BindingTests(unittest.TestCase):
         self.assertNotIn('\x00',source_text('abc\x00 def',900))
         self.assertEqual(description_units('x'*700+'…'),[])
         self.assertNotIn('secret',source_text('<style>secret</style>Fine.',900))
+
+
+class ChoiceBindingTests(unittest.TestCase):
+    def setUp(self):
+        self.events=[{'id':'F1','description_units':['Do not bring a packed lunch.','If outdoors, bring a coat.'],'location':''},
+                     {'id':'F2','description_units':[],'location':''}]
+        self.notes=[{'id':'N1','text':'Fixture note','events':['F1']}]
+        self.good={'events':{'F1':{'use':True,'units':[0]},'F2':{'use':False,'units':[]}},
+                   'notes':{'N1':False},'suggestion':'none','question':'none'}
+    def decode(self,obj):return EventPreparation.decode_choices(json.dumps(obj),self.events,self.notes)
+    def test_unit_index_resolves_whole_negation_and_condition(self):
+        self.assertEqual(self.decode(self.good)['events'][0]['excerpts'],['Do not bring a packed lunch.'])
+        self.good['events']['F1']['units']=[1]
+        self.assertEqual(self.decode(self.good)['events'][0]['excerpts'],['If outdoors, bring a coat.'])
+    def test_two_empty_sources_allow_no_excerpt_indices(self):
+        self.events[0]['description_units']=[]
+        self.good['events']['F1']['units']=[]
+        self.good['events']['F2']['use']=True
+        self.assertEqual(len(self.decode(self.good)['events']),2)
+        self.good['events']['F2']['units']=[0]
+        with self.assertRaises(ValueError):self.decode(self.good)
+    def test_unknown_missing_or_free_excerpt_slot_rejected(self):
+        for mutation in ('unknown','missing','prose'):
+            obj=deepcopy(self.good)
+            if mutation=='unknown':obj['events']['F3']={'use':True,'units':[]}
+            elif mutation=='missing':obj['events'].pop('F2')
+            else:obj['events']['F1']['excerpts']=['Bring something invented.']
+            with self.assertRaises(ValueError):self.decode(obj)
+    def test_bad_indices_rejected(self):
+        for value in ([True],[-1],[2],[0,0],['0'],[0,1,0],[0.0]):
+            obj=deepcopy(self.good);obj['events']['F1']['units']=value
+            with self.assertRaises(ValueError):self.decode(obj)
+    def test_unused_event_cannot_select_units(self):
+        self.good['events']['F1']['use']=False
+        with self.assertRaises(ValueError):self.decode(self.good)
+    def test_duplicate_json_keys_rejected(self):
+        raw=json.dumps(self.good).replace('"F2":', '"F1":')
+        with self.assertRaises(ValueError):EventPreparation.decode_choices(raw,self.events,self.notes)
+    def test_note_slots_and_booleans_are_strict(self):
+        for values in ({'N1':'true'},{'N1':1},{'N1':False,'N2':True},{}):
+            obj=deepcopy(self.good);obj['notes']=values
+            with self.assertRaises(ValueError):self.decode(obj)
+    def test_ambiguity_returns_pure_clarification(self):
+        self.good['question']='which_event'
+        self.assertEqual(self.decode(self.good)['events'],[])
+        self.assertEqual(self.decode(self.good)['question'],'which_event')
+    def test_schema_has_fixed_actual_keys_and_empty_units_bound(self):
+        schema=EventPreparation.choice_schema(self.events,self.notes,['none','which_event'],['none'])
+        self.assertEqual(set(schema['properties']['events']['properties']),{'F1','F2'})
+        empty=schema['properties']['events']['properties']['F2']['properties']['units']
+        self.assertEqual(empty['maxItems'],0)
+        self.assertEqual(schema['properties']['events']['properties']['F1']['properties']['units']['items']['enum'],[0,1])
+        self.assertLess(len(json.dumps(schema)),4000)
+    def test_oversized_scope_not_silently_truncated(self):
+        events=[{'id':'F'+str(i),'description_units':[]} for i in range(9)]
+        with self.assertRaises(ValueError):EventPreparation.choice_schema(events,[],['none'],['none'])
+
+    def test_over_quota_selected_events_rejected(self):
+        events=[{'id':'F'+str(i),'description_units':[],'location':''} for i in range(4)]
+        obj={'events':{e['id']:{'use':True,'units':[]} for e in events},'notes':{},'suggestion':'none','question':'none'}
+        with self.assertRaises(ValueError):EventPreparation.decode_choices(json.dumps(obj),events,[])
 
 
 if __name__=='__main__':unittest.main()

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.45.70
+
+- Repair event preparation for multiple appointments with empty descriptions.
+  The local Node AI selects fixed event slots and numbered source clauses, never
+  generates factual excerpt text or additional event rows. Empty sources allow
+  no clause indices. Strict provenance,negation and conditional checks remain.
+- Validate exact keys,booleans,integer indices,uniqueness,ownership and quotas
+  independently of the model. Keep ambiguity separate from missing requirements;
+  retain named-person context through meaningful clarifications.
+- Keep date/person-only period relevance source-calculated; use local semantic
+  review for activity filters and approved-note relevance. Re-match short venue
+  follow-ups to fresh sources,and clarify genuinely plural referents.
+- Preserve saved voice/calibration,models,permissions,accepted existing text routes
+  and all action paths. No actual audio or reminder testing is enabled.
+
 ## 0.45.69
 
 - Use the existing local Jarvis Node AI for explicit event preparation: select

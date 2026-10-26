@@ -1,5 +1,29 @@
 # Project Jarvis add-on
 
+## Source-choice repair (0.45.70)
+
+Event preparation now asks the existing local Node AI to mark fixed source event
+slots and choose zero-based description-clause indices. It cannot generate excerpt
+text,add events or choose clauses from an empty description. A separate decoder
+rejects duplicate JSON keys,unknown/missing slots,non-boolean selections,invalid or
+repeated indices,unused-event clauses and quota breaches before retrieving facts.
+The earlier whole-clause,owner/date,note and source-provenance guards still apply.
+
+Up to eight candidate appointments fit this bounded choice pass; up to three are
+selected for a reply. Larger/overlong views request a shorter period rather than
+silently dropping evidence. Period-only relevance follows already checked person
+and date bounds. Activity-specific relevance and approved-note usefulness still
+use local Qwen; same-model review is a safeguard,not proof of semantic correctness.
+Date follow-ups retain an explicit activity filter. A plural previous selection
+makes “Where is it?” ambiguous,so Jarvis asks which appointment while keeping the
+known household person available for a birthday follow-up.
+
+Multiple appointments without organiser details remain real appointments,not an
+excuse to invent kit or repeat IDs. Missing venue/requirements and an unmatched
+activity are distinct cases. Voice enrolment/calibration,existing model/permissions
+and all device/calendar actions are unchanged. Audio and real-reminder tests stay
+on hold; this repair adds no new notifications,recordings,searches or memory writes.
+
 ## Event context and remembered preparation (0.45.69)
 
 Explicit questions such as “What should Mia prepare for tomorrow?”, “What should
