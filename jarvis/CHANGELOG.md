@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.45.75
+
+- Let the configured local Node model compose preparation replies when selected
+  confirmed activity-profile advice is available. Supply only selected verified
+  facts and a source-bound summary; no unrestricted household/profile export.
+- Check activities, clocks, venues, equipment, all-day status, whole organiser
+  instructions and usual-venue/duration qualifications in code, then use a
+  separate local-model grounding/completeness/style review. One bounded correction
+  may repair a rejected draft; late or failed drafts use the verified renderer.
+- Keep direct venue, ambiguous and organiser-only answers on their existing path.
+  Eligible answers add two local passes, or three with correction, within a 7.5s
+  composition budget. No cloud fallback, streaming internal drafts or fact writes.
+- Preserve saved household facts and voice/calibration. Audio/accent, actual
+  reminders and physical tests remain held; no permissions or device changes.
+
 ## 0.45.74
 
 - Combine selected appointments for the same person and day into a short natural

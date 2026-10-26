@@ -1,5 +1,35 @@
 # Project Jarvis add-on
 
+## Reviewed local-model preparation prose (0.45.75)
+
+For preparation answers with selected confirmed activity-profile advice, the
+existing Node model now writes the final prose from a small board of selected
+events, whole organiser clauses and selected usual notes, plus the verified
+source-bound summary. This is not another template-only wording layer. It is
+also not a claim that every Jarvis request now goes through generative prose.
+Direct venue questions, unresolved ambiguity and organiser-only replies retain
+their existing source-bound path.
+
+Code checks selected activities, times, current venues, required kit/preparation,
+all-day status, unchanged protected instructions and usual venue/duration
+qualifications. It rejects unsupported factual words, numbers, actions, links,
+IDs and added questions. A separate call to the same local model reviews
+grounding, completeness and naturalness. These checks reduce mistakes; the same
+model reviewing itself is not independent proof of semantic correctness.
+
+A rejected first draft gets at most one correction with specific missing-fact
+feedback. There is no unbounded retry loop. Composition and review have a 7.5s
+budget in addition to existing fact selection; eligible replies add two local
+calls, or three if correction is needed. Failed, late, oversized or rejected
+drafts fall back to the existing verified summary, not guessed prose. Reply
+metadata distinguishes model composition from fallback and records call count,
+elapsed composition time and a bounded fallback reason. Internal drafts are not
+streamed or saved to memory. Code-owned suggestions/questions remain separate.
+
+No model/tool permissions, calendar or household facts, saved voice or calibration
+are changed. Cloud fallback stays disabled. Actual audio/accent, real-reminder
+and physical tests remain held. Human text wording acceptance is still needed.
+
 ## Natural preparation summaries (0.45.74)
 
 The existing local Node model still selects relevant appointments, complete source

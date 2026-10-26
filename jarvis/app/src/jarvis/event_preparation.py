@@ -542,12 +542,29 @@ class EventPreparation(HouseholdThinking):
         if obj['question']=='which_event':return self.ask_choice(plan,events,mode,offer_labels=selection,
             local_model_interpretation=True,fact_binding=True)
         answer=self.render(obj,events,notes,plan['speaker'],evidence['checked_on'])
+        language={'text':None,'reason':'not_applicable','calls':0,'seconds':0}
+        selected_notes=[n for n in notes if n['id'] in obj['notes']]
+        if mode!='location' and any(n.get('origin')=='activity_profile' for n in selected_notes):
+            from jarvis.event_composition import board,compose
+            excerpts={i['id']:i['excerpts'] for i in obj['events']}
+            facts=board(plan['question'],[dict(e,selected_excerpts=excerpts[e['id']]) for e in selected],
+                        selected_notes,plan['speaker'],evidence['checked_on'],
+                        self.render({**obj,'question':'none','suggestion':'none'},events,notes,plan['speaker'],evidence['checked_on']))
+            language=await compose(self.provider,facts,self.model_lock,valid)
+            if language['reason']=='changed' or not valid():return reply('That question’s household context changed. Please ask again.','unavailable')
+            if language['text']:
+                answer=language['text']
+                if obj['suggestion']!='none':answer+=' '+SUGGESTIONS[obj['suggestion']]
+                if obj['question']!='none':answer+=' '+QUESTIONS[obj['question']]
         plan.pop('pending_choice',None)
         plan['source_focus']=[self.event_identity(e) for e in selected]
         if any('calendar' in gap for gap in evidence['source_failures']):answer+=' Some other appointments could not be checked.'
         if evidence['truncated'] or len(events)>len(obj['events']) and obj['events']:
             answer+=' This focuses on the selected appointments; there may be more to consider.'
         return reply(answer,'clarification_required' if obj['question']=='which_event' else 'success',
-                     local_model_interpretation=True,fact_binding=True,composition='local_event_context',
+                     local_model_interpretation=True,fact_binding=True,
+                     composition='local_model_preparation_reviewed' if language['text'] else 'local_event_context',
+                     language_model_composition=bool(language['text']),language_fallback_reason=language['reason'],
+                     language_model_calls=language['calls'],language_seconds=language['seconds'],
                      subject=plan['subjects'][0] if len(plan['subjects'])==1 else None,
                      period={'start':plan['start'],'end':plan['end']})
