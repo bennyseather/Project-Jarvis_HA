@@ -20,6 +20,7 @@ from jarvis.household_speaker import shared_knowledge_enabled, speaker_context
 from jarvis.household_thinking import HouseholdThinking, ZONE
 from jarvis.sentence_stream import sentence_sink
 from jarvis import event_activity
+from jarvis import household_activities
 
 
 SUGGESTIONS={
@@ -53,6 +54,9 @@ will reject candidates that do not answer the question. Do not invent a match.
 The caller requires positive title/description support for a requested activity.
 Generic training never establishes swimming, gymnastics or another specific sport.
 Venue, emoji, family habits and equipment notes do not establish the activity kind.
+An exact user-confirmed activity_profile is different: the caller already matched
+person, calendar source and recurring title, checked current conflicts and supplied
+its explicit meaning. Usual equipment/venue is not current organiser instruction.
 location mode: units=[], suggestion=none. Prefer current calendar location.
 Only if it is missing, select an approved note explicitly giving this activity's
 venue. Do not select equipment notes for a venue question.
@@ -180,8 +184,14 @@ class EventPreparation(HouseholdThinking):
             not re.match(r'^(?:and|what|when|where|why|how|who|is|are|can|could|should|tell|explain)\b',value,re.I))
         short_follow=value.casefold() in ('where is it','what do we need to bring','what do i need to bring','anything else')
         follow=bool(key and str(key) in self.sessions and (selection or short_follow or re.match(r'^(?:and|what about|how about)\b',value,re.I)))
+        activity_scope=event_activity.requirement(value,[p['preferred_name'] for p in self.profile._data['members']])
+        activity_venue=bool(re.search(r'\bwhere\b',value,re.I) and (
+            activity_scope['groups'] or (event_activity.requested(activity_scope) and
+                shared_knowledge_enabled(self.profile._data) and any(
+                    event_activity.support(activity_scope,{'text':r['activity'],'description_units':[]})
+                    for r in self.profile._data.get('activity_profiles',[])))))
         intent=bool(re.search(r'\b(prepare|preparation|bring|pack|equipment|kit|venue)\b|'
-                              r'\bget ready\b|\bwhere\b.*\b(?:appointment|event|rehearsal|practice|competition)\b',value,re.I))
+                              r'\bget ready\b|\bwhere\b.*\b(?:appointment|event|rehearsal|practice|competition)\b',value,re.I) or activity_venue)
         # Preserve the accepted weather, departure, trip and device pathways.
         if (len(value)>700 or WRITE.search(value) or SECRET.search(value) or
             re.search(r'\b(weather|rain|forecast|home|house|doors?|windows?|lights?|trip|travel|flight|journey|birthday|job|school finish)\b|before (?:we |i )?leav',value,re.I)):
@@ -356,10 +366,12 @@ class EventPreparation(HouseholdThinking):
             when='all day '+day if e['all_day'] else 'at '+e['local_start']+' on '+day
             location='; the listed location is “'+e['location']+'”' if e.get('location') and safe_detail(e['location']) else ''
             parts.append(owner+' “'+e['text']+'” '+when+location+'.')
+            if e.get('activity_link_used'):
+                parts.append('I have this recurring entry recorded as '+e['owner_name']+"'s usual "+e['activity_profile']['activity']+'.')
             if item['excerpts']:parts.append('The event notes say: '+ ' '.join('“'+s+'”' for s in item['excerpts']))
         for identifier in obj['notes']:
             note=next(n for n in notes if n['id']==identifier)
-            parts.append('A confirmed household note says: “'+note['text']+'”.')
+            parts.append(note['text'] if note.get('origin')=='activity_profile' else 'A confirmed household note says: “'+note['text']+'”.')
         if obj['suggestion']!='none':parts.append(SUGGESTIONS[obj['suggestion']])
         if obj['question']!='none':parts.append(QUESTIONS[obj['question']])
         return ' '.join(parts)
@@ -385,10 +397,13 @@ class EventPreparation(HouseholdThinking):
         for event in events:
             if not safe_detail(event['text']):event['text']='a recorded appointment'
             event['description_units']=description_units(event.get('description',''))
+            event['_activity_source_complete']=event.get('description','')==' '.join(event['description_units'])
             # The model sees only complete safe units, never discarded hidden
             # HTML, secrets, embedded commands or half of a truncated sentence.
             event['description']=' '.join(event['description_units'])
             if not safe_detail(event.get('location','')):event['location']=''
+            activity_profile=household_activities.match(self.profile._data,event)
+            if activity_profile:event['activity_profile']=activity_profile
         mode='location' if re.search(r'\b(where|venue|location)\b',text,re.I) else 'requirements' if re.search(r'\b(bring|pack|equipment|kit)\b',text,re.I) else 'preparation'
         selection=plan.get('selection_reply',False)
         exact_selection=False
@@ -418,7 +433,12 @@ class EventPreparation(HouseholdThinking):
             activity=plan.get('previous_activity') or event_activity.requirement(plan['previous_question'] or '',people)
         plan['activity_request']=activity
         if event_activity.requested(activity) and not exact_selection:
-            supported=[e for e in events if event_activity.support(activity,e)]
+            supported=[]
+            for e in events:
+                if event_activity.support(activity,e):supported.append(e);continue
+                binding=e.get('activity_profile')
+                if binding and event_activity.support(activity,{'text':binding['activity'],'description_units':[]}):
+                    e['activity_link_used']=True;supported.append(e)
             if not supported:
                 generic=[e for e in events if event_activity.generic_candidate(e)]
                 message=('The calendar entry does not say which activity this is.' if generic else
@@ -429,6 +449,8 @@ class EventPreparation(HouseholdThinking):
             focus=[identifier for identifier in focus if any(e['id']==identifier for e in events)]
         try:notes=self.notes_for(events,evidence)
         except Exception:notes=[] # Calendar facts remain usable if optional notes fail.
+        usual=household_activities.notes(events,mode)
+        notes=[dict(n,id='N'+str(i+1)) for i,n in enumerate((usual+notes)[:4])]
         activity_filter=event_activity.requested(activity)
         if exact_selection:activity_filter=False
         if mode=='location' and plan.get('short_follow') and len(focus)>1:
@@ -481,7 +503,8 @@ class EventPreparation(HouseholdThinking):
                 review=json.dumps({'question':plan['question'],'previous_question':None if selection else plan['previous_question'],'mode':mode,
                     'followup_event_keys':['event_'+identifier for identifier in focus],
                     'selected_events':[{'key':'event_'+e['id'],'title':e['text'],
-                                        'activity_source':event_activity.assertions(e)} for e in selected],
+                                        'activity_source':event_activity.assertions(e)+
+                                            (['User-confirmed recurring entry means '+e['activity_profile']['activity']] if e.get('activity_link_used') else [])} for e in selected],
                     'notes':[dict(n,key='note_'+n['id']) for n in candidates]},ensure_ascii=False)
                 remaining=min(4,deadline-time.monotonic())
                 if remaining<0.5:raise ValueError('deadline')

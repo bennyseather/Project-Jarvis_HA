@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.45.73
+
+- Save explicitly confirmed activity meanings and usual equipment, preparation,
+  venue and duration in the existing household profile. Reuse shared review,
+  confirmation, atomic saving, revision checks and undo; no model-generated writes.
+- Bind usual details to one household member, calendar source and exact recurring
+  title. Never infer a sport from an emoji or venue, or invent an appointment from
+  a profile. Current calendar instructions and conflicting activity evidence win.
+- Let the local Jarvis Node AI select relevant confirmed context for preparation
+  answers. Label usual details clearly; do not replace current event times or
+  treat a usual venue as confirmed for the current appointment.
+- Add read-only profile views, reviewed removal and safe meaning changes that
+  clear the old activity's usual details. Preserve saved voice/calibration and
+  existing model/action settings; actual audio and real-reminder tests stay held.
+
 ## 0.45.72
 
 - Require positive appointment-title or description evidence before matching a

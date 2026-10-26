@@ -1,5 +1,59 @@
 # Project Jarvis add-on
 
+## Confirmed activity profiles (0.45.73)
+
+Jarvis can connect an exact recurring calendar title to a user-confirmed meaning
+and usual details. The records live in the existing household profile, with its
+review, confirmation, revision, history and undo workflow—not a separate memory
+database or model weights. Shared-household approval is not voice authentication.
+Nothing is inferred or seeded automatically, and calendar text never saves itself.
+
+Use an explicit name, quoted title and calendar source (family, work or travel).
+For example, using fictional information:
+
+```text
+Remember Mia's activity "Club" in the family calendar means "robotics"
+confirm household change
+Remember Mia's activity "Club" in the family calendar usually needs "project folder, water bottle"
+confirm household change
+Remember Mia's activity "Club" in the family calendar usually takes place at "Example Hall"
+confirm household change
+Remember Mia's activity "Club" in the family calendar usual preparation is "Check the project bag the evening before"
+confirm household change
+Remember Mia's activity "Club" in the family calendar usually lasts 60 minutes
+confirm household change
+Show Mia's activity profiles
+```
+
+Each change must be confirmed separately in the same conversation. An immediate
+"yes" also confirms for the same current speaker context; uncertain identity does
+not confer privileges. `also needs "another item"` appends instead of replacing
+equipment. `Forget Mia's activity "Club" in the family calendar` proposes removal;
+confirm it explicitly. `undo last household change` also requires confirmation.
+History remains; removal is not secure erasure. A changed activity meaning clears
+old equipment, preparation, venue and duration, as stated before confirmation.
+
+Matching requires the same person, calendar source and full title; decorative
+emoji do not change identity, but meaningful words, numbers and punctuation do.
+Aliases, another person's entry or a different calendar do not inherit the record.
+First-person edits require a current speaker match; unknown speakers must use a
+name. Unsupported command forms request clarification rather than silent learning.
+
+For fresh, permitted calendar appointments, local Qwen still decides useful
+context and source clauses. Exact confirmed meaning can resolve an otherwise
+generic title. Usual equipment/preparation is qualified and withheld when current
+description details exist; current venues win. A usual venue is explicitly not
+confirmed for the current appointment. Usual duration never fills a missing end
+time; it is qualified context for an all-day entry only. No fresh appointment means
+no invented attendance or schedule. Cancelled, conflicting or incomplete source
+details conservatively block the usual mapping. Finite guards/model review cannot
+prove every possible semantic conflict; uncertain cases should be clarified.
+
+Up to 40 profiles and 12 equipment items per profile fit the existing bounded
+household-document limit. No calendar writes, alarms, reminders or device actions
+are added. Saved voice/calibration and model settings are unchanged. Actual audio,
+accent and real-reminder acceptance remain on hold.
+
 ## Activity meaning and source evidence (0.45.72)
 
 The local Node model still interprets supported calendar candidates, useful source

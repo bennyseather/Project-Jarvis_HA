@@ -62,12 +62,19 @@ class HouseholdEdits:
             replacement = re.match(r'^replace household note ([a-f0-9]{8}):\s*(.+)$',
                                    'replace household note '+old['id']+': '+quoted_replace[2],re.I)
         routine, routine_error = None, None
-        if not replacement and not deletion:
+        from jarvis import household_activities as activities
+        activity,activity_error=None,None
+        try:
+            bound,binding_error=bind_statement(value,self.profile._data)
+            if activities.is_request(value) and binding_error:activity_error=binding_error
+            elif bound:activity=activities.proposal(bound,self.profile._data)
+        except ValueError as exc:activity_error=str(exc)
+        if not replacement and not deletion and not activity and not activity_error:
             try:
                 routine = routines.proposal(value)
             except ValueError as exc:
                 routine_error = str(exc)
-        if not (confirmation or cancellation or undo or match or replacement or deletion or routine or routine_error):
+        if not (confirmation or cancellation or undo or match or replacement or deletion or routine or routine_error or activity or activity_error):
             self.observe_turn(text, conversation_id)
             return None
         if not confirmation and not cancellation:
@@ -83,6 +90,9 @@ class HouseholdEdits:
         if routine_error:
             self.pending.pop(key, None)
             return self.result(routine_error, 'clarification_required')
+        if activity_error:
+            self.pending.pop(key,None)
+            return self.result(activity_error,'clarification_required')
         if cancellation:
             self.pending.pop(key, None)
             return self.result('Household change cancelled. Nothing was saved.')
@@ -95,6 +105,10 @@ class HouseholdEdits:
             if pending is None:
                 return self.result('There is no pending household change in this conversation. Please repeat the change.', 'clarification_required')
             try:
+                if pending.get('activity'):
+                    from jarvis.household_speaker import shared_knowledge_enabled
+                    if not shared_knowledge_enabled(self.profile._data):
+                        return self.result('Shared activity knowledge is disabled. Nothing was saved.','unavailable')
                 current = path.read_bytes()
                 if hashlib.sha256(current).hexdigest() != pending['digest']:
                     return self.result('The profile changed since this proposal. Please repeat your change so it can be checked again.', 'clarification_required')
@@ -137,12 +151,16 @@ class HouseholdEdits:
                     raise ValueError('Invalid history reference')
                 old = json.loads((path.parent / (path.name + '.history') / (digest + '.json')).read_text())
                 # Undo data only, never permissions or source bindings.
-                for field in ('members', 'household_routines', 'conversation_notes', 'routine_overrides'):
+                for field in ('members', 'household_routines', 'conversation_notes', 'routine_overrides', 'activity_profiles'):
                     if field in old:
                         document[field] = deepcopy(old[field])
                     else:
                         document.pop(field, None)
                 summary = 'Undo the last conversational household change'
+            elif activity:
+                if activity.get('unchanged'):return self.result('That activity detail is already saved. Nothing was changed.')
+                activities.install(document,activity)
+                summary=activity['summary']
             elif deletion:
                 self.pending.pop(key, None)
                 statement, error = bind_statement(re.sub(r'^that\s+', '', deletion[1], flags=re.I), document)
@@ -212,6 +230,7 @@ class HouseholdEdits:
             self.pending.pop(next(iter(self.pending)))
         self.pending[key] = {'document': document, 'digest': hashlib.sha256(current).hexdigest(),
             'summary': summary, 'expires': now + 300, 'routine': routine,
+            'activity':bool(activity),
             'speaker': current_speaker.get().member_id}
         return self.result(f"Proposed shared household change: {summary}. Anyone using the shared interface can approve it. Say 'confirm household change' to save, or 'cancel household change'.", 'clarification_required')
 

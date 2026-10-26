@@ -825,6 +825,17 @@ class JarvisApplication:
 
         profile = getattr(self.container, "household_profile", None)
         if profile is not None:
+            if hasattr(profile,'_data'):
+                from jarvis import household_activities as activities
+                if activities.is_request(text):
+                    activity_result=activities.view(text,profile)
+                    if activity_result is None:
+                        activity_result=await asyncio.to_thread(profile.edit_request,text,conversation_id)
+                    else:profile._edits.observe_turn('activity profile read-only question',conversation_id)
+                    for name in ('event_preparation','connected_understanding','household_thinking','planning_preparation','household_briefing','household_dialogue','household_reasoning'):
+                        prior=getattr(self.container,name,None)
+                        if prior is not None:prior.clear(conversation_id)
+                    return activity_result
             if hasattr(profile, '_data') and getattr(self.container, 'home_assistant', None) is not None:
                 from jarvis.event_preparation import EventPreparation
                 event_preparation = getattr(self.container, 'event_preparation', None)
