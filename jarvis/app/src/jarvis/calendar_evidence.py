@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import re
 
 
-def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, now, *, targets=None,window='all_day'):
+def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, now, *, targets=None,window='all_day',event_context=False):
     people={p['id']:p['preferred_name'] for p in profile._data['members']}
     selected=set(targets or (people if brief.subject=='all' else (brief.subject,)))
     facts=[]
@@ -25,6 +25,8 @@ def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, no
         add('appointment',[owner],title,start=e['start'].isoformat(),end=e['end'].isoformat(),
             date=e['start'].date().isoformat(),date_label=e['start'].strftime('%A %d %B'),all_day=e['all_day'],source=e['source'],
             local_start=e['start'].strftime('%H:%M'),local_end=e['end'].strftime('%H:%M'))
+        if event_context:
+            facts[-1].update(location=e.get('location',''),description=e.get('description',''))
     # Group repeated routines as one fact with explicit dates. Never turn usual
     # work departure into a work start, or a timetable into confirmed attendance.
     groups=OrderedDict()

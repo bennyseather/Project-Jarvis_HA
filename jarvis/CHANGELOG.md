@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.45.69
+
+- Use the existing local Jarvis Node AI for explicit event preparation: select
+  relevant appointments, useful calendar-description details and confirmed notes.
+- Read calendar venues/descriptions only on this opt-in path. Keep factual details
+  bound to their own event, owner and Norway date; preserve whole quoted conditions
+  and negations. Separate conditional suggestions from recorded requirements.
+- Check activity relevance locally, including Norwegian/English household context;
+  ask which appointment when the requested activity is not among the records.
+- Reuse the existing confirmed household-note store, with owner/date checks and
+  bounded retrieval. Remembered venues require confirmation for the current event.
+  Suggestions and calendar text never save themselves as household knowledge.
+- Preserve accepted connected/weather replies, voice/calibration, model, permissions
+  and action paths. No new searches, notifications, recordings or device actions;
+  audio and real-reminder tests remain on hold.
+
 ## 0.45.68
 
 - Lead personal weather/planning replies with recorded appointments. Group same-day

@@ -825,6 +825,30 @@ class JarvisApplication:
 
         profile = getattr(self.container, "household_profile", None)
         if profile is not None:
+            if hasattr(profile, '_data') and getattr(self.container, 'home_assistant', None) is not None:
+                from jarvis.event_preparation import EventPreparation
+                event_preparation = getattr(self.container, 'event_preparation', None)
+                if event_preparation is None:
+                    event_preparation = EventPreparation(profile, self.container.home_assistant,
+                        getattr(self.container, 'proactive_allowed_entities', ()),
+                        getattr(self.container, 'local_reasoning_provider', None))
+                    self.container.event_preparation = event_preparation
+                event_result = await event_preparation.handle(text, conversation_id)
+                if event_result is not None:
+                    for name in ('connected_understanding','household_thinking','planning_preparation','household_briefing','household_dialogue','household_reasoning'):
+                        prior = getattr(self.container, name, None)
+                        if prior is not None: prior.clear(conversation_id)
+                    edits = getattr(profile, '_edits', None)
+                    if edits is not None: edits.observe_turn('event preparation read-only question', conversation_id)
+                    if event_result.get('status') in ('success','clarification_required') and event_result.get('subject'):
+                        from jarvis.household_reasoning import HouseholdReasoning
+                        reasoning = getattr(self.container, 'household_reasoning', None)
+                        if reasoning is None:
+                            reasoning = HouseholdReasoning(profile, getattr(self.container, 'local_reasoning_provider', None))
+                            self.container.household_reasoning = reasoning
+                        person = next((p for p in profile._data['members'] if p['id'] == event_result['subject']), None)
+                        if person: reasoning.resolve('Tell me about '+person['preferred_name'], conversation_id)
+                    return event_result
             if hasattr(profile, '_data'):
                 from jarvis.connected_understanding import ConnectedUnderstanding
                 connected = getattr(self.container, 'connected_understanding', None)

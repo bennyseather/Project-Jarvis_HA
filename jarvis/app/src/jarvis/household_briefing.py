@@ -28,7 +28,7 @@ class Brief:
     more: bool=False
 
 
-def interval(event):
+def interval(event, *, event_context=False):
     def stamp(raw):
         if isinstance(raw,dict):raw=raw.get('dateTime') or raw.get('date')
         if not isinstance(raw,str):raise ValueError('Missing event time')
@@ -38,8 +38,15 @@ def interval(event):
         return dt.astimezone(ZONE),False
     start,all_day=stamp(event.get('start'));end,last_day=stamp(event.get('end'))
     if all_day!=last_day or end<=start:raise ValueError('Invalid event interval')
-    return {'start':start,'end':end,'all_day':all_day,
-            'title':clean(event.get('summary') or event.get('title') or 'Untitled appointment')[:180]}
+    row={'start':start,'end':end,'all_day':all_day,
+         'title':clean(event.get('summary') or event.get('title') or 'Untitled appointment')[:180]}
+    if event_context:
+        from jarvis.event_preparation import source_text
+        # Explicit opt-in: ordinary calendar/weather reasoning keeps its accepted
+        # compact contract. Descriptions are untrusted data, never instructions.
+        row.update(location=source_text(event.get('location'),180),
+                   description=source_text(event.get('description'),900))
+    return row
 
 
 def event_title(event):
@@ -121,7 +128,7 @@ class HouseholdBriefing:
         start,end=resolve_dates(dates,now.date().isoformat())
         return Brief(subject,start,end,next_question)
 
-    async def handle(self,text,key,*,resolved=None,structured_only=False,targets=None,window='all_day'):
+    async def handle(self,text,key,*,resolved=None,structured_only=False,targets=None,window='all_day',event_context=False):
         if not shared_knowledge_enabled(getattr(self.profile,'_data',{})):return None
         if len(text)>1000:
             self.clear(key);return None
@@ -157,7 +164,7 @@ class HouseholdBriefing:
                     'entity_id':entity,'start_date_time':start.isoformat(),'end_date_time':end.isoformat()}),10)
                 raw=response[entity]['events']
                 if not isinstance(raw,list) or len(raw)>500:raise ValueError('Invalid calendar')
-                events=[interval(e) for e in raw if e.get('status')!='cancelled']
+                events=[interval(e,event_context=event_context) for e in raw if e.get('status')!='cancelled']
                 return name,[e for e in events if e['end']>start and e['start']<end],None
             except Exception:return name,None,'temporarily unavailable'
         async def summary():
@@ -200,11 +207,12 @@ class HouseholdBriefing:
         for event in events:
             owner='mia' if event['source']=='family' else 'benny'
             identity=(owner,event['start'],event['end'],event['title'])
+            if event_context:identity+=(event.get('location'),event.get('description'))
             if identity not in seen:unique.append(event);seen.add(identity)
         if structured_only:
             from jarvis.calendar_evidence import calendar_evidence
             return {**result('Fresh planning evidence checked.'),'provider':'household_briefing','read_only':True,
-                'evidence':calendar_evidence(self.profile,brief,unique,snapshot,sources,unavailable,now,targets=targets,window=window)}
+                'evidence':calendar_evidence(self.profile,brief,unique,snapshot,sources,unavailable,now,targets=targets,window=window,event_context=event_context)}
         person=next((p for p in self.profile._data['members'] if p['id']==brief.subject),None)
         own=person is not None and person['id']==hint['member_id']
         who='your' if own else (person['preferred_name']+"'s" if person else 'the household')

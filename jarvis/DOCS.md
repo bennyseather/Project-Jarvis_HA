@@ -1,5 +1,38 @@
 # Project Jarvis add-on
 
+## Event context and remembered preparation (0.45.69)
+
+Explicit questions such as “What should Mia prepare for tomorrow?”, “What should
+Mia bring tomorrow?” and “Where is Mia's rehearsal tomorrow?” use the existing
+local Jarvis Node model. It selects relevant appointments, extracts useful whole
+description clauses and considers approved household notes. A separate bounded
+local relevance check prevents substituting a different activity or adding an
+unrelated note. This model check is a safeguard, not independent proof of meaning.
+
+Locations and descriptions are opt-in source data, not tool instructions. Facts
+are rendered from their exact event/owner/date or whole source clause; negation
+and conditions are not removed. Norwegian source instructions remain quoted in
+their original language; Jarvis's framing stays English. It does not infer the
+venue from a title, assign transport or calculate a departure time without input.
+Saved venues are remembered context, not proof of this appointment's current venue.
+The current calendar venue takes precedence over a remembered venue.
+
+Use the existing “Remember [named person and genuine activity detail]” workflow
+and explicitly confirm to save knowledge. Model suggestions, organiser text and
+answers to follow-up questions are not automatically saved. The same confirmed
+note store is used; there is no second AI-owned household database. Retrieval is
+bounded to four owner-scoped candidate notes, two selected notes and three events;
+date-specific notes require the same event day. Relative/ambiguous dated notes are
+excluded rather than guessed. A shorter date range helps when there is much data.
+
+Short venue and date follow-ups retain the person/period only in a bounded,
+speaker/revision/Norway-date-scoped session. Missing or unread calendars stay
+unknown. No private calendar content is sent to search; embedded links are not
+followed. No cloud fallback, model download, calendar write, reminder delivery,
+device action or voice-enrolment change is introduced. Actual audio/accent and
+real-reminder acceptance remain on hold. Existing mixed weather/departure/travel
+questions retain their accepted pathways rather than being silently replaced.
+
 ## Purpose-first connected replies (0.45.68)
 
 When asking how weather affects a person's plans, their actual connected calendar
