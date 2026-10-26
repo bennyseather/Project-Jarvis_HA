@@ -1,5 +1,31 @@
 # Project Jarvis add-on
 
+## Natural preparation summaries (0.45.74)
+
+The existing local Node model still selects relevant appointments, complete source
+clauses, approved usual notes and useful questions. The final source-bound prose
+now combines same-person/day commitments and uses an exact confirmed activity's
+readable meaning. Unknown or unsupported labels retain their original titles;
+no new sport, attendance, venue or requirement is inferred. The display-only
+surface form "orchestra practice" retains the stored "music orchestra practice"
+meaning; it is not a learned alias or a new classification rule.
+
+Selected routine notes become preparation advice such as having the usual kit
+ready or following a confirmed usual routine. Simple positive preparation clauses
+may follow grammatical "to"; negations, conditions and multi-sentence instructions
+are retained whole rather than shortened into a different instruction. Current
+organiser clauses remain exact quoted source text, including their language.
+Owner-bound note selection and current-calendar overrides remain unchanged.
+
+Missing current venues remain qualified as usual, not confirmed for the current
+appointment. Usual duration still cannot fill an event end time. Events belonging
+to different people or days are not collapsed into one shared commitment. All-day
+entries stay all day. Date wording uses the already checked Norway reference day.
+This is a bounded rendering improvement, not unrestricted model-generated prose
+or proof of universal language understanding. No extra model pass or streaming of
+unvalidated internal text is added. Saved household data and voice/calibration
+are unchanged; actual audio/accent and real-reminder testing remain held.
+
 ## Confirmed activity profiles (0.45.73)
 
 Jarvis can connect an exact recurring calendar title to a user-confirmed meaning

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.45.74
+
+- Combine selected appointments for the same person and day into a short natural
+  schedule sentence. Use confirmed activity meanings rather than opaque calendar
+  titles where an exact checked activity profile exists; otherwise keep the source
+  title. Personal, all-day and separate-person/day scopes remain explicit.
+- Turn selected usual equipment/preparation into useful advice without reading
+  raw profile field names or quoting every ordinary item. Keep usual venue and
+  duration qualifiers, current-calendar priority, whole negations and conditions.
+- Retain local Qwen relevance selection and strict source binding. This prose
+  layer adds no model call, writes, permissions or new factual inference.
+- Preserve saved household facts, saved voice/calibration and held audio/reminder
+  tests. No calendar, device, alarm or notification behavior changes.
+
 ## 0.45.73
 
 - Save explicitly confirmed activity meanings and usual equipment, preparation,

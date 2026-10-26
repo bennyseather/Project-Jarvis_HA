@@ -11,6 +11,7 @@ from html.parser import HTMLParser
 import json
 import re
 import time
+from datetime import date,timedelta
 
 from jarvis.connected_understanding import WRITE, SECRET
 from jarvis.household_briefing import Brief
@@ -21,6 +22,7 @@ from jarvis.household_thinking import HouseholdThinking, ZONE
 from jarvis.sentence_stream import sentence_sink
 from jarvis import event_activity
 from jarvis import household_activities
+from jarvis.preparation_wording import activity_name,join_words
 
 
 SUGGESTIONS={
@@ -359,16 +361,21 @@ class EventPreparation(HouseholdThinking):
 
     @staticmethod
     def render(obj,events,notes,speaker,checked_on):
-        by_id={e['id']:e for e in events};parts=[]
+        by_id={e['id']:e for e in events};parts=[];groups={}
         for item in obj['events']:
-            e=by_id[item['id']];owner='You have' if e['owners']==[speaker] else e['owner_name']+' has'
-            day='today' if e['date']==checked_on else e['date_label']
-            when='all day '+day if e['all_day'] else 'at '+e['local_start']+' on '+day
-            location='; the listed location is “'+e['location']+'”' if e.get('location') and safe_detail(e['location']) else ''
-            parts.append(owner+' “'+e['text']+'” '+when+location+'.')
-            if e.get('activity_link_used'):
-                parts.append('I have this recurring entry recorded as '+e['owner_name']+"'s usual "+e['activity_profile']['activity']+'.')
-            if item['excerpts']:parts.append('The event notes say: '+ ' '.join('“'+s+'”' for s in item['excerpts']))
+            e=by_id[item['id']];groups.setdefault((tuple(e['owners']),e['date']),[]).append((item,e))
+        for (_,day),items in groups.items():
+            first=items[0][1];owner='you have' if first['owners']==[speaker] else first['owner_name']+' has'
+            when='Today' if day==checked_on else 'Tomorrow' if day==(date.fromisoformat(checked_on)+timedelta(days=1)).isoformat() else 'On '+first['date_label']
+            clauses=[]
+            for item,e in items:
+                label=activity_name(e['activity_profile']['activity']) if e.get('activity_profile') else '“'+e['text']+'”'
+                timing=' all day' if e['all_day'] else ' at '+e['local_start']
+                location=' at “'+e['location']+'”' if e.get('location') and safe_detail(e['location']) else ''
+                clauses.append(label+timing+location)
+            parts.append(when+', '+owner+' '+join_words(clauses)+'.')
+            for item,e in items:
+                if item['excerpts']:parts.append('The event notes say: '+ ' '.join('“'+s+'”' for s in item['excerpts']))
         for identifier in obj['notes']:
             note=next(n for n in notes if n['id']==identifier)
             parts.append(note['text'] if note.get('origin')=='activity_profile' else 'A confirmed household note says: “'+note['text']+'”.')

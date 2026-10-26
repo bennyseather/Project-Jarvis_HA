@@ -152,7 +152,8 @@ class EventTests(unittest.IsolatedAsyncioTestCase):
     async def test_confirmed_mapping_and_usual_equipment_are_attributed(self):
         before=self.path.read_bytes();out=await self.ask()
         self.assertEqual(out['status'],'success',out);self.assertIn('water bottle',out['message'])
-        self.assertIn('usual',out['message']);self.assertIn('recorded as',out['message'])
+        self.assertIn('usual',out['message']);self.assertIn('gymnastics',out['message'])
+        self.assertNotIn('recorded as',out['message']);self.assertNotIn('usual equipment for',out['message'])
         self.assertEqual(before,self.path.read_bytes());self.assertNotIn('60 minutes',out['message'])
 
     async def test_exact_owner_source_title_not_prefix_or_another_person(self):

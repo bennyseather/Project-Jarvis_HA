@@ -192,7 +192,7 @@ class PreparationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_first_person_and_unknown_voice(self):
         self.client.events['calendar.work_reach']=[deepcopy(self.event)]
-        self.assertIn('You have',(await self.ask('What should I prepare for tomorrow?'))['message'])
+        self.assertIn('you have',(await self.ask('What should I prepare for tomorrow?'))['message'].casefold())
         self.assertEqual((await self.ask('What should I prepare for tomorrow?',None))['status'],'clarification_required')
         self.assertEqual((await self.ask(person=None))['status'],'success')
 

@@ -12,6 +12,7 @@ import uuid
 
 from jarvis import event_activity
 from jarvis.household_speaker import shared_knowledge_enabled
+from jarvis.preparation_wording import activity_name,usual_preparation
 
 FIELDS={'id','person','source','title','activity','equipment','preparation','usual_venue',
         'duration_minutes','recorded_on','provenance'}
@@ -172,15 +173,17 @@ def notes(events,mode):
     for e in events:
         r=e.get('activity_profile')
         if not r:continue
-        pieces=[];name=e['owner_name']
+        pieces=[];label=activity_name(r['activity']);name=e['owner_name']
         if mode=='location':
-            if not e['location'] and r['usual_venue']:pieces.append(name+"'s usual "+r['activity']+' venue is "'+r['usual_venue']+'"; this appointment\'s venue is not confirmed.')
+            if not e['location'] and r['usual_venue']:pieces.append(name+"'s usual venue for "+label+' is “'+r['usual_venue']+'”; this appointment\'s venue is not confirmed.')
         else:
             if not e['description_units']:
-                if r['equipment']:pieces.append(name+"'s usual equipment for "+r['activity']+' includes '+', '.join('"'+v+'"' for v in r['equipment'][:3])+'.')
-                if r['preparation']:pieces.append(name+"'s usual preparation for "+r['activity']+' is "'+r['preparation']+'".')
-            if not e['location'] and r['usual_venue']:pieces.append(name+"'s usual "+r['activity']+' venue is "'+r['usual_venue']+'"; check it for this appointment.')
-            if e['all_day'] and r['duration_minutes']:pieces.append(name+"'s usual "+r['activity']+' lasts '+str(r['duration_minutes'])+' minutes; this is not a confirmed duration for the all-day calendar entry.')
+                usual=usual_preparation(r['activity'],r['equipment'],r['preparation'],name)
+                if usual:pieces.append(usual)
+            if not e['location'] and r['usual_venue']:
+                subject='It' if pieces else name+"'s "+label
+                pieces.append(subject+' usually takes place at “'+r['usual_venue']+'”; check it for this appointment.')
+            if e['all_day'] and r['duration_minutes']:pieces.append(name+"'s usual duration for "+label+' is '+str(r['duration_minutes'])+' minutes; this is not a confirmed duration for the all-day calendar entry.')
         bounded=[]
         for piece in pieces:
             if len(' '.join(bounded+[piece]))<=500:bounded.append(piece)
