@@ -1,5 +1,22 @@
 # Project Jarvis add-on
 
+## Answering appointment clarifications (0.45.71)
+
+After a plural venue question, a short appointment label answers Jarvis's pending
+choice rather than starting a new routine question. The pending choice keeps the
+person, date, original purpose and bounded source identities, not a cached venue
+or model answer. It expires with the conversation scope and is invalidated by a
+speaker, date, profile revision, permission or topic change.
+
+Fresh permitted calendar records must still contain the selected appointment.
+Unique title-token choices are source-bound directly; the existing local Node AI
+interprets other short labels or translations with a separate relevance check.
+Ambiguity and missing or changed records require clarification, not substitution.
+The known person remains available for a subsequent birthday question. These
+checks do not prove universal language understanding; model review is a safeguard.
+Saved voice/calibration, permissions and actions are unchanged. Actual audio and
+real-reminder acceptance stay on hold.
+
 ## Source-choice repair (0.45.70)
 
 Event preparation now asks the existing local Node AI to mark fixed source event

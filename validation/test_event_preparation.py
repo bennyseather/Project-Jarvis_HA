@@ -46,6 +46,135 @@ class PreparationTests(unittest.IsolatedAsyncioTestCase):
     async def ask(self,text='What should Mia prepare for tomorrow?',person='benny',key='s'):
         with scope(self.p,person,key):return await self.h.handle(text,key)
 
+    async def pending_choice(self):
+        self.client.events['calendar.familiekalender'].append({**self.event,
+            'summary':'Fitness session 💪','start':'2026-10-24T19:00:00+02:00',
+            'end':'2026-10-24T20:00:00+02:00','location':'Fictional Gym','description':''})
+        def choose(context):
+            selecting='selection_reply' in context
+            return {'status':'success','message':json.dumps({'events':{e['id']:{
+                'use':not selecting or i==0,'units':[]} for i,e in enumerate(context['events'])},
+                'notes':{n['id']:False for n in context['approved_notes']},'suggestion':'none','question':'none'})}
+        self.provider.respond=choose
+        self.assertEqual((await self.ask())['status'],'success')
+        r=await self.ask('Where is it?')
+        self.assertEqual(r['status'],'clarification_required')
+        self.assertIn('Fitness session',r['message'])
+        return r
+
+    async def test_answer_to_clarification_keeps_location_person_and_day(self):
+        await self.pending_choice()
+        r=await self.ask('Fitness')
+        self.assertEqual(r['status'],'success');self.assertEqual(r['subject'],'mia')
+        self.assertIn('Fictional Gym',r['message']);self.assertNotIn('Fictional Hall',r['message'])
+        self.assertEqual(r['period']['start'],'2026-10-24')
+        self.assertEqual(self.provider.calls[-2]['mode'],'location')
+        self.assertEqual(len(self.provider.calls[-2]['events']),1)
+        self.assertNotIn('pending_choice',self.h.sessions['s'])
+        self.assertIn('Fictional Gym',(await self.ask('Where is it?'))['message'])
+
+    async def test_choice_label_case_punctuation_and_polite_wrapper(self):
+        for label in ('FITNESS','Fitness session 💪','the fitness one please','I meant fitness'):
+            await self.pending_choice()
+            self.assertIn('Fictional Gym',(await self.ask(label))['message'],label)
+            self.client.events['calendar.familiekalender']=self.client.events['calendar.familiekalender'][:1]
+
+    async def test_choice_rechecks_current_venue_not_cached_answer(self):
+        await self.pending_choice()
+        self.client.events['calendar.familiekalender'][1]['location']='Updated Fictional Venue'
+        r=await self.ask('Fitness')
+        self.assertIn('Updated Fictional Venue',r['message']);self.assertNotIn('Fictional Gym',r['message'])
+
+    async def test_removed_pending_events_do_not_fall_back_to_routines(self):
+        await self.pending_choice();count=len(self.provider.calls)
+        self.client.events['calendar.familiekalender']=[]
+        r=await self.ask('Fitness')
+        self.assertEqual(r['status'],'clarification_required');self.assertEqual(r['subject'],'mia')
+        self.assertIn('changed',r['message']);self.assertEqual(len(self.provider.calls),count)
+
+    async def test_one_removed_choice_cannot_be_substituted_by_surviving_event(self):
+        await self.pending_choice();count=len(self.provider.calls)
+        self.client.events['calendar.familiekalender'].pop()
+        r=await self.ask('Fitness')
+        self.assertEqual(r['status'],'clarification_required');self.assertEqual(len(self.provider.calls),count)
+        self.assertIn('changed',r['message']);self.assertNotIn('Fictional Hall',r['message'])
+
+    async def test_choice_source_outage_keeps_person_without_claiming_absence(self):
+        await self.pending_choice()
+        async def fail(*a,**kw):raise RuntimeError('fixture')
+        self.client.call_service_response=fail
+        r=await self.ask('Fitness')
+        self.assertEqual(r['status'],'unavailable');self.assertEqual(r['subject'],'mia')
+        self.assertNotIn('not scheduled',r['message'])
+
+    async def test_choice_rejected_by_model_review_remains_a_clarification(self):
+        await self.pending_choice();original=self.provider.reason_local
+        def reject(**kw):
+            if kw['instructions'].startswith('Judge activity relevance'):
+                c=json.loads(kw['input_messages'][0]['content'])
+                return {'status':'success','message':json.dumps({e['key']:False for e in c['selected_events']})}
+            return original(**kw)
+        self.provider.reason_local=reject
+        r=await self.ask('the workout one')
+        self.assertEqual(r['status'],'clarification_required');self.assertEqual(r['subject'],'mia')
+        self.assertNotIn('Fictional Gym',r['message']);self.assertIn('pending_choice',self.h.sessions['s'])
+
+    async def test_new_date_after_clarification_is_not_a_choice_on_old_date(self):
+        await self.pending_choice()
+        r=await self.ask('And Sunday?')
+        self.assertEqual(r['status'],'clarification_required')
+        self.assertIn('Which event',r['message']);self.assertNotIn('pending_choice',self.h.sessions['s'])
+
+    async def test_duplicate_label_stays_a_choice_not_an_arbitrary_venue(self):
+        await self.pending_choice()
+        first=self.client.events['calendar.familiekalender'][0]
+        first['summary']='Fitness rehearsal'
+        # Establish the question with both fresh titles, not a stale title match.
+        await self.ask();await self.ask('Where is it?');count=len(self.provider.calls)
+        r=await self.ask('Fitness')
+        self.assertEqual(r['status'],'clarification_required');self.assertEqual(len(self.provider.calls),count)
+        self.assertNotIn('Fictional Gym',r['message']);self.assertEqual(len(self.h.sessions['s']['pending_choice']['events']),2)
+
+    async def test_semantic_choice_uses_node_contract_with_original_location_mode(self):
+        await self.pending_choice()
+        def semantic(context):
+            return {'status':'success','message':json.dumps({'events':{e['id']:{
+                'use':'Fitness' in e['text'],'units':[]} for e in context['events']},
+                'notes':{},'suggestion':'none','question':'none'})}
+        self.provider.respond=semantic
+        r=await self.ask('the workout one')
+        self.assertIn('Fictional Gym',r['message']);self.assertEqual(r['subject'],'mia')
+        self.assertEqual(self.provider.calls[-2]['selection_reply'],'the workout one')
+        self.assertIsNone(self.provider.calls[-2]['previous_question'])
+        self.assertTrue(self.provider.calls[-2]['activity_filter_required'])
+
+    async def test_no_match_and_plural_model_choice_keep_pending_focus(self):
+        for plural in (False,True):
+            await self.pending_choice()
+            def unmatched(context):
+                return {'status':'success','message':json.dumps({'events':{e['id']:{'use':plural,'units':[]} for e in context['events']},
+                    'notes':{},'suggestion':'none','question':'none'})}
+            self.provider.respond=unmatched
+            r=await self.ask('Swimming')
+            self.assertEqual(r['status'],'clarification_required');self.assertEqual(r['subject'],'mia')
+            self.assertNotIn('not scheduled',r['message']);self.assertIn('pending_choice',self.h.sessions['s'])
+            self.client.events['calendar.familiekalender']=self.client.events['calendar.familiekalender'][:1]
+
+    async def test_pending_choice_cannot_cross_scope_or_steal_new_topics(self):
+        for change in ('expiry','speaker','revision','day','permissions','topic','write','question'):
+            await self.pending_choice()
+            if change=='expiry':self.clock[0]+=301;r=await self.ask('Fitness')
+            elif change=='speaker':r=await self.ask('Fitness','linda')
+            elif change=='revision':self.p._data['revision']+=1;r=await self.ask('Fitness')
+            elif change=='day':self.now[0]+=timedelta(days=1);r=await self.ask('Fitness')
+            elif change=='permissions':self.h.allowed=();r=await self.ask('Fitness')
+            elif change=='topic':await self.ask('And her birthday?');r=await self.ask('Fitness')
+            elif change=='write':r=await self.ask('Cancel fitness')
+            else:r=await self.ask('Explain photosynthesis')
+            self.assertIsNone(r,change)
+            self.now[0]=datetime(2026,10,23,12,tzinfo=ZONE);self.h.allowed=tuple(self.client.events)
+            self.client.events['calendar.familiekalender']=self.client.events['calendar.familiekalender'][:1]
+
     async def test_actual_local_method_context_and_exact_details(self):
         r=await self.ask()
         self.assertTrue(r['local_model_interpretation']);self.assertTrue(r['fact_binding'])
@@ -240,6 +369,8 @@ class PreparationTests(unittest.IsolatedAsyncioTestCase):
 class ApplicationTests(unittest.IsolatedAsyncioTestCase):
     """Real application entry method, fictional data, no startup or services."""
     setUp=PreparationTests.setUp
+    ask=PreparationTests.ask
+    pending_choice=PreparationTests.pending_choice
     async def test_actual_application_route_and_birthday_focus(self):
         root=Path(__file__).resolve().parents[1]
         source=root/'src/jarvis/core/application.py'
@@ -256,6 +387,32 @@ class ApplicationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(r['provider'],'event_preparation');self.assertEqual(r['status'],'success')
             resolved,clarification=app.container.household_reasoning.resolve('And her birthday?','s')
             self.assertIsNone(clarification);self.assertIn('Mia',resolved)
+
+    async def test_complete_application_clarification_choice_and_birthday(self):
+        await self.pending_choice()
+        source=Path(__file__).resolve().parents[1]/'src/jarvis/core/application.py'
+        if not source.exists():source=Path(__file__).resolve().parents[1]/'jarvis/app/src/jarvis/core/application.py'
+        method=next(n for n in ast.walk(ast.parse(source.read_text(encoding='utf-8')))
+                    if isinstance(n,ast.AsyncFunctionDef) and n.name=='handle_request')
+        namespace={'asyncio':asyncio}
+        exec(compile(ast.Module(body=[method],type_ignores=[]),'<four-turn application>','exec'),namespace)
+        self.p._data['members'][2]['birth_date']={'status':'confirmed','value':'2016-04-14'}
+        app=SimpleNamespace(container=SimpleNamespace(household_profile=self.p,home_assistant=self.client,
+            proactive_allowed_entities=tuple(self.client.events),local_reasoning_provider=self.provider,event_preparation=self.h))
+        from test_household_reasoning import Provider as ProfileProvider
+        from jarvis.household_reasoning import HouseholdReasoning
+        profile_provider=ProfileProvider();profile_provider.tasks=[{'subject':'mia','topic':'birthday'}]
+        profile_provider.answer="Mia's birthday is 14 April."
+        app.container.household_reasoning=HouseholdReasoning(self.p,profile_provider)
+        with scope(self.p):
+            for question,status,contains in (
+                ('What should Mia prepare for tomorrow?','success','Music rehearsal'),
+                ('Where is it?','clarification_required','Which appointment'),
+                ('Fitness','success','Fictional Gym'),
+                ('And her birthday?','success','14 April')):
+                out=await namespace['handle_request'](app,question,'s')
+                self.assertEqual(out['status'],status,(question,out))
+                self.assertIn(contains,out['message'],question)
 
 
 class BindingTests(unittest.TestCase):

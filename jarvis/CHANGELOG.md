@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.45.71
+
+- Keep an appointment clarification active for short replies such as an activity
+  title. Retain the original person, date and question purpose instead of treating
+  the reply as a new household-routine question.
+- Recheck permitted calendar sources before answering. Bind unique title choices
+  directly; use the existing local Node AI and relevance checks for paraphrases
+  and translations. Ambiguous, removed or unmatched choices remain clarifications,
+  not invented venues or claims that an activity is unscheduled.
+- Preserve person continuity after a choice, including birthday follow-ups.
+  Add complete four-turn application and actual-local-model conversation checks.
+- Preserve saved voice/calibration, model, permissions and all action paths.
+  Actual audio and real-reminder tests remain on hold.
+
 ## 0.45.70
 
 - Repair event preparation for multiple appointments with empty descriptions.
