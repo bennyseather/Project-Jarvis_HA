@@ -11,6 +11,7 @@ from jarvis.household_planning import DATE_PATTERN, resolve_dates
 from jarvis.sentence_stream import sentence_sink
 
 FIELDS=('title','member_evidence','date','time','end_time','duration','venue','category_evidence','all_day','omit_venue')
+HOURS=('one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve')
 SCHEMA={'type':'object','properties':{
     'intent':{'type':'string','enum':['create','correct','continue','unrelated','unsupported']},
     'members':{'type':'array','items':{'type':'string'}},
@@ -32,6 +33,11 @@ the relation (e.g. "for Mia"). A driver/organiser is NOT the attendee. If ambigu
 leave members empty. "my/me" may select ONLY the supplied matched speaker.
 date=one raw phrase such as next Thursday, tomorrow or 2026-11-05. Never calculate.
 time=start clock phrase, end_time=explicit end clock, duration=explicit length.
+Clock quotes may be 1600, 930, 4 pm, 4pm, 4:30 p.m., noon or midnight. Copy
+the user's EXACT clock text into time/end_time: NEVER convert 1600 to 16:00 or
+4 pm to 16:00 in the JSON. Code converts the quoted clock afterwards.
+For "at 1600" use time "1600". For "at 4 pm until 5:30 pm" use time "4 pm"
+and end_time "5:30 pm". A clock reply to an open draft is intent continue.
 venue=exact explicitly stated current venue, never a usual venue or inferred place.
 category=school/work/sport/music/health/family/travel/other; quote its evidence.
 all_day=quote only when explicitly all-day. omit_venue=quote only if user explicitly
@@ -60,14 +66,35 @@ def quote(value,text,limit=180):
 
 def clock_value(raw):
     raw=raw.strip().lower()
-    match=re.fullmatch(r'(?:at\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?',raw)
-    if not match:raise ValueError('Please use a clock time such as 14:00.')
-    h,m=int(match[1]),int(match[2] or 0)
-    if match[3]:
+    raw=re.sub(r'^at\s+','',raw)
+    if raw in ('noon','midday'):return '12:00'
+    if raw=='midnight':return '00:00'
+    # Preserve the source quote outside this function; normalise only for parsing.
+    raw=re.sub(r'([ap])\s*\.?\s*m\.?$',lambda m:m[1]+'m',raw)
+    for hour,word in enumerate(HOURS,1):
+        raw=re.sub(r'^'+word+r'(?=\s*[ap]m$)',str(hour),raw)
+    match=re.fullmatch(r'(\d{1,4})(?:[:.](\d{2}))?\s*(am|pm)?',raw)
+    if not match:raise ValueError('Please give a time such as 1600, 16:00 or 4 pm.')
+    digits,minutes,meridiem=match.groups()
+    if len(digits)>2:
+        if minutes is not None:raise ValueError('Please give a time such as 1600, 16:00 or 4 pm.')
+        h,m=int(digits[:-2]),int(digits[-2:])
+    else:h,m=int(digits),int(minutes or 0)
+    if meridiem:
         if not 1<=h<=12:raise ValueError('Invalid clock time')
-        h=h%12+(12 if match[3]=='pm' else 0)
+        h=h%12+(12 if meridiem=='pm' else 0)
     if h>23 or m>59:raise ValueError('Invalid clock time')
     return f'{h:02}:{m:02}'
+
+def literal_clock_patch(text,partial):
+    """A whole clock reply to a dated draft needs no model interpretation."""
+    if not partial.get('date'):return None
+    ending=re.fullmatch(r'(?:until|to|ends?(?: at)?|finish(?:es)?(?: at)?)\s+(.+)',text.strip(),re.I)
+    value=ending[1] if ending else text.strip()
+    shape=r'(?:at\s+)?(?:\d{1,5}(?:[:.]\d{1,2})?\s*(?:[ap]\s*\.?\s*m\.?)?|(?:'+'|'.join(HOURS)+r')\s*[ap]\s*\.?\s*m\.?|noon|midday|midnight)'
+    if not re.fullmatch(shape,value,re.I):return None
+    clock=clock_value(value)
+    return {'end_time':clock,'duration':None} if ending else {'time':clock,'all_day':False}
 
 def duration_value(raw):
     value=raw.casefold().strip()
@@ -125,6 +152,8 @@ def parse_patch(raw,text,people,today,speaker=None):
 class CalendarDrafting:
     def __init__(self,provider):self.provider=provider
     async def extract(self,text,people,today,partial,speaker=None):
+        literal=literal_clock_patch(text,partial)
+        if literal is not None:return 'continue',literal
         method=getattr(self.provider,'reason_local',None)
         if method is None:raise ValueError('Local calendar understanding is unavailable. Please use the Household appointment form for now.')
         def call():

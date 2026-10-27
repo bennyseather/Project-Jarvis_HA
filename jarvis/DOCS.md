@@ -719,3 +719,6 @@ calendar entity permissions; recognised voice is relevance, never authentication
 An unknown speaker is asked whose appointment it is. Drafts expire after five
 minutes and after context changes. An uncertain save must be checked in the
 calendar before retrying. No new calendar or recurring automation is created.
+
+Calendar clock formats (.82): 1600, 0930, 4 pm, 4:30 p.m., noon and midnight
+are accepted for start/end times. The review still shows normalised Norway time.

@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from jarvis.calendar_context import calendar_scope,current_calendar_access
-from jarvis.calendar_drafting import FIELDS,parse_patch,clock_value,duration_value
+from jarvis.calendar_drafting import FIELDS,parse_patch,clock_value,duration_value,CalendarDrafting,literal_clock_patch
 from jarvis.calendar_conversation import CalendarConversation
 from jarvis.household_planner import HouseholdPlanner,CALENDAR,ZONE
 from jarvis.calendar_membership import assignment,description,identity
@@ -48,6 +48,35 @@ class Extraction(unittest.TestCase):
             with self.assertRaises(ValueError):clock_value(t)
         for t in ('0 minutes','2000 hours'):
             with self.assertRaises(ValueError):duration_value(t)
+    def test_compact_and_twelve_hour_clocks_have_the_same_reviewed_time(self):
+        for raw_time,expected in (('1600','16:00'),('0930','09:30'),('930','09:30'),('0000','00:00'),
+                ('2359','23:59'),('at 1600','16:00'),('4 pm','16:00'),('4pm','16:00'),
+                ('4:30 p.m.','16:30'),('4.30 PM','16:30'),('12 am','00:00'),('12 pm','12:00'),
+                ('noon','12:00'),('midnight','00:00'),('four pm','16:00')):
+            with self.subTest(raw_time=raw_time):
+                self.assertEqual(clock_value(raw_time),expected)
+                _,patch=parse_patch(raw(time=raw_time),'Start '+raw_time,PEOPLE,'2026-10-27')
+                self.assertEqual(patch['time'],expected)
+    def test_invalid_compact_and_contradictory_clocks_cannot_be_saved(self):
+        for value in ('2400','1260','0060','1600 pm','0 am','13 pm','12345','1600:30','4.5 pm','4pm tomorrow'):
+            with self.subTest(value=value),self.assertRaises(ValueError):clock_value(value)
+    def test_end_clock_is_normalized_without_weakening_source_evidence(self):
+        _,patch=parse_patch(raw(time='4 pm',end_time='1730'),'Start 4 pm until 1730',PEOPLE,'2026-10-27')
+        self.assertEqual((patch['time'],patch['end_time']),('16:00','17:30'))
+        with self.assertRaises(ValueError):parse_patch(raw(time='16:00'),'Start 4 pm',PEOPLE,'2026-10-27')
+    def test_literal_clock_requires_dated_draft_and_whole_clock_reply(self):
+        self.assertIsNone(literal_clock_patch('1600',{}))
+        self.assertIsNone(literal_clock_patch('Remind me at 1600',{'date':'2026-11-05'}))
+        self.assertIsNone(literal_clock_patch('One hour',{'date':'2026-11-05'}))
+
+class ClockRouting(unittest.IsolatedAsyncioTestCase):
+    async def test_short_clock_replies_work_without_calling_the_model(self):
+        def fail(**kwargs):raise AssertionError('A literal clock should not call a model')
+        extractor=CalendarDrafting(SimpleNamespace(reason_local=fail))
+        for text,key,value in (('1600','time','16:00'),('4 pm','time','16:00'),('12 am','time','00:00'),('Until 1730','end_time','17:30')):
+            intent,patch=await extractor.extract(text,PEOPLE,'2026-10-28',{'date':'2026-11-05'})
+            self.assertEqual(intent,'continue');self.assertEqual(patch[key],value)
+        with self.assertRaises(ValueError):await extractor.extract('2500',PEOPLE,'2026-10-28',{'date':'2026-11-05'})
 
 class Extractor:
     def __init__(self):self.calls=[];self.responses={}
@@ -83,6 +112,15 @@ class CalendarChat(unittest.IsolatedAsyncioTestCase):
     async def test_venue_unknown_is_explicit_not_a_default(self):
         await self.say(START);await self.say('One hour');out=await self.say('Venue unknown')
         self.assertIn('no venue recorded',out['message']);await self.say('Confirm');self.assertNotIn('location',self.c.writes[0])
+    async def test_compact_start_and_am_pm_end_are_reviewed_and_saved_as_norway_times(self):
+        question='Add a dentist appointment for Mia next Thursday at 1600'
+        self.e.responses[question]=raw('create',**{**DATA,'time':'1600'})
+        self.e.responses['Until 5 pm']=raw(end_time='5 pm')
+        await self.say(question);await self.say('Until 5 pm');out=await self.say('Venue unknown')
+        self.assertIn('16:00–17:00',out['message']);self.assertFalse(self.c.writes)
+        await self.say('yes')
+        self.assertIn('T16:00:00+01:00',self.c.writes[0]['start_date_time'])
+        self.assertIn('T17:00:00+01:00',self.c.writes[0]['end_date_time'])
     async def test_cancel_and_unrelated_turn_revoke_old_review(self):
         for last in ('Cancel','What is the weather?'):
             await self.review();await self.say(last);out=await self.say('yes');self.assertIsNone(out);self.assertFalse(self.c.writes)

@@ -1,3 +1,11 @@
+## 0.45.82
+
+- Accept compact calendar start/end clocks such as 1600 and 0930, plus 4 pm,
+  4:30 p.m., noon and midnight. Keep the exact source clock in local-model output,
+  then normalise it in code for the existing Norway-time review and save.
+- Reject invalid hours/minutes and contradictory AM/PM without changing calendar
+  permissions, confirmation, dates, saved voice or the installed .81 integration.
+
 ## 0.45.81
 
 - Draft one Familiekalender appointment in HA Assist text, using the Node's local
