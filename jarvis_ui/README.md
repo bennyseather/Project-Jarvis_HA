@@ -1,4 +1,10 @@
-# Project Jarvis UI 0.46.0
+# Project Jarvis UI 0.47.71
+
+NSPanel seasonal mower status: set `mower_out_of_season: true` on
+`custom:jarvis-nspanel-dashboard-card` while the mower is stored. Its overview and
+control menu show Out of season and mower commands are disabled. Clear that flag
+when recommissioning; normal HA state/availability checks then apply. This display
+setting does not change the mower entity or start any equipment.
 
 The Jarvis RSS Intelligence card displays locally cached top stories grouped by
 source or category, supports compact NSPanel rendering, lazy images, refresh,
