@@ -1,4 +1,5 @@
-/* Read-only shared household viewer. No credentials, storage or write actions. */
+/* Shared household planner and profile view. No browser credentials or storage. */
+import './jarvis-planner.js?v=04578-loader2';
 const escapeHousehold=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const householdLabel=s=>String(s).replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 function householdLines(value,prefix=''){
@@ -8,8 +9,9 @@ function householdLines(value,prefix=''){
  return [(prefix?prefix+': ':'')+String(value)];
 }
 class JarvisHouseholdCard extends HTMLElement{
+ get uiRevision(){return 2026102702;}
  constructor(){super();this.attachShadow({mode:'open'});this.section='planner';this.period='today';this.page=0;this.serial=0;this.error='';this.loading=false;}
- set hass(hass){const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(!this.data&&!this.loading&&hass)this.load();}
+ set hass(hass){const upgrade=this._plannerUiRevision!==2026102702;this._plannerUiRevision=2026102702;if(upgrade&&!this.shadowRoot.querySelector?.('jarvis-planner-card'))this.section='planner';const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(upgrade)this.render();if(!this.data&&!this.loading&&hass)this.load();}
  connectedCallback(){this.render();this.timer=setInterval(()=>{if(!document.hidden)this.load();},60000);}
  disconnectedCallback(){clearInterval(this.timer);this.serial++;this.data=null;this.loading=false;}
  async load(){if(!this._hass||this.loading||!this.isConnected)return;const serial=++this.serial;this.loading=true;this.error='';this.render();try{const data=await this._hass.callWS({type:'jarvis_conversation/household',period:this.period});if(serial!==this.serial||!this.isConnected)return;if(data.schema_version!==1||data.read_only!==true||(this.period!=='today'&&data.planning?.period!==this.period))throw Error('Invalid response');this.data=data;}catch{if(serial!==this.serial)return;this.data=null;this.error='Household information unavailable. Nothing has been changed. Try Refresh.';}finally{if(serial===this.serial){this.loading=false;this.render();}}}
@@ -33,4 +35,14 @@ if(this.section==='changes')cards=(d.changes||[]).map(c=>({title:'Revision '+c.r
  const back=document.createElement('button');back.textContent='Open household planner';back.onclick=()=>{this.section='planner';this.render();};this.shadowRoot.querySelector('footer').prepend(back);
  }
 }
-customElements.whenDefined('ha-card').then(()=>{if(!customElements.get('jarvis-household-card'))customElements.define('jarvis-household-card',JarvisHouseholdCard);});
+customElements.whenDefined('ha-card').then(()=>{
+ const active=customElements.get('jarvis-household-card');
+ if(!active)customElements.define('jarvis-household-card',JarvisHouseholdCard);
+ else if((active.prototype.uiRevision||0)<2026102702){
+  // HA can announce this module to a still-open companion WebView. Upgrade its
+  // existing compatible element instead of silently retaining the cached class.
+  for(const name of Object.getOwnPropertyNames(JarvisHouseholdCard.prototype)){
+   if(name!=='constructor')Object.defineProperty(active.prototype,name,Object.getOwnPropertyDescriptor(JarvisHouseholdCard.prototype,name));
+  }
+ }
+});
