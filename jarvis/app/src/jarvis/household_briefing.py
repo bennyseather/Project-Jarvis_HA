@@ -165,6 +165,7 @@ class HouseholdBriefing:
             try:
                 if name=='family' and shared_calendar_active:
                     raw=await asyncio.wait_for(self.client.get_calendar_events(entity,start,end),10)
+                    await planner.enrich(raw,maximum=1)
                 else:
                     response=await asyncio.wait_for(self.client.call_service_response('calendar','get_events',{
                         'entity_id':entity,'start_date_time':start.isoformat(),'end_date_time':end.isoformat()}),10)
@@ -179,7 +180,7 @@ class HouseholdBriefing:
                         if not meta['members']:
                             assignment_gaps.append('some family calendar appointments have no assigned member');continue
                         if not selected.intersection(meta['members']):continue
-                        e={**e,'description':meta['notes']}
+                        e={**e,'description':meta['notes'],'location':e.get('location') or meta.get('extracted_location','')}
                         owners=meta['members']
                     else:owners=['benny']
                     events.append({**interval(e,event_context=event_context),'owners':owners})

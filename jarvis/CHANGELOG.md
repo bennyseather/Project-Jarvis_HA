@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.45.80
+
+- Interpret new phone-calendar appointments on the local Jarvis Node: infer a
+  category and English activity, extract stated people/venues, and ask for missing
+  or ambiguous details. Exact confirmed activity profiles can establish ownership;
+  usual venues remain usual. A named driver is not automatically the attendee.
+- Store reviewed results in the existing technical planner index. Explicit human
+  assignments take priority; source edits/profile revisions invalidate inference.
+  No Google event, date, recurrence, household fact or saved voice is changed.
+- Keep supported fields when the person is unclear. Venue evidence stays bound to
+  the source text; models cannot fill a missing venue with a likely address. A
+  second local review checks the extraction. Failure leaves clarification pending.
+- Bound fresh interpretation work and cache it to avoid repeating model calls on
+  every refresh. Update existing frontend elements without erasing active forms.
+
 ## 0.45.78
 
 - Use the existing phone-synced Familiekalender as the shared household planner,

@@ -38,16 +38,18 @@ def text(value,limit,required=False):
     return value
 
 class HouseholdPlanner:
-    def __init__(self,profile,client,allowed,*,path=None,now=None,clock=time.time):
+    def __init__(self,profile,client,allowed,*,path=None,now=None,clock=time.time,interpreter=None):
         self.profile,self.client,self.allowed=profile,client,frozenset(allowed)
         self.now=now or (lambda:datetime.now(ZONE));self.clock=clock;self.lock=asyncio.Lock()
         self.path=Path(path) if path else None
+        self.interpreter=interpreter;self.interpret_lock=asyncio.Lock()
         if self.path:self.path.parent.mkdir(parents=True,exist_ok=True)
         self.db=sqlite3.connect(str(self.path) if self.path else ':memory:')
         if self.path:self.path.chmod(0o600)
         self.db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS assignments (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS intents (token TEXT PRIMARY KEY,owner TEXT NOT NULL,expires REAL NOT NULL,fingerprint TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS interpretations (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
         self.db.commit();self._active=self.ready;profile._planner=self
     @property
     def people(self):return {p['id']:p['preferred_name'] for p in self.profile._data['members']}
@@ -55,7 +57,46 @@ class HouseholdPlanner:
     def ready(self):
         self._active=self.db.execute("SELECT value FROM settings WHERE key='bootstrap'").fetchone() is not None
         return self._active
-    def annotations(self):return {k:json.loads(v) for k,v in self.db.execute('SELECT key,value FROM assignments')}
+    def manual_annotations(self):return {k:json.loads(v) for k,v in self.db.execute('SELECT key,value FROM assignments')}
+    def annotations(self):
+        out=self.manual_annotations()
+        for key,raw in self.db.execute('SELECT key,value FROM interpretations'):
+            record=json.loads(raw)
+            if key not in out and self.current_interpretation(record) and not record['result'].get('unavailable'):
+                data=record['result'];out[key]={'members':data['members'],'category':data['category'],
+                    '_fingerprint':record['fingerprint'],'_basis':data['basis']}
+        return out
+    def current_interpretation(self,record):
+        from jarvis.appointment_interpretation import VERSION
+        return record.get('version')==VERSION and record.get('revision')==self.profile._data['revision']
+    def details(self,event):
+        from jarvis.appointment_interpretation import fingerprint
+        row=self.db.execute('SELECT value FROM interpretations WHERE key=?',(identity(event),)).fetchone()
+        if not row:return None
+        record=json.loads(row[0])
+        if not self.current_interpretation(record) or record['fingerprint']!=fingerprint(event):return None
+        if record['result'].get('unavailable') and self.clock()-record['checked_at']>60:return None
+        return record['result']
+    async def enrich(self,events,maximum=2):
+        if not self.ready or self.interpreter is None:return
+        try:await asyncio.wait_for(self.interpret_lock.acquire(),0.05)
+        except asyncio.TimeoutError:return
+        try:
+            from jarvis.appointment_interpretation import VERSION,fingerprint
+            deadline=time.monotonic()+8;processed=0;manual=self.manual_annotations()
+            for event in events:
+                if event.get('status')=='cancelled':continue
+                key=identity(event)
+                if key in manual or str(event.get('description') or '').startswith(PREFIX) or self.details(event) is not None:continue
+                if processed>=maximum or time.monotonic()>deadline-0.5:break
+                revision=self.profile._data['revision'];value=await asyncio.wait_for(self.interpreter.interpret(event),8)
+                self.guard()
+                if revision!=self.profile._data['revision']:break
+                record={'version':VERSION,'revision':revision,'fingerprint':fingerprint(event),'checked_at':self.clock(),'result':value}
+                with self.db:self.db.execute('INSERT INTO interpretations VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',(key,json.dumps(record)))
+                processed+=1
+        except (ValueError,TypeError,KeyError,asyncio.TimeoutError):pass
+        finally:self.interpret_lock.release()
     def project(self):
         return {'schema_version':1,'calendar':CALENDAR,'ready':self.ready,'members':[{'id':i,'name':n} for i,n in self.people.items()],
             'categories':list(CATEGORIES),'assignments':self.annotations(),'activities':self.profile.context().get('confirmed_activity_profiles',[])}
@@ -63,7 +104,12 @@ class HouseholdPlanner:
         if not shared_knowledge_enabled(self.profile._data):raise ValueError('Shared household knowledge is disabled')
         if CALENDAR not in self.allowed:raise ValueError('Familiekalender is not exposed to Jarvis')
         if write and not self.ready:raise ValueError('The shared planner has not been activated yet')
-    def assign(self,event):return assignment(event,self.people,self.annotations(),self.ready)
+    def assign(self,event):
+        meta=assignment(event,self.people,self.annotations(),self.ready);details=self.details(event)
+        if details:meta.update(extracted_location=details['venue'] if not event.get('location') else '',interpreted_activity=details['activity'],
+                               needs_review=details.get('unclear',[]),interpretation_basis=details['basis'])
+        if meta.get('needs_review'):meta['needs_review']=[v for v in meta['needs_review'] if not (v=='person' and meta['members']) and not (v=='venue' and (event.get('location') or meta.get('extracted_location')))]
+        return meta
     def bootstrap(self,events):
         """One deployment-time migration, not a browser operation. No calendar writes."""
         self.guard()
@@ -102,17 +148,20 @@ class HouseholdPlanner:
         rows=[];gaps=[];annotations=self.annotations()
         for source,events,error in await asyncio.gather(*(load(s) for s in sources)):
             if error:gaps.append(error);continue
+            if source==CALENDAR:await self.enrich(events);annotations=self.annotations()
             for event in events:
                 if event.get('status')=='cancelled':continue
                 from jarvis.household_briefing import interval
                 try:parsed=interval(event,event_context=True)
                 except (ValueError,KeyError):gaps.append('One appointment has unusable dates');continue
-                meta=assignment(event,self.people,annotations,self.ready) if source==CALENDAR else {'members':['benny'],'category':'work' if source=='calendar.work_reach' else 'travel','basis':'connected owner calendar','notes':parsed.get('description','')}
+                meta=self.assign(event) if source==CALENDAR else {'members':['benny'],'category':'work' if source=='calendar.work_reach' else 'travel','basis':'connected owner calendar','notes':parsed.get('description','')}
                 if selected and not set(selected).intersection(meta['members']):continue
                 if parsed['end']<=start or parsed['start']>=end:continue
                 category=meta['category'] if meta['category']!='other' else self.category(event,meta['members']) if source==CALENDAR else meta['category']
                 rows.append({'key':identity(event),'title':parsed['title'],'start':parsed['start'].isoformat(),'end':parsed['end'].isoformat(),
-                    'all_day':parsed['all_day'],'location':parsed.get('location',''),'notes':meta['notes'][:1200],
+                    'all_day':parsed['all_day'],'location':parsed.get('location','') or meta.get('extracted_location',''),'notes':meta['notes'][:1200],
+                    'location_basis':'calendar location' if parsed.get('location') else 'extracted from appointment text' if meta.get('extracted_location') else '',
+                    'interpreted_activity':meta.get('interpreted_activity',''),'needs_review':meta.get('needs_review',[]),
                     'members':meta['members'],'category':category,'source':source,'basis':meta['basis'],
                     'can_assign':source==CALENDAR and not meta.get('planner_id')})
         rows.sort(key=lambda e:(datetime.fromisoformat(e['start']).timestamp(),e['title'],e['key']))
@@ -266,9 +315,11 @@ class HouseholdPlanner:
 def get_planner(container):
     planner=getattr(container,'household_planner',None)
     if planner is None:
+        from jarvis.appointment_interpretation import AppointmentInterpreter
         profile=container.household_profile
         source=getattr(profile,'_source_path',None)
         planner=HouseholdPlanner(profile,container.home_assistant,getattr(container,'proactive_allowed_entities',()),
-            path=Path(source).parent/'household_planner.sqlite3' if source else None)
+            path=Path(source).parent/'household_planner.sqlite3' if source else None,
+            interpreter=AppointmentInterpreter(getattr(container,'local_reasoning_provider',None),profile))
         container.household_planner=planner
     return planner

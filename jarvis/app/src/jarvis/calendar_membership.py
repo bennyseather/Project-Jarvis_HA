@@ -27,6 +27,10 @@ def identity(event):
     fields=[event.get('summary',event.get('title','')),stamp(event['start']),stamp(event['end'])]
     return hashlib.sha256(json.dumps(fields,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
 
+def source_fingerprint(event):
+    fields=[identity(event),*[str(event.get(k) or '') for k in ('description','location')]]
+    return hashlib.sha256(json.dumps(fields,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+
 def assignment(event,people,legacy=None,active=False):
     """Malformed metadata is unassigned, never silently attributed to Mia."""
     raw=event.get('description') or ''
@@ -42,8 +46,9 @@ def assignment(event,people,legacy=None,active=False):
         except (ValueError,TypeError,KeyError):return {'members':[],'category':'other','notes':raw,'planner_id':None,'basis':'invalid assignment; choose members'}
     try:saved=(legacy or {}).get(identity(event))
     except (ValueError,KeyError,TypeError):saved=None
+    if saved and saved.get('_fingerprint') and saved['_fingerprint']!=source_fingerprint(event):saved=None
     if saved and set(saved.get('members',[])).issubset(people):
-        return {**saved,'notes':raw,'planner_id':None,'basis':'confirmed existing appointment assignment'}
+        return {**saved,'notes':raw,'planner_id':None,'basis':saved.get('_basis','confirmed existing appointment assignment')}
     return {'members':[] if active else ['mia'],'category':'other','notes':raw,'planner_id':None,
             'basis':'unassigned phone/calendar entry' if active else 'previous Mia-only calendar rule'}
 

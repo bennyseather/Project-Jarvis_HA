@@ -1,5 +1,24 @@
 # Project Jarvis add-on
 
+## Phone-appointment interpretation (0.45.80)
+
+New unlabelled Familiekalender appointments are interpreted when the planner or
+a relevant conversation reads them. The existing local Node model extracts people,
+category, English activity and stated venue from English/Norwegian titles/notes.
+One second local pass reviews the fields. Exact saved activity matches can supply
+their confirmed person; usual venues do not become current locations. Named drivers
+or organisers are not automatically attendees. Missing people/venues appear as
+questions on the appointment; use Assign people/category or edit the phone entry.
+
+This enriches the Jarvis index only. Google title, time, notes and location are
+unchanged. Structured calendar locations win. Explicit manual/planner assignments
+win over model results. Source-text/location edits and profile revisions invalidate
+cached inference. Unavailable interpretation is retried after a short cooldown;
+bounded reads process only a small number of new entries, with later refreshes
+handling the rest. No cloud fallback, new automation, reminder or voice operation.
+Source quotes, strict field checks and same-model review reduce errors but cannot
+prove semantic correctness. Users can correct any assignment in the planner.
+
 ## Shared household planner (0.45.78)
 
 The Household tab opens the existing `calendar.familiekalender`, backed by the
