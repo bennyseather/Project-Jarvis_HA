@@ -109,6 +109,8 @@ class HouseholdCalendar:
                 raise ValueError('Missing event list')
             entries = []
             for event in events:
+                planner=getattr(self.profile,'_planner',None)
+                if planner and planner.ready and 'mia' not in planner.assign(event)['members']:continue
                 raw = event['start']
                 if isinstance(raw, dict):
                     raw = raw.get('dateTime') or raw.get('date')

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.45.78
+
+- Use the existing phone-synced Familiekalender as the shared household planner,
+  with member/category filters, an activity library, reviewed appointment entry
+  and explicit assignment of new unlabelled phone events. Existing entries are
+  registered once as Mia's; the calendar remains the appointment source.
+- Save only after review and confirmation. Recheck duplicates and overlaps,
+  bind reviews to the HA session, and persist uncertain sends without blind retry.
+  Models cannot create, delete or move appointments. Repeat settings stay in the
+  phone calendar; Jarvis creates one appointment per confirmation.
+- Carry explicit member attribution into conversational summaries. Use calculated
+  recorded gaps for dinner/planning follow-ups, ask for missing duration, and keep
+  unobserved plans, travel and attendance qualified. Local Jarvis Node AI remains
+  the language/reasoning provider with deterministic date/calculation guards.
+- Requires the matching HA integration and planner frontend. Saved household facts
+  and voice/calibration are preserved; audio and real reminder tests remain held.
+
 ## 0.45.77
 
 - Summarise selected Norwegian organiser notes in natural English using the local

@@ -72,7 +72,7 @@ def insights(evidence, question, speaker, goal=None):
     prepared=[];by_day=defaultdict(list)
     for fact in appointments:
         title = activity(fact['text'])
-        owner = people[fact['owners'][0]]
+        owner = ' and '.join(people[p] for p in fact['owners'])
         start, end = datetime.fromisoformat(fact['start']), datetime.fromisoformat(fact['end'])
         stamp = fact['date_label']+(' (all-day entry)' if fact['all_day'] else ' '+fact['local_start']+'–'+fact['local_end'])
         prepared.append({'id':fact['id'], 'owner':owner, 'event':title, 'when':stamp})
@@ -80,7 +80,8 @@ def insights(evidence, question, speaker, goal=None):
             day = start.astimezone(ZONE).replace(hour=0,minute=0,second=0,microsecond=0)
             while day.timestamp()<end.timestamp():
                 stop=day+timedelta(days=1)
-                by_day[(fact['owners'][0], day.date().isoformat())].append((fact,max(start.timestamp(),day.timestamp()),min(end.timestamp(),stop.timestamp())))
+                for person in fact['owners']:
+                    by_day[(person, day.date().isoformat())].append((fact,max(start.timestamp(),day.timestamp()),min(end.timestamp(),stop.timestamp())))
                 day=stop
     days=[]
     for (owner, date), rows in sorted(by_day.items()):
@@ -150,7 +151,7 @@ def insights(evidence, question, speaker, goal=None):
                 day+=timedelta(days=1)
     missing_duration=goal=='availability' and activity_requested and duration is None
     missing_window=goal=='availability' and activity_requested and duration is not None and window=='all_day'
-    return {'purpose':goal,'answer_the_question':focus,
+    board={'purpose':goal,'answer_the_question':focus,
         'speaking_to':people.get(speaker, speaker) if speaker else 'unidentified household member',
         'appointments':prepared[:12], 'calendar_load':days[:14] if goal!='availability' else [],
         'potential_same_person_conflicts':[{'text':f['text'],'when':f['date_label']+' '+f['local_start']+'–'+f['local_end'],'evidence':[f['id']]} for f in overlaps],
@@ -167,6 +168,29 @@ def insights(evidence, question, speaker, goal=None):
         'coverage':'Incomplete: calendars are not proof of attendance or free time.',
         'missing_sources':evidence['source_failures'],
         'limited_view':evidence['truncated'] or len(prepared)>12 or len(days)>14 or len(routines)>4}
+    if evidence.get('between_requested') and goal=='availability':
+        between=[]
+        for owner in people:
+            owned=sorted((f for f in appointments if owner in f['owners'] and not f['all_day']),key=lambda f:f['start'])
+            for first,second in zip(owned,owned[1:]):
+                stop=datetime.fromisoformat(first['end']);start=datetime.fromisoformat(second['start'])
+                if stop.date()!=start.date() or start<=stop:continue
+                if any(owner in f['owners'] and f['all_day'] and datetime.fromisoformat(f['start'])<start and datetime.fromisoformat(f['end'])>stop for f in appointments):continue
+                between.append({'owner':people[owner],'date':start.date().isoformat(),'start':stop.strftime('%H:%M'),'end':start.strftime('%H:%M'),
+                    'calendar_gap_minutes':int((start.timestamp()-stop.timestamp())/60),
+                    'between':[activity(first['text']),activity(second['text'])],
+                    'basis':'Between these recorded appointments only; not confirmed free time, travel time or dinner availability.'})
+        board['between_appointment_gaps']=between[:6]
+        board['duration_clarification_needed']=len(between)==1 and duration is None
+        board['window_clarification_needed']=False
+        board['required_question']=('Which two appointments do you mean?' if len(between)!=1 else
+            'How long would you like it to take?' if duration is None else None)
+        board['candidate_calendar_gaps']=between if len(between)==1 and (duration is None or duration<=between[0]['calendar_gap_minutes']) and not evidence['truncated'] and not evidence['source_failures'] else []
+        board['answer_the_question']='Use the recorded interval between the prior appointments. Do not invent an event duration, journey time or availability. The gap length is NOT the proposed dinner duration. Ask the required question if the pair/duration is unclear.'
+        if not speaker:board['answer_the_question']+=' No speaker is identified: name the calendar owner, not you/your/we/us. Explain the gap in that person\'s calendar, not the speaker\'s availability.'
+        if len(between)==1 and duration is not None:
+            board['requested_minutes_fit_recorded_gap']=duration<=between[0]['calendar_gap_minutes']
+    return board
 
 
 def grounded_reply(board, speaker_name):
@@ -191,8 +215,15 @@ def grounded_reply(board, speaker_name):
             a,b=parallel[0]['people']
             return possessive(a)+' and '+within(b)+' events coincide, but that isn’t a double booking for one person. Whether it’s a practical clash depends on who needs to be involved—will you need to coordinate both?'
     if goal=='availability' and appointments:
+        between=board.get('between_appointment_gaps',[])
+        if len(between)==1 and board.get('requested_minutes_fit_recorded_gap') is False:
+            gap=between[0]
+            return 'The recorded gap is '+gap['start']+'–'+gap['end']+', only '+str(gap['calendar_gap_minutes'])+' minutes. A '+str(board['requested_activity_duration_minutes'])+'-minute activity does not fit inside that calendar interval; travel and other commitments are still unknown.'
         entry=appointments[0]
         constraint=possessive(entry['owner'])+' '+entry['event']+' is scheduled for '+entry['when']+'.'
+        if len(between)==1:
+            gap=between[0]
+            constraint=possessive(gap['owner'])+' calendar has a '+str(gap['calendar_gap_minutes'])+'-minute gap, '+gap['start']+'–'+gap['end']+', between '+gap['between'][0]+' and '+gap['between'][1]+'.'
         if board['required_question']:return constraint+' '+board['required_question']
         if board['candidate_calendar_gaps']:
             gap=board['candidate_calendar_gaps'][0]

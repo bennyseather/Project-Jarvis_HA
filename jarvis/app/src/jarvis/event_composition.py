@@ -96,7 +96,7 @@ def board(question,events,notes,speaker,checked_on,verified_summary=''):
     for e in events:
         selected_text=' '.join(n['text'] for n in notes if e['id'] in n['events'] and n.get('origin')=='activity_profile')
         r=e.get('activity_profile') or {}
-        rows.append({'id':e['id'],'owner':e['owner_name'],'speaker_owned':e['owners']==[speaker],
+        rows.append({'id':e['id'],'owner':e['owner_name'],'owner_count':len(e['owners']),'speaker_owned':e['owners']==[speaker],
             'activity':activity_name(e['activity_profile']['activity']) if e.get('activity_profile') else e['text'],
             'date':e['date'],'date_label':e['date_label'],'all_day':e['all_day'],
             'start_time':None if e['all_day'] else e['local_start'],'current_venue':e.get('location',''),
@@ -166,7 +166,7 @@ def organiser_reply(facts):
     for (_,day),events in groups.items():
         first=events[0]
         when='Today' if day==facts['checked_on'] else 'Tomorrow' if day==tomorrow else 'On '+first['date_label']
-        owner='you have' if first['speaker_owned'] else first['owner']+' has'
+        owner='you have' if first['speaker_owned'] else first['owner']+(' have' if first.get('owner_count',1)>1 else ' has')
         labels=[e['activity']+(' all day' if e['all_day'] else ' at '+e['start_time'])+
                 (' at '+e['current_venue'] if e['current_venue'] else '') for e in events]
         parts.append(when+', '+owner+' '+join_words(labels)+'.')

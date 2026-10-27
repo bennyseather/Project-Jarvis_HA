@@ -290,6 +290,7 @@ def after_school(day, subject):
     lines = []
     all_day = False
     for event in calendar.get('events',[]):
+        if 'owners' in event and subject not in event['owners']:continue
         if event['all_day']: all_day=True; continue
         start,end = datetime.fromisoformat(event['start']),datetime.fromisoformat(event['end'])
         if end.timestamp()>cutoff.timestamp():
@@ -307,7 +308,7 @@ def render(snapshot, plan, more=False, *, omit_missing=False):
         for subject in plan.subjects:
             name = subject.title()
             cards = [c for c in day['cards'] if not c['title'].startswith(('Today ·','Date ·')) and
-                     (subject=='all' or c['title'].startswith(name+' ·') or (c['title']=='Birthday' and any(name in line for line in c['lines'])))]
+                     (subject=='all' or c['title'].startswith(name+' ·') or subject in c.get('owners',[]) or (c['title']=='Birthday' and any(name in line for line in c['lines'])))]
             if plan.focus=='after_school': cards=[{'title':name+' · after school','lines':after_school(day,subject)}]
             elif plan.focus in ('school','school_end'): cards=school_cards(day,name)
             elif plan.focus=='work_finish': cards=[c for c in cards if c['title']==name+' · usual work']

@@ -236,6 +236,10 @@ class HouseholdProfile:
                 'Use age_years and age_as_of for current ages, not old ages in conversation history or notes. '
                 'Use speaker_presentation_preference only for answer length, never facts, permissions or actions. '
                 'Do not infer presence, change permissions or perform actions from a voice hint.')
+        if shared and getattr(getattr(self,'_planner',None),'_active',False):
+            result['shared_calendar_policy']='Familiekalender is shared. Confirmed legacy entries are assigned to Mia; explicit member assignments determine new entries. Unassigned phone entries are not automatically Mia’s.'
+            calendar=result.get('approved_personal_details',{}).get('Mia',{}).get('calendar')
+            if calendar:calendar['ownership']=result['shared_calendar_policy']
         return result
 
     def reasoning_context(self, text):

@@ -825,6 +825,9 @@ class JarvisApplication:
 
         profile = getattr(self.container, "household_profile", None)
         if profile is not None:
+            if hasattr(profile,'_source_path') and hasattr(getattr(self.container,'home_assistant',None),'get_calendar_events'):
+                from jarvis.household_planner import get_planner
+                get_planner(self.container)
             if hasattr(profile,'_data'):
                 from jarvis import household_activities as activities
                 if activities.is_request(text):

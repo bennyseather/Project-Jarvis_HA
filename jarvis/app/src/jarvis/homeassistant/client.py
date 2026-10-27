@@ -4,7 +4,7 @@ Home Assistant client for Project Jarvis.
 
 import asyncio
 import json
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 import websockets
@@ -140,6 +140,32 @@ class HomeAssistantClient:
                 return await reader._get_states_once()
         finally:
             await reader.disconnect()
+
+    async def get_calendar_events(self,entity,start,end):
+        """Bounded, isolated source read retaining event identity and description."""
+        import re
+        if not re.fullmatch(r'calendar\.[a-z0-9_]+',entity) or not 0<(end-start).total_seconds()<=32*86400:raise ValueError('Invalid calendar read')
+        url=self.url.rstrip('/')+'/api/calendars/'+quote(entity,safe='')+'?'+urlencode({'start':start.isoformat(),'end':end.isoformat()})
+        def fetch():
+            with urlopen(Request(url,headers={'Authorization':'Bearer '+self.token}),timeout=8) as response:
+                raw=response.read(1500001)
+            if len(raw)>1500000:raise ValueError('Unbounded calendar response')
+            rows=json.loads(raw)
+            if not isinstance(rows,list) or len(rows)>500:raise ValueError('Invalid calendar response')
+            return rows
+        return await asyncio.wait_for(asyncio.to_thread(fetch),9)
+
+    async def create_household_appointment(self,data):
+        """One explicit planner create; isolated socket, never retried here."""
+        if data.get('entity_id')!='calendar.familiekalender':raise ValueError('Wrong planner calendar')
+        reader=HomeAssistantClient(self.url,self.token,self.logger)
+        try:
+            async with asyncio.timeout(11):
+                await reader._connect_socket()
+                await reader.send_json({'id':1,'type':'call_service','domain':'calendar','service':'create_event','service_data':data})
+                response=await reader.receive_json()
+                if response.get('id')!=1 or not response.get('success'):raise RuntimeError('Planner create not confirmed')
+        finally:await reader.disconnect()
 
     async def get_household_today(self, period='today', *, start_date=None, end_date=None):
         """Use the dashboard's authenticated read-only command on a separate socket."""

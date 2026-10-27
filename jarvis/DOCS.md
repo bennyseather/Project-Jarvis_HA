@@ -1,5 +1,42 @@
 # Project Jarvis add-on
 
+## Shared household planner (0.45.78)
+
+The Household tab opens the existing `calendar.familiekalender`, backed by the
+calendar already available on the household phone. Choose a member, a date and
+day/seven-day view; filter by category or open the approved activity library.
+Member selection is a relevance filter, not authentication. Connected Benny work
+and travel calendars are read-only context, never the appointment destination.
+
+Add appointment → choose members/category and Norway-local dates → Review →
+Confirm and save. The review checks duplicates and visible member overlaps. A
+review expires after five minutes or if household facts change. Ambiguous or
+missing local times during daylight-saving transitions are rejected. All-day
+last dates in the form are inclusive; Google receives an exclusive end date.
+Creation is one appointment per save; manage recurrence and event edits using
+the phone calendar. Titles/notes are data and cannot instruct model tool calls.
+
+At deployment a single bounded import registers existing unlabelled entries as
+Mia's, as previously confirmed. Newly discovered unlabelled phone entries are
+Unassigned: select Assign people/category and review the annotation. This stores
+only a Jarvis annotation; Google title/time/notes remain authoritative. Editing
+an old annotated event's title/time on the phone can make it Unassigned again.
+Jarvis-created entries carry a `JARVIS-PLAN/1` first line in their Google notes;
+keep that line when editing on the phone. Removing it makes the event Unassigned.
+
+`household_planner.sqlite3` stores attribution and reviewed-write receipts beside
+the household profile and is covered by add-on data backups. The profile/voice
+files are unchanged. Calendar entries are always read live. Timeout or uncertain
+send outcomes block automatic resubmission: inspect the calendar before making
+another appointment. No automatic cleanup, recurrence, reminders or audio runs.
+
+The companion integration exposes authenticated `jarvis_conversation/planner`
+commands, enforces HA entity permissions and keeps the bridge key server-side.
+Use matching integration/frontend files. A separate card can be mounted as
+`custom:jarvis-planner-card` after loading `/local/jarvis/jarvis-planner.js` as an
+ES module; the existing Household component embeds it with its member directory.
+The card alone also receives its directory in the agenda response.
+
 ## English organiser-note summaries (0.45.77)
 
 For preparation answers, selected Norwegian notes can be summarised in English by

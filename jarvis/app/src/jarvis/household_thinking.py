@@ -128,7 +128,8 @@ class HouseholdThinking:
         if re.search(r'\b(job|birthday|age|born|gpu|lights?|camera|blinds?|thermostat|internet|whatsapp|sources|integration|entity)\b',value):return None
         if re.search(r'\bschool\b',value) and re.match(r'^(when|what time)\b',value):return None
         if value in ('what needs my attention','what should i know','anything i should know','show pending suggestions'):return None
-        follow=same and (re.match(r'^(and\b|what about\b|how about\b|why\b|so\b)',value)
+        between=bool(same and re.search(r'\bbetween (?:those|them|both|the appointments|the events)\b',value))
+        follow=same and (between or re.match(r'^(and\b|what about\b|how about\b|why\b|so\b)',value)
                          or value in ('tell me more','what does that mean','what matters most','anything to prepare')
                          or (previous['purpose']=='availability' and duration_minutes(value) is not None))
         words=re.search(r'\b(briefing|plans?|calendar|appointments?|schedule|day|week|weekend|prepare|preparation|ready|busy|busier|busiest|hectic|overlaps?|clashes?|conflicts?|free|fit|prioriti\w*|stressful|attention|matters?|focus|important)\b',value)
@@ -143,6 +144,7 @@ class HouseholdThinking:
             raise ValueError('Whose plans should I think through? Name a person, or ask when your voice is matched.')
         if named:
             subjects=tuple(dict.fromkeys(named+((hint['member_id'],) if personal and hint['member_id'] not in named else ())))
+        elif between:subjects=previous['subjects']
         elif collective:subjects=('all',)
         elif personal:subjects=(hint['member_id'],)
         elif follow:subjects=previous['subjects']
@@ -162,6 +164,7 @@ class HouseholdThinking:
                 'previous_question':previous['question'] if follow else None,'question':clean(text),
                 'window':window,
                 'purpose':purpose(value,previous['purpose'] if follow else None),
+                'between':between or bool(follow and previous.get('between')),
                 'weather':bool(re.search(r'\b(prepare|preparation|ready|bring|rain|outside|weather|coat)\b',value))}
 
     async def handle(self,text,key):
@@ -229,6 +232,7 @@ class HouseholdThinking:
             evidence['facts'].append({'id':'N'+str(i+1),'kind':'confirmed_note','owners':list(selected),
                 'text':note['text'][:300]})
         if changed():return reply('That question was superseded or its context changed. Please ask again.','unavailable')
+        if plan.get('between'):evidence['between_requested']=True
         board=insights(evidence,text,plan['speaker'],plan['purpose'])
         evidence['truncated']=evidence['truncated'] or board['limited_view']
         for i,load in enumerate(board['calendar_load'],1):
@@ -243,6 +247,9 @@ class HouseholdThinking:
         for i,gap in enumerate(board['candidate_calendar_gaps'],1):
             owner=next(p for p,name in evidence['people'].items() if name==gap['owner'])
             evidence['facts'].append({'id':'G'+str(i),'kind':'calendar_gap','owners':[owner],'text':json.dumps(gap)})
+        for i,gap in enumerate(board.get('between_appointment_gaps',[])[:4],1):
+            owner=next(p for p,name in evidence['people'].items() if name==gap['owner'])
+            evidence['facts'].append({'id':'B'+str(i),'kind':'recorded_interval','owners':[owner],'text':json.dumps(gap)})
         from copy import deepcopy
         spoken_board=deepcopy(board)
         speaker_name=evidence['people'].get(plan['speaker'])
@@ -302,6 +309,8 @@ class HouseholdThinking:
                     # Feedback is code-owned: never turn model prose into authority.
                     feedback={
                         'Missing duration question':'Ask how long the proposed activity should take; do not claim it fits yet.',
+                        'Requested activity exceeds the recorded interval':'State that the requested activity is longer than the recorded gap and will not fit inside it. Do not ask the user to do the calculation.',
+                        'Missing requested duration':'Include the requested activity duration and directly answer whether that duration fits the recorded gap, with calendar-only uncertainty.',
                         'Missing calendar constraint':'Mention the actual appointment time constraint, then ask the required question.',
                         'Missing coordination uncertainty':'These are events for different people. Whether they clash practically depends on shared responsibilities; explain that uncertainty.',
                         'Missing load assessment':'Give the calculated, qualified calendar-load assessment, not just a count.',
@@ -354,6 +363,14 @@ class HouseholdThinking:
     @staticmethod
     def validate_goal(answer,board):
         value=answer.casefold()
+        if 'requested_minutes_fit_recorded_gap' in board:
+            if board['requested_minutes_fit_recorded_gap'] is False:
+                if not re.search(r"does not fit|doesn.t fit|won.t fit|cannot fit|can.t fit|too short|not enough|longer than|exceeds",value):
+                    raise ValueError('Requested activity exceeds the recorded interval')
+                if re.search(r'\b(?:could|can|would|will|should|might) fit\b',value):raise ValueError('Requested activity exceeds the recorded interval')
+            if str(board['requested_activity_duration_minutes']) not in re.findall(r'\b\d+\b',value):raise ValueError('Missing requested duration')
+            if board['requested_minutes_fit_recorded_gap'] and not re.search(r'calendar|recorded|unrecorded|assuming|provided|if|conditional|not confirmed',value):
+                raise ValueError('Unqualified calendar slot')
         if board['duration_clarification_needed'] and not re.search(r'how long|duration|how much time|minutes?\b.*\?',value):
             raise ValueError('Missing duration question')
         if board['purpose']=='availability' and board['appointments'] and not any(
@@ -463,9 +480,9 @@ class HouseholdThinking:
         events=[f for f in evidence['facts'] if f['kind']=='appointment'][:2]
         pieces=[reason]
         for event in events:
-            owner=evidence['people'].get(event['owners'][0],event['owners'][0])
+            owner=' and '.join(evidence['people'].get(p,p) for p in event['owners'])
             from jarvis.calendar_insights import activity
-            pieces.append(owner+' has “'+activity(event['text'])+'” scheduled'+(' at '+event['local_start'] if not event['all_day'] else ' as an all-day entry')+'.')
+            pieces.append(owner+(' have “' if len(event['owners'])>1 else ' has “')+activity(event['text'])+'” scheduled'+(' at '+event['local_start'] if not event['all_day'] else ' as an all-day entry')+'.')
         if not events:pieces.append('That does not establish an empty day or available time.')
         if evidence['source_failures']:pieces.append('Some relevant sources could not be checked.')
         return reply(' '.join(pieces),'unavailable',read_only=True,interpreted=False)

@@ -367,7 +367,7 @@ class EventPreparation(HouseholdThinking):
         for item in obj['events']:
             e=by_id[item['id']];groups.setdefault((tuple(e['owners']),e['date']),[]).append((item,e))
         for (_,day),items in groups.items():
-            first=items[0][1];owner='you have' if first['owners']==[speaker] else first['owner_name']+' has'
+            first=items[0][1];owner='you have' if first['owners']==[speaker] else first['owner_name']+(' have' if len(first['owners'])>1 else ' has')
             when='Today' if day==checked_on else 'Tomorrow' if day==(date.fromisoformat(checked_on)+timedelta(days=1)).isoformat() else 'On '+first['date_label']
             clauses=[]
             for item,e in items:
@@ -402,7 +402,7 @@ class EventPreparation(HouseholdThinking):
         if not valid():return reply('That question’s household context changed. Please ask again.','unavailable')
         if not loaded or loaded.get('status')!='success':return reply('I could not check those calendar details just now.','unavailable')
         evidence=loaded['evidence']
-        events=[dict(e,owner_name=evidence['people'][e['owners'][0]]) for e in evidence['facts'] if e['kind']=='appointment']
+        events=[dict(e,owner_name=' and '.join(evidence['people'][p] for p in e['owners'])) for e in evidence['facts'] if e['kind']=='appointment']
         for event in events:
             if not safe_detail(event['text']):event['text']='a recorded appointment'
             event['description_units']=description_units(event.get('description',''))

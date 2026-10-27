@@ -4,13 +4,14 @@ from datetime import datetime, timedelta
 import re
 
 
-def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, now, *, targets=None,window='all_day',event_context=False):
+def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, now, *, targets=None,window='all_day',event_context=False,shared_calendar_active=False):
     people={p['id']:p['preferred_name'] for p in profile._data['members']}
     selected=set(targets or (people if brief.subject=='all' else (brief.subject,)))
     facts=[]
     def add(kind, owners, text, **fields):
         facts.append({'id':'F'+str(len(facts)+1),'kind':kind,'owners':list(owners),'text':text,**fields})
-    relevant=[e for e in events if ('mia' if e['source']=='family' else 'benny') in selected]
+    def owners(e):return list(e.get('owners',['mia'] if e['source']=='family' else ['benny']))
+    relevant=[e for e in events if set(owners(e)).intersection(selected)]
     windows=[]
     if window!='all_day':
         a,b={'morning':(6,12),'afternoon':(12,18),'evening':(18,24)}[window]
@@ -19,10 +20,10 @@ def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, no
             windows.append((day+timedelta(hours=a),day+timedelta(hours=b)));day+=timedelta(days=1)
         relevant=[e for e in relevant if e['all_day'] or any(e['start'].timestamp()<b.timestamp() and e['end'].timestamp()>a.timestamp() for a,b in windows)]
     for e in relevant[:30]:
-        owner='mia' if e['source']=='family' else 'benny'
+        owner=[p for p in owners(e) if p in selected]
         from jarvis.household_briefing import event_title
         title=event_title(e) if e['source']=='travel' else e['title']
-        add('appointment',[owner],title,start=e['start'].isoformat(),end=e['end'].isoformat(),
+        add('appointment',owner,title,start=e['start'].isoformat(),end=e['end'].isoformat(),
             date=e['start'].date().isoformat(),date_label=e['start'].strftime('%A %d %B'),all_day=e['all_day'],source=e['source'],
             local_start=e['start'].strftime('%H:%M'),local_end=e['end'].strftime('%H:%M'))
         if event_context:
@@ -53,9 +54,9 @@ def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, no
     for i,a in enumerate(timed):
         for b in timed[i+1:]:
             if b['start']>=a['end']:break
-            if (a['source']=='family')==(b['source']=='family') and a['title']!=b['title']:
-                owner='mia' if a['source']=='family' else 'benny'
-                overlaps.append((owner,a,b))
+            common=set(owners(a)).intersection(owners(b),selected)
+            if common and a['title']!=b['title']:
+                for owner in sorted(common):overlaps.append((owner,a,b))
     for owner,a,b in overlaps[:3]:
         add('overlap',[owner],'Scheduled entries overlap: '+a['title']+'; '+b['title'],
             date=max(a['start'],b['start']).date().isoformat(),
@@ -65,7 +66,7 @@ def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, no
     missing=list(unavailable)
     if snapshot is None:missing.append('recorded routines could not be read')
     if selected!=set(people):
-        for person in selected-{'benny','mia'}:
+        for person in (selected-{'benny','mia'} if not shared_calendar_active else ()):
             missing.append('no connected personal calendar for '+people[person])
     truncated=len(relevant)>30 or len(groups)>12
     # Reserve whole records; never let provider character truncation sever facts.

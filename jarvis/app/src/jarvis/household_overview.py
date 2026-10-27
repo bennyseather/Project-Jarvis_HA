@@ -8,6 +8,7 @@ def overview(profile):
     with profile._edits.lock:
         # Re-read the authoritative, atomically-written document, not a second store.
         current = type(profile).load(profile._source_path) if hasattr(profile, '_source_path') else profile
+        if getattr(profile,'_planner',None) is not None:current._planner=profile._planner
         shared = current.context()
         directory = shared.get('directory', {})
         details = shared.get('approved_personal_details', {})

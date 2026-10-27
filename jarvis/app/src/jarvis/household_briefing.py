@@ -37,7 +37,7 @@ def interval(event, *, event_context=False):
         if dt.tzinfo is None:raise ValueError('Ambiguous event time')
         return dt.astimezone(ZONE),False
     start,all_day=stamp(event.get('start'));end,last_day=stamp(event.get('end'))
-    if all_day!=last_day or end<=start:raise ValueError('Invalid event interval')
+    if all_day!=last_day or end.timestamp()<=start.timestamp():raise ValueError('Invalid event interval')
     row={'start':start,'end':end,'all_day':all_day,
          'title':clean(event.get('summary') or event.get('title') or 'Untitled appointment')[:180]}
     if event_context:
@@ -154,17 +154,35 @@ class HouseholdBriefing:
             while len(self.sessions)>100:self.sessions.popitem(last=False)
         start,end=(datetime.fromisoformat(x).replace(tzinfo=ZONE) for x in (brief.start,brief.end))
         selected=set(targets) if targets is not None else ({p['id'] for p in self.profile._data['members']} if brief.subject=='all' else {brief.subject})
-        source_names=['family'] if 'mia' in selected else []
+        planner=getattr(self.profile,'_planner',None)
+        shared_calendar_active=bool(planner is not None and planner.ready)
+        source_names=['family'] if 'mia' in selected or shared_calendar_active else []
         if 'benny' in selected:source_names+=['work','travel']
+        assignment_gaps=[]
         async def calendar(name):
             entity=SOURCES[name]
             if entity not in self.allowed:return name,None,'not connected or not shared'
             try:
-                response=await asyncio.wait_for(self.client.call_service_response('calendar','get_events',{
-                    'entity_id':entity,'start_date_time':start.isoformat(),'end_date_time':end.isoformat()}),10)
-                raw=response[entity]['events']
+                if name=='family' and shared_calendar_active:
+                    raw=await asyncio.wait_for(self.client.get_calendar_events(entity,start,end),10)
+                else:
+                    response=await asyncio.wait_for(self.client.call_service_response('calendar','get_events',{
+                        'entity_id':entity,'start_date_time':start.isoformat(),'end_date_time':end.isoformat()}),10)
+                    raw=response[entity]['events']
                 if not isinstance(raw,list) or len(raw)>500:raise ValueError('Invalid calendar')
-                events=[interval(e,event_context=event_context) for e in raw if e.get('status')!='cancelled']
+                events=[]
+                for e in raw:
+                    if e.get('status')=='cancelled':continue
+                    if name=='family':
+                        from jarvis.calendar_membership import assignment
+                        meta=planner.assign(e) if planner else assignment(e,{p['id'] for p in self.profile._data['members']})
+                        if not meta['members']:
+                            assignment_gaps.append('some family calendar appointments have no assigned member');continue
+                        if not selected.intersection(meta['members']):continue
+                        e={**e,'description':meta['notes']}
+                        owners=meta['members']
+                    else:owners=['benny']
+                    events.append({**interval(e,event_context=event_context),'owners':owners})
                 return name,[e for e in events if e['end']>start and e['start']<end],None
             except Exception:return name,None,'temporarily unavailable'
         async def summary():
@@ -195,6 +213,7 @@ class HouseholdBriefing:
             return result('That briefing was superseded by a newer question. Please ask again.','unavailable')
         snapshot=loaded[0]
         events=[];unavailable=[];sources=[]
+        unavailable.extend(dict.fromkeys(assignment_gaps))
         for name,items,error in loaded[1:]:
             if error:unavailable.append(name+' calendar '+error)
             else:
@@ -205,14 +224,14 @@ class HouseholdBriefing:
         events.sort(key=lambda e:(e['start'],e['source'],e['title']))
         unique=[];seen=set()
         for event in events:
-            owner='mia' if event['source']=='family' else 'benny'
-            identity=(owner,event['start'],event['end'],event['title'])
+            owners=tuple(event.get('owners',['mia'] if event['source']=='family' else ['benny']))
+            identity=(owners,event['start'],event['end'],event['title'])
             if event_context:identity+=(event.get('location'),event.get('description'))
             if identity not in seen:unique.append(event);seen.add(identity)
         if structured_only:
             from jarvis.calendar_evidence import calendar_evidence
             return {**result('Fresh planning evidence checked.'),'provider':'household_briefing','read_only':True,
-                'evidence':calendar_evidence(self.profile,brief,unique,snapshot,sources,unavailable,now,targets=targets,window=window,event_context=event_context)}
+                'evidence':calendar_evidence(self.profile,brief,unique,snapshot,sources,unavailable,now,targets=targets,window=window,event_context=event_context,shared_calendar_active=shared_calendar_active)}
         person=next((p for p in self.profile._data['members'] if p['id']==brief.subject),None)
         own=person is not None and person['id']==hint['member_id']
         who='your' if own else (person['preferred_name']+"'s" if person else 'the household')
@@ -230,7 +249,8 @@ class HouseholdBriefing:
                 stamp='all day on '+day if last==day else 'all day from '+day+' through '+last
             elif event['start']<=now<event['end']:stamp='currently scheduled, until '+event['end'].strftime('%a %d %b at %H:%M')
             else:stamp=day+' at '+event['start'].strftime('%H:%M')
-            owner='Mia’s family calendar' if event['source']=='family' else 'Benny’s '+event['source']+' calendar'
+            names={p['id']:p['preferred_name'] for p in self.profile._data['members']}
+            owner=(' and '.join(names[o] for o in event['owners'])+'’s shared calendar') if event['source']=='family' else 'Benny’s '+event['source']+' calendar'
             lines.append('In '+owner+', “'+event_title(event)+'” is '+stamp+'.')
         if not unique and sources:
             lines.append('I found no '+('remaining ' if brief.upcoming else '')+'entries in the connected '+', '.join(sources)+' calendars for that period; other plans may exist.')
@@ -242,7 +262,7 @@ class HouseholdBriefing:
         for index,a in enumerate(timed):
             for b in timed[index+1:]:
                 if b['start']>=a['end']:break
-                same_owner=(a['source']=='family')==(b['source']=='family')
+                same_owner=bool(set(a['owners']).intersection(b['owners']))
                 if same_owner and a['title']!=b['title']:
                     overlaps.append('“'+event_title(a)+'” and “'+event_title(b)+'”')
         if overlaps:

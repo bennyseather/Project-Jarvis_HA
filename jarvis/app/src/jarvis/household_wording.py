@@ -70,7 +70,7 @@ def render_groups(groups, *, focus='overview', reference, more=False):
                     else:
                         events.append(quote(line))
             if events:
-                sentences.append(name + ' has ' + join_words(events) + ' in the family calendar ' + when + '.')
+                sentences.append(name + (' have ' if ' & ' in name else ' has ') + join_words(events) + ' in the family calendar ' + when + '.')
         elif kind == 'usual school':
             hours = re.fullmatch(r'(\d{2}:\d{2})–(\d{2}:\d{2})', lines[0])
             finish = re.fullmatch(r'Usual school finish: (\d{2}:\d{2})\.', lines[0])
