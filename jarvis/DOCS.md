@@ -1,5 +1,25 @@
 # Project Jarvis add-on
 
+## English organiser-note summaries (0.45.77)
+
+For preparation answers, selected Norwegian notes can be summarised in English by
+the existing local Node model. Only selected whole source clauses are submitted;
+no calendar instructions can operate tools, save facts or edit appointments.
+Each selected activity receives one summary, combining repetitions while keeping
+distinct instructions, alternatives, conditions, times and restrictions. Code
+checks schema, identities, lengths, numbers and key Norwegian/English terminology;
+a separate bilingual call checks the summary against all original selected notes.
+This same-model review is a safeguard, not independent proof of semantic accuracy.
+
+At most one bounded correction is attempted. Each translation/review request has
+a four-second provider limit; final English notes are wrapped in code-bound
+appointment/date/venue text and are not put through a further free rewrite. If
+checks, context validity or the model fail, the original-language source renderer
+remains available. English-only notes and usual-profile prose keep their previous
+composition path. There is no persistent translation cache or profile migration.
+Usual advice remains qualified; a usual venue is never the current confirmed venue.
+Saved voice/calibration is not changed and held audio/reminder tests stay held.
+
 ## Explicit same-activity presentation and organiser prose (0.45.76)
 
 An exact profile can be linked explicitly to another existing profile for the

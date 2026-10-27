@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.45.77
+
+- Summarise selected Norwegian organiser notes in natural English using the local
+  Jarvis Node model. Combine repeated requirements per selected activity, keeping
+  alternatives, conditions, prohibitions, source times and practical instructions.
+- Validate strict event identities, terminology, numbers and key restrictions,
+  then run a separate bilingual source review. One bounded draft correction is
+  allowed. Rejected or unavailable translations retain the original source reply.
+- Attach reviewed English summaries directly to the source-bound appointment
+  wording; do not paraphrase them again or turn usual venues into confirmed ones.
+  Existing English-only/profile prose retains its previous composition path.
+- No new calendar-edit capability or automatic cleanup in Jarvis. Saved household
+  information and voice/calibration are unchanged; actual audio/reminder tests held.
+
 ## 0.45.76
 
 - Support explicitly confirmed same-activity links between exact activity profiles

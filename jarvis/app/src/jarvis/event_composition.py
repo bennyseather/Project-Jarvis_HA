@@ -123,9 +123,9 @@ def validate(raw,facts):
     if not isinstance(text,str) or not 10<=len(text)<=1600 or len(text.split())>140:raise ValueError('length')
     if re.search(r'https?://|www\.|\b(?:F|N)\d+\b|(^|\n)\s*[-*#•]|usual equipment for|usual preparation for|usual routine is to',text,re.I):raise ValueError('style')
     protected=[v for e in facts['events'] for v in e['protected_instructions']]
-    if any(v not in text for v in protected):raise ValueError('instruction')
+    if any(v.casefold() not in text.casefold() for v in protected):raise ValueError('instruction')
     plain=text
-    for v in protected:plain=plain.replace(v,'')
+    for v in protected:plain=re.sub(re.escape(v),'',plain,flags=re.I)
     if '?' in plain or re.search(r"\b(?:i|we)(?: have|'ve)? (?:saved|changed|booked|ordered|switched|turned|created)\b",plain,re.I):raise ValueError('action')
     if not facts['usual_notes'] and re.search(r'\b(?:usual|usually|normally|typically|regularly)\b',plain,re.I):raise ValueError('invented_routine')
     ref=json.dumps({k:v for k,v in facts.items() if k not in ('question','required_words')},ensure_ascii=False)
@@ -157,6 +157,26 @@ def validate(raw,facts):
     return text.strip()
 
 
+def organiser_reply(facts):
+    """Source-bound schedule plus reviewed model summaries, not a new draft."""
+    from jarvis.preparation_wording import join_words
+    parts=[];groups={}
+    for event in facts['events']:groups.setdefault((event['owner'],event['date']),[]).append(event)
+    tomorrow=(date.fromisoformat(facts['checked_on'])+timedelta(days=1)).isoformat()
+    for (_,day),events in groups.items():
+        first=events[0]
+        when='Today' if day==facts['checked_on'] else 'Tomorrow' if day==tomorrow else 'On '+first['date_label']
+        owner='you have' if first['speaker_owned'] else first['owner']+' has'
+        labels=[e['activity']+(' all day' if e['all_day'] else ' at '+e['start_time'])+
+                (' at '+e['current_venue'] if e['current_venue'] else '') for e in events]
+        parts.append(when+', '+owner+' '+join_words(labels)+'.')
+        for e in events:
+            for summary in e['protected_instructions']:
+                parts.append('For '+e['activity']+', '+summary[0].lower()+summary[1:])
+    parts.extend(n['text'] for n in facts['usual_notes'])
+    return validate(json.dumps({'answer':' '.join(parts)}),facts)
+
+
 async def compose(provider,facts,lock,valid):
     started=time.monotonic();calls=0
     def result(text=None,reason='none'):
@@ -179,11 +199,29 @@ async def compose(provider,facts,lock,valid):
         finally:sentence_sink.reset(token)
     try:
         if not valid():return result(reason='changed')
+        from jarvis.organiser_english import translate
+        async def translation_request(instructions,payload,schema,tokens):
+            nonlocal calls
+            if len(payload)+len(instructions)>maximum:raise ValueError('context')
+            calls+=1
+            response=await asyncio.wait_for(asyncio.to_thread(infer,instructions,payload,schema,4,tokens),4.5)
+            if response.get('status')!='success':raise ValueError('provider')
+            return response['message']
+        try:facts,translation_calls=await translate(facts,translation_request,valid)
+        except Exception:return result(reason='changed' if not valid() else 'organiser_translation')
+        if translation_calls:
+            # Do not send already-reviewed translated instructions through a
+            # further paraphrase that could drop a restriction. Only the factual
+            # appointment wrapper is rendered by code; Qwen wrote the summaries.
+            return result(text=organiser_reply(facts),reason='reviewed_english_notes')
+        # Translation is bounded separately; the final-prose budget is unchanged.
+        composition_started=time.monotonic()
+        raw=json.dumps(facts,ensure_ascii=False,separators=(',',':'))
         text=None;payload=raw
         # One bounded correction, never an open-ended rewrite/retry loop. No
         # rejected draft is streamed or treated as evidence for a new fact.
         for attempt in range(2):
-            remaining=7.5-(time.monotonic()-started)
+            remaining=7.5-(time.monotonic()-composition_started)
             if remaining<1.5:return result(reason='timeout')
             timeout=min(4,remaining-0.5);calls+=1
             instructions=draft_instructions if not attempt else draft_instructions+'\nCORRECTION REQUIRED: the previous answer failed code checks. Include every missing_required_phrase verbatim, remove unsupported words, and correct the stated repair issue. Do NOT repeat the failed answer unchanged.'
@@ -213,7 +251,7 @@ async def compose(provider,facts,lock,valid):
                 if len(payload)+len(draft_instructions)>maximum:return result(reason='context')
         review=json.dumps({'facts':facts,'draft':text},ensure_ascii=False,separators=(',',':'))
         if len(review)+len(REVIEW)>maximum:return result(reason='context')
-        remaining=7.5-(time.monotonic()-started)
+        remaining=7.5-(time.monotonic()-composition_started)
         if remaining<1:return result(reason='timeout')
         timeout=min(3,remaining-0.5);calls+=1
         checked=await asyncio.wait_for(asyncio.to_thread(infer,REVIEW,review,REVIEW_SCHEMA,timeout,80),timeout+0.5)
