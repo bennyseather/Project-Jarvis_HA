@@ -1,3 +1,21 @@
+## 0.45.81
+
+- Draft one Familiekalender appointment in HA Assist text, using the Node's local
+  model to extract stated details. Ask for missing person, date, time, duration
+  and venue; show a concise review and save only after an explicit confirmation.
+- Bind confirmation to the authenticated HA actor, conversation, source, speaker
+  relevance, profile revision and Norway date. Voice recognition grants no rights.
+  Cancel or a different topic invalidates the draft. Durable planner receipts
+  recheck duplicates/overlaps and never blindly retry uncertain sends.
+- Correct the member/category catalogue assignment of an identified appointment
+  through a separate explicit review. Re-read the source before saving. Confirmed
+  overrides can apply to Jarvis-created entries without modifying Google's notes;
+  a changed authoritative header invalidates the override. Existing venue/time,
+  recurrence and deletion still use the phone calendar.
+- Preserve shared household knowledge and saved voice/calibration. Actual audio,
+  accent and reminder acceptance remain on hold. NSPanel seasonal status is the
+  separately published shared UI 0.47.71.
+
 # Changelog
 
 ## 0.45.80

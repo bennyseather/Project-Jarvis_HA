@@ -74,6 +74,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                 satellite_device_id,
             )
         session = async_get_clientsession(self.hass)
+        calendar_context = await self._calendar_access(user_input)
         proactive_voice_route = None
         if external_voice:
             proactive_voice_route = {
@@ -123,6 +124,7 @@ class JarvisConversationEntity(conversation.ConversationEntity):
                 "text": request_text,
                 "conversation_id": request_conversation,
                 "speaker_context": speaker_reference,
+                "calendar_context": calendar_context,
                 "source_id": source_id,
                 "voice_mode": voice_mode,
                 "device_id": user_input.device_id,
@@ -181,6 +183,20 @@ class JarvisConversationEntity(conversation.ConversationEntity):
             continue_conversation=payload.get("status")
             == "requires_confirmation",
         )
+
+    async def _calendar_access(self, user_input):
+        """Project the authenticated HA caller's rights; voice is not authority."""
+        from homeassistant.auth.permissions.const import POLICY_CONTROL, POLICY_READ
+        identifier = getattr(user_input.context, 'user_id', None)
+        user = await self.hass.auth.async_get_user(identifier) if identifier else None
+        if user is None:
+            return {'actor': 'anonymous', 'read': False, 'write': False}
+        read = user.permissions.check_entity('calendar.familiekalender', POLICY_READ)
+        write = read and user.permissions.check_entity('calendar.familiekalender', POLICY_CONTROL)
+        if any(self.hass.states.get(entity) and not user.permissions.check_entity(entity, POLICY_READ)
+               for entity in ('calendar.work_reach', 'calendar.jarvis_travels')):
+            write = False
+        return {'actor': str(user.id), 'read': bool(read), 'write': bool(write)}
 
     @staticmethod
     def _browser_voice_target(conversation_id):

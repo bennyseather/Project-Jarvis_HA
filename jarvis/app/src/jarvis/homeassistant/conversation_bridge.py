@@ -29,11 +29,12 @@ class JarvisConversationBridge:
     async def process(
         self, text: str, confirmation_token=None, conversation_id=None,
         voice_mode=False, proactive_voice_route=None, source_id=None, activation_id=None,
-        speaker_context=None,
+        speaker_context=None, calendar_context=None,
     ) -> dict[str, object]:
         from jarvis.household_speaker import speaker_scope
         profile = getattr(self._application.container, 'household_profile', None)
-        with speaker_scope(speaker_context, profile, conversation_id):
+        from jarvis.calendar_context import calendar_scope
+        with speaker_scope(speaker_context, profile, conversation_id), calendar_scope(calendar_context):
             return await self._process(text, confirmation_token, conversation_id, voice_mode,
                                        proactive_voice_route, source_id, activation_id)
 
@@ -189,7 +190,7 @@ class JarvisConversationBridge:
         else:
             result = await operation
         if result.get('provider') in ('household_edits', 'household_memory', 'household_briefing',
-                                      'planning_preparation', 'personal_reminders', 'household_understanding','household_thinking','household_reasoning','connected_understanding'):
+                                      'planning_preparation', 'personal_reminders', 'household_understanding','household_thinking','household_reasoning','connected_understanding','calendar_conversation'):
             # A new household topic/proposal must not leave an older generic
             # memory confirmation waiting to consume the next spoken "yes".
             prior = self._pending_by_conversation.pop(identifier, None)

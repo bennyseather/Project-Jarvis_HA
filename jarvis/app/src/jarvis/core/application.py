@@ -827,7 +827,25 @@ class JarvisApplication:
         if profile is not None:
             if hasattr(profile,'_source_path') and hasattr(getattr(self.container,'home_assistant',None),'get_calendar_events'):
                 from jarvis.household_planner import get_planner
-                get_planner(self.container)
+                planner=get_planner(self.container)
+                from jarvis.calendar_conversation import CalendarConversation
+                dialogue=getattr(self.container,'calendar_conversation',None)
+                if dialogue is None:
+                    dialogue=CalendarConversation(planner,getattr(self.container,'local_reasoning_provider',None))
+                    self.container.calendar_conversation=dialogue
+                preparation=getattr(self.container,'event_preparation',None)
+                prior=getattr(preparation,'sessions',{}).get(str(conversation_id))
+                if prior and (prior['expires']<=preparation.clock() or
+                              not preparation.scope_valid(prior,conversation_id,preparation.allowed)):
+                    prior=None
+                calendar_result=await dialogue.handle(text,conversation_id,source_id,prior)
+                if calendar_result is not None:
+                    for name in (() if calendar_result.get('calendar_read') else ('event_preparation','connected_understanding','household_thinking','planning_preparation','household_briefing','household_dialogue','household_reasoning')):
+                        previous=getattr(self.container,name,None)
+                        if previous is not None:previous.clear(conversation_id)
+                    edits=getattr(profile,'_edits',None)
+                    if edits is not None:edits.observe_turn('calendar appointment conversation',conversation_id)
+                    return calendar_result
             if hasattr(profile,'_data'):
                 from jarvis import household_activities as activities
                 if activities.is_request(text):

@@ -42,6 +42,11 @@ def assignment(event,people,legacy=None,active=False):
             owners=data['members']
             if not isinstance(owners,list) or not owners or len(owners)>len(people) or len(set(owners))!=len(owners) or any(not isinstance(o,str) or o not in people for o in owners):raise ValueError()
             if data['category'] not in CATEGORIES or not isinstance(data['id'],str) or not 8<=len(data['id'])<=64:raise ValueError()
+            saved=(legacy or {}).get(identity(event)) if 'start' in event and 'end' in event else None
+            if (saved and saved.get('_metadata')==hashlib.sha256(first.encode()).hexdigest()
+                    and saved.get('members') and set(saved['members']).issubset(people)
+                    and saved.get('category') in CATEGORIES):
+                return {**saved,'notes':notes,'planner_id':data['id'],'basis':'confirmed Jarvis assignment override'}
             return {'members':sorted(owners),'category':data['category'],'notes':notes,'planner_id':data['id'],'basis':'explicit calendar assignment'}
         except (ValueError,TypeError,KeyError):return {'members':[],'category':'other','notes':raw,'planner_id':None,'basis':'invalid assignment; choose members'}
     try:saved=(legacy or {}).get(identity(event))

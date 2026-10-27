@@ -95,6 +95,7 @@ class ConversationBridgeServer:
                             payload.get("source_id"),
                             payload.get("activation_id"),
                             speaker_context=payload.get("speaker_context"),
+                            calendar_context=payload.get("calendar_context"),
                         ),
                         outer._loop,
                     ).result(timeout=60)

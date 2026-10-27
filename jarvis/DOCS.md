@@ -701,3 +701,21 @@ configuration. The default monthly external-AI budget is USD 10. Ask Jarvis
 normal reasoning model, Terra is attempted once after a provider failure, and
 Sol requires an explicit request for premium reasoning.
 dashboard resources. The Jarvis cards then appear in the visual card picker.
+
+### Calendar conversations (0.45.81)
+
+In one HA Assist text conversation, request one appointment, answer the missing
+details and check Jarvis's full review. Reply Yes only to save the reviewed draft;
+Cancel discards it. Example: “Add a dentist appointment for Mia next Thursday at
+14:00”, “One hour”, “The venue is Example Clinic”. A correction before Yes updates
+the unsaved draft and produces a new review. Dates/times use Europe/Oslo, and the
+review displays the actual date. Missing duration/venue is never guessed.
+
+Existing appointment member/category corrections update the Jarvis catalogue
+after review; Google time, title, notes and location remain unchanged. If the
+appointment is ambiguous, select it first. Use your phone calendar for recurrence,
+date/time/venue changes and deletion. An authenticated HA caller must have the
+calendar entity permissions; recognised voice is relevance, never authentication.
+An unknown speaker is asked whose appointment it is. Drafts expire after five
+minutes and after context changes. An uncertain save must be checked in the
+calendar before retrying. No new calendar or recurring automation is created.

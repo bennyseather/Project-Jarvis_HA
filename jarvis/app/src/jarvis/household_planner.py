@@ -293,8 +293,11 @@ class HouseholdPlanner:
         if not isinstance(members,list) or not members or any(not isinstance(p,str) or p not in self.people for p in members) or len(set(members))!=len(members) or payload['category'] not in CATEGORIES:raise ValueError('Choose members and a category')
         selection={k:payload[k] for k in ('key','start','end')};event=await self.find_event(selection)
         if revision!=self.profile._data['revision']:raise ValueError('Household information changed; review again')
-        if self.assign(event).get('planner_id'):raise ValueError('This appointment already carries its assignment in Google Calendar; edit its original planner metadata there')
         assignment_value={'members':sorted(members),'category':payload['category']};token=secrets.token_hex(20)
+        if self.assign(event).get('planner_id'):
+            assignment_value['_metadata']=hashlib.sha256(str(event['description']).partition('\n')[0].encode()).hexdigest()
+        elif str(event.get('description','')).startswith(PREFIX):
+            raise ValueError('Invalid calendar metadata; correct the original entry before assigning it')
         envelope={'action':'assignment','revision':revision,'selection':selection,'source_hash':self.event_hash(event),
             'previous':self.annotations().get(selection['key']),'assignment':assignment_value}
         with self.db:
