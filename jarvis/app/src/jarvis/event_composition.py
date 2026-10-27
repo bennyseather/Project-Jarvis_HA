@@ -56,11 +56,11 @@ REVIEW_SCHEMA={'type':'object','properties':{k:{'type':'boolean'} for k in ('gro
                'required':['grounded','complete','natural'],'additionalProperties':False}
 FILLER=set(('a an the and or but as at by for from in into of on to with without '
     'i me my mine we us our ours you your yours she her hers he him his they them their theirs '
-    'it its this that these those there here is are was were be been being has have had '
+    'it its this that these those there here is are was were be been being has have had having '
     'do does did can could may might should would will shall not no if unless than then '
     'also plus both each all any some only just still even so such really perhaps '
     'usual usually normally typical typically regular regularly routine customary '
-    'prepare preparation ready get gets getting got keep keeps keeping make makes '
+    'prepare prepared preparation ready get gets getting got keep keeps keeping make makes '
     'bring brings bringing wear wears wearing put puts putting tie ties tied tying '
     'pack packs packing take takes taking check checks checking confirm confirmed '
     'need needs needed want wants remember ensures ensure following follows follow '
@@ -71,7 +71,8 @@ FILLER=set(('a an the and or but as at by for from in into of on to with without
     's t ll d re ve m now today tomorrow day same another something anything '
     'sound sounds simple simply straightforward means heres its thats lets let '
     'sure along normal am pm say says said though although while however '
-    'practise practises practising practiced practised practices practicing vary').split())
+    'practise practises practising practiced practised practices practicing vary '
+    'organiser organisers organizer organizers ask asks request requests').split())
 
 
 def words(text):
@@ -126,6 +127,7 @@ def validate(raw,facts):
     plain=text
     for v in protected:plain=plain.replace(v,'')
     if '?' in plain or re.search(r"\b(?:i|we)(?: have|'ve)? (?:saved|changed|booked|ordered|switched|turned|created)\b",plain,re.I):raise ValueError('action')
+    if not facts['usual_notes'] and re.search(r'\b(?:usual|usually|normally|typically|regularly)\b',plain,re.I):raise ValueError('invented_routine')
     ref=json.dumps({k:v for k,v in facts.items() if k not in ('question','required_words')},ensure_ascii=False)
     unknown=words(text)-words(ref)-FILLER
     if unknown:raise ValueError('new_words')
@@ -161,8 +163,13 @@ async def compose(provider,facts,lock,valid):
         return {'text':text,'reason':reason,'calls':calls,'seconds':round(time.monotonic()-started,3)}
     policy=getattr(provider,'policy',None);method=getattr(provider,'reason_local',None)
     if not method or not getattr(policy,'enabled',False):return result(reason='disabled')
+    draft_instructions=DRAFT
+    if any(e['protected_instructions'] for e in facts['events']):
+        draft_instructions+='\nORGANISER SOURCE: copy protected instructions in their ORIGINAL language, without translation or shortening. Introduce them once per activity, not once per source record.'
+    if not facts['usual_notes']:
+        draft_instructions+='\nNo usual notes were supplied. Do not add as usual, usually, normally or any invented routine.'
     raw=json.dumps(facts,ensure_ascii=False,separators=(',',':'));maximum=getattr(policy,'maximum_input_characters',12000)
-    if len(raw)+len(DRAFT)>maximum:return result(reason='context')
+    if len(raw)+len(draft_instructions)>maximum:return result(reason='context')
     try:await asyncio.wait_for(lock.acquire(),1)
     except asyncio.TimeoutError:return result(reason='busy')
     def infer(instructions,payload,schema,timeout,tokens):
@@ -179,7 +186,8 @@ async def compose(provider,facts,lock,valid):
             remaining=7.5-(time.monotonic()-started)
             if remaining<1.5:return result(reason='timeout')
             timeout=min(4,remaining-0.5);calls+=1
-            instructions=DRAFT if not attempt else DRAFT+'\nCORRECTION REQUIRED: the previous answer failed code checks. Include every missing_required_phrase verbatim, remove unsupported words, and correct the stated repair issue. Do NOT repeat the failed answer unchanged.'
+            instructions=draft_instructions if not attempt else draft_instructions+'\nCORRECTION REQUIRED: the previous answer failed code checks. Include every missing_required_phrase verbatim, remove unsupported words, and correct the stated repair issue. Do NOT repeat the failed answer unchanged.'
+            if len(payload)+len(instructions)>maximum:return result(reason='context')
             draft=await asyncio.wait_for(asyncio.to_thread(infer,instructions,payload,ANSWER_SCHEMA,timeout,320),timeout+0.5)
             if not valid():return result(reason='changed')
             if draft.get('status')!='success':return result(reason='provider')
@@ -190,12 +198,19 @@ async def compose(provider,facts,lock,valid):
                 candidate=draft.get('message','')[:1600]
                 reference=json.dumps({k:v for k,v in facts.items() if k!='question'},ensure_ascii=False)
                 required=[e['activity'] for e in facts['events']]+[e['current_venue'] for e in facts['events'] if e['current_venue']]+facts['required_words']
+                required += [u for e in facts['events'] for u in e['protected_instructions']]
+                explanations={
+                    'instruction':'Copy EVERY protected instruction verbatim in its ORIGINAL language. Do NOT translate or paraphrase any of them.',
+                    'invented_routine':'Remove all added as usual/usually/normally claims. There are NO supplied usual notes. Do not add a replacement routine.',
+                    'new_words':'Remove unsupported factual words. Use the exact supplied activity/venue/item words and protected original-language instructions.',
+                    'event':'Include every supplied activity name and current venue exactly; do not substitute translations or synonyms.'}
                 feedback={**facts,'rejected_draft':candidate,'repair':reason,
+                    'repair_explanation':explanations.get(reason,'Correct the failed code check using the supplied facts only.'),
                     'missing_required_phrases':[v for v in required if v.casefold() not in candidate.casefold()],
                     'do_not_use_unsupported_words':sorted(words(candidate)-words(reference)-FILLER-{'answer'})[:20],
                     'instruction':'Correct the draft using verified facts only. Retain EVERY current venue and required phrase. Mention usual venues ONLY as usual in the SAME sentence; never as scheduled locations. Retain all-day status and usual duration uncertainty. No extra advice.'}
                 payload=json.dumps(feedback,ensure_ascii=False,separators=(',',':'))
-                if len(payload)+len(DRAFT)>maximum:return result(reason='context')
+                if len(payload)+len(draft_instructions)>maximum:return result(reason='context')
         review=json.dumps({'facts':facts,'draft':text},ensure_ascii=False,separators=(',',':'))
         if len(review)+len(REVIEW)>maximum:return result(reason='context')
         remaining=7.5-(time.monotonic()-started)

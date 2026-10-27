@@ -361,6 +361,8 @@ class EventPreparation(HouseholdThinking):
 
     @staticmethod
     def render(obj,events,notes,speaker,checked_on):
+        from jarvis.activity_presentation import prepared
+        obj,events,notes=prepared(obj,events,notes)
         by_id={e['id']:e for e in events};parts=[];groups={}
         for item in obj['events']:
             e=by_id[item['id']];groups.setdefault((tuple(e['owners']),e['date']),[]).append((item,e))
@@ -375,7 +377,7 @@ class EventPreparation(HouseholdThinking):
                 clauses.append(label+timing+location)
             parts.append(when+', '+owner+' '+join_words(clauses)+'.')
             for item,e in items:
-                if item['excerpts']:parts.append('The event notes say: '+ ' '.join('“'+s+'”' for s in item['excerpts']))
+                if item['excerpts']:parts.append('For '+(activity_name(e['activity_profile']['activity']) if e.get('activity_profile') else 'this appointment')+', the organiser notes say: '+ ' '.join('“'+s+'”' for s in item['excerpts']))
         for identifier in obj['notes']:
             note=next(n for n in notes if n['id']==identifier)
             parts.append(note['text'] if note.get('origin')=='activity_profile' else 'A confirmed household note says: “'+note['text']+'”.')
@@ -410,7 +412,9 @@ class EventPreparation(HouseholdThinking):
             event['description']=' '.join(event['description_units'])
             if not safe_detail(event.get('location','')):event['location']=''
             activity_profile=household_activities.match(self.profile._data,event)
-            if activity_profile:event['activity_profile']=activity_profile
+            if activity_profile:
+                event['activity_profile']=activity_profile
+                event['activity_equivalence']=household_activities.equivalence_key(self.profile._data,activity_profile)
         mode='location' if re.search(r'\b(where|venue|location)\b',text,re.I) else 'requirements' if re.search(r'\b(bring|pack|equipment|kit)\b',text,re.I) else 'preparation'
         selection=plan.get('selection_reply',False)
         exact_selection=False
@@ -541,14 +545,25 @@ class EventPreparation(HouseholdThinking):
         finally:self.model_lock.release()
         if obj['question']=='which_event':return self.ask_choice(plan,events,mode,offer_labels=selection,
             local_model_interpretation=True,fact_binding=True)
+        if mode!='location':
+            # A narrowly worded kit question must not hide a current prohibition
+            # or condition on the same selected appointment. Preserve whole safe
+            # source clauses, not extracted positive fragments.
+            originals={e['id']:e for e in selected}
+            for item in obj['events']:
+                constraints=[u for u in originals[item['id']]['description_units'] if re.search(
+                    r'\b(?:not|no|never|ikke|ikkje|ingen|if|unless|hvis|viss|dersom|forbudt)\b',u,re.I)]
+                item['excerpts']=list(dict.fromkeys(item['excerpts']+constraints))
         answer=self.render(obj,events,notes,plan['speaker'],evidence['checked_on'])
+        from jarvis.activity_presentation import prepared
+        presented,display,display_notes=prepared(obj,events,notes)
         language={'text':None,'reason':'not_applicable','calls':0,'seconds':0}
         selected_notes=[n for n in notes if n['id'] in obj['notes']]
-        if mode!='location' and any(n.get('origin')=='activity_profile' for n in selected_notes):
+        if mode!='location' and (any(n.get('origin')=='activity_profile' for n in selected_notes) or any(i['excerpts'] for i in obj['events'])):
             from jarvis.event_composition import board,compose
-            excerpts={i['id']:i['excerpts'] for i in obj['events']}
-            facts=board(plan['question'],[dict(e,selected_excerpts=excerpts[e['id']]) for e in selected],
-                        selected_notes,plan['speaker'],evidence['checked_on'],
+            excerpts={i['id']:i['excerpts'] for i in presented['events']}
+            facts=board(plan['question'],[dict(e,selected_excerpts=excerpts[e['id']]) for e in display],
+                        display_notes,plan['speaker'],evidence['checked_on'],
                         self.render({**obj,'question':'none','suggestion':'none'},events,notes,plan['speaker'],evidence['checked_on']))
             language=await compose(self.provider,facts,self.model_lock,valid)
             if language['reason']=='changed' or not valid():return reply('That question’s household context changed. Please ask again.','unavailable')
@@ -566,5 +581,6 @@ class EventPreparation(HouseholdThinking):
                      composition='local_model_preparation_reviewed' if language['text'] else 'local_event_context',
                      language_model_composition=bool(language['text']),language_fallback_reason=language['reason'],
                      language_model_calls=language['calls'],language_seconds=language['seconds'],
+                     selected_source_event_count=len(selected),presented_event_count=len(display),
                      subject=plan['subjects'][0] if len(plan['subjects'])==1 else None,
                      period={'start':plan['start'],'end':plan['end']})

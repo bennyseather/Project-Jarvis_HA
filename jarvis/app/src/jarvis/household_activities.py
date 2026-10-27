@@ -16,6 +16,7 @@ from jarvis.preparation_wording import activity_name,usual_preparation
 
 FIELDS={'id','person','source','title','activity','equipment','preparation','usual_venue',
         'duration_minutes','recorded_on','provenance'}
+OPTIONAL={'same_activity_as'}
 PREFIX=r'(?:remember|save|note|forget|remove|delete)\s+(?:that\s+)?'
 TARGET=r'(.+?)\s+activity\s+"([^"\n]+)"\s+in\s+the\s+(family|work|travel)\s+calendar'
 
@@ -37,7 +38,7 @@ def validate(records,members):
     if not isinstance(records,list) or len(records)>40:raise ValueError('Activity profile limit')
     keys=set();ids=set()
     for r in records:
-        if not isinstance(r,dict) or set(r)!=FIELDS:raise ValueError('Activity schema')
+        if not isinstance(r,dict) or set(r)-OPTIONAL!=FIELDS:raise ValueError('Activity schema')
         if any(not isinstance(r[k],str) for k in ('person','source','title')):raise ValueError('Activity identity needs text')
         key=(r['person'],r['source'],title_key(r['title']))
         if (r['person'] not in members or r['source'] not in ('family','work','travel') or key in keys or
@@ -56,6 +57,25 @@ def validate(records,members):
         if r['duration_minutes'] is not None and (type(r['duration_minutes']) is not int or not 1<=r['duration_minutes']<=1440):
             raise ValueError('Invalid usual duration')
         keys.add(key);ids.add(r['id'])
+    by_id={r['id']:r for r in records}
+    for r in records:
+        if 'same_activity_as' not in r:continue
+        target=r['same_activity_as']
+        if not isinstance(target,str) or target not in by_id or target==r['id']:raise ValueError('Invalid activity equivalence')
+        other=by_id[target]
+        if (r['person'],r['source'],title_key(r['activity']))!=(other['person'],other['source'],title_key(other['activity'])):
+            raise ValueError('Activity equivalence must have the same person, calendar and confirmed meaning')
+
+
+def equivalence_key(document,record):
+    """Only explicit confirmed links, never inferred from a shared sport/name."""
+    related={record['id']};records=document.get('activity_profiles',[])
+    for _ in range(len(records)):
+        expanded=related|{r['id'] for r in records if r.get('same_activity_as') in related}|{
+            r['same_activity_as'] for r in records if r['id'] in related and r.get('same_activity_as')}
+        if expanded==related:break
+        related=expanded
+    return tuple(sorted(related)) if len(related)>1 else None
 
 
 def normalise_command(text):return ' '.join(str(text).replace('’',"'").replace('“','"').replace('”','"').strip().rstrip('.!?').split())
@@ -91,13 +111,15 @@ def proposal(text,document):
     if meaning:
         if existing and title_key(record['activity'])!=title_key(meaning[1]):
             record.update(equipment=[],preparation=None,usual_venue=None,duration_minutes=None)
-            reset='; clear old usual equipment, venue, preparation and duration because the activity kind changed'
+            record.pop('same_activity_as',None)
+            reset='; clear old usual equipment, venue, preparation, duration and prior same-activity links because the activity kind changed'
         record['activity']=meaning[1]
     else:
         equipment=re.fullmatch(r'(usually needs|also needs)\s+"([^"\n]+)"',change or '',re.I)
         venue=re.fullmatch(r'usually takes place at\s+"([^"\n]+)"',change or '',re.I)
         preparation=re.fullmatch(r'usual preparation is\s+"([^"\n]+)"',change or '',re.I)
         duration=re.fullmatch(r'usually lasts\s+(\d+)\s+minutes?',change or '',re.I)
+        equivalent=re.fullmatch(r'is the same activity as\s+"([^"\n]+)"',change or '',re.I)
         if equipment:
             items=[v.strip() for v in equipment[2].split(',')]
             if equipment[1].casefold()=='also needs':items=record['equipment']+items
@@ -105,9 +127,13 @@ def proposal(text,document):
         elif venue:record['usual_venue']=venue[1]
         elif preparation:record['preparation']=preparation[1]
         elif duration:record['duration_minutes']=int(duration[1])
+        elif equivalent:
+            other=next((r for r in records if r['person']==person and r['source']==source and title_key(r['title'])==title_key(equivalent[1])),None)
+            if not other or other['id']==record['id']:raise ValueError('Name another existing activity profile for this person and calendar.')
+            record['same_activity_as']=other['id']
         else:raise ValueError('Specify means "activity", usually needs "items", usually takes place at "venue", usual preparation is "detail", or usually lasts 60 minutes.')
-    validate([record],{p['id'] for p in document['members']})
-    if existing and all(record[k]==existing[k] for k in FIELDS-{'recorded_on'}):return {'unchanged':True}
+    projected=deepcopy(document);install(projected,{'record':record})
+    if existing and all(record.get(k)==existing.get(k) for k in (FIELDS|OPTIONAL)-{'recorded_on'}):return {'unchanged':True}
     record['recorded_on']=datetime.now(timezone.utc).isoformat()
     detail=record['activity'] if meaning else change
     return {'record':record,'summary':name+"'s exact entry \""+title+'" in the '+source+' calendar: '+detail+reset+
@@ -118,7 +144,12 @@ def install(document,change):
     if change.get('unchanged'):return
     records=document.setdefault('activity_profiles',[])
     identifier=change.get('remove') or change['record']['id']
+    previous=next((r for r in records if r['id']==identifier),None)
+    sever='remove' in change or previous and title_key(previous['activity'])!=title_key(change['record']['activity'])
     records[:]=[r for r in records if r['id']!=identifier]
+    if sever:
+        for r in records:
+            if r.get('same_activity_as')==identifier:r.pop('same_activity_as')
     if 'record' in change:records.append(change['record'])
     validate(records,{p['id'] for p in document['members']})
 
@@ -141,7 +172,8 @@ def view(text,profile):
         '; usual equipment: '+(', '.join(r['equipment']) or 'not recorded')+
         '; usual venue: '+(r['usual_venue'] or 'not recorded')+
         '; usual preparation: '+(r['preparation'] or 'not recorded')+
-        '; usual duration: '+(str(r['duration_minutes'])+' minutes' if r['duration_minutes'] else 'not recorded') for r in records[:8]]
+        '; usual duration: '+(str(r['duration_minutes'])+' minutes' if r['duration_minutes'] else 'not recorded')+
+        ('; same activity as "'+next(v['title'] for v in profile._data['activity_profiles'] if v['id']==r['same_activity_as'])+'"' if r.get('same_activity_as') else '') for r in records[:8]]
     return result('\n'.join(lines)+('\nMore profiles are saved; ask for one person.' if len(records)>8 else ''))
 
 

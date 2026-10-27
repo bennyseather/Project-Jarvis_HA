@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.45.76
+
+- Support explicitly confirmed same-activity links between exact activity profiles
+  for one person/calendar/meaning, using the normal review, save and undo workflow.
+  Never infer equivalence from a sport name alone. Deleting/redefining a linked
+  profile clears affected links; existing profiles need no automatic migration.
+- Present selected equivalent occurrences once only when owner/source/start/end,
+  usual facts and current venues agree. Retain all selected source identities and
+  whole instructions. No calendar entry is merged, deleted or changed.
+- Include organiser-only preparation in reviewed local-Qwen wording. Preserve
+  current negative/conditional clauses even for narrow kit questions, and reject
+  invented usual routines. Original instruction language remains intact: this is
+  not a general translation feature. Direct venue questions remain concise.
+- Preserve saved voice/calibration and held actual audio/reminder/physical tests.
+
 ## 0.45.75
 
 - Let the configured local Node model compose preparation replies when selected

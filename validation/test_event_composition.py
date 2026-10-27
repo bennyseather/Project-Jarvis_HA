@@ -35,6 +35,12 @@ class CompositionTests(unittest.TestCase):
             with self.assertRaises(ValueError):self.check(self.good.replace('Mia has orchestra practice',phrase))
     def test_usual_must_not_disappear(self):
         with self.assertRaises(ValueError):self.check(self.good.replace('as usual',''))
+    def test_no_invented_routine_but_whole_current_usual_instruction_is_allowed(self):
+        event={**self.event,'selected_excerpts':['Bring the usual folder.']}
+        self.facts=board('prepare',[event],[],None,'2026-10-23')
+        text='Tomorrow, Mia has orchestra practice at 14:15 at Current Hall. The instructions say: Bring the usual folder.'
+        self.check(text)
+        with self.assertRaises(ValueError):self.check(text+' As usual, prepare for the session.')
     def test_extra_duration_not_sourced_from_clock_digits(self):
         with self.assertRaises(ValueError):self.check(self.good+' It takes 15 minutes.')
     def test_date_scope_wrong_today_is_rejected(self):

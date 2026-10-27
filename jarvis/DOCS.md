@@ -1,5 +1,40 @@
 # Project Jarvis add-on
 
+## Explicit same-activity presentation and organiser prose (0.45.76)
+
+An exact profile can be linked explicitly to another existing profile for the
+same household member, calendar and confirmed activity meaning. Use the existing
+review/confirmation workflow, for example: Remember Alex's activity "Club B" in
+the family calendar is the same activity as "Club A". Confirm with confirm
+household change. These are stored facts, not model-created aliases. Existing
+profiles remain valid without a link; same sport or same time alone never links
+two activities. Views show the link and normal undo restores it. Deleting a
+target or redefining its meaning clears affected links.
+
+Preparation presentation coalesces only selected, explicitly linked records with
+the same owner, calendar, start/end, day/all-day status and usual facts, and no
+conflicting current locations. Missing location may use the other selected real
+record's current venue, never a usual venue. All source identities stay available
+for fresh lookups; source calendars and their entries are untouched. Identical
+selected instruction clauses and usual notes are shown once. Different or
+unlinked occurrences remain separate. Metadata reports selected-source and
+presented-event counts.
+
+Organiser-only preparation can now use the existing bounded local composition
+and review path too. Safe negative/conditional source clauses are retained even
+when the user asks only what to bring. Whole selected clauses stay in their
+original language; the model must not translate, shorten a prohibition or invent
+customary advice when none was supplied. The checked fallback also coalesces
+explicit duplicates, so a failed model draft cannot restore the duplicate list.
+This does not yet provide a checked English summary of Norwegian instructions.
+Direct place questions remain short and do not read out unrelated instructions.
+
+No new device/model permissions, calendar writes, automatic profile seeding or
+voice changes occur. The optional same_activity_as field is accepted by this
+version; downgrading to .75 or earlier requires the matching pre-link profile
+backup, not just the old image. Audio/accent, real reminders and physical testing
+remain held.
+
 ## Reviewed local-model preparation prose (0.45.75)
 
 For preparation answers with selected confirmed activity-profile advice, the
