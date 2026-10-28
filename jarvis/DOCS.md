@@ -867,3 +867,20 @@ coordinates to Entur for route checks. Conversation or model output cannot grant
 that authority. Home coordinates remain outside Qwen inputs, replies and logs;
 when enabled, the external routing provider necessarily receives the route points.
 No such production approval is enabled by this release.
+
+
+### Contextual driving follow-ups (0.45.101)
+
+After a dated household dinner-planning discussion, ask What is the travel time?
+The routing tool re-reads the following appointment and its exact-scoped saved
+activity venue. It can use home as a labelled dinner planning origin and the
+configured driving-first preference. A town-level estimate is not the exact
+venue entrance, live traffic, parking or a claim about current presence.
+
+Short replies such as home or driving fill the pending route without dropping
+its other fields. Pending and completed routes expire after five minutes and
+are invalidated by changes to the read person/date scope; normal conversation
+account/source/profile/day/voice binding also applies. Specific current calendar
+venues override usual venues. Ambiguous endpoints still need clarification.
+The existing explicit interactive_home_routing approval remains required; this
+release does not grant or broaden sharing. No calendar or device write occurs.

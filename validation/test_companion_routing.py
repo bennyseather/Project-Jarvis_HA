@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 from jarvis.companion_routing import CompanionRouting
 from jarvis.calendar_context import calendar_scope
 from test_companion_coordinator import NOW
+from test_planning_preparation_bundle import profile
 from test_companion_agent import plan
 import test_companion_agent as agent_fixture
 class Provider:
@@ -21,7 +22,7 @@ class Transport:
 class RoutingTests(unittest.IsolatedAsyncioTestCase):
  def setUp(self):
   self.provider=Provider();self.transport=Transport();self.home=AsyncMock(return_value={'latitude':62.12345678,'longitude':5.23456789});self.clock=[1]
-  self.owner=SimpleNamespace(policy=SimpleNamespace(data={'interactive_home_routing':{'enabled':True,'approval_source':'Fictional explicit approval','recorded_on':'2026-10-28'}}),provider=self.provider,container=SimpleNamespace(home_assistant=SimpleNamespace(get_home_location=self.home),household_thinking=None),now=lambda:NOW,clock=lambda:self.clock[0])
+  self.owner=SimpleNamespace(profile=profile(),policy=SimpleNamespace(data={'interactive_home_routing':{'enabled':True,'approval_source':'Fictional explicit approval','recorded_on':'2026-10-28'}}),provider=self.provider,container=SimpleNamespace(home_assistant=SimpleNamespace(get_home_location=self.home),household_thinking=None),now=lambda:NOW,clock=lambda:self.clock[0])
   self.owner.agent=SimpleNamespace(reads=SimpleNamespace(prior=lambda state:state.get('read_focus')))
   self.router=CompanionRouting(self.owner,transport=self.transport);self.state={}
  async def ask(self,text='Can you check the driving time from the house to Ulsteinvik?',read=True):
@@ -69,10 +70,86 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
   evidence={'people':{'mia':'Mia'},'facts':[{'id':'E1','kind':'appointment','owners':['mia'],'text':'Band','start':'2026-10-29T15:40:00+01:00','end':'2026-10-29T16:00:00+01:00','local_start':'15:40','local_end':'16:00','date':'2026-10-29','date_label':'Thursday 29 October','all_day':False},{'id':'E2','kind':'appointment','owners':['mia'],'text':'Gymnastics','start':'2026-10-29T17:00:00+01:00','end':'2026-10-29T18:30:00+01:00','local_start':'17:00','local_end':'18:30','date':'2026-10-29','date_label':'Thursday 29 October','all_day':False}], 'source_failures':[],'truncated':False,'start':'2026-10-29','end_exclusive':'2026-10-30'}
   reader=SimpleNamespace(handle=AsyncMock(return_value={'status':'success','evidence':evidence}));self.owner.container.household_thinking=SimpleNamespace(reader=reader)
   self.state['read_focus']={'purpose':'availability','between':True,'duration_minutes':45,'subjects':['mia'],'start':'2026-10-29','end':'2026-10-30'}
-  r=await self.ask();self.assertIn('If dinner is at home',r['message']);self.assertIn('63 of the recorded 60-minute gap',r['message']);self.assertEqual(reader.handle.await_count,1)
+  r=await self.ask();self.assertIn('If dinner is at home',r['message']);self.assertIn('63 of the recorded 60-minute gap',r['message']);self.assertGreaterEqual(reader.handle.await_count,1)
+class RouteFollowupTests(unittest.IsolatedAsyncioTestCase):
+ setUp=RoutingTests.setUp
+ ask=RoutingTests.ask
+ async def test_short_mode_keeps_previously_supplied_endpoints(self):
+  await self.ask();self.provider.result.update(origin_quote='home',destination_quote='Ulsteinvik',mode='driving')
+  r=await self.ask('driving');self.assertEqual(r['status'],'success');self.assertEqual(r['driving_minutes'],18)
+ async def test_pending_origin_and_destination_survive_mode_question(self):
+  self.provider.result.update(mode='unknown');r=await self.ask();self.assertIn('driving or public',r['message'])
+  self.provider.result.update(origin_quote='the house',destination_quote='Ulsteinvik',mode='driving')
+  r=await self.ask('driving');self.assertEqual(r['status'],'success')
+ async def test_dinner_origin_and_configured_driving_default_are_explicit_planning_assumptions(self):
+  self.owner.policy.data['transport_preference']='driving_first'
+  self.state['read_focus']={'subjects':['mia'],'start':'2026-10-29','end':'2026-10-30','task':'Can we fit dinner between those appointments?','purpose':'availability','between':True,'duration_minutes':45}
+  self.provider.result.update(origin_quote='',mode='unknown')
+  r=await self.ask('What is the travel time to Ulsteinvik?');self.assertEqual(r['status'],'success');self.assertIn('saved home location',r['message']);self.assertFalse('you are home' in r['message'])
+ async def test_new_person_or_date_drops_route_draft(self):
+  self.state['read_focus']={'subjects':['mia'],'start':'2026-10-29','end':'2026-10-30','task':'dinner'}
+  await self.ask();self.state['read_focus']['start']='2026-10-30';self.state['read_focus']['end']='2026-10-31'
+  self.provider.result.update(origin_quote='',destination_quote='',mode='unknown');r=await self.ask('What is the travel time?')
+  self.assertEqual(r['status'],'clarification_required');self.assertEqual(self.state['route_pending']['destination'],'')
+ async def test_source_venue_can_supply_destination_but_not_invented_places(self):
+  self.router.context_venues=AsyncMock(return_value=[{'event':'Gymnastics','current_venue':'Turnhallen','usual_venue':'Gymnastics Building in Ulsteinvik'}])
+  self.provider.result.update(origin_quote='home',destination_quote='Ulsteinvik')
+  r=await self.ask('What is the travel time from home?');self.assertEqual(r['status'],'success');self.assertTrue(self.state['route_focus']['destination_from_context'])
+  self.provider.result['destination_quote']='Bergen';self.assertEqual((await self.ask('What is the travel time?'))['status'],'unavailable')
+ async def test_full_usual_venue_is_a_labelled_town_estimate_not_an_unresolvable_building(self):
+  self.router.context_venues=AsyncMock(return_value=[{'event':'Gymnastics','current_venue':'','usual_venue':'Gymnastics Building in Ulsteinvik'}])
+  self.provider.result.update(origin_quote='home',destination_quote='Gymnastics Building in Ulsteinvik')
+  r=await self.ask('What is the travel time from home?')
+  self.assertEqual(r['status'],'success');self.assertEqual(self.state['route_focus']['destination'],'Ulsteinvik');self.assertIn('town-level',r['message'])
+ async def test_new_concrete_calendar_venue_withdraws_old_context_destination(self):
+  self.router.context_venues=AsyncMock(return_value=[{'event':'Gymnastics','current_venue':'Turnhallen','usual_venue':'Gymnastics Building in Ulsteinvik'}])
+  await self.ask();self.state['route_focus']['destination_from_context']=True
+  self.router.context_venues=AsyncMock(return_value=[{'event':'Gymnastics','current_venue':'Bergen sports centre','usual_venue':''}])
+  self.provider.result.update(origin_quote='home',destination_quote='Bergen')
+  r=await self.ask('And the travel time?');self.assertEqual(r['status'],'success');self.assertEqual(self.state['route_focus']['destination'],'Bergen')
+
+class FreshVenueTests(unittest.IsolatedAsyncioTestCase):
+ setUp=RoutingTests.setUp
+ async def venues(self):
+  with calendar_scope({'actor':'u','read':True,'write':False}):return await self.router.context_venues(self.state)
+ def setup_calendar(self):
+  from test_planning_preparation_bundle import Client
+  from jarvis.household_thinking import HouseholdThinking
+  self.owner.profile._data['activity_profiles']=[{'id':'12345678','person':'mia','source':'family','title':'Gruppe 1','activity':'Gymnastics','usual_venue':'Gymnastics Building in Ulsteinvik','equipment':[],'preparation':None,'duration_minutes':None,'recorded_on':'2026-10-28T12:00:00+00:00','provenance':'Confirmed shared household conversation'}]
+  class FreshClient(Client):
+   async def get_household_today(self,*args,**kw):
+    data=await super().get_household_today(*args,**kw);data['planning']['generated_on']='2026-10-28';return data
+  self.client=FreshClient();self.client.events['calendar.familiekalender']=[{'summary':'Band rehearsal','start':'2026-10-29T15:40:00+01:00','end':'2026-10-29T16:00:00+01:00','location':'School'},{'summary':'Gruppe 1','start':'2026-10-29T17:00:00+01:00','end':'2026-10-29T18:30:00+01:00','location':'Turnhallen'}]
+  self.owner.container.household_thinking=HouseholdThinking(self.owner.profile,self.client,tuple(self.client.events),self.provider,now=lambda:NOW)
+  self.state['read_focus']={'subjects':['mia'],'start':'2026-10-29','end':'2026-10-30','task':'dinner','purpose':'availability','between':True,'duration_minutes':45}
+ async def test_dinner_destination_is_following_appointment_not_first(self):
+  self.setup_calendar();venues=await self.venues()
+  self.assertEqual(len(venues),1);self.assertEqual(venues[0]['event'],'Gruppe 1');self.assertEqual(venues[0]['usual_venue'],'Gymnastics Building in Ulsteinvik');self.assertEqual(venues[0]['planning_place_quote'],'Ulsteinvik')
+ async def test_changed_specific_venue_wins_over_usual_and_is_reread(self):
+  self.setup_calendar();await self.venues()
+  self.client.events['calendar.familiekalender'][1]['location']='Bergen sports centre'
+  venues=await self.venues()
+  self.assertEqual(venues[0]['current_venue'],'Bergen sports centre');self.assertEqual(venues[0]['usual_venue'],'')
+ async def test_unknown_title_cannot_borrow_another_activity_venue(self):
+  self.setup_calendar();self.client.events['calendar.familiekalender'][1].update(summary='Unknown appointment',location='')
+  self.assertEqual(await self.venues(),[])
+ async def test_ambiguous_following_appointments_do_not_choose_one(self):
+  self.setup_calendar();self.client.events['calendar.familiekalender'].append({'summary':'Other appointment','start':'2026-10-29T17:00:00+01:00','end':'2026-10-29T18:00:00+01:00','location':'Bergen'})
+  self.assertEqual(await self.venues(),[])
+ async def test_source_failure_cannot_reuse_a_remembered_destination(self):
+  self.setup_calendar();await self.venues()
+  self.owner.container.household_thinking.reader.handle=AsyncMock(return_value={'evidence':{'source_failures':['family'],'truncated':False}})
+  self.assertEqual(await self.venues(),[])
+
 class AgentRouteTests(unittest.IsolatedAsyncioTestCase):
  setUp=agent_fixture.AgentTests.setUp
  say=agent_fixture.AgentTests.say
+ async def test_literal_self_introduction_is_not_displaced_by_old_topic(self):
+  r=await self.say('Hi Jarvis, this is Benny speaking',plan('identity','introduce',['benny'],'Benny'))
+  self.assertIn('Hi Benny',r['message']);self.assertEqual(self.provider.calls[0]['response_schema']['properties']['tool']['enum'],['identity']);self.assertEqual(self.store.memories(),[])
+ async def test_reported_introduction_does_not_narrow_identity_or_match_voice(self):
+  await self.say('Linda said "Hi Jarvis, this is Benny speaking"',plan('general',answer='That is a reported statement.'))
+  self.assertGreater(len(self.provider.calls[0]['response_schema']['properties']['tool']['enum']),1);self.assertIsNone(self.a.agent.sessions['chat']['introduced'])
  async def test_selected_route_uses_fixed_executor_without_original_router(self):
   calls=[]
   async def handle(text,key,state):calls.append(text);return {'status':'success','message':'A verified routing estimate.'}

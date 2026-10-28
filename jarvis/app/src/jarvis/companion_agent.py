@@ -53,6 +53,12 @@ another place, including after calendar/dinner discussion. Use the routing tool,
 not calendar evidence or general knowledge. A venue statement followed by a
 route QUESTION is local_route, not remember_detail or household_facts.
 'Can you check the driving time from the house to Ulsteinvik?' -> local_route
+'What is the travel time?' after dinner/calendar planning -> local_route.
+When route_focus.awaiting is supplied, short replies giving home, a place, or
+'driving' fill that route slot. They are local_route, not memories or general chat.
+Keep the current read_focus person/date while checking a related route. A short
+'home of course, since we are talking about dinner' or 'driving' continues the
+route even if the preceding answer already supplied an estimate.
 internet_research: news/current public facts or requested internet search.
 assistant_settings: pause/resume learning or travel preparation; memory-clear confirmation.
 development_proposals: review improvement ideas. general_chat: ordinary chat or explanations
@@ -137,9 +143,18 @@ class QwenConversation:
  async def plan(self,text,key,source,state):
   from copy import deepcopy
   people={p['id']:p['preferred_name'] for p in self.profile._data['members']};schema=deepcopy(SCHEMA);schema['properties']['members']['items']['enum']=list(people)
+  # A literal unquoted self-introduction narrows the capability; Qwen still
+  # classifies its identity action. It grants no voice match or authority.
+  names='|'.join(re.escape(n) for n in people.values())
+  if re.fullmatch(r'(?i)(?:(?:hi|hello) Jarvis[, ]+)?this is (?:'+names+r')(?: speaking)?[.!]?',text.strip()):
+   schema['properties']['tool']['enum']=['identity']
+  from jarvis.companion_routing import previous_route
+  routing=previous_route(self.owner,state)
+  if routing and state['last_tool']=='route' and text.casefold().strip(' .?!') in ('driving','by car','car','home','from home','public transport','by bus','bus'):
+   schema['properties']['tool']['enum']=['local_route']
   data={'reference_date':state['binding'][-1],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':state['history'][-6:],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
-   'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'read_focus':self.reads.prior(state),'route_focus':{k:v for k,v in (state.get('route_pending') or state.get('route_focus',{})).items() if k in ('origin','destination','mode')}}
+   'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'read_focus':self.reads.prior(state),'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}
   data['latest']=data.pop('latest') # Current turn last; older tool replies are reference context only.
   out=await local_json(self.provider,PROMPT,data,schema,tokens=100)
   if not isinstance(out,dict) or set(out)!={'tool','members'} or out['tool'] not in DOMAINS:raise ValueError('Invalid conversation tool')

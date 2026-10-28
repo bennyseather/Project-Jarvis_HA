@@ -1,3 +1,14 @@
+## 0.45.101
+
+- Preserve origin, destination and transport mode across short route replies.
+- Use freshly read, person/date-scoped appointment venues for planning routes;
+  a current specific venue takes precedence over a saved usual venue.
+- Apply the configured driving-first preference and label home as a dinner
+  planning assumption. Retain the meal duration for the route comparison.
+- Expire route drafts with their read scope, keep exact home coordinates out of
+  model inputs, and preserve the existing explicit Entur sharing approval.
+- Saved voices, calendars, household memories and reminder settings are unchanged.
+
 ## 0.45.86
 
 - Prepare local Qwen with the same context size as ordinary requests, avoiding
