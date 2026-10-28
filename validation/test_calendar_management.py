@@ -9,7 +9,7 @@ from jarvis.calendar_membership import identity,description
 from jarvis.calendar_conversation import CalendarConversation
 from jarvis.calendar_context import calendar_scope
 from jarvis.calendar_changes import review
-from jarvis.calendar_editing import change_day
+from jarvis.calendar_editing import change_day,label
 from jarvis.calendar_editing import EditingInterpreter,SCHEMA as EDIT_SCHEMA
 from jarvis.household_planner import HouseholdPlanner,CALENDAR,ZONE
 from test_planning_preparation_bundle import profile
@@ -45,6 +45,12 @@ class Client:
         return await self.store.commit('ha-user',payload['token'])
 
 class MutationTests(unittest.IsolatedAsyncioTestCase):
+    def test_labels_accept_native_ha_dates_and_provider_snapshots(self):
+        raw=event();native={**raw,'start':{'dateTime':'2026-11-05T16:00:00+01:00'},'end':{'dateTime':'2026-11-05T17:00:00+01:00'}}
+        self.assertEqual(label(native),label(snapshot(raw)))
+        self.assertIn('16:00–17:00',label(native))
+        native.update(start={'date':'2026-11-05'},end={'date':'2026-11-06'})
+        self.assertIn('all day',label(native))
     def setUp(self):
         self.s=Source();self.clock=[1];self.now=lambda:datetime(2026,10,28,12,tzinfo=ZONE)
         self.store=MutationStore(self.s,clock=lambda:self.clock[0],now=self.now);self.addCleanup(self.store.db.close)

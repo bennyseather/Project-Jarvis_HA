@@ -54,10 +54,12 @@ For find/cancel, every changes string is "" and members is []. For example:
 
 def response(message,status='clarification_required',**extra):return {'provider':'calendar_conversation','status':status,'message':message,**extra}
 def label(event):
-    a=datetime.fromisoformat(event['start']);b=datetime.fromisoformat(event['end'])
+    from jarvis.household_briefing import interval
+    parsed=interval(event,event_context=True)
+    a=parsed['start'];b=parsed['end']
     if a.tzinfo:a=a.astimezone(ZONE);b=b.astimezone(ZONE)
     day=a.strftime('%A %d %B %Y').replace(' 0',' ')
-    clock='all day' if event.get('all_day') or len(event['start'])==10 else a.strftime('%H:%M')+'–'+b.strftime('%H:%M')
+    clock='all day' if parsed['all_day'] else a.strftime('%H:%M')+'–'+b.strftime('%H:%M')
     return '“'+event.get('summary',event.get('title','Appointment'))+'” on '+day+', '+clock+(' at '+event['location'] if event.get('location') else '')
 
 def change_day(phrase,anchor,today):

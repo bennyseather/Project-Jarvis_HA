@@ -1,3 +1,8 @@
+## 0.45.84
+
+- Accept native HA date dictionaries as well as normalized event snapshots when
+  presenting appointment lookup and selection. Preserve all calendar write guards.
+
 ## 0.45.83
 
 - Find an existing household appointment, choose between matches, then review
