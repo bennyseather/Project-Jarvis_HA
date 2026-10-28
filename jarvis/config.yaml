@@ -1,5 +1,5 @@
 name: "Project Jarvis"
-version: "0.45.91"
+version: "0.45.92"
 slug: "jarvis"
 description: "Project Jarvis Home Assistant companion"
 arch: [amd64, aarch64]

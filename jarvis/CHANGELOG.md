@@ -61,6 +61,10 @@
 
 # Changelog
 
+## 0.45.92
+
+- Present the current turn after bounded reference history and explicitly prioritise its speech act. Keep new introductions distinct from previous memory/profile questions in mixed conversations. No data, permission or saved-voice changes.
+
 ## 0.45.91
 
 - Keep first-person job, birthday and age questions on the household-facts tool after a conversation introduction. Distinguish clearing the scoped name from deleting learned memories. Preserve the Qwen-led capability architecture and all existing data/voice and action guards.

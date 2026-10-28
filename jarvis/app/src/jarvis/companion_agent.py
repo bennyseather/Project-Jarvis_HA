@@ -25,6 +25,9 @@ DOMAINS.update({k:'memory' for k in MEMORY_OPERATIONS})
 SCHEMA={'type':'object','properties':{'tool':{'type':'string','enum':list(DOMAINS)},'members':{'type':'array','items':{'type':'string'},'maxItems':4}},'required':['tool','members'],'additionalProperties':False}
 PROMPT="""Select ONE Jarvis capability for the LATEST USER TURN, using the scoped
 conversation. Classify meaning, not just keywords. Return only tool and member IDs.
+The final latest field is the current task. Earlier messages only resolve references;
+never classify an earlier question instead. A direct self-introduction stays identity
+even immediately after a preference recall or a profile answer.
 identity: ONLY asking who is speaking/their name, direct self-introduction, or clear introduced name.
 Questions ABOUT an identified person (job,birthday,age,routine) are household_facts,
 including first-person questions after introducing yourself. Use the latest question
@@ -106,6 +109,7 @@ class QwenConversation:
   data={'reference_date':state['binding'][-1],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':state['history'][-6:],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
    'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending}
+  data['latest']=data.pop('latest') # Current turn last; older tool replies are reference context only.
   out=await local_json(self.provider,PROMPT,data,schema,tokens=100)
   if not isinstance(out,dict) or set(out)!={'tool','members'} or out['tool'] not in DOMAINS:raise ValueError('Invalid conversation tool')
   if not isinstance(out['members'],list) or len(out['members'])>4 or any(m not in people for m in out['members']):raise ValueError('Unknown household subject')
