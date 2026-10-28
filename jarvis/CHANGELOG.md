@@ -61,6 +61,12 @@
 
 # Changelog
 
+## 0.45.89
+
+- Let local Qwen interpret ordinary preference statements, including imperfect English and wording without prefer/like. A completed save receives an acknowledgement instead of a household-information lookup failure.
+- Retain the original preference through a bounded name clarification. Apply that name to this statement only; never treat it as a voice match or persistent speaker identity. Recheck actor, source, conversation, profile revision, expiry and write permission.
+- Repair an exact older unattributed preference when explicitly clarified, preserving its quote and memory ID. Failed saves do not claim success; new topics discard stale clarifications.
+
 ## 0.45.88
 
 - Complete installed text hardening: recognise plural travel-brief requests, respect the named traveller, preserve the broader household attention view, and expire an implicit forget selection when the topic changes.

@@ -43,7 +43,7 @@ class Companion:
   self.now=now or (lambda:datetime.now(timezone.utc));self.clock=clock
   path=self.profile._source_path.with_name('jarvis.sqlite3') if getattr(self.profile,'_source_path',None) else None
   self.store=store or CompanionStore(path,now=self.now);self.provider=getattr(container,'local_reasoning_provider',None)
-  self.foreground=0;self.last_activity=clock();self.last_scan=0.;self.pending=OrderedDict();self.selected=OrderedDict();self.task=None
+  self.foreground=0;self.last_activity=clock();self.last_scan=0.;self.pending=OrderedDict();self.selected=OrderedDict();self.intake_pending=OrderedDict();self.task=None
   self.background=BackgroundReasoning(self,self.provider)
   self.learner=MemoryLearner(self.profile,self.store,self.background)
   thinking=getattr(container,'household_thinking',None)
@@ -105,6 +105,8 @@ class Companion:
   try:
    records=await learner.extract(job)
    if not self.policy.data['improvement_proposals']:records=[r for r in records if r['kind']!='improvement']
+   expected=job['source'].get('preference_subjects')
+   if expected is not None and (len(records)!=1 or records[0]['kind']!='preference' or records[0]['subjects']!=sorted(expected)):raise ValueError('Preference subject/type needs another check')
    if job['source'].get('correct_memory') and len(records)!=1:raise ValueError('A correction needs one clear replacement')
    ids=self.store.finish(job,records);return {'saved':bool(ids),'ids':ids}
   except asyncio.CancelledError:raise
@@ -117,7 +119,7 @@ class Companion:
   if re.match(r'^(?:yes|no|confirm|approve|cancel|stop|forget|delete|correct|remember|save|add|create|book|move|reschedule|set|turn|switch|unlock|open)\b',low):return
   names=[p['preferred_name'] for p in self.profile._data['members']]
   declarative=bool(re.search(r"\b(?:i|we|jeg|eg) (?:prefer|like|dislike|hate|usually|often|always|need|want|plan|will|am|have|foretrekker|liker|vil|skal|har|er)\b|\bi['’]m\b",value,re.I)
-                   or any(re.search(r'\b'+re.escape(n)+r"(?:['’]s)?\s+(?:is|has|will|likes|prefers|needs|usually|often|starts|er|har|skal|liker|foretrekker)\b",value,re.I) for n in names))
+                   or any(re.search(r'\b'+re.escape(n)+r"(?:['’]s)?\s+(?:is|has|will|likes?|prefers?|needs?|usually|often|starts?|er|har|skal|liker|foretrekker)\b",value,re.I) for n in names))
   development=bool(self.policy.data['improvement_proposals'] and re.search(r'\b(jarvis|you|your)\b.{0,70}\b(improve|misunderstand|wrong|bug|slow|should|clips)\b',value,re.I))
   if not declarative and not development:return
   # A question alone supplies no new fact. A clearly embedded reported
@@ -129,6 +131,62 @@ class Companion:
     'explicit_correction':bool(re.search(r'\b(?:actually|instead|no longer|from now|egentlig|heller|ikke lenger)\b',value,re.I))}
   try:self.store.enqueue(value,context)
   except ValueError:pass
+ def statement_candidate(self,text):
+  # A cheap domain/shape gate, NOT a preference verb grammar. Qwen decides
+  # whether the statement actually supplies a preference worth retaining.
+  value=' '.join(text.strip().split())
+  if not 8<=len(value)<=600 or '?' in value or secret(value) or instruction_attempt(value):return False
+  if re.match(r'^(?:what|when|where|why|how|does|do|did|is|are|can|could|would|will|show|tell|yes|no|confirm|approve|cancel|stop|forget|delete|correct|remember|save|add|create|book|move|reschedule|set|turn|switch|unlock|open)\b',value,re.I):return False
+  first=bool(re.search(r"\b(?:i|my|mine|jeg|eg|min|mitt)\b|\bi['\u2019]m\b",value,re.I))
+  named=any(re.search(r'\b'+re.escape(p['preferred_name'])+r'\b',value,re.I) for p in self.profile._data['members'])
+  return first or named
+ async def preference_intake(self,text,key,source):
+  value=' '.join(text.strip().split());access=current_calendar_access.get();binding=self.binding(key,source);generation=self.store.generation
+  prior=self.intake_pending.pop(str(key),None);clarified=False;clarification_quote='';records=None
+  if prior and prior['binding']==binding and prior['expires']>self.clock() and prior['generation']==generation:
+   members=[p for p in self.profile._data['members'] if re.fullmatch(r"(?:(?:it(?:'s| is)|that(?:'s| is)|for) )?"+re.escape(p['preferred_name'])+r"(?:'s)?[.!]?",value,re.I)]
+   if len(members)==1:
+    subjects=[members[0]['id']];clarification_quote=value;value=prior['text'];clarified=True
+    records=[{**r,'subjects':subjects} for r in prior['records']];context={**prior['context']}
+  if not clarified:
+   if not self.statement_candidate(value):return None
+   if not (self.policy.data['enabled'] and self.policy.data['automatic_learning'] and access.write):return None
+   context={'conversation':digest([str(key)]),'actor':digest([access.actor]),'speaker':current_speaker.get().member_id,
+    'anchor':self.now().astimezone(ZoneInfo('Europe/Oslo')).date().isoformat(),'prior_subjects':[],
+    'intake_preference_check':True,'explicit_correction':False,'text':value}
+   try:records=await MemoryLearner(self.profile,self.store,self.provider).extract({'source':context})
+   except (ValueError,asyncio.TimeoutError):return None
+   if len(records)!=1 or records[0]['kind']!='preference':return None
+   subjects=records[0]['subjects']
+  def answer(message,status='success',**extra):return {**response(message,status),'companion_intake':True,**extra}
+  if generation!=self.store.generation or binding!=self.binding(key,source):return answer('That learning request changed while I was checking it. Please tell me again.','unavailable')
+  self.revoke_other_reviews(key)
+  if not self.policy.data['enabled'] or not self.policy.data['automatic_learning']:
+   return answer('Automatic learning is paused, so I have not saved that preference.','unavailable')
+  if not access.write:return answer('Your signed-in HA account needs permission to save that preference.','forbidden')
+  if not subjects:
+   self.intake_pending[str(key)]={'text':value,'records':records,'context':context,'binding':binding,'generation':generation,'expires':self.clock()+300}
+   while len(self.intake_pending)>100:self.intake_pending.popitem(last=False)
+   return answer('Whose preference is that? Please name the household member.','clarification_required')
+  context['preference_subjects']=sorted(subjects)
+  if clarified:
+   context.update(clarified_subjects=subjects,clarification_quote=clarification_quote)
+   # Repair the exact unowned statement from an earlier version. A name reply
+   # supplies this statement's owner only; it never authenticates the speaker.
+   unowned=[m for m in self.store.memories(include_historical=True) if m['quote']==value and not m['subjects'] and m['kind']=='preference']
+   if len(unowned)==1:context.update(correct_memory=unowned[0]['id'],explicit_correction=True)
+  context.pop('text',None)
+  job_id=self.store.enqueue(value,context);ids=[]
+  if job_id:
+   job=self.store.next_job(job_id)
+   try:ids=self.store.finish(job,records) if job else []
+   except ValueError:
+    if job:self.store.retry(job)
+  else:ids=[m['id'] for m in self.store.memories() if m['quote']==value and m['subjects']==sorted(subjects) and m['kind']=='preference']
+  if not ids:return answer('I could not finish saving that preference yet. It needs another learning check; I have not confirmed it as saved.','unavailable')
+  self.selected[str(key)]={'binding':binding,'ids':ids,'expires':self.clock()+300}
+  names=' and '.join(next(p['preferred_name'] for p in self.profile._data['members'] if p['id']==member) for member in subjects)
+  return answer('Got it. I have saved that preference for '+names+'.',memory_saved=True,memory_ids=ids)
  def hint(self,key,result):
   period=result.get('period')
   if period:return period
@@ -139,7 +197,7 @@ class Companion:
   if state.get('start') and state.get('end'):return {'start':state['start'],'end':state['end']}
   return None
  def after(self,text,result,key,source):
-  self.capture(text,result,key,source)
+  if not result.get('companion_intake'):self.capture(text,result,key,source)
   if self.dialogue and not result.get('companion_coordination'):self.dialogue.observe(text,result,key,source,self.hint(key,result))
  def revoke_other_reviews(self,key):
   calendar=getattr(self.container,'calendar_conversation',None)
@@ -165,6 +223,9 @@ class Companion:
   if previous and len(previous['subjects'])>1 and re.search(r'\b(?:her|his|their) (?:birthday|age|job)\b',value):
    return response('Whose information do you mean? Please use their name.')
   if value!='forget that':self.selected.pop(str(key),None)
+  intake=await self.preference_intake(text,key,source)
+  if intake is not None:
+   self.pending.pop(str(key),None);return intake
   old=self.pending.pop(str(key),None)
   if old and old['binding']==binding and old['expires']>self.clock() and value in ('yes','confirm','approve','yes please'):
    if not access.write:return response('Your signed-in HA account needs permission to change learned memories.','forbidden')

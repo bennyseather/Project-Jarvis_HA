@@ -20,7 +20,8 @@ class Provider:
   if self.fail:return {'status':'unavailable'}
   if 'items' in schema.get('properties',{}):
    text=data['latest_user_statement'];person='linda' if 'Linda' in text else 'mia' if 'Mia' in text else 'benny'
-   out={'items':[model_item(text,subjects=[person])]}
+   owners=data.get('explicitly_clarified_subjects') or ([person] if any(n in text for n in ('Benny','Linda','Mia')) or data.get('matched_speaker') else [])
+   out={'items':[model_item(text,subjects=owners,kind='fact' if 'often works' in text else 'preference')]}
   elif 'memory_ids' in schema.get('properties',{}):out={'answer':'Benny mentioned preferring driving to the airport.','memory_ids':[data['memories'][0]['id']]}
   else:out=self.plans.pop(0)
   return {'status':'success','message':json.dumps(out)}
@@ -88,10 +89,10 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
   self.container.conversation_store=SimpleNamespace(normalize_conversation_id=lambda v:v)
   app=SimpleNamespace(container=self.container,handle_request=handle,_user_message=lambda r:r['message'],_pending_action_payloads={})
   bridge=JarvisConversationBridge(app);access={'actor':'user','read':True,'write':True}
-  await bridge.process('Benny prefers driving to the airport.',conversation_id='chat',source_id='phone',calendar_context=access)
+  await bridge.process('Benny often works away from home.',conversation_id='chat',source_id='phone',calendar_context=access)
   self.assertEqual(self.store.job_counts(),{'queued':1})
   result=await bridge.process('Show learned memories',conversation_id='chat',source_id='phone',calendar_context=access)
-  self.assertIn('Benny prefers driving',result['message']);self.assertEqual(len(calls),1)
+  self.assertIn('Benny often works',result['message']);self.assertEqual(len(calls),1)
  async def test_request_local_observations_are_visible_then_reset(self):
   from jarvis.companion_context import current_observations
   store_record(self.store,'Benny prefers driving to the airport.');captured=[]
@@ -128,6 +129,58 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
   store_record(self.store,'Benny prefers driving to the airport.')
   await self.say('What did Benny mention about airport transport?');await self.say('When does Mia finish school?')
   await self.say('Forget that');self.assertEqual(len(self.store.memories()),1)
+ async def test_unknown_preference_then_name_saves_original_quote_for_that_person(self):
+  text='I prefer to listen to high fidelity when listening to music'
+  result=await self.say(text);self.assertIn('Whose preference',result['message']);self.assertEqual(self.store.job_counts(),{})
+  result=await self.say('Benny');self.assertTrue(result['memory_saved']);row=self.store.memories()[0]
+  self.assertEqual(row['quote'],text);self.assertEqual(row['subjects'],['benny']);self.assertIsNone(row['source']['speaker'])
+  self.assertEqual(row['source']['clarification_quote'],'Benny')
+ async def test_prefer_without_s_is_interpreted_by_qwen_and_acknowledged(self):
+  result=await self.say('Benny prefer to listen to high fidelity when listening to music')
+  self.assertTrue(result['memory_saved']);self.assertEqual(self.store.memories()[0]['subjects'],['benny']);self.assertEqual(len(self.provider.calls),1)
+ async def test_preference_does_not_require_one_of_a_fixed_list_of_verbs(self):
+  result=await self.say('For music, Benny values sound quality above convenience.')
+  self.assertTrue(result['memory_saved']);self.assertEqual(len(self.provider.calls),1)
+ async def test_preference_clarification_does_not_cross_actor_source_key_or_expiry(self):
+  for kw in ({'actor':'other'},{'source':'other'},{'key':'other'}):
+   await self.say('I prefer high quality music.');self.assertIsNone(await self.say('Benny',**kw));self.a.intake_pending.clear()
+  await self.say('I prefer high quality music.');self.clock[0]=400;self.assertIsNone(await self.say('Benny'));self.assertEqual(self.store.memories(),[])
+ async def test_preference_pending_is_discarded_on_topic_change_or_cancel(self):
+  for turn in ('Cancel','When does Mia finish school?'):
+   await self.say('I prefer high quality music.');await self.say(turn);self.assertIsNone(await self.say('Benny'))
+  self.assertEqual(self.store.memories(),[])
+ async def test_failed_model_does_not_confirm_a_save(self):
+  self.provider.fail=True;result=await self.say('Benny prefers high quality music.')
+  self.assertIsNone(result);self.assertEqual(self.store.memories(),[])
+ async def test_preference_name_repairs_exact_old_unattributed_record(self):
+  text='I prefer high quality music.';mid=store_record(self.store,text,subjects=[])
+  await self.say(text);result=await self.say('Benny');self.assertTrue(result['memory_saved'])
+  rows=self.store.memories(include_historical=True);self.assertEqual(len(rows),1);self.assertEqual(rows[0]['id'],mid);self.assertEqual(rows[0]['subjects'],['benny'])
+ async def test_matched_voice_preference_needs_no_name_reply(self):
+  self.provider.reason_local=lambda **kw:{'status':'success','message':json.dumps({'items':[model_item('I like high quality music.',subjects=['benny'])]})}
+  result=await self.say('I like high quality music.',speaker='benny');self.assertTrue(result['memory_saved'])
+ async def test_preference_questions_commands_and_short_name_do_not_invoke_intake_model(self):
+  for text in ('Does Benny like good music?','What does Benny prefer?','Turn off the lights','Benny'):
+   await self.say(text)
+  self.assertEqual(self.provider.calls,[])
+ async def test_clarifying_preference_subject_does_not_identify_future_speaker(self):
+  await self.say('I prefer high quality music.');await self.say('Benny')
+  result=await self.say('What did I mention about music?');self.assertIn('Whose',result['message'])
+ async def test_preference_pending_rechecks_voice_binding_profile_and_write_permission(self):
+  await self.say('I prefer high quality music.');self.assertIsNone(await self.say('Benny',speaker='linda'))
+  await self.say('I prefer high quality music.');self.p._data['revision']+=1;self.assertIsNone(await self.say('Benny'))
+  await self.say('I prefer high quality music.');result=await self.say('Benny',write=False);self.assertEqual(result['status'],'forbidden');self.assertEqual(self.store.memories(),[])
+ async def test_forget_in_another_chat_invalidates_pending_preference(self):
+  await self.say('I prefer high quality music.')
+  await self.say('Forget all learned memories',key='other');await self.say('Yes',key='other')
+  self.assertIsNone(await self.say('Benny'));self.assertEqual(self.store.memories(),[])
+ async def test_forget_during_qwen_check_cannot_resurrect_preference(self):
+  from unittest.mock import patch
+  async def extract(instance,job):
+   self.store.forget();return [record(job['source']['text'])]
+  with patch('jarvis.companion.MemoryLearner.extract',new=extract):
+   result=await self.say('Benny prefers high quality music.')
+  self.assertEqual(result['status'],'unavailable');self.assertEqual(self.store.memories(),[])
  async def test_policy_requires_explicit_valid_provenance(self):
   for change in ({'memory_retention':90},{'automatic_learning':'true'},{'approval_source':''}):
    with self.assertRaises(ValueError):CompanionPolicy(None,{**POLICY,**change})

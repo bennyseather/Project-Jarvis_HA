@@ -17,9 +17,11 @@ OBSERVE_PROMPT="""Select useful information from LATEST USER STATEMENT ONLY. Nev
 existing memory's quote. Existing memories are comparison targets, not new facts.
 Return items=[] for questions, filler, tests, hypotheticals or commands.
 quote is one exact continuous excerpt of the latest statement. subjects are IDs
-from the schema, lowercase; never names or I/my. Unknown speaker: subjects=[].
+from the schema, lowercase; never names or I/my. Unknown speaker: subjects=[] unless explicitly_clarified_subjects is supplied.
+An explicit name reply identifies this statement's subject only, not a voice or login.
 kind=plan for dated future/past events; when_quote is their EXACT temporal phrase,
 not the source date. Other kinds normally have when_quote="". Do not invent dates.
+Preferences include tastes and priorities, e.g. valuing sound quality over convenience.
 Direct facts/preferences/plans: interpretation="". Hint: a conditional may/might
 implication, not a fact. Improvement: propose an idea, do not execute it.
 Supersedes is one existing memory ID ONLY for an explicit correction of it;
@@ -31,6 +33,7 @@ LATEST: Anna prefers trains. -> kind preference, when_quote "", interpretation "
 LATEST: Does Anna swim? -> items [].
 LATEST: I prefer quiet flights. Speaker unknown -> subjects [].
 LATEST: Jarvis should explain better. -> kind improvement, subjects [].
+For preference_intake, return the latest preference even when repeated; code deduplicates.
 Latest real input follows separately. At most two items. JSON only, all schema fields.
 """
 
@@ -79,14 +82,20 @@ class MemoryLearner:
         people={p['id']:p['preferred_name'] for p in self.profile._data['members']}
         prior=source.get('prior_subjects',[]);speaker=source.get('speaker')
         existing=self.store.relevant(source['text'],maximum=5)
-        data={'latest_user_statement':source['text'],'source_date':source['anchor'],'people':people,'matched_speaker':speaker,
+        data={'preference_intake':source.get('intake_preference_check',False),'latest_user_statement':source['text'],'source_date':source['anchor'],'people':people,'matched_speaker':speaker,
+              'explicitly_clarified_subjects':source.get('clarified_subjects',[]),'clarification_quote':source.get('clarification_quote',''),
               'prior_subjects':prior,'existing_memories':[{'id':r['id'],'kind':r['kind'],'subjects':r['subjects'],'quote':r['quote']} for r in existing]}
         records=[];named={p for p,name in people.items() if re.search(r'\b'+re.escape(name)+r'\b',source['text'],re.I)}
         first_person=bool(re.search(r"\b(i|my|me|mine|jeg|eg|min|mitt)\b|\bi['\u2019]m\b",source['text'],re.I))
         pronoun=bool(re.search(r'\b(she|he|her|his|hun|han|ho|hennes|hans)\b',source['text'],re.I))
         supported=named|({speaker} if speaker in people and first_person else set())|(set(prior) if pronoun and len(prior)==1 else set())
+        clarified=source.get('clarified_subjects',[])
+        if clarified:
+            if not first_person or named or not source.get('clarification_quote') or any(p not in people for p in clarified):raise ValueError('Invalid statement subject clarification')
+            supported|=set(clarified)
         schema=deepcopy(OBSERVE_SCHEMA)
         schema['properties']['items']['items']['properties']['quote']['enum']=[source['text']] if len(source['text'])<=600 else [source['text'][i:i+600] for i in range(0,len(source['text']),500)]
+        schema['properties']['items']['items']['properties']['supersedes']['enum']=['']+([r['id'] for r in existing] if source.get('explicit_correction') and not source.get('correct_memory') else [])
         owner_schema=schema['properties']['items']['items']['properties']['subjects']
         owner_schema['items']['enum']=sorted(supported) or list(people)
         if not supported:owner_schema['maxItems']=0
@@ -99,7 +108,7 @@ class MemoryLearner:
             owners=item['subjects']
             if not isinstance(owners,list) or len(owners)>4 or len(set(owners))!=len(owners) or any(p not in people or p not in supported for p in owners):raise ValueError('Learning subject not supported')
             # An unrecognised first-person statement stays unattributed.
-            if first_person and not named and speaker not in people and owners:raise ValueError('Shared account does not identify the speaker')
+            if first_person and not named and speaker not in people and not clarified and owners:raise ValueError('Shared account does not identify the speaker')
             implication=bounded(item['interpretation'],300) if kind in ('hint','improvement') else ''
             if secret(implication):raise ValueError('Secret-like inferred text refused')
             if kind=='hint':

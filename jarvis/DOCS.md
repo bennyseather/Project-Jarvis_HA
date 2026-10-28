@@ -1,3 +1,16 @@
+## Natural preference intake (0.45.89)
+
+Qwen judges whether a normal statement supplies a useful preference; no fixed
+prefer/prefers verb rule decides its meaning. After a validated preference is
+stored, Jarvis acknowledges completion. For an unrecognised speaker's first-person
+statement, Jarvis asks whose preference it is and keeps the exact statement for
+up to five minutes. Reply with the household member's name in the same chat.
+This identifies only that statement's subject, not the signed-in user or voice.
+A new topic, changed source/actor/profile/voice binding or expiry ends that link.
+An exact old unattributed preference can be corrected in place when clarified.
+The quoted source and the explicit clarification remain recorded for inspection.
+Other useful reports continue through background learning and normal handlers.
+
 ## Assistant memory and initiative (0.45.87)
 
 The opted-in assistant runs inside Jarvis, using the Node's qwen3:8b model locally.
