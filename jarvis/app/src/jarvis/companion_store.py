@@ -70,7 +70,7 @@ class CompanionStore:
                     self.db.execute('INSERT INTO assistant_improvements VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET updated_at=excluded.updated_at',(key,now,'proposed',json.dumps({'quote':quote,'proposal':bounded(record.get('interpretation',''),900),'source':'Conversation observation; no code has been executed','autonomous_execution':False},ensure_ascii=False)))
                     continue
                 if self.db.execute('SELECT count(*) FROM assistant_memories').fetchone()[0]>=5000:raise ValueError('The retained-memory index needs review; nothing was evicted')
-                payload={**record,'quote':quote,'source':{'kind':'direct_user_statement','conversation':source.get('conversation'),'actor':source.get('actor'),'speaker':source.get('speaker'),'anchor':source.get('anchor'),'recorded_at':now,'clarified_subjects':source.get('clarified_subjects',[]),'clarification_quote':source.get('clarification_quote','')}}
+                payload={**record,'quote':quote,'source':{'kind':'direct_user_statement','conversation':source.get('conversation'),'actor':source.get('actor'),'speaker':source.get('speaker'),'speaker_basis':source.get('speaker_basis','unknown'),'anchor':source.get('anchor'),'recorded_at':now,'clarified_subjects':source.get('clarified_subjects',[]),'clarification_quote':source.get('clarification_quote','')}}
                 key=digest([record['kind'],record.get('subjects',[]),quote,source.get('anchor') if record['kind']=='plan' else ''])
                 prior=self.db.execute('SELECT id FROM assistant_memories WHERE fingerprint=?',(key,)).fetchone()
                 identifier=prior[0] if prior else 'M'+secrets.token_hex(4)

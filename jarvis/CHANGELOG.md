@@ -61,6 +61,13 @@
 
 # Changelog
 
+## 0.45.90
+
+- Add an opted-in Qwen conversation coordinator. Qwen interprets ordinary turns, maintains scoped context, selects an approved capability and answers general conversation itself. Existing code remains responsible for sourced household facts, calendar/device execution, permissions and confirmations.
+- Use compact capability selection followed by capability-specific model arguments; never accept model-selected code, endpoints, credentials or confirmation tokens. Original action requests reach the existing executors unchanged.
+- Treat self-introductions as temporary conversation references, not preferences or voice matches. A name reply after who-am-I identifies that conversation; a name reply after a preference question attributes only that detail. Do not carry introductions across sessions, accounts or sources.
+- Preserve saved voice, household data and existing action confirmation. Audio and reminder acceptance remain held. Enable the new coordinator with conversation_mode qwen_tools in the protected assistant policy; legacy mode remains available for rollback.
+
 ## 0.45.89
 
 - Let local Qwen interpret ordinary preference statements, including imperfect English and wording without prefer/like. A completed save receives an acknowledgement instead of a household-information lookup failure.

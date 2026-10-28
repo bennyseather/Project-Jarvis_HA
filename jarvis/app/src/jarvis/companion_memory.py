@@ -13,11 +13,14 @@ ITEM_FIELDS={'kind':{'type':'string','enum':['fact','preference','plan','hint','
  'interpretation':{'type':'string'},'topic':{'type':'string'},
  'tags':{'type':'array','items':{'type':'string'},'maxItems':6},'when_quote':{'type':'string'},'supersedes':{'type':'string'}}
 OBSERVE_SCHEMA={'type':'object','properties':{'items':{'type':'array','maxItems':2,'items':{'type':'object','properties':ITEM_FIELDS,'required':list(ITEM_FIELDS),'additionalProperties':False}}},'required':['items'],'additionalProperties':False}
-OBSERVE_PROMPT="""Select useful information from LATEST USER STATEMENT ONLY. Never emit an
+OBSERVE_PROMPT="""Select useful information from LATEST USER STATEMENT ONLY. Self-introductions,
+claims about who is speaking and requests to identify someone are NOT memories
+or preferences; return items=[] for them. Never emit an
 existing memory's quote. Existing memories are comparison targets, not new facts.
 Return items=[] for questions, filler, tests, hypotheticals or commands.
 quote is one exact continuous excerpt of the latest statement. subjects are IDs
-from the schema, lowercase; never names or I/my. Unknown speaker: subjects=[] unless explicitly_clarified_subjects is supplied.
+from the schema, lowercase; never names or I/my. Use conversation_speaker for I/my when explicitly introduced in this chat.
+Unknown speaker: subjects=[] unless explicitly_clarified_subjects is supplied.
 An explicit name reply identifies this statement's subject only, not a voice or login.
 kind=plan for dated future/past events; when_quote is their EXACT temporal phrase,
 not the source date. Other kinds normally have when_quote="". Do not invent dates.
@@ -82,7 +85,7 @@ class MemoryLearner:
         people={p['id']:p['preferred_name'] for p in self.profile._data['members']}
         prior=source.get('prior_subjects',[]);speaker=source.get('speaker')
         existing=self.store.relevant(source['text'],maximum=5)
-        data={'preference_intake':source.get('intake_preference_check',False),'latest_user_statement':source['text'],'source_date':source['anchor'],'people':people,'matched_speaker':speaker,
+        data={'preference_intake':source.get('intake_preference_check',False),'latest_user_statement':source['text'],'source_date':source['anchor'],'people':people,'matched_speaker':speaker if source.get('speaker_basis','voice_match')=='voice_match' else None,'conversation_speaker':speaker if source.get('speaker_basis')=='self_reported_conversation' else None,
               'explicitly_clarified_subjects':source.get('clarified_subjects',[]),'clarification_quote':source.get('clarification_quote',''),
               'prior_subjects':prior,'existing_memories':[{'id':r['id'],'kind':r['kind'],'subjects':r['subjects'],'quote':r['quote']} for r in existing]}
         records=[];named={p for p,name in people.items() if re.search(r'\b'+re.escape(name)+r'\b',source['text'],re.I)}
@@ -148,7 +151,7 @@ return memory_ids=[] instead of an unrelated memory. Do not invent facts. JSON o
 """
 async def answer_memory(provider,text,memories,people,speaker=None):
     rows=[{k:r.get(k) for k in ('id','kind','subjects','quote','interpretation','confidence','anchor','valid_from','valid_until','date_unresolved','status','currently_applicable','temporal_state')} for r in memories[:8]]
-    result=await local_json(provider,ANSWER_PROMPT,{'question':text,'people':people,'matched_speaker':speaker,'memories':rows},ANSWER_SCHEMA,tokens=240)
+    result=await local_json(provider,ANSWER_PROMPT,{'question':text,'people':people,'identified_speaker':speaker,'memories':rows},ANSWER_SCHEMA,tokens=240)
     if not isinstance(result,dict) or set(result)!={'answer','memory_ids'}:raise ValueError('Invalid memory answer')
     message=bounded(result['answer'],1300);ids=result['memory_ids'];known={r['id'] for r in rows}
     if ids==[]:raise MemoryNoMatch('No learned memory answers that question')

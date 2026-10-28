@@ -73,7 +73,7 @@ def resolve_question(text, document):
     name = hint['preferred_name']
     normalized = ' '.join(value.casefold().replace('’', "'").strip(' .?!').split())
     if normalized in ('who am i', 'what is my name', "what's my name"):
-        return text, {'status': 'success', 'message': 'Your voice sounds like '+name+'.',
+        return text, {'status': 'success', 'message': ('Your voice sounds like '+name+'.' if hint['basis']=='voice_match' else 'You introduced yourself as '+name+' in this conversation.'),
                       'provider': 'household_speaker', 'cacheable': False}
     # Resolve an explicitly recorded spouse before the planning classifier sees
     # a possessive. Otherwise "my wife's work" could select the speaker's work.

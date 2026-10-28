@@ -1,3 +1,32 @@
+## Qwen-led conversation and tools (0.45.90)
+
+Set conversation_mode to qwen_tools in /config/assistant_policy.json, alongside
+its existing approved enabled flags. Legacy mode is the default if this field is
+absent. Qwen interprets every normal conversational turn and selects one fixed
+capability: identity, remembered details, household facts/plans, activity
+preparation, calendar/profile editing, reminders, booked travel/airport briefs,
+home tools, research, assistant settings, development proposals or general chat.
+General conversation is answered by Qwen. Tools retain source checks, actual
+permissions, date/age arithmetic, confirmed writes and durable action journals.
+Pending explicit confirmations/cancellations can still be consumed by existing
+code before model routing. No model-generated executable code, arbitrary endpoint,
+authentication claim or replacement confirmation token is accepted.
+
+Say Hi Jarvis,this is Benny speaking, or answer the name question after Who am I.
+That creates an in-memory, 30-minute-idle reference for this authenticated
+conversation/source/account/profile revision/day. It is not a voice match, live
+presence or action authority. A real different voice match takes precedence.
+Forget who I am clears this conversation reference without erasing household
+facts or saved voice. Introductions are not stored as preferences. Name replies
+to whose-detail questions apply only to that statement, not all future I/my.
+
+The coordinator preserves original action text when delegating to existing
+executors, and never claims a write from a general reply. Read tools still use
+approved shared sources; missing sources remain unknown. A bounded model failure
+returns a clear unavailable reply rather than silently reverting to a different
+first-match router. Capability selection adds model time; measurements belong
+to full installed text checks, not just a small model prompt benchmark.
+
 ## Natural preference intake (0.45.89)
 
 Qwen judges whether a normal statement supplies a useful preference; no fixed

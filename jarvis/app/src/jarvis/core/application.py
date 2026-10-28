@@ -831,6 +831,8 @@ class JarvisApplication:
         """Route one user request through the configured safe assistant slice."""
 
         profile = getattr(self.container, "household_profile", None)
+        from jarvis.companion_agent import coded_backend_only
+        if coded_backend_only.get():profile = None
         if profile is not None:
             if hasattr(profile,'_source_path') and hasattr(getattr(self.container,'home_assistant',None),'get_calendar_events'):
                 from jarvis.household_planner import get_planner
