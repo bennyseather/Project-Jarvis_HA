@@ -39,6 +39,9 @@ Fictional Hall, all target fields empty. That appointment is for Linda AFTER
 selection => update, changes.members [linda],member_evidence for Linda.
 Cancel Mia's piano lesson on Thursday => cancel, old label/date/person only.
 Find Mia's dentist appointment next week => find, old label/date/person only.
+Find Mia's next gymnastics appointment => find, target_title gymnastics appointment,
+target_person mia, target_date "". Next/upcoming alone orders future matches; it
+is not a date. Next Thursday/next week remain explicit date filters.
 Every/all occurrences/the whole series is unsupported here. Never delete a series.
 General weather/birthday/job questions are unrelated; cancel alone discards a
 pending draft. Do not add invitees, send messages or infer booking cancellation.
@@ -113,6 +116,13 @@ class EditingInterpreter:
             try:return quote(value,text)
             except ValueError:return ''
         title=stated(data['target_title']);day=stated(data['target_date']);person=data['target_person']
+        if day.casefold() in ('next','upcoming'):
+            # A model may quote the ordering word as an incomplete date. Recover
+            # a single explicit date from the request, otherwise keep the
+            # existing bounded next-match lookup; never invent a date.
+            dates=list(DATE_PATTERN.finditer(text.casefold()))
+            if len(dates)>1:raise ValueError('Please give the old day or week, or an ISO date')
+            day=dates[0].group() if dates else ''
         if person and (person not in people or not re.search(r'\b'+re.escape(people[person])+r'\b',text,re.I)):
             if person!=speaker or not re.search(r'\b(my|me)\b',text,re.I):person=''
         target={}

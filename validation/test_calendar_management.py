@@ -162,6 +162,15 @@ class DialogueTests(unittest.IsolatedAsyncioTestCase):
         self.responses['Find Mia next dentist appointment']=('find',{'title':'dentist','person':'mia'}, {})
         out=await self.say('Find Mia next dentist appointment');self.assertIn('I found',out['message'])
         self.assertEqual(self.e.sessions['chat']['selection']['start'],'2026-11-05');self.assertFalse(self.s.writes)
+    async def test_actual_next_model_patch_selects_earliest_future_event(self):
+        self.s.raw.update(summary='Gymnastics',description=description(['mia'],'sport','fictional-plan-id',''))
+        later=snapshot(self.s.raw);later.update(start='2026-11-12T16:00:00+01:00',end='2026-11-12T17:00:00+01:00',uid='later-fictional-id')
+        async def rows(entity,start,end):return [later,snapshot(self.s.raw)] if entity==CALENDAR else []
+        self.client.get_calendar_events=rows
+        self.e.extractor=EditingInterpreter(GroundingTests().provider('find','gymnastics appointment','next','mia'))
+        out=await self.say('Find Mia’s next gymnastics appointment')
+        self.assertIn('I found',out['message']);self.assertIn('Thursday 5 November',out['message'])
+        self.assertEqual(self.e.sessions['chat']['selection']['start'],'2026-11-05');self.assertFalse(self.s.writes)
     async def test_new_phone_entry_is_interpreted_when_found_without_a_dashboard_refresh(self):
         self.s.raw.update(summary='Mia dentist',description='Bring the letter.')
         class Interpreter:
@@ -202,6 +211,18 @@ class GroundingTests(unittest.IsolatedAsyncioTestCase):
         data={'operation':operation,'target_title':target_title,'target_date':target_date,'target_person':target_person,
             'changes':{'members':[],'category':'',**dict.fromkeys(FIELDS,''),**changes}}
         return SimpleNamespace(reason_local=lambda **kwargs:{'status':'success','message':json.dumps(data)})
+    async def test_next_is_ordering_not_an_incomplete_date(self):
+        for model_day in ('next',''):
+            interpreter=EditingInterpreter(self.provider('find','gymnastics appointment',model_day,'mia'))
+            operation,target,patch=await interpreter.extract('Find Mia’s next gymnastics appointment',{'mia':'Mia'},'2026-10-28',False,None)
+            self.assertEqual((operation,target,patch),('find',{'title':'gymnastics appointment','person':'mia'},{}))
+    async def test_partial_next_date_keeps_an_explicit_weekday_filter(self):
+        interpreter=EditingInterpreter(self.provider('find','gymnastics appointment','next','mia'))
+        _,target,_=await interpreter.extract('Find Mia’s gymnastics appointment next Thursday',{'mia':'Mia'},'2026-10-28',False,None)
+        self.assertEqual(target['range'],('2026-11-05','2026-11-06'))
+    async def test_partial_next_does_not_choose_between_two_explicit_dates(self):
+        interpreter=EditingInterpreter(self.provider('update','appointment','next','mia'))
+        with self.assertRaises(ValueError):await interpreter.extract('Move Mia appointment next Thursday to next Friday',{'mia':'Mia'},'2026-10-28',False,None)
     async def test_unsupported_model_fields_are_dropped_without_losing_stated_venue(self):
         interpreter=EditingInterpreter(self.provider('update','Old invented appointment','Thursday','mia',venue='Fictional Clinic',date='Thursday',time='1600',member_evidence='not stated'))
         operation,target,patch=await interpreter.extract('Change the venue to Fictional Clinic',{'mia':'Mia'},'2026-10-28',True,None)

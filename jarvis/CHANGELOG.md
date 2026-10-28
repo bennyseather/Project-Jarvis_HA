@@ -1,3 +1,8 @@
+## 0.45.85
+
+- Treat next as future-match ordering rather than an incomplete appointment date.
+  Preserve explicit next-weekday/week filters, review guards and voice data.
+
 ## 0.45.84
 
 - Accept native HA date dictionaries as well as normalized event snapshots when
