@@ -152,7 +152,8 @@ class AutomaticMealTests(unittest.IsolatedAsyncioTestCase):
   with calendar_scope({'actor':'u','read':True,'write':False}):return await self.router.meal_plan('about '+str(minutes)+' minutes','s',self.state,{'status':'success','message':'A calendar-only answer.'})
  async def test_both_drives_automatically_count_and_overshoot_is_clear(self):
   r=await self.check();self.assertTrue(r['meal_budget']['complete']);self.assertEqual(r['meal_budget']['checked_travel_minutes'],36);self.assertEqual(r['meal_budget']['remaining_minutes'],-21);self.assertIn('81 minutes',r['message']);self.assertIn('21 minutes longer',r['message']);self.assertEqual(len([c for c in self.transport.calls if c[0]=='route']),2)
-  self.assertTrue(self.transport.calls[-2][-1]['depart_after']);self.assertFalse(self.transport.calls[-1][-1]['depart_after'])
+  routes=[c for c in self.transport.calls if c[0]=='route'];incoming=next(c for c in routes if c[2]['latitude']==62.12345678);outgoing=next(c for c in routes if c[1]['latitude']==62.12345678)
+  self.assertTrue(incoming[-1]['depart_after']);self.assertFalse(outgoing[-1]['depart_after'])
  async def test_asymmetric_journeys_use_both_directions(self):
   old=self.transport.route
   def route(a,b,*args,**kw):
