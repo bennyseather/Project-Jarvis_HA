@@ -105,7 +105,10 @@ def insights(evidence, question, speaker, goal=None):
             'calendar_load_assessment':('relatively light' if minutes<=120 else 'moderate' if minutes<=240 else 'substantial')+' recorded appointment load, not a judgment of the whole day',
             'basis':'returned timed calendar entries only; excludes routines and unrecorded commitments',
             'evidence':[r[0]['id'] for r in rows]})
-    focus = 'Summarise the shape of this period, highlighting specific commitments rather than reciting all sources.'
+    routine_question=re.sub(r'^(?:please |jarvis[, ]+)+','',question.strip(),flags=re.I)
+    routine_time_question=bool(re.match(r'^(when|what time)\b',routine_question,re.I) and re.search(r'\b(school|work|bus|bedtime|wake)\b',question,re.I))
+    focus = ('Answer the requested usual routine time directly,using the supplied timetable. Qualify it as usual,not confirmed attendance. Do not replace that answer with unrelated appointments.' if routine_time_question else
+             'Summarise the shape of this period, highlighting specific commitments rather than reciting all sources.')
     if goal=='preparation':
         focus='Lead with the extra appointment(s) to plan around, then one relevant conditional preparation check. Do not let usual school/work crowd out specific commitments.'
     elif goal=='busyness':
@@ -164,7 +167,7 @@ def insights(evidence, question, speaker, goal=None):
                 day+=timedelta(days=1)
     missing_duration=goal=='availability' and activity_requested and duration is None
     missing_window=goal=='availability' and activity_requested and duration is not None and window=='all_day'
-    board={'purpose':goal,'answer_the_question':focus,
+    board={'purpose':goal,'answer_the_question':focus,'routine_time_question':routine_time_question,
         'speaking_to':people.get(speaker, speaker) if speaker else 'unidentified household member',
         'appointments':prepared[:12], 'calendar_load':days[:14] if goal!='availability' else [],
         'potential_same_person_conflicts':[{'text':f['text'],'when':f['date_label']+' '+f['local_start']+'–'+f['local_end'],'evidence':[f['id']]} for f in overlaps],
@@ -216,7 +219,7 @@ def relative_day(start,reference):
 
 def day_overview(board,evidence):
     """Small, complete input for conversational one-person/one-day answers."""
-    if (board['purpose']!='overview' or len(evidence['people'])!=1 or board['limited_view'] or
+    if (board['purpose']!='overview' or board.get('routine_time_question') or len(evidence['people'])!=1 or board['limited_view'] or
         board['missing_sources'] or len(board['appointments'])>4 or
         (datetime.fromisoformat(evidence['end_exclusive'])-datetime.fromisoformat(evidence['start'])).days!=1):return None
     by_id={f['id']:f for f in evidence['facts'] if f['kind']=='appointment'}
@@ -235,6 +238,31 @@ def day_overview(board,evidence):
     return {'day':relative_day(evidence['start'],evidence.get('checked_on')) or evidence['start'],
         'appointments':entries,'usual_school':school,'usual_routines':board['usual_routines'] if not entries and not school else [],
         'empty_calendar_scope':'No appointments were returned from the connected household calendar for this day; this is not proof of actual availability.' if not entries else None}
+
+
+
+def routine_time_reply(question,evidence,speaker):
+    """An exact requested school time comes from the dated routine projection."""
+    if len(evidence['people'])!=1 or (datetime.fromisoformat(evidence['end_exclusive'])-datetime.fromisoformat(evidence['start'])).days!=1:return None
+    if not re.search(r'\bschool\b',question,re.I):return None
+    finish=bool(re.search(r'\b(finish\w*|end\w*|out|done)\b',question,re.I))
+    begin=bool(re.search(r'\b(start\w*|begin\w*)\b',question,re.I))
+    if not finish and not begin:return None
+    person=next(iter(evidence['people']));name=evidence['people'][person]
+    label=relative_day(evidence['start'],evidence.get('checked_on'))
+    prefix=(((label[:1].upper()+label[1:]) if label in ('today','tomorrow') else 'On '+label)+', ') if label else ''
+    subject='you' if person==speaker and prefix else 'You' if person==speaker else name
+    for fact in evidence['facts']:
+        if fact['kind']!='routine' or fact['owners']!=[person]:continue
+        hours=re.search(r'usual school.*?(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})',fact['text'],re.I)
+        if hours:
+            start_verb='start' if person==speaker else 'starts';end_verb='finish' if person==speaker else 'finishes'
+            detail=(start_verb+' school at '+hours[1]+' and '+end_verb+' at '+hours[2] if begin and finish else
+                start_verb+' school at '+hours[1] if begin else end_verb+' school at '+hours[2])
+            return prefix+subject+' usually '+detail+'.'
+        if re.search(r'no school.*usual weekend',fact['text'],re.I):return 'There is no school in '+("your" if person==speaker else name+"'s")+' usual weekend routine.'
+        if 'confirmed exception' in fact['text'].casefold() and re.search(r'no school',fact['text'],re.I):return name+' has a confirmed no-school exception for that date.'
+    return None
 
 
 def grounded_reply(board, speaker_name):

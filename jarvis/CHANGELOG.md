@@ -61,6 +61,10 @@
 
 # Changelog
 
+## 0.45.98
+
+- Keep direct routine-time questions outside broad day summaries. Return the requested school start/finish from the fresh dated projection, qualified as usual, instead of substituting appointment details. Preserve Qwen coordination and conversational summary wording.
+
 ## 0.45.97
 
 - Give local Qwen a compact, complete contract for one-person day summaries, with activity names and explicit start/end times. Preserve factual/coverage review and use conversational relative-day prose rather than repeating date/time ledger rows.

@@ -236,6 +236,20 @@ class ThinkingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([e['start'] for e in board['appointments']],['17:00','18:00'])
         self.assertNotIn('potential_same_person_conflicts',board)
 
+    async def test_selected_exact_school_time_does_not_become_an_appointment_overview(self):
+        original=self.client.get_household_today
+        async def summary(*args,**kw):
+            data=await original(*args,**kw)
+            for day in data['planning']['days']:day['cards']=[{'title':'Mia · usual school','lines':['08:15–12:50','Attendance unknown.']}]
+            return data
+        self.client.get_household_today=summary
+        for question,clock in (('When does Mia get out of school tomorrow?','12:50'),('What time does Mia start school tomorrow?','08:15'),('Jarvis, when does Mia finish school tomorrow?','12:50')):
+            with scope(self.p,'benny','routine'):
+                r=await self.thinking.handle(question,'routine',tool_selected=True)
+            self.assertEqual(r['composition'],'confirmed_routine_time');self.assertIn(clock,r['message']);self.assertIn('usual',r['message'])
+            self.assertNotIn('17:00',r['message'])
+        self.assertEqual(self.provider.calls,[])
+
     async def test_small_overview_cannot_silently_omit_the_second_start_time(self):
         self.client.events['calendar.familiekalender'].append({'summary':'Gymnastics','start':'2026-10-22T18:00:00+02:00','end':'2026-10-22T19:00:00+02:00'})
         r=await self.ask("What does Mia's day look like tomorrow?")

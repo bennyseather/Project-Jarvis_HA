@@ -13,7 +13,7 @@ import time
 from zoneinfo import ZoneInfo
 
 from jarvis.household_briefing import Brief, HouseholdBriefing
-from jarvis.calendar_insights import insights, purpose, duration_minutes, grounded_reply, routine_with_calendar_gap, routine_with_empty_calendar, day_overview
+from jarvis.calendar_insights import insights, purpose, duration_minutes, grounded_reply, routine_with_calendar_gap, routine_with_empty_calendar, day_overview, routine_time_reply
 from jarvis.household_memory import clean, result, response_style
 from jarvis.household_planning import DATE_PATTERN, Plan, resolve_dates
 from jarvis.household_speaker import shared_knowledge_enabled, speaker_context
@@ -259,6 +259,11 @@ class HouseholdThinking:
             evidence['facts'].append({'id':'C1','kind':'request_constraint','owners':plan['coordination_subjects'],
                 'text':'User-requested hypothetical coordination: '+text+'. This does not assign a driver, establish availability or change a calendar.'})
         board=insights(evidence,text,plan['speaker'],plan['purpose'])
+        if board.get('routine_time_question'):
+            exact=routine_time_reply(text,evidence,plan['speaker'])
+            if exact:
+                exact=self.validate_compact(json.dumps({'answer':exact}),evidence,plan['speaker'])
+                return reply(exact,read_only=True,interpreted=True,composition='confirmed_routine_time',local_model_interpretation=False,period={'start':plan['start'],'end':plan['end']})
         if plan.get('companion_coordination'):
             board['answer_the_question']='Answer the requested coordination or correction for the named people and date. Compare recorded appointments and usual routines. A usual work finish is not arrival home; a calendar gap is not actual availability. If transport is proposed, discuss it conditionally and ask for unrecorded travel time/destination or the person’s confirmation. Never assign anyone responsibility.'
             board['coordination_people']=[evidence['people'].get(p,p) for p in plan['coordination_subjects']]
@@ -399,7 +404,7 @@ class HouseholdThinking:
     @staticmethod
     def validate_goal(answer,board):
         value=answer.casefold()
-        if board['purpose']=='overview' and not board['limited_view'] and 1<len(board['appointments'])<=4:
+        if board['purpose']=='overview' and not board.get('routine_time_question') and not board['limited_view'] and 1<len(board['appointments'])<=4:
             spoken=clock_values(answer)[0]
             for entry in board['appointments']:
                 times=re.findall(r'\d{2}:\d{2}',entry['when'])
