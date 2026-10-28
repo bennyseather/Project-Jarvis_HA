@@ -240,6 +240,7 @@ class EditingDialogue:
                     return response('Which one? '+ '; '.join(str(i)+'. '+label(e) for i,e in enumerate(events[:8],1))+'. Reply with its number.')
                 state['selection']=choices[0];state['phase']='change'
             event=await self.planner.find_event(state['selection'])
+            await self.planner.enrich([event],maximum=1)
             if state['changes'].get('_date_phrase'):
                 from jarvis.household_briefing import interval
                 anchor=interval(event)['start'].astimezone(ZONE).date().isoformat()

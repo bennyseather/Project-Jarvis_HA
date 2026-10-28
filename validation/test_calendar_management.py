@@ -156,6 +156,13 @@ class DialogueTests(unittest.IsolatedAsyncioTestCase):
         self.responses['Find Mia next dentist appointment']=('find',{'title':'dentist','person':'mia'}, {})
         out=await self.say('Find Mia next dentist appointment');self.assertIn('I found',out['message'])
         self.assertEqual(self.e.sessions['chat']['selection']['start'],'2026-11-05');self.assertFalse(self.s.writes)
+    async def test_new_phone_entry_is_interpreted_when_found_without_a_dashboard_refresh(self):
+        self.s.raw.update(summary='Mia dentist',description='Bring the letter.')
+        class Interpreter:
+            async def interpret(self,event):return {'members':['mia'],'category':'health','venue':'Fictional Clinic','activity':'dental appointment','unclear':[],'basis':'fictional supported extraction'}
+        self.planner.interpreter=Interpreter()
+        self.responses['Find Mia dentist appointment next Thursday']=('find',{'title':'dentist','person':'mia','range':('2026-11-05','2026-11-06')},{})
+        out=await self.say('Find Mia dentist appointment next Thursday');self.assertIn('for Mia',out['message']);self.assertFalse(self.s.writes)
     async def test_negated_and_whole_series_requests_are_not_prepared(self):
         out=await self.say("Don't delete that appointment");self.assertIn('unchanged',out['message'])
         await self.say('Find Mia dentist appointment next Thursday')
