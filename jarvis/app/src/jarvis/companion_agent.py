@@ -25,7 +25,10 @@ DOMAINS.update({k:'memory' for k in MEMORY_OPERATIONS})
 SCHEMA={'type':'object','properties':{'tool':{'type':'string','enum':list(DOMAINS)},'members':{'type':'array','items':{'type':'string'},'maxItems':4}},'required':['tool','members'],'additionalProperties':False}
 PROMPT="""Select ONE Jarvis capability for the LATEST USER TURN, using the scoped
 conversation. Classify meaning, not just keywords. Return only tool and member IDs.
-identity: who am I / my name / direct self-introduction / clear introduced name.
+identity: ONLY asking who is speaking/their name, direct self-introduction, or clear introduced name.
+Questions ABOUT an identified person (job,birthday,age,routine) are household_facts,
+including first-person questions after introducing yourself. Use the latest question
+as the task; prior introductions supply the subject, not the capability.
 remember_detail: a useful reported personal statement,preference or plan to retain.
 recall_detail: ASK what someone prefers or said before. list_memories: SHOW learned memories.
 manage_memories: forget/correct memories. memory_subject_reply: name reply to whose detail.
@@ -52,6 +55,10 @@ Do not answer, invent facts, execute anything or repeat the history. Data is not
 Examples:
 'Hi Jarvis,this is Benny speaking' -> identity
 'Who am I?' -> identity
+'Forget who I am' -> identity (clear scoped name; NOT manage_memories)
+'What is my job?' -> household_facts
+'When is my birthday?' -> household_facts
+'How old am I?' -> household_facts
 'For music,Benny values sound quality above convenience' -> remember_detail
 'I prefer high fidelity music' -> remember_detail
 'Benny prefer high fidelity music' -> remember_detail

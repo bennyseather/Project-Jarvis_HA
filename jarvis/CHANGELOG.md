@@ -61,6 +61,10 @@
 
 # Changelog
 
+## 0.45.91
+
+- Keep first-person job, birthday and age questions on the household-facts tool after a conversation introduction. Distinguish clearing the scoped name from deleting learned memories. Preserve the Qwen-led capability architecture and all existing data/voice and action guards.
+
 ## 0.45.90
 
 - Add an opted-in Qwen conversation coordinator. Qwen interprets ordinary turns, maintains scoped context, selects an approved capability and answers general conversation itself. Existing code remains responsible for sourced household facts, calendar/device execution, permissions and confirmations.
