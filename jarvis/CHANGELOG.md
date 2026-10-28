@@ -61,6 +61,12 @@
 
 # Changelog
 
+## 0.45.97
+
+- Give local Qwen a compact, complete contract for one-person day summaries, with activity names and explicit start/end times. Preserve factual/coverage review and use conversational relative-day prose rather than repeating date/time ledger rows.
+- Keep bounded model correction focused on the missing fact instead of anchoring it to a rejected draft. Explain empty calendar results naturally without implying free time or confirmed school attendance.
+- Improve calculated recovery wording as well. Preserve saved voice, calendars, household memories and confirmation rules; audio and reminder acceptance remain held.
+
 ## 0.45.96
 
 - Reuse exact confirmed household activity meanings in calendar overviews, reasoning and recovery summaries. Keep original calendar titles and source/person binding. Current conflicting/cancelled/incomplete event notes still suppress a usual mapping; unknown training entries keep their conservative label.

@@ -206,6 +206,37 @@ def insights(evidence, question, speaker, goal=None):
     return board
 
 
+
+def relative_day(start,reference):
+    if not reference:return None
+    day=datetime.fromisoformat(start).date();today=datetime.fromisoformat(reference).date()
+    delta=(day-today).days
+    return 'today' if delta==0 else 'tomorrow' if delta==1 else day.strftime('%A') if 0<=delta<7 else day.strftime('%A %d %B')
+
+
+def day_overview(board,evidence):
+    """Small, complete input for conversational one-person/one-day answers."""
+    if (board['purpose']!='overview' or len(evidence['people'])!=1 or board['limited_view'] or
+        board['missing_sources'] or len(board['appointments'])>4 or
+        (datetime.fromisoformat(evidence['end_exclusive'])-datetime.fromisoformat(evidence['start'])).days!=1):return None
+    by_id={f['id']:f for f in evidence['facts'] if f['kind']=='appointment'}
+    entries=[]
+    for entry in board['appointments']:
+        fact=by_id[entry['id']]
+        if not fact['all_day'] and datetime.fromisoformat(fact['start']).date()!=datetime.fromisoformat(fact['end']).date():return None
+        entries.append({'id':entry['id'],'owner':entry['owner'],'event':entry['event'],
+            'start':None if fact['all_day'] else fact['local_start'],
+            'end':None if fact['all_day'] else fact['local_end'],'all_day':fact['all_day']})
+    school=[]
+    if not entries:
+        for routine in board['usual_routines']:
+            match=re.search(r'usual school.*?(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})',routine['text'],re.I)
+            if match:school.append({'owners':routine['owner'],'start':match[1],'finish':match[2],'basis':'usual timetable,not confirmed attendance'})
+    return {'day':relative_day(evidence['start'],evidence.get('checked_on')) or evidence['start'],
+        'appointments':entries,'usual_school':school,'usual_routines':board['usual_routines'] if not entries and not school else [],
+        'empty_calendar_scope':'No appointments were returned from the connected household calendar for this day; this is not proof of actual availability.' if not entries else None}
+
+
 def grounded_reply(board, speaker_name):
     """Natural conclusions from computed relationships if neural wording fails.
 
@@ -219,6 +250,18 @@ def grounded_reply(board, speaker_name):
     def within(name):return 'your' if name==speaker_name else name+'’s'
     def whose(name):return 'you' if name==speaker_name else name
     appointments=board['appointments']
+    if goal=='overview' and board.get('day_overview') and 1<len(appointments)<=4:
+        brief=board['day_overview'];grouped={}
+        for item in brief['appointments']:grouped.setdefault(item['owner'],[]).append(item)
+        pieces=[]
+        for owner,events in grouped.items():
+            subject='you' if owner==speaker_name else owner
+            clauses=[e['event']+(' as an all-day entry' if e['all_day'] else ' at '+e['start']) for e in events]
+            joined=clauses[0]+', then '+', then '.join(clauses[1:]) if len(clauses)>1 else clauses[0]
+            pieces.append(((brief['day'][:1].upper()+brief['day'][1:]) if brief['day'] in ('today','tomorrow') else 'On '+brief['day'])+', '+subject+(' have ' if owner==speaker_name or ' and ' in owner else ' has ')+joined+'.')
+            if events[-1]['end']:pieces.append('The last appointment finishes at '+events[-1]['end']+'.')
+        answer=' '.join(pieces)
+        return answer if len(answer.split())<=100 else None
     if goal=='overview' and 1<len(appointments)<=4:
         # A complete small overview must not become a single-event relationship.
         grouped={}
@@ -276,18 +319,20 @@ def routine_with_empty_calendar(evidence, speaker):
     coverage=[f for f in evidence['facts'] if f['kind']=='coverage']
     if not coverage or any(f['returned_entries']!=0 for f in coverage):return None
     person=next(iter(evidence['people']));name=evidence['people'][person]
-    possessive='Your' if person==speaker else name+"'s"
+    label=relative_day(evidence['start'],evidence.get('checked_on'))
+    prefix=(((label[:1].upper()+label[1:]) if label in ('today','tomorrow') else 'On '+label)+', ') if label else ''
+    subject='you' if person==speaker else name
     lead=''
     for fact in evidence['facts']:
         if fact['kind']!='routine' or person not in fact['owners']:continue
         match=re.search(r'usual school.*?(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})',fact['text'],re.I)
         if match:
-            lead=possessive+' usual school timetable is '+match[1]+'–'+match[2]+'. '
+            lead=prefix+subject+(' usually finish' if person==speaker else ' usually finishes')+' school at '+match[2]+'. '
             break
         if re.search(r'no school.*usual weekend',fact['text'],re.I):
             lead=('You have' if person==speaker else name+' has')+' no school in the usual weekend routine. '
             break
-    return lead+'I do not see any appointments in the connected calendar for that date. Plans outside that calendar may still exist.'
+    return lead+"I don't see anything extra in the connected household calendar"+(' for '+label if label and not lead else ' for that day' if not lead else '')+'.'
 
 
 def routine_with_calendar_gap(evidence, speaker):

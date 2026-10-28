@@ -224,6 +224,17 @@ class ThinkingTests(unittest.IsolatedAsyncioTestCase):
         r=await self.ask("What does Mia's day look like tomorrow?")
         self.assertEqual(r['composition'],'calculated_recovery')
         self.assertIn('17:00',r['message']);self.assertIn('18:00',r['message']);self.assertIn('gymnastics',r['message'].lower())
+        self.assertEqual(r['message'].casefold().count('tomorrow'),1);self.assertNotIn('Thursday 22 October',r['message']);self.assertIn('19:00',r['message'])
+
+    async def test_one_day_overview_keeps_validated_neural_prose(self):
+        self.client.events['calendar.familiekalender'].append({'summary':'Gymnastics','start':'2026-10-22T18:00:00+02:00','end':'2026-10-22T19:00:00+02:00'})
+        self.provider.respond=lambda _: {'status':'success','message':json.dumps({'answer':'Tomorrow, Mia has band practice at 17:00, followed by gymnastics at 18:00. The last session finishes at 19:00.'})}
+        r=await self.ask("What does Mia's day look like tomorrow?")
+        self.assertTrue(r['local_model_interpretation']);self.assertEqual(r['composition'],'local_model_reviewed')
+        board=self.provider.calls[0]['reasoning']
+        self.assertEqual(board['day'],'tomorrow');self.assertEqual(len(board['appointments']),2)
+        self.assertEqual([e['start'] for e in board['appointments']],['17:00','18:00'])
+        self.assertNotIn('potential_same_person_conflicts',board)
 
     async def test_small_overview_cannot_silently_omit_the_second_start_time(self):
         self.client.events['calendar.familiekalender'].append({'summary':'Gymnastics','start':'2026-10-22T18:00:00+02:00','end':'2026-10-22T19:00:00+02:00'})

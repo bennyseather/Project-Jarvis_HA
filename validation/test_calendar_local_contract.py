@@ -64,7 +64,7 @@ class LocalContractTests(unittest.TestCase):
                    {'id':'F2','kind':'coverage','owners':['mia'],'text':'Calendar entries are not free time','returned_entries':0})
         e.update(people={'mia':'Mia'},start='2026-10-23',end_exclusive='2026-10-24')
         answer=routine_with_empty_calendar(e,None)
-        self.assertIn('usual school timetable',answer);self.assertIn('outside that calendar',answer)
+        self.assertIn('usually finishes school at 12:50',answer);self.assertIn('household calendar',answer);self.assertNotIn('free',answer)
         self.assertEqual(HouseholdThinking.validate_compact(json.dumps({'answer':answer}),e,None),answer)
         for field,value in (('source_failures',['offline']),('truncated',True),('end_exclusive','2026-10-25')):
             changed={**e,field:value};self.assertIsNone(routine_with_empty_calendar(changed,None))
