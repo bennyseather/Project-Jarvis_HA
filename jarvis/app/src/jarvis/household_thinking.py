@@ -278,10 +278,10 @@ class HouseholdThinking:
             'evidence':evidence,'reasoning':spoken_board}
         # Send compact whole records, not the raw duplicated calendar ledger.
         # Keep original evidence separately for validation/provenance.
-        from jarvis.calendar_insights import activity
+        from jarvis.calendar_insights import appointment_label
         context['evidence']={k:evidence[k] for k in ('people','start','end_exclusive','window','source_failures','truncated')}
         context['evidence']['facts']=[{'id':f['id'],'kind':f['kind'],'owners':f['owners'],
-            'text':activity(f['text']) if f['kind']=='appointment' else f['text']}
+            'text':appointment_label(f) if f['kind']=='appointment' else f['text']}
             for f in evidence['facts'] if f['kind'] in ('home_weather','reminder','personal_background','confirmed_note','conversation_observation','request_constraint')]
         raw=json.dumps(context,ensure_ascii=False,separators=(',',':'))
         maximum=getattr(getattr(self.provider,'policy',None),'maximum_input_characters',12000)
@@ -501,8 +501,8 @@ class HouseholdThinking:
         pieces=[reason]
         for event in events:
             owner=' and '.join(evidence['people'].get(p,p) for p in event['owners'])
-            from jarvis.calendar_insights import activity
-            pieces.append(owner+(' have “' if len(event['owners'])>1 else ' has “')+activity(event['text'])+'” scheduled'+(' at '+event['local_start'] if not event['all_day'] else ' as an all-day entry')+'.')
+            from jarvis.calendar_insights import appointment_label
+            pieces.append(owner+(' have “' if len(event['owners'])>1 else ' has “')+appointment_label(event)+'” scheduled'+(' at '+event['local_start'] if not event['all_day'] else ' as an all-day entry')+'.')
         if not events:pieces.append('That does not establish an empty day or available time.')
         if evidence['source_failures']:pieces.append('Some relevant sources could not be checked.')
         return reply(' '.join(pieces),'unavailable',read_only=True,interpreted=False)

@@ -231,6 +231,19 @@ class ThinkingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(r['composition'],'calculated_recovery');self.assertEqual(len(self.provider.calls),2)
         self.assertIn('17:00',r['message']);self.assertIn('18:00',r['message'])
 
+    async def test_overview_recovery_uses_confirmed_meaning_without_exposing_notes(self):
+        self.p._data['activity_profiles']=[{'id':'1234abcd','person':'mia','source':'family','title':'Trening',
+            'activity':'gymnastics','equipment':['water bottle'],'preparation':None,'usual_venue':'Fixture Hall',
+            'duration_minutes':None,'recorded_on':'2026-10-21T00:00:00+00:00','provenance':'Confirmed shared household conversation'}]
+        self.client.events['calendar.familiekalender'].append({'summary':'Trening','start':'2026-10-22T18:00:00+02:00','end':'2026-10-22T19:00:00+02:00','description':'Bring a water bottle.'})
+        self.provider.respond=lambda _: {'status':'unavailable'}
+        r=await self.ask("What does Mia's day look like tomorrow?")
+        self.assertEqual(r['composition'],'calculated_recovery');self.assertIn('gymnastics',r['message'])
+        self.assertNotIn('sport not specified',r['message']);self.assertNotIn('water bottle',r['message'])
+        self.assertIn('17:00',r['message']);self.assertIn('18:00',r['message'])
+        appointments=self.provider.calls[0]['reasoning']['appointments']
+        self.assertTrue(any(a['event']=='gymnastics' for a in appointments))
+
     async def test_calculated_multi_day_load_uses_per_day_not_total_hours(self):
         self.client.events['calendar.work_reach']=[{'summary':'Workshop','start':'2026-10-26T09:00:00+01:00','end':'2026-10-26T15:00:00+01:00'},
             {'summary':'Meeting','start':'2026-10-27T09:00:00+01:00','end':'2026-10-27T10:00:00+01:00'}]

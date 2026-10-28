@@ -26,6 +26,7 @@ def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, no
         add('appointment',owner,title,start=e['start'].isoformat(),end=e['end'].isoformat(),
             date=e['start'].date().isoformat(),date_label=e['start'].strftime('%A %d %B'),all_day=e['all_day'],source=e['source'],
             local_start=e['start'].strftime('%H:%M'),local_end=e['end'].strftime('%H:%M'))
+        if e.get('confirmed_activity'):facts[-1]['confirmed_activity']=dict(e['confirmed_activity'])
         if event_context:
             facts[-1].update(location=e.get('location',''),description=e.get('description',''))
     # Group repeated routines as one fact with explicit dates. Never turn usual

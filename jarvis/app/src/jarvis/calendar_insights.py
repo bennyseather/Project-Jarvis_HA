@@ -53,6 +53,19 @@ def activity(title):
     return title
 
 
+
+def appointment_label(fact):
+    """Use only the exact person/calendar/title meaning attached by the reader."""
+    meaning=fact.get('confirmed_activity')
+    if isinstance(meaning,dict):
+        from jarvis.household_activities import title_key
+        from jarvis.preparation_wording import activity_name
+        if (fact.get('owners')==[meaning.get('person')] and fact.get('source')==meaning.get('source')
+                and title_key(fact['text'])==title_key(meaning.get('title','')) and meaning.get('id')):
+            return activity_name(meaning['activity'])
+    return activity(fact['text'])
+
+
 def _union_minutes(intervals):
     end = None;total = 0
     for start, stop in sorted(intervals):
@@ -71,7 +84,7 @@ def insights(evidence, question, speaker, goal=None):
     overlaps = [f for f in evidence['facts'] if f['kind']=='overlap']
     prepared=[];by_day=defaultdict(list)
     for fact in appointments:
-        title = activity(fact['text'])
+        title = appointment_label(fact)
         owner = ' and '.join(people[p] for p in fact['owners'])
         start, end = datetime.fromisoformat(fact['start']), datetime.fromisoformat(fact['end'])
         stamp = fact['date_label']+(' (all-day entry)' if fact['all_day'] else ' '+fact['local_start']+'–'+fact['local_end'])
@@ -112,7 +125,7 @@ def insights(evidence, question, speaker, goal=None):
             if a['owners']==b['owners']:continue
             if datetime.fromisoformat(a['start']).timestamp()<datetime.fromisoformat(b['end']).timestamp() and datetime.fromisoformat(b['start']).timestamp()<datetime.fromisoformat(a['end']).timestamp():
                 parallel.append({'people':[people[a['owners'][0]],people[b['owners'][0]]],
-                    'events':[activity(a['text']),activity(b['text'])],
+                    'events':[appointment_label(a),appointment_label(b)],
                     'relationship':'Coincide in clock time for different people, not an individual double booking. Practical conflict depends on responsibilities that are not known.',
                     'evidence':[a['id'],b['id']]})
     relations=[]
@@ -122,7 +135,7 @@ def insights(evidence, question, speaker, goal=None):
         for appointment in appointments:
             if appointment['all_day'] or appointment['owners']!=routine['owners'] or appointment['date'] not in routine.get('dates',[]):continue
             if appointment['local_start']>=clocks[2]:
-                relations.append({'owner':people[appointment['owners'][0]],'event':activity(appointment['text']),
+                relations.append({'owner':people[appointment['owners'][0]],'event':appointment_label(appointment),
                     'usual_school_finish':clocks[2], 'appointment_start':appointment['local_start'],
                     'relationship':'later than usual school finish, not overlapping that timetable; what happens in between is not known',
                     'evidence':[routine['id'],appointment['id']]})
@@ -178,7 +191,7 @@ def insights(evidence, question, speaker, goal=None):
                 if any(owner in f['owners'] and f['all_day'] and datetime.fromisoformat(f['start'])<start and datetime.fromisoformat(f['end'])>stop for f in appointments):continue
                 between.append({'owner':people[owner],'date':start.date().isoformat(),'start':stop.strftime('%H:%M'),'end':start.strftime('%H:%M'),
                     'calendar_gap_minutes':int((start.timestamp()-stop.timestamp())/60),
-                    'between':[activity(first['text']),activity(second['text'])],
+                    'between':[appointment_label(first),appointment_label(second)],
                     'basis':'Between these recorded appointments only; not confirmed free time, travel time or dinner availability.'})
         board['between_appointment_gaps']=between[:6]
         board['duration_clarification_needed']=len(between)==1 and duration is None

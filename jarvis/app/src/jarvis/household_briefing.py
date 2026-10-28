@@ -183,7 +183,11 @@ class HouseholdBriefing:
                         e={**e,'description':meta['notes'],'location':e.get('location') or meta.get('extracted_location','')}
                         owners=meta['members']
                     else:owners=['benny']
-                    events.append({**interval(e,event_context=event_context),'owners':owners})
+                    item={**interval(e,event_context=event_context),'owners':owners}
+                    from jarvis.household_activities import calendar_meaning
+                    meaning=calendar_meaning(self.profile._data,item['title'],owners,name,e.get('description',''))
+                    if meaning:item['confirmed_activity']=meaning
+                    events.append(item)
                 return name,[e for e in events if e['end']>start and e['start']<end],None
             except Exception:return name,None,'temporarily unavailable'
         async def summary():

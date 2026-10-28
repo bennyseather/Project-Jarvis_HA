@@ -200,6 +200,19 @@ def match(document,event):
     return record
 
 
+
+def calendar_meaning(document,title,owners,source,description=''):
+    """Bound a compact display meaning to this exact fresh event, without notes."""
+    if not document.get('activity_profiles'):return None
+    from jarvis.event_preparation import source_text,description_units
+    raw=source_text(description,900);units=description_units(raw)
+    event={'text':title,'owners':list(owners),'source':source,'description_units':units,
+           '_activity_source_complete':raw==' '.join(units)}
+    record=match(document,event)
+    if not record:return None
+    return {k:record[k] for k in ('id','person','source','title','activity')}
+
+
 def notes(events,mode):
     result=[]
     for e in events:

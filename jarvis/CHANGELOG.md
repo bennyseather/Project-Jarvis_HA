@@ -61,6 +61,11 @@
 
 # Changelog
 
+## 0.45.96
+
+- Reuse exact confirmed household activity meanings in calendar overviews, reasoning and recovery summaries. Keep original calendar titles and source/person binding. Current conflicting/cancelled/incomplete event notes still suppress a usual mapping; unknown training entries keep their conservative label.
+- Do not copy equipment, venue or organiser notes into overview evidence. Preserve calendar contents, saved voice and household data.
+
 ## 0.45.95
 
 - Keep all starts in a small calendar overview through neural revision and calculated recovery. A timetable relationship for one event must not replace the other appointments in the requested overview. Preserve permission/action guards and saved voice/household data.

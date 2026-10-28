@@ -39,6 +39,20 @@ class ProfileTests(unittest.TestCase):
         self.ask('undo last household change');self.ask('confirm household change')
         self.assertFalse(self.p._data.get('activity_profiles'))
 
+    def test_calendar_meaning_keeps_exact_scope_and_current_overrides(self):
+        self.save()
+        label=activities.calendar_meaning(self.p._data,'Training',['mia'],'family')
+        self.assertEqual(label['activity'],'gymnastics')
+        for title,owners,source in (('Training',['emrik'],'family'),('Training',['mia'],'work'),('Other training',['mia'],'family'),('Training',['mia','benny'],'family')):
+            self.assertIsNone(activities.calendar_meaning(self.p._data,title,owners,source))
+        for notes in ('This is swimming training.','Gymnastics is cancelled.'):
+            self.assertIsNone(activities.calendar_meaning(self.p._data,'Training',['mia'],'family',notes))
+
+    def test_unmapped_training_does_not_get_a_guessed_sport(self):
+        self.assertIsNone(activities.calendar_meaning(self.p._data,'Training',['mia'],'family'))
+        from jarvis.calendar_insights import appointment_label
+        self.assertIn('sport not specified',appointment_label({'text':'Trening','owners':['mia'],'source':'family'}))
+
     def test_usual_details_append_replace_duplicates_and_kind_change_reset(self):
         self.save();self.save('usually needs "water bottle, training clothes"')
         self.save('also needs "water bottle, small towel"')
