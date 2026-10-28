@@ -832,3 +832,19 @@ No user prompt replay, model pull, service restart or cloud fallback is involved
 Concurrent newer failures are preserved. A genuinely cold worker still needs load
 time; other clients choosing a different model/context can require a reload.
 References: https://docs.ollama.com/faq and https://docs.ollama.com/context-length
+
+### Household conversation continuity (0.45.99)
+
+Local Qwen can carry a read task between calendar summaries and preparation.
+Follow-up people, dates and requested durations remain scoped to the signed-in
+HA actor, conversation, source, profile revision, Norway day and matched voice.
+The shared read context expires after ten idle minutes; sources are read again.
+Calendar gaps and usual work times do not establish actual availability. Any
+travel or transition time remains unknown unless separately sourced.
+
+Relevant retained user reports can personalise reasoning and general chat.
+They remain attributed reports, with original date windows, rather than calendar
+appointments or canonical routine edits. Memory retention is unchanged. The
+existing correction/forget controls apply; a deletion during reasoning withdraws
+the stale answer. No new booking, device, message or self-development authority
+is granted. Existing calendar confirmations and saved voice are unchanged.

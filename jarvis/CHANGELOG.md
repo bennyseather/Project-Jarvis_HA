@@ -61,6 +61,20 @@
 
 # Changelog
 
+## 0.45.99
+
+- Carry a scoped user-task context across Qwen-selected household plans and
+  activity preparation: people, dates, corrections and duration follow-ups.
+  Re-read calendar details; never carry cached appointments as facts.
+- Compare requested activities with recorded gaps, including the remaining
+  budget for unrecorded travel. Compare proposed helpers with usual work times
+  without assigning transport or inferring availability.
+- Restore relevant saved user observations to Qwen household reasoning and
+  general conversation. Retain their provenance and original date windows;
+  forgotten details are withdrawn from in-flight answers.
+- Keep compact natural wording, factual checks, confirmation rules and saved
+  voice/calibration. No Core or speech-worker change is required.
+
 ## 0.45.98
 
 - Keep direct routine-time questions outside broad day summaries. Return the requested school start/finish from the fresh dated projection, qualified as usual, instead of substituting appointment details. Preserve Qwen coordination and conversational summary wording.

@@ -27,7 +27,8 @@ def purpose(question, previous=None):
 
 def duration_minutes(question):
     value=question.casefold().strip(' .?!')
-    if re.fullmatch(r'(?:about |around )?(?:half an hour|a half hour)',value):return 30
+    if re.search(r'\b(?:half an hour|a half hour)\b',value):return 30
+    if re.search(r'\ba quarter of an hour\b',value):return 15
     match=re.search(r'(?<![\d.])(\d{1,3}(?:\.\d{1,2})?)[ -]?(minute|min|hour)\w*\b',value)
     if not match:return None
     minutes=float(match[1])*(60 if match[2]=='hour' else 1)
@@ -75,7 +76,7 @@ def _union_minutes(intervals):
     return int(total)
 
 
-def insights(evidence, question, speaker, goal=None):
+def insights(evidence, question, speaker, goal=None, *, duration_override=None):
     """Derive a small reasoning board; all claims retain source fact IDs."""
     goal = goal or purpose(question)
     people = evidence['people']
@@ -119,7 +120,7 @@ def insights(evidence, question, speaker, goal=None):
         focus='Distinguish a same-person double booking from different people having events at the same time. For the latter, whether it is a practical clash depends on shared responsibilities; do not assume them. Only same-person overlaps might be duplicates/updates.'
     elif goal=='priorities':
         focus='Highlight concrete commitments or overlaps worth attention. Do not invent urgency or rank one family member above another.'
-    duration=duration_minutes(question)
+    duration=duration_minutes(question) if duration_override is None else duration_override
     activity_requested=bool(re.search(r'\b(fit|squeeze|time for|room for|(?:free|available) for)\b',question,re.I) or duration is not None)
     parallel=[]
     timed=[f for f in appointments if not f['all_day']]
@@ -206,9 +207,30 @@ def insights(evidence, question, speaker, goal=None):
         if not speaker:board['answer_the_question']+=' No speaker is identified: name the calendar owner, not you/your/we/us. Explain the gap in that person\'s calendar, not the speaker\'s availability.'
         if len(between)==1 and duration is not None:
             board['requested_minutes_fit_recorded_gap']=duration<=between[0]['calendar_gap_minutes']
+            board['remaining_calendar_minutes_after_activity']=between[0]['calendar_gap_minutes']-duration
+            board['practical_fit_qualification']='Subtract the requested duration from the recorded interval. Any remaining minutes must also cover unrecorded travel, transitions or other commitments; do not assume those fit.'
     return board
 
 
+
+
+def helper_timing(evidence):
+    """Conditional work-finish comparisons; never infer a driver or arrival home."""
+    rows=[]
+    for routine in evidence['facts']:
+        if routine['kind']!='routine' or len(routine['owners'])!=1:continue
+        match=re.search(r'work.*?finish(?:es)? around\s*(\d{2}:\d{2})',routine['text'],re.I)
+        if not match:continue
+        helper=routine['owners'][0]
+        for event in evidence['facts']:
+            if event['kind']!='appointment' or event['all_day'] or helper in event['owners'] or event['date'] not in routine.get('dates',[]):continue
+            h,m=map(int,match[1].split(':'));eh,em=map(int,event['local_start'].split(':'))
+            rows.append({'helper':evidence['people'][helper],'owner':' and '.join(evidence['people'][p] for p in event['owners']),
+                'event':appointment_label(event),'date':event['date'],'start':event['local_start'],
+                'usual_work_finish':match[1],'minutes_after_usual_work_finish':eh*60+em-h*60-m,
+                'basis':'Comparison with usual work finish only, not actual work attendance, transport assignment or journey feasibility.',
+                'evidence':[routine['id'],event['id']]})
+    return rows[:6]
 
 def relative_day(start,reference):
     if not reference:return None
@@ -303,6 +325,14 @@ def grounded_reply(board, speaker_name):
         answer=' '.join(pieces)
         return answer if len(answer.split())<=100 else None
     if goal=='conflicts':
+        helper_rows=board.get('helper_timing_relationships',[])
+        early=next((r for r in helper_rows if r['minutes_after_usual_work_finish']<0),None)
+        later=next((r for r in helper_rows if r['minutes_after_usual_work_finish']>=0 and (not early or r['helper']==early['helper'])),None)
+        if early:
+            text=early['owner']+'’s '+early['event']+' starts at '+early['start']+', before '+early['helper']+' usually finishes work around '+early['usual_work_finish']+'.'
+            if later:text+=' The '+later['start']+' '+later['event']+' could be an option for '+later['helper']+', depending on actual availability and travel time.'
+            else:text+=' Whether the usual work routine can change would need checking; no transport is arranged.'
+            return text
         conflicts=board['potential_same_person_conflicts']
         if conflicts:
             return 'There’s a possible double booking at '+conflicts[0]['when']+'. It’s worth checking whether both entries still apply before deciding to move either.'
@@ -323,7 +353,10 @@ def grounded_reply(board, speaker_name):
         if board['required_question']:return constraint+' '+board['required_question']
         if board['candidate_calendar_gaps']:
             gap=board['candidate_calendar_gaps'][0]
-            return 'A '+str(board['requested_activity_duration_minutes'])+'-minute activity could fit within the '+gap['start']+'–'+gap['end']+' gap in '+within(gap['owner'])+' calendar. Using that calendar option is conditional on your other commitments.'
+            label='dinner' if re.search(r'\bdinner\b',board.get('user_task_context',''),re.I) else 'activity'
+            remaining=board.get('remaining_calendar_minutes_after_activity')
+            budget=(' That leaves '+str(remaining)+' minutes for travel and any other transitions; whether that is practical is still unknown.') if remaining is not None else ' Whether that is practical depends on travel and other commitments.'
+            return 'A '+str(board['requested_activity_duration_minutes'])+'-minute '+label+' could fit within the '+gap['start']+'–'+gap['end']+' gap in '+within(gap['owner'])+' calendar.'+budget
     if goal=='busyness' and board['calendar_load']:
         load=max(board['calendar_load'],key=lambda row:row['scheduled_minutes_without_double_counting'])
         minutes=load['scheduled_minutes_without_double_counting']

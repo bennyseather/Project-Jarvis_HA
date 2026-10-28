@@ -43,6 +43,19 @@ class ThinkingTests(unittest.IsolatedAsyncioTestCase):
     async def ask(self,text,person='benny',key='s'):
         with scope(self.p,person,key):return await self.thinking.handle(text,key)
 
+    async def test_dated_remembered_plan_outside_requested_period_is_not_a_routine(self):
+        from jarvis.companion_context import observation_scope
+        note={'id':'M12345678','subjects':['mia'],'quote':'Mia has a course in three weeks.','interpretation':'','confidence':'user_reported','anchor':'2026-10-21','valid_from':'2026-11-11T00:00:00+01:00','valid_until':'2026-11-12T00:00:00+01:00','date_unresolved':False}
+        with observation_scope([note]):await self.ask('What should Mia prepare for tomorrow?')
+        self.assertFalse(any(f['kind']=='conversation_observation' for f in self.provider.calls[0]['evidence']['facts']))
+
+    async def test_current_preference_reaches_board_as_reported_not_confirmed_schedule(self):
+        from jarvis.companion_context import observation_scope
+        note={'id':'M12345678','subjects':['mia'],'quote':'Mia prefers a quiet break.','interpretation':'','confidence':'user_reported','anchor':'2026-10-21','valid_from':None,'valid_until':None,'date_unresolved':False}
+        with observation_scope([note]):await self.ask('What should Mia prepare for tomorrow?')
+        board=self.provider.calls[0]['reasoning'];self.assertIn('quiet break',board['reported_user_context'][0]['reported_quote'])
+        self.assertIn('not calendar fact',board['reported_user_context'][0]['basis'])
+
     async def test_model_interprets_title_and_endpoint_not_source_inventory(self):
         r=await self.ask('What should Mia prepare for tomorrow?')
         self.assertTrue(r['interpreted']);self.assertIn('band practice',r['message'])
@@ -280,7 +293,7 @@ class ThinkingTests(unittest.IsolatedAsyncioTestCase):
         self.client.events['calendar.work_reach']=[{'summary':'Supplier call','start':'2026-10-22T14:00:00+02:00','end':'2026-10-22T15:00:00+02:00'}]
         self.provider.respond=lambda _: {'status':'unavailable'}
         r=await self.ask('Can I fit a 30-minute walk tomorrow afternoon?')
-        self.assertEqual(r['composition'],'calculated_recovery');self.assertIn('conditional',r['message'])
+        self.assertEqual(r['composition'],'calculated_recovery');self.assertTrue(any(w in r['message'] for w in ('conditional','depends on','still unknown')))
         self.assertIn('12:00–14:00',r['message'])
 
     async def test_calculated_conflict_recovery_never_moves_an_event(self):

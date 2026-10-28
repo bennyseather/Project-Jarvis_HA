@@ -385,9 +385,18 @@ class EventPreparation(HouseholdThinking):
         if obj['question']!='none':parts.append(QUESTIONS[obj['question']])
         return ' '.join(parts)
 
-    async def handle(self,text,key):
+    async def handle(self,text,key,*,resolved=None):
         if not shared_knowledge_enabled(self.profile._data):self.clear(key);return None
-        try:plan=self.request(text,key)
+        try:
+            if resolved is None:plan=self.request(text,key)
+            else:
+                # The shared read resolver never supplies commands or cached facts.
+                if WRITE.search(text) or SECRET.search(text):return None
+                prior=self.sessions.get(str(key)) if key else None
+                same=bool(prior and prior['subjects']==resolved['subjects'] and prior['start']==resolved['start'] and prior['end']==resolved['end'] and self.scope_valid(prior,key,self.allowed))
+                original=self.request(text,key) if same else None
+                plan={**(original or {}),**resolved}
+                if original and original.get('previous_question'):plan['previous_question']=original['previous_question']
         except ValueError as error:return reply(str(error),'clarification_required')
         if plan is None:return None
         if key:
