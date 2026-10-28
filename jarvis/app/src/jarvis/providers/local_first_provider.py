@@ -6,6 +6,8 @@ import json
 from typing import Any
 from urllib.request import Request, urlopen
 import re
+import threading
+import time
 
 from jarvis.sentence_stream import sentence_sink
 
@@ -58,6 +60,11 @@ class LocalFirstReasoningProvider:
     def __init__(self, policy, logger, fallback=None):
         self.policy, self.logger, self.fallback = policy, logger, fallback
         self._local_unavailable_until = 0.0
+        self._state_lock = threading.Lock()
+        self._warm_lock = threading.Lock()
+        self._failure_generation = 0
+        self._recovery_scheduled = False
+        self._next_recovery_at = 0.0
 
     def ask(self, input_data: Any) -> str:
         try:
@@ -118,10 +125,35 @@ class LocalFirstReasoningProvider:
         payload = self._post("/api/show", {"model": self.policy.model}, timeout_seconds=10)
         return {"ready": bool(payload), "provider": "ollama", "model": self.policy.model}
 
-    def warm(self):
-        """Load the configured model without generating user-visible content."""
+    def _recover(self):
         try:
-            ready = False
+            self.warm()
+        finally:
+            with self._state_lock:
+                self._recovery_scheduled = False
+
+    def _schedule_recovery(self):
+        # One bounded background readiness check per cooldown, never a replay
+        # of the user's prompt and never a service restart or model download.
+        with self._state_lock:
+            now = time.monotonic()
+            if self._recovery_scheduled or now < self._next_recovery_at:
+                return
+            self._recovery_scheduled = True
+            self._next_recovery_at = now + self.policy.failure_cooldown_seconds
+        try:
+            threading.Thread(target=self._recover, name="jarvis-local-recovery", daemon=True).start()
+        except Exception:
+            with self._state_lock:
+                self._recovery_scheduled = False
+
+    def warm(self):
+        """Prepare exactly the inference context used by normal requests."""
+        if not self._warm_lock.acquire(timeout=30):
+            return {"ready": False, "provider": "ollama", "model": self.policy.model}
+        try:
+            with self._state_lock:
+                generation = self._failure_generation
             for model in dict.fromkeys((self.policy.model, self.policy.voice_model)):
                 payload = self._post(
                     "/api/chat",
@@ -129,20 +161,29 @@ class LocalFirstReasoningProvider:
                         "model": model,
                         "messages": [],
                         "stream": False,
+                        "think": False,
                         "keep_alive": -1,
+                        "options": {"num_ctx": self.policy.context_tokens},
                     },
                     timeout_seconds=30,
                 )
-                ready = bool(payload) or ready
-            return {"ready": ready, "provider": "ollama", "model": self.policy.voice_model}
+                if payload.get("done") is not True:
+                    raise RuntimeError("Local warm-up did not finish")
+            with self._state_lock:
+                if generation == self._failure_generation:
+                    self._local_unavailable_until = 0.0
+            return {"ready": True, "provider": "ollama", "model": self.policy.voice_model}
         except Exception as exc:
             self.logger.warning(f"Local reasoning warm-up deferred: {exc}")
             return {"ready": False, "provider": "ollama", "model": self.policy.model}
+        finally:
+            self._warm_lock.release()
 
     def _chat(self, instructions, messages, *, json_output=False, timeout_seconds=None, model=None, maximum_output_tokens=None, response_schema=None, temperature=None):
-        import time
-        if time.monotonic() < self._local_unavailable_until:
-            raise RuntimeError("local worker is in a short recovery cooldown")
+        with self._state_lock:
+            if time.monotonic() < self._local_unavailable_until:
+                raise RuntimeError("local worker is in a short recovery cooldown")
+            generation = self._failure_generation
         ollama_messages = []
         if instructions:
             ollama_messages.append({
@@ -197,9 +238,14 @@ class LocalFirstReasoningProvider:
                 self._post("/api/chat", payload, timeout_seconds=timeout_seconds)
             )
         except Exception:
-            self._local_unavailable_until = time.monotonic() + self.policy.failure_cooldown_seconds
+            with self._state_lock:
+                self._failure_generation += 1
+                self._local_unavailable_until = time.monotonic() + self.policy.failure_cooldown_seconds
+            self._schedule_recovery()
             raise
-        self._local_unavailable_until = 0.0
+        with self._state_lock:
+            if generation == self._failure_generation:
+                self._local_unavailable_until = 0.0
         message = str(response.get("message", {}).get("content", "")).strip()
         if not message:
             raise RuntimeError("Ollama returned no answer")

@@ -739,3 +739,16 @@ Provider dispatch receipts live in Core's protected .jarvis-calendar-mutations.s
 the add-on retains the existing planner receipt. An uncertain save is not retried.
 References: https://developers.google.com/workspace/calendar/api/guides/version-resources
 and https://developers.google.com/workspace/calendar/api/v3/reference/events/patch
+
+### Local readiness (0.45.86)
+
+Startup warmup explicitly matches local_reasoning.context_tokens (currently4096)
+and pins the existing configured Qwen runner. This avoids warming Ollama's wider
+server default and then reloading the runner on the first bounded request.
+A transport failure keeps the foreground request bounded, then schedules at most
+one empty-prompt readiness check per cooldown in the background. Completed warmup
+can clear the cooldown early; an unsuccessful check keeps the failure gate.
+No user prompt replay, model pull, service restart or cloud fallback is involved.
+Concurrent newer failures are preserved. A genuinely cold worker still needs load
+time; other clients choosing a different model/context can require a reload.
+References: https://docs.ollama.com/faq and https://docs.ollama.com/context-length

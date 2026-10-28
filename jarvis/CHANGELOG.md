@@ -1,3 +1,13 @@
+## 0.45.86
+
+- Prepare local Qwen with the same context size as ordinary requests, avoiding
+  the default-context runner reload on the first bounded question.
+- A transport failure schedules one bounded background empty-prompt warmup.
+  Confirmed readiness can end the 30-second cooldown early; failed probes stay
+  throttled. Never replay the user's prompt, restart services, or download models.
+- Guard concurrent failure state and validate completion of all warmup responses.
+  Existing Node model, deadlines, confirmation rules and saved voice remain.
+
 ## 0.45.85
 
 - Treat next as future-match ordering rather than an incomplete appointment date.
