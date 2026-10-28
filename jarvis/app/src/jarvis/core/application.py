@@ -216,6 +216,9 @@ class JarvisApplication:
                     await self.container.timeline_client.disconnect()
                 if self.container.proactive_client is not None:
                     await self.container.proactive_client.disconnect()
+                companion = getattr(self.container, 'companion', None)
+                if companion is not None:
+                    await companion.close()
                 await self.container.home_assistant.disconnect()
                 self.container.memory_store.close()
                 self.container.knowledge_store.close()
@@ -751,6 +754,10 @@ class JarvisApplication:
             self.container.household_thinking = HouseholdThinking(profile,self.container.home_assistant,
                 allowed_reads,self.container.local_reasoning_provider,
                 weather=self.container.planning_preparation.weather,reminders=self.container.personal_reminders)
+            from jarvis.companion import create_companion
+            self.container.companion = create_companion(self.container)
+            if self.container.companion is not None:
+                self.container.companion.start()
             self.container.personal_reminder_task = asyncio.create_task(self.container.personal_reminders.run())
         timeline_config = self.general.get("event_timeline", {})
         if (

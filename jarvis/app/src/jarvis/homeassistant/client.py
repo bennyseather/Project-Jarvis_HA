@@ -24,6 +24,18 @@ class HomeAssistantClient:
         self.next_message_id = 1
         self._background_tasks = set()
 
+    async def get_home_location(self):
+        """Read only the HA-configured home coordinates for opted-in planning."""
+        def read():
+            request=Request(self.url.rstrip('/')+'/api/config',headers={'Authorization':'Bearer '+self.token,'Accept':'application/json'})
+            with urlopen(request,timeout=8) as response:
+                raw=response.read(1024*1024+1)
+                if len(raw)>1024*1024:raise ValueError('Home configuration response too large')
+                data=json.loads(raw)
+            from jarvis.companion_transport import coordinates
+            return coordinates({'latitude':data.get('latitude'),'longitude':data.get('longitude')})
+        return await asyncio.to_thread(read)
+
     async def send_json(self, data: dict):
         """
         Send a JSON message to Home Assistant.

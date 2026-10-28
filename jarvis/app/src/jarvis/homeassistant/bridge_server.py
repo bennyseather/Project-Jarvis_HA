@@ -22,6 +22,8 @@ class ConversationBridgeServer:
         from jarvis.household_planner import get_planner
         container=self._bridge._application.container
         payload=overview(container.household_profile)
+        companion=getattr(container,'companion',None)
+        if companion is not None:payload['assistant']=companion.overview()
         if getattr(container,'home_assistant',None) is not None:
             payload['planner']=get_planner(container).project()
         return payload

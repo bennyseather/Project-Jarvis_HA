@@ -161,6 +161,9 @@ class JarvisConversationBridge:
             voice_mode=voice_mode,
             source_id=source_id,
         )
+        companion = getattr(self._application.container, 'companion', None)
+        if companion is not None:
+            operation = companion.process(operation, request_text, identifier, source_id)
         intelligence = getattr(
             self._application.container, "efficient_intelligence", None
         )
@@ -190,7 +193,7 @@ class JarvisConversationBridge:
         else:
             result = await operation
         if result.get('provider') in ('household_edits', 'household_memory', 'household_briefing',
-                                      'planning_preparation', 'personal_reminders', 'household_understanding','household_thinking','household_reasoning','connected_understanding','calendar_conversation'):
+                                      'planning_preparation', 'personal_reminders', 'household_understanding','household_thinking','household_reasoning','connected_understanding','calendar_conversation','companion'):
             # A new household topic/proposal must not leave an older generic
             # memory confirmation waiting to consume the next spoken "yes".
             prior = self._pending_by_conversation.pop(identifier, None)

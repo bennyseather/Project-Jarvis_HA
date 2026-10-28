@@ -1,3 +1,41 @@
+## Assistant memory and initiative (0.45.87)
+
+The opted-in assistant runs inside Jarvis, using the Node's qwen3:8b model locally.
+Useful user statements are checked after the foreground conversation is quiet;
+questions alone and assistant/web/calendar text are not learned as user facts.
+Learning does not silently edit the confirmed household profile or calendar.
+Shared knowledge remains shared; a voice match supplies relevance, not authority.
+
+Enable only with /config/assistant_policy.json containing schema_version 1, explicit
+boolean enabled/automatic_learning/automatic_travel/improvement_proposals flags,
+memory_retention "until_deleted", transport_preference "driving_first", and
+approval_source/recorded_on provenance. Missing file leaves this feature off.
+Additional assistant tables live in the existing /config/jarvis.sqlite3 backup.
+
+In Household > Assistant, inspect conversation details, source quotes, travel
+briefs and proposals. Ask "Show learned memories", "What did Benny mention about
+airport transport?", "Correct learned memory Mxxxxxxxx to ...", "Forget learned
+memory Mxxxxxxxx", or "Forget all learned memories" (then confirm). "Pause
+automatic learning" / "Resume automatic learning" and "Pause travel preparation"
+/ "Resume travel preparation" are reversible. An unknown shared-account speaker
+is never silently treated as Benny. Recent captures can need a short background
+check; model/source failures are visible and are not claimed as completed work.
+
+Travel preparation reads the next 30 days, refreshes changed flights and checks
+unchanged briefs every six hours. Driving advice uses suggested two-hour airport
+and fifteen-minute parking margins, not verified airline check-in cutoffs or live
+traffic. Entur exact routes cover Norway; foreign airport information is researched
+on official domains, without invented bus timetables. Arrival transfers still need
+a supplied onward destination and route verification. Complete a question with
+"Update travel brief Txxxxxxxxxx: leaving from [specific place], onward to [place]".
+These details apply only to that source itinerary, and expire from applicability
+when its flights change. Saved home is a planning origin, not live presence.
+
+No background device operations, bookings, payments, calendar writes or messages
+are added. Improvement ideas are proposals only; a future isolated patch/test/review
+workspace is the next step toward Jarvis-assisted development. Existing action
+confirmation remains in force. Audio/accent and real reminder tests stay held.
+
 # Project Jarvis add-on
 
 ## Phone-appointment interpretation (0.45.80)

@@ -8,7 +8,7 @@ async def async_setup_entry(hass, entry):
     from .planner import planner
     from .calendar_manage import calendar_manage
     from homeassistant.components.frontend import add_extra_js_url, remove_extra_js_url
-    planner_url = '/local/jarvis/jarvis-household.js?v=04580'
+    planner_url = '/local/jarvis/jarvis-household.js?v=04587'
     add_extra_js_url(hass, planner_url)
     entry.async_on_unload(lambda: remove_extra_js_url(hass, planner_url))
     websocket_api.async_register_command(hass, listen)

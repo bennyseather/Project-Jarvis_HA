@@ -61,6 +61,14 @@
 
 # Changelog
 
+## 0.45.87
+
+- Opted-in assistant learning: local Node Qwen selects useful conversational details, with exact user quotes, known/unknown speaker attribution and source-anchored plan dates. Keep until corrected or deleted; separate reported details, uncertain hints and historical plans from confirmed profile/calendar facts.
+- Prepare airport briefs in the background from the existing travel calendar, driving first with public transport alternatives. Use bounded Entur routes in Norway and official airport information for supported destinations. Unknown origins/onward destinations stay explicit. Changed bookings withdraw stale advice.
+- Add a Household Assistant view for learned details, airport briefs, outstanding questions and development ideas. Corrections, forgetting, learning pause/resume and itinerary-specific starting/destination details use authenticated Assist text commands.
+- Use local Qwen for cross-person coordination and natural summaries; validate identities, dates, numbers and source references in code. Collect development proposals for review; no self-modification or autonomous execution.
+- Preserve voice/calibration and household/calendar data. Actual audio/accent and reminder acceptance remain on hold. Requires matching integration/frontend and an explicit assistant_policy.json opt-in.
+
 ## 0.45.80
 
 - Interpret new phone-calendar appointments on the local Jarvis Node: infer a
