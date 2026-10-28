@@ -113,6 +113,21 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
   self.provider.reason_local=lambda **kw:{'status':'success','message':json.dumps({'items':[model_item('Benny wants Jarvis to explain better.',kind='improvement',subjects=['benny'])]})}
   self.capture('Benny wants Jarvis to explain better.')
   await self.a.learn_one(foreground=True);self.assertEqual(self.store.improvements(),[])
+ async def test_plural_travel_briefs_use_the_prepared_reader(self):
+  self.a.travel=SimpleNamespace(status='checked')
+  result=await self.say('Show travel briefs');self.assertEqual(result['provider'],'companion');self.assertIn('not prepared',result['message'])
+ async def test_named_traveller_cannot_be_silently_replaced_by_benny(self):
+  self.a.travel=SimpleNamespace(status='checked')
+  self.store.save_brief('T123','hash','ready',{'summary':'Benny flight details'})
+  result=await self.say("Show Linda's travel brief");self.assertEqual(result['status'],'unavailable');self.assertNotIn('Benny flight details',result['message'])
+ async def test_broad_attention_question_does_not_hide_other_household_sources(self):
+  self.a.travel=SimpleNamespace(status='checked')
+  self.store.save_brief('T123','hash','ready',{'summary':'Benny flight details'})
+  result=await self.say('What needs my attention?');self.assertIsNone(result)
+ async def test_new_topic_expires_implicit_forget_selection(self):
+  store_record(self.store,'Benny prefers driving to the airport.')
+  await self.say('What did Benny mention about airport transport?');await self.say('When does Mia finish school?')
+  await self.say('Forget that');self.assertEqual(len(self.store.memories()),1)
  async def test_policy_requires_explicit_valid_provenance(self):
   for change in ({'memory_retention':90},{'automatic_learning':'true'},{'approval_source':''}):
    with self.assertRaises(ValueError):CompanionPolicy(None,{**POLICY,**change})

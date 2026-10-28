@@ -164,6 +164,7 @@ class Companion:
   previous=self.dialogue.previous(key,source) if self.dialogue else None
   if previous and len(previous['subjects'])>1 and re.search(r'\b(?:her|his|their) (?:birthday|age|job)\b',value):
    return response('Whose information do you mean? Please use their name.')
+  if value!='forget that':self.selected.pop(str(key),None)
   old=self.pending.pop(str(key),None)
   if old and old['binding']==binding and old['expires']>self.clock() and value in ('yes','confirm','approve','yes please'):
    if not access.write:return response('Your signed-in HA account needs permission to change learned memories.','forbidden')
@@ -201,7 +202,7 @@ class Companion:
    if not applied or not applied['saved']:return response('I could not apply that correction yet. The previous memory is retained while the queued correction needs another check.','unavailable')
    return response('Corrected that learned memory. You can review it on the Assistant page.','success')
   memory_list=value in ('show learned memories','show conversation memories','what have you learned','what have you picked up','what did you pick up from our conversations')
-  memory_question=bool(re.search(r'\b(?:remember(?:ed)?|told|tell|mention(?:ed)?|prefer(?:s|ence|ences)?|favourite|favorite|dislike|learn(?:ed)?)\b',value)) and bool(re.match(r'^(?:what|when|which|how|do|does|did|can|could|show|tell)\b',value))
+  memory_question=bool(re.search(r'\b(?:remember(?:ed)?|told|mention(?:ed)?|prefer(?:s|ence|ences)?|favourite|favorite|dislike|learn(?:ed)?)\b',value)) and bool(re.match(r'^(?:what|when|which|how|do|does|did|can|could|show|tell)\b',value))
   if memory_list or memory_question:
    subjects=self.subjects(text,key,source)
    if memory_list and not re.search(r'\b(my|me|i)\b',value) and not any(re.search(r'\b'+re.escape(p['preferred_name'])+r'\b',text,re.I) for p in self.profile._data['members']):subjects=[]
@@ -233,8 +234,10 @@ class Companion:
    except (ValueError,asyncio.TimeoutError) as error:return response(str(error))
    self.last_scan=0;self.revoke_other_reviews(key)
    return response('Saved those details for this itinerary. I will refresh the airport brief in the background; no bookings or calendar entries were changed.','success')
-  travel_read=bool(re.search(r'\b(?:travel brief|airport plan|airport preparation|prepared for (?:my|the|benny)|what have you prepared|what needs my attention)\b',value))
+  travel_read=bool(re.search(r'\b(?:travel briefs?|airport plans?|airport preparation|prepared for (?:my|the|benny)|what have you prepared)\b',value))
   if travel_read and self.travel:
+   named={p['id'] for p in self.profile._data['members'] if re.search(r'\b'+re.escape(p['preferred_name'])+r'\b',text,re.I)}
+   if named and 'benny' not in named:return response('I do not have a connected travel calendar for that person. Benny’s prepared travel briefs are shared with the household.','unavailable')
    if re.search(r'\b(my|me|mine)\b',value):
     speaker=current_speaker.get().member_id
     if speaker is None:return response('Whose travel preparation do you mean? Please name the traveller.')

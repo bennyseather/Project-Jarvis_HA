@@ -61,6 +61,10 @@
 
 # Changelog
 
+## 0.45.88
+
+- Complete installed text hardening: recognise plural travel-brief requests, respect the named traveller, preserve the broader household attention view, and expire an implicit forget selection when the topic changes.
+
 ## 0.45.87
 
 - Opted-in assistant learning: local Node Qwen selects useful conversational details, with exact user quotes, known/unknown speaker attribution and source-anchored plan dates. Keep until corrected or deleted; separate reported details, uncertain hints and historical plans from confirmed profile/calendar facts.
