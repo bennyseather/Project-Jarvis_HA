@@ -6,6 +6,7 @@ async def async_setup_entry(hass, entry):
     from .listening import listen
     from .household import household
     from .planner import planner
+    from .calendar_manage import calendar_manage
     from homeassistant.components.frontend import add_extra_js_url, remove_extra_js_url
     planner_url = '/local/jarvis/jarvis-household.js?v=04580'
     add_extra_js_url(hass, planner_url)
@@ -13,6 +14,7 @@ async def async_setup_entry(hass, entry):
     websocket_api.async_register_command(hass, listen)
     websocket_api.async_register_command(hass, household)
     websocket_api.async_register_command(hass, planner)
+    websocket_api.async_register_command(hass, calendar_manage)
     from .speaker_bridge import register as register_speaker
     await register_speaker(hass)
     await hass.config_entries.async_forward_entry_setups(entry, [Platform.CONVERSATION, Platform.SENSOR])

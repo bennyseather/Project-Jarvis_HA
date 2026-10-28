@@ -95,8 +95,15 @@ async def add_period(hass, data, period='today', *, now=None, start_date=None, e
     entries=[]
     if calendar=='calendar.familiekalender':
         try:
-            response=await asyncio.wait_for(hass.services.async_call('calendar','get_events',{'entity_id':calendar,'start_date_time':start.isoformat(),'end_date_time':end.isoformat()},blocking=True,return_response=True),8)
-            events=response[calendar]['events']
+            planner=data.get('planner',{})
+            if planner.get('ready') and any(k.startswith('uid:') for k in planner.get('assignments',{})):
+                from homeassistant.components.calendar import DATA_COMPONENT
+                entity=hass.data[DATA_COMPONENT].get_entity(calendar)
+                source=await asyncio.wait_for(entity.async_get_events(hass,start,end),8)
+                events=[{**e.as_dict(),'start':e.start.isoformat(),'end':e.end.isoformat(),'uid':e.uid,'recurrence_id':e.recurrence_id} for e in source]
+            else:
+                response=await asyncio.wait_for(hass.services.async_call('calendar','get_events',{'entity_id':calendar,'start_date_time':start.isoformat(),'end_date_time':end.isoformat()},blocking=True,return_response=True),8)
+                events=response[calendar]['events']
             if not isinstance(events,list) or len(events)>500: raise ValueError('Unbounded or invalid calendar response')
             for event in events:
                 if event.get('status')=='cancelled':continue

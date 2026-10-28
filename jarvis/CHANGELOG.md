@@ -1,3 +1,18 @@
+## 0.45.83
+
+- Find an existing household appointment, choose between matches, then review
+  changes to its day/time/duration, venue, title, members or category in Assist.
+  Keep Norway-time and compact/AM-PM parsing; weekday follow-ups anchor to the
+  selected appointment's week. A clear before/after review precedes every save.
+- Update the original Google event using the existing HA Google connection and
+  conditional version checks. Preserve unrelated fields and organiser notes;
+  block invited-guest events and whole-series changes. Recurring edits/removal
+  affect only the selected occurrence. Calendar removal does not cancel bookings.
+- Journal provider dispatch in Core and the planner, reject stale/conflicting
+  reviews and never blindly repeat an uncertain send. Recheck live conflicts and
+  duplicates before committing. No new calendar, OAuth consent, model write tools,
+  voice enrolment or automatic device action. Audio/reminder tests remain held.
+
 ## 0.45.82
 
 - Accept compact calendar start/end clocks such as 1600 and 0930, plus 4 pm,

@@ -28,6 +28,8 @@ class CalendarConversation:
         self.planner=planner;self.profile=planner.profile;self.clock=clock
         self.extractor=extractor or CalendarDrafting(provider)
         self.sessions=OrderedDict();self.lock=asyncio.Lock()
+        from jarvis.calendar_editing import EditingDialogue
+        self.editing=EditingDialogue(self,provider)
 
     def clear(self,key):
         state=self.sessions.pop(str(key),None)
@@ -53,6 +55,9 @@ class CalendarConversation:
             try:return await self.classification(text,prior)
             except Exception:return reply('I could not verify that appointment just now. Please check the Household planner.','unavailable')
         old=self.sessions.get(str(key))
+        if hasattr(self.planner.client,'manage_household_appointment') and not (old and old['kind']=='create' and old['phase']!='done'):
+            editing=await self.editing.handle(text,key,source_id,prior)
+            if editing is not None:self.clear(key);return editing
         starts=bool(not EXCLUDE.search(text) and (CORRECT.search(text) or
                     (CREATE.search(text) and (CALENDAR.search(text) or re.search(r'\b(tomorrow|next|\d{4}-\d{2}-\d{2})\b',text,re.I)))))
         if not old and not starts:return None
@@ -86,6 +91,8 @@ class CalendarConversation:
         finally:self.lock.release()
 
     async def _handle(self,text,normalized,key,source,owner,state,starts,prior):
+        if state and state['kind']=='create' and re.fullmatch(r'(?:cancel|remove|delete) (?:that|this|the) appointment',normalized):
+            self.clear(key);return reply('Discarded that unsaved appointment. Nothing was added to the calendar.','success')
         if normalized in NO:
             self.clear(key);return reply('Discarded that calendar draft. No further calendar changes will be made.','success')
         if normalized in YES:

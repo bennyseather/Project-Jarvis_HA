@@ -167,6 +167,20 @@ class HomeAssistantClient:
                 if response.get('id')!=1 or not response.get('success'):raise RuntimeError('Planner create not confirmed')
         finally:await reader.disconnect()
 
+    async def manage_household_appointment(self,action,payload):
+        """Fixed-calendar reviewed operation on its own socket; never retry writes."""
+        if action not in ('inspect','prepare','commit'):raise ValueError('Unsupported calendar operation')
+        reader=HomeAssistantClient(self.url,self.token,self.logger)
+        try:
+            async with asyncio.timeout(28):
+                await reader._connect_socket()
+                await reader.send_json({'id':1,'type':'jarvis_conversation/calendar_manage','action':action,'payload':payload})
+                response=await reader.receive_json()
+                if response.get('id')!=1 or not response.get('success'):
+                    raise ValueError(response.get('error',{}).get('message','Calendar operation was not confirmed'))
+                return response['result']
+        finally:await reader.disconnect()
+
     async def get_household_today(self, period='today', *, start_date=None, end_date=None):
         """Use the dashboard's authenticated read-only command on a separate socket."""
         if period not in ('today','tomorrow','week_ahead','this_week','next_week','custom'):

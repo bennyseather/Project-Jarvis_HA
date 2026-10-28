@@ -722,3 +722,20 @@ calendar before retrying. No new calendar or recurring automation is created.
 
 Calendar clock formats (.82): 1600, 0930, 4 pm, 4:30 p.m., noon and midnight
 are accepted for start/end times. The review still shows normalised Norway time.
+
+### Existing appointments (0.45.83)
+
+Find an appointment by person, title and day/week, select its number if several
+match, then ask to move it, change its venue/title/person/category, or remove it.
+Check the before/after review and confirm only that reviewed change. Cancel by
+itself discards the review. A full request such as “Cancel that appointment”
+prepares calendar removal and still requires confirmation; it never cancels a
+provider booking. Repeating events affect one selected occurrence. Use the phone
+for invited-guest events, whole-series editing and unsupported event types.
+
+The original Google event identity stays in place, with only reviewed fields
+patched and an If-Match version check. A changed phone event requires a new review.
+Provider dispatch receipts live in Core's protected .jarvis-calendar-mutations.sqlite3;
+the add-on retains the existing planner receipt. An uncertain save is not retried.
+References: https://developers.google.com/workspace/calendar/api/guides/version-resources
+and https://developers.google.com/workspace/calendar/api/v3/reference/events/patch

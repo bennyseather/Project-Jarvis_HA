@@ -843,6 +843,13 @@ class JarvisApplication:
                     for name in (() if calendar_result.get('calendar_read') else ('event_preparation','connected_understanding','household_thinking','planning_preparation','household_briefing','household_dialogue','household_reasoning')):
                         previous=getattr(self.container,name,None)
                         if previous is not None:previous.clear(conversation_id)
+                    if calendar_result.get('calendar_read') and calendar_result.get('subject'):
+                        from jarvis.household_reasoning import HouseholdReasoning
+                        reasoning=getattr(self.container,'household_reasoning',None)
+                        if reasoning is None:
+                            reasoning=HouseholdReasoning(profile,getattr(self.container,'local_reasoning_provider',None));self.container.household_reasoning=reasoning
+                        person=next((p for p in profile._data['members'] if p['id']==calendar_result['subject']),None)
+                        if person:reasoning.resolve('Tell me about '+person['preferred_name'],conversation_id)
                     edits=getattr(profile,'_edits',None)
                     if edits is not None:edits.observe_turn('calendar appointment conversation',conversation_id)
                     return calendar_result

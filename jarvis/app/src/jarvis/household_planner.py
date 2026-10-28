@@ -87,6 +87,9 @@ class HouseholdPlanner:
             for event in events:
                 if event.get('status')=='cancelled':continue
                 key=identity(event)
+                from jarvis.calendar_membership import uid_identity,content_fingerprint
+                recorded=manual.get(uid_identity(event))
+                if recorded and recorded.get('_content')==content_fingerprint(event):continue
                 if key in manual or str(event.get('description') or '').startswith(PREFIX) or self.details(event) is not None:continue
                 if processed>=maximum or time.monotonic()>deadline-0.5:break
                 revision=self.profile._data['revision'];value=await asyncio.wait_for(self.interpreter.interpret(event),8)
@@ -237,6 +240,9 @@ class HouseholdPlanner:
             if row[1]<self.clock():raise ValueError('This review expired; review the appointment again')
             envelope=json.loads(row[3])
             if envelope['revision']!=self.profile._data['revision']:raise ValueError('Household information changed; review again')
+            if envelope['action']=='calendar_change':
+                from jarvis.calendar_changes import confirm
+                return await confirm(self,payload['token'],envelope)
             if envelope['action']=='assignment':
                 event=await self.find_event(envelope['selection'])
                 if self.event_hash(event)!=envelope['source_hash'] or self.annotations().get(envelope['selection']['key'])!=envelope['previous']:
@@ -313,6 +319,10 @@ class HouseholdPlanner:
         if action=='review':return await self.review(payload,owner)
         if action=='assign_review':return await self.review_assignment(payload,owner)
         if action=='confirm':return await self.confirm(payload,owner)
+        if action=='change_review':
+            from jarvis.calendar_changes import review
+            if set(payload)!={'selection','operation','changes'}:raise ValueError('Invalid appointment change')
+            return await review(self,owner=owner,**payload)
         raise ValueError('Unsupported planner operation')
 
 def get_planner(container):
