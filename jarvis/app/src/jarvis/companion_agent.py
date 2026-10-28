@@ -54,6 +54,10 @@ not calendar evidence or general knowledge. A venue statement followed by a
 route QUESTION is local_route, not remember_detail or household_facts.
 'Can you check the driving time from the house to Ulsteinvik?' -> local_route
 'What is the travel time?' after dinner/calendar planning -> local_route.
+When meal_route_pending asks for an activity venue, a reply supplying that place
+uses local_route to finish the dinner/travel calculation, not memory/profile editing.
+A bare dinner duration or date-only continuation of an active dinner-fit task is
+household_plans, including after a route/meal budget. Do not mistake it for a new route.
 When route_focus.awaiting is supplied, short replies giving home, a place, or
 'driving' fill that route slot. They are local_route, not memories or general chat.
 Keep the current read_focus person/date while checking a related route. A short
@@ -148,13 +152,24 @@ class QwenConversation:
   names='|'.join(re.escape(n) for n in people.values())
   if re.fullmatch(r'(?i)(?:(?:hi|hello) Jarvis[, ]+)?this is (?:'+names+r')(?: speaking)?[.!]?',text.strip()):
    schema['properties']['tool']['enum']=['identity']
-  from jarvis.companion_routing import previous_route
-  routing=previous_route(self.owner,state)
+  from jarvis.companion_routing import previous_route,meal_draft
+  routing=previous_route(self.owner,state);meal=meal_draft(self.owner,state)
   if routing and state['last_tool']=='route' and text.casefold().strip(' .?!') in ('driving','by car','car','home','from home','public transport','by bus','bus'):
    schema['properties']['tool']['enum']=['local_route']
+  focus=self.reads.prior(state)
+  if focus and focus['purpose']=='availability' and focus.get('between') and re.search(r'\b(?:dinner|meal)\b',focus.get('task',''),re.I):
+   from jarvis.companion_read_context import duration_quotes
+   from jarvis.household_planning import DATE_PATTERN
+   spans=duration_quotes(text)
+   meal_duration=bool(spans and re.fullmatch(r'(?:about |around )?'+re.escape(spans[0])+r'[.?!]?',text,re.I))
+   date_only=bool(DATE_PATTERN.search(text.casefold()) and not re.sub(r'\b(?:and|what about|how about|on)\b','',DATE_PATTERN.sub(' ',text.casefold())).strip(' .?!'))
+   if meal_duration or date_only:schema['properties']['tool']['enum']=['household_plans']
+  from jarvis.connected_understanding import DEPART,WRITE as CONNECTED_WRITE
+  if DEPART.search(text) and not CONNECTED_WRITE.search(text) and re.search(r'\b(?:sort out|prepare|check)\b',text,re.I) and not re.search(r'\b(?:drive|driving|route|travel time)\b',text,re.I):
+   schema['properties']['tool']['enum']=['departure_brief']
   data={'reference_date':state['binding'][-1],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':state['history'][-6:],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
-   'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'read_focus':self.reads.prior(state),'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}
+   'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'read_focus':self.reads.prior(state),'meal_route_pending':[{'activity':v['event']} for v in meal['missing']] if meal else [],'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}
   data['latest']=data.pop('latest') # Current turn last; older tool replies are reference context only.
   out=await local_json(self.provider,PROMPT,data,schema,tokens=100)
   if not isinstance(out,dict) or set(out)!={'tool','members'} or out['tool'] not in DOMAINS:raise ValueError('Invalid conversation tool')
@@ -199,6 +214,7 @@ class QwenConversation:
        used=True;token=coded_backend_only.set(True)
        try:return await operation
        finally:coded_backend_only.reset(token)
+      memory_generation=self.owner.store.generation
       try:
        from jarvis.companion_context import observation_scope
        prior=self.reads.prior(state)
@@ -212,6 +228,14 @@ class QwenConversation:
        result=reply(str(error),'clarification_required') if str(error) in ('Whose plans do you mean? Please name a household member.','Whose plans should I check?','Please clarify which plans you mean.','Which person or appointment do you mean?','Which household members should I compare?','Please name the person you meant.','Which household member do you mean?','Please state the date or duration you mean.','Which date should I use?','Which day should I check?','Please clarify the comparison.','How long should it take?','Which appointments should I compare?') else reply('I could not complete that tool request reliably. Nothing is confirmed as changed.','unavailable')
       except Exception as error:result=reply('I could not complete that tool request reliably. Nothing is confirmed as changed.','unavailable')
       if isinstance(result,dict):self.reads.observe(text,tool,result,plan['members'],state,state.pop('_resolved_read',None))
+      if tool=='plans' and isinstance(result,dict):
+       from jarvis.companion_routing import CompanionRouting
+       routing=getattr(self.owner.container,'companion_routing',None)
+       if routing is None:routing=CompanionRouting(self.owner);self.owner.container.companion_routing=routing
+       try:result=await routing.meal_plan(text,key,state,result)
+       except Exception:result={**result,'message':str(result.get('message',''))+' I could not verify the journeys yet, so this only compares the calendar gap.','meal_travel_checked':False}
+       if self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source) or memory_generation!=self.owner.store.generation:
+        result=reply('The planning context changed while I was checking the journeys. Please ask again.','unavailable')
       if result is None:result=reply('I need a little more detail to use that tool. What exactly would you like me to check or change?','clarification_required')
       result={**result,'cacheable':False,'companion_agent_handled':True,'agent_tool':tool,'agent_planned_by':'local_qwen'}
       try:self.owner.after(text,result,key,source)

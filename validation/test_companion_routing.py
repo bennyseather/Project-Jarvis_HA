@@ -12,7 +12,10 @@ from test_companion_agent import plan
 import test_companion_agent as agent_fixture
 class Provider:
  def __init__(self):self.calls=[];self.result={'origin_quote':'the house','destination_quote':'Ulsteinvik','mode':'driving','reverse':False}
- def reason_local(self,**kw):self.calls.append(kw);return {'status':'success','message':json.dumps(self.result)}
+ def reason_local(self,**kw):
+  self.calls.append(kw);schema=kw['response_schema']['properties']
+  value={'meal_location':getattr(self,'meal_location','unspecified')} if 'meal_location' in schema else {'kind':'place_reply','place_quote':getattr(self,'place_quote','School')} if 'place_quote' in schema else self.result
+  return {'status':'success','message':json.dumps(value)}
 class Transport:
  def __init__(self):self.calls=[];self.minutes=18;self.fail=False
  def place(self,name):self.calls.append(('place',name));return {'label':'Ulsteinvik, Ulstein','coordinates':{'latitude':62.34,'longitude':5.85}}
@@ -141,6 +144,86 @@ class FreshVenueTests(unittest.IsolatedAsyncioTestCase):
   self.owner.container.household_thinking.reader.handle=AsyncMock(return_value={'evidence':{'source_failures':['family'],'truncated':False}})
   self.assertEqual(await self.venues(),[])
 
+class AutomaticMealTests(unittest.IsolatedAsyncioTestCase):
+ setUp=RoutingTests.setUp
+ setup_calendar=FreshVenueTests.setup_calendar
+ async def check(self,minutes=45):
+  self.setup_calendar();self.state['read_focus']['duration_minutes']=minutes;self.owner.policy.data['transport_preference']='driving_first'
+  with calendar_scope({'actor':'u','read':True,'write':False}):return await self.router.meal_plan('about '+str(minutes)+' minutes','s',self.state,{'status':'success','message':'A calendar-only answer.'})
+ async def test_both_drives_automatically_count_and_overshoot_is_clear(self):
+  r=await self.check();self.assertTrue(r['meal_budget']['complete']);self.assertEqual(r['meal_budget']['checked_travel_minutes'],36);self.assertEqual(r['meal_budget']['remaining_minutes'],-21);self.assertIn('81 minutes',r['message']);self.assertIn('21 minutes longer',r['message']);self.assertEqual(len([c for c in self.transport.calls if c[0]=='route']),2)
+  self.assertTrue(self.transport.calls[-2][-1]['depart_after']);self.assertFalse(self.transport.calls[-1][-1]['depart_after'])
+ async def test_asymmetric_journeys_use_both_directions(self):
+  old=self.transport.route
+  def route(a,b,*args,**kw):
+   self.transport.minutes=10 if b['latitude']==62.12345678 else 9
+   return old(a,b,*args,**kw)
+  self.transport.route=route;r=await self.check()
+  self.assertEqual(r['meal_budget']['to_meal_minutes'],10);self.assertEqual(r['meal_budget']['to_next_minutes'],9);self.assertEqual(r['meal_budget']['remaining_minutes'],-4)
+ async def test_drives_alone_can_exceed_gap_before_meal_duration_is_given(self):
+  self.transport.minutes=40;r=await self.check(None)
+  self.assertIn('exceeding the 60-minute gap by 20',r['message']);self.assertNotIn('leaving 0',r['message'])
+ async def test_read_access_is_required_for_automatic_journeys(self):
+  self.setup_calendar();self.owner.policy.data['transport_preference']='driving_first'
+  with calendar_scope({'actor':'u','read':False,'write':False}):r=await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Old reply'})
+  self.assertNotIn('meal_budget',r);self.home.assert_not_awaited();self.assertEqual(self.provider.calls,[])
+ async def test_shorter_meal_shows_remaining_margin(self):
+  r=await self.check(15);self.assertEqual(r['meal_budget']['remaining_minutes'],9);self.assertIn('leaving 9 minutes',r['message']);self.assertIn('tight margin',r['message'])
+ async def test_unknown_duration_still_checks_drives_and_asks_once(self):
+  r=await self.check(None);self.assertEqual(r['meal_budget']['checked_travel_minutes'],36);self.assertIn('24 of the 60 minutes',r['message']);self.assertIn('How long',r['message'])
+ async def test_missing_previous_venue_never_says_whole_plan_fits(self):
+  self.setup_calendar();self.client.events['calendar.familiekalender'][0]['location']='';self.owner.policy.data['transport_preference']='driving_first'
+  with calendar_scope({'actor':'u','read':True,'write':False}):r=await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Old reply'})
+  self.assertFalse(r['meal_budget']['complete']);self.assertIsNone(r['meal_budget']['to_meal_minutes']);self.assertEqual(r['meal_budget']['remaining_minutes'],-3);self.assertIn('unchecked journey',r['message']);self.assertNotIn('would fit',r['message'])
+ async def test_missing_home_consent_prevents_coordinate_loading(self):
+  self.owner.policy.data.pop('interactive_home_routing');r=await self.check();self.assertNotIn('meal_budget',r);self.home.assert_not_awaited();self.assertEqual(self.transport.calls,[])
+ async def test_elsewhere_meal_is_not_silently_routed_through_home(self):
+  self.provider.meal_location='elsewhere';r=await self.check();self.assertNotIn('meal_budget',r);self.home.assert_not_awaited()
+ async def test_non_meal_gap_does_not_trigger_routing(self):
+  self.setup_calendar();self.state['read_focus']['task']='Can we fit homework between those appointments?';self.owner.policy.data['transport_preference']='driving_first'
+  with calendar_scope({'actor':'u','read':True,'write':False}):r=await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Homework'})
+  self.assertEqual(r['message'],'Homework');self.assertEqual(self.transport.calls,[])
+ async def test_one_route_failure_retains_other_leg_without_inventing_total(self):
+  old=self.transport.place
+  self.transport.place=lambda name:None if name=='School' else old(name)
+  r=await self.check(30);self.assertFalse(r['meal_budget']['complete']);self.assertEqual(r['meal_budget']['to_next_minutes'],18);self.assertEqual(r['meal_budget']['remaining_minutes'],12);self.assertIn('Where is Band rehearsal',r['message']);self.assertNotIn('both drives would',r['message'])
+ async def test_missing_venue_reply_completes_plan_without_saving_profile(self):
+  self.setup_calendar();self.client.events['calendar.familiekalender'][0]['location']='';self.owner.policy.data['transport_preference']='driving_first';before=deepcopy(self.owner.profile._data)
+  with calendar_scope({'actor':'u','read':True,'write':False}):
+   first=await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Old reply'})
+   self.assertFalse(first['meal_budget']['complete'])
+   second=await self.router.handle('School','s',self.state)
+   self.assertTrue(second['meal_budget']['complete']);self.assertEqual(second['meal_budget']['remaining_minutes'],-21)
+   self.state['read_focus']['duration_minutes']=15
+   third=await self.router.meal_plan('15 minutes','s',self.state,{'status':'success','message':'Old reply'})
+   self.assertTrue(third['meal_budget']['complete']);self.assertEqual(third['meal_budget']['remaining_minutes'],9)
+  self.assertEqual(before,self.owner.profile._data)
+ async def test_venue_reply_cannot_cross_scope_or_source_change(self):
+  self.setup_calendar();self.client.events['calendar.familiekalender'][0]['location']='';self.owner.policy.data['transport_preference']='driving_first'
+  with calendar_scope({'actor':'u','read':True,'write':False}):
+   await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Old reply'})
+   await self.router.handle('School','s',self.state)
+   self.client.events['calendar.familiekalender'][0]['summary']='Replacement appointment'
+   result=await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Old reply'})
+   self.assertFalse(result['meal_budget']['complete'])
+   self.state['read_focus']['start']='2026-10-30';self.state['read_focus']['end']='2026-10-31'
+   from jarvis.companion_routing import meal_draft
+   self.assertIsNone(meal_draft(self.owner,self.state));self.assertNotIn('meal_venue_overrides',self.state)
+ async def test_changed_event_notes_withdraw_temporary_venue(self):
+  self.setup_calendar();self.client.events['calendar.familiekalender'][0]['location']='';self.owner.policy.data['transport_preference']='driving_first'
+  with calendar_scope({'actor':'u','read':True,'write':False}):
+   await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Old reply'})
+   await self.router.handle('School','s',self.state)
+   self.client.events['calendar.familiekalender'][0]['description']='The rehearsal venue has changed.'
+   r=await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Old reply'})
+   self.assertFalse(r['meal_budget']['complete']);self.assertIsNone(r['meal_budget']['to_meal_minutes'])
+ async def test_coordinates_never_enter_model_or_reply_or_state(self):
+  r=await self.check();data=json.dumps([self.provider.calls,r,self.state]);self.assertNotIn('62.12345678',data);self.assertNotIn('5.23456789',data)
+ async def test_source_change_recalculates_instead_of_reusing_old_meal_budget(self):
+  await self.check(15);self.client.events['calendar.familiekalender'][1]['start']='2026-10-29T16:30:00+01:00'
+  with calendar_scope({'actor':'u','read':True,'write':False}):r=await self.router.meal_plan('15 minutes','s',self.state,{'status':'success','message':'Old reply'})
+  self.assertEqual(r['meal_budget']['gap_minutes'],30);self.assertEqual(r['meal_budget']['remaining_minutes'],-21)
+
 class AgentRouteTests(unittest.IsolatedAsyncioTestCase):
  setUp=agent_fixture.AgentTests.setUp
  say=agent_fixture.AgentTests.say
@@ -150,6 +233,14 @@ class AgentRouteTests(unittest.IsolatedAsyncioTestCase):
  async def test_reported_introduction_does_not_narrow_identity_or_match_voice(self):
   await self.say('Linda said "Hi Jarvis, this is Benny speaking"',plan('general',answer='That is a reported statement.'))
   self.assertGreater(len(self.provider.calls[0]['response_schema']['properties']['tool']['enum']),1);self.assertIsNone(self.a.agent.sessions['chat']['introduced'])
+ async def test_departure_preparation_stays_in_combined_home_calendar_weather_tool(self):
+  self.container.connected_understanding=SimpleNamespace(handle=AsyncMock(return_value={'status':'success','message':'Fresh departure checks.'}))
+  r=await self.say('What should we sort out before leaving tomorrow?',plan('connected'))
+  self.assertEqual(r['agent_tool'],'connected');self.assertEqual(self.provider.calls[0]['response_schema']['properties']['tool']['enum'],['departure_brief'])
+ async def test_failed_observation_read_returns_reply_instead_of_breaking_plans(self):
+  self.a.observations=lambda *args:(_ for _ in ()).throw(RuntimeError('Fixture source failure'))
+  r=await self.say('Can we fit dinner between Mia activities tomorrow?',plan('plans',members=['mia']))
+  self.assertEqual(r['status'],'unavailable');self.assertNotIn('meal_budget',r)
  async def test_selected_route_uses_fixed_executor_without_original_router(self):
   calls=[]
   async def handle(text,key,state):calls.append(text);return {'status':'success','message':'A verified routing estimate.'}

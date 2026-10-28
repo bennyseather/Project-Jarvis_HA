@@ -884,3 +884,27 @@ account/source/profile/day/voice binding also applies. Specific current calendar
 venues override usual venues. Ambiguous endpoints still need clarification.
 The existing explicit interactive_home_routing approval remains required; this
 release does not grant or broaden sharing. No calendar or device write occurs.
+
+
+### Automatic dinner and journey budgets (0.45.102)
+
+When asking whether dinner fits between one person's two dated appointments,
+Jarvis checks both driving journeys without requiring a separate route question.
+The configured driving-first preference and existing explicit home-to-Entur
+approval are required. Qwen interprets the eating location: home can be a labelled
+planning assumption if unspecified; an explicitly elsewhere meal never silently
+routes through home. No new sharing permission is granted by this release.
+
+The first route departs after the earlier activity; the second arrives by the
+next activity. Code combines both estimates with the user-supplied meal duration
+and reports spare minutes or a shortfall. An unknown duration prompts once while
+showing the estimated driving budget. Unknown venues/routes stay unknown: a
+partial budget cannot establish that the whole plan fits. General traffic,
+parking, preparation and attendance remain unverified.
+
+When one activity venue is missing, supply its place name or state where it is.
+Qwen extracts the exact user quote, then the fixed route tool recalculates. This
+venue is an expiring conversation report, not a saved profile/calendar update.
+It is bound to the actor/chat/source/day/profile/voice, current person/date and
+exact event source/title/times/current venue. Later meal-duration replies reuse
+it within that scope; changed events/scopes or expiry withdraw it.

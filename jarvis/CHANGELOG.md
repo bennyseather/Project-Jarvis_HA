@@ -1,3 +1,15 @@
+## 0.45.102
+
+- Automatically include both driving journeys when evaluating dinner between
+  appointments: from the preceding activity to home, then to the next activity.
+- Combine the requested meal duration with verified route estimates, calculate
+  the remaining margin or shortfall, and identify unchecked journeys clearly.
+- Ask for a missing activity venue and use the reply only for the current plan;
+  recalculate after duration changes, and discard changed/expired event scopes.
+- Qwen interprets meal location and venue replies. Meals explicitly elsewhere do
+  not silently use home. Existing home-sharing consent and driving preference
+  remain required. Voice references, memories and calendar data are preserved.
+
 ## 0.45.101
 
 - Preserve origin, destination and transport mode across short route replies.
