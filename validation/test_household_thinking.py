@@ -218,6 +218,19 @@ class ThinkingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(r['composition'],'calculated_recovery');self.assertFalse(r['local_model_interpretation'])
         self.assertIn('later',r['message']);self.assertIn('Mia',r['message']);self.assertNotIn('free',r['message'])
 
+    async def test_small_overview_recovery_includes_both_recorded_appointments(self):
+        self.client.events['calendar.familiekalender'].append({'summary':'Gymnastics','start':'2026-10-22T18:00:00+02:00','end':'2026-10-22T19:00:00+02:00'})
+        self.provider.respond=lambda _: {'status':'unavailable'}
+        r=await self.ask("What does Mia's day look like tomorrow?")
+        self.assertEqual(r['composition'],'calculated_recovery')
+        self.assertIn('17:00',r['message']);self.assertIn('18:00',r['message']);self.assertIn('gymnastics',r['message'].lower())
+
+    async def test_small_overview_cannot_silently_omit_the_second_start_time(self):
+        self.client.events['calendar.familiekalender'].append({'summary':'Gymnastics','start':'2026-10-22T18:00:00+02:00','end':'2026-10-22T19:00:00+02:00'})
+        r=await self.ask("What does Mia's day look like tomorrow?")
+        self.assertEqual(r['composition'],'calculated_recovery');self.assertEqual(len(self.provider.calls),2)
+        self.assertIn('17:00',r['message']);self.assertIn('18:00',r['message'])
+
     async def test_calculated_multi_day_load_uses_per_day_not_total_hours(self):
         self.client.events['calendar.work_reach']=[{'summary':'Workshop','start':'2026-10-26T09:00:00+01:00','end':'2026-10-26T15:00:00+01:00'},
             {'summary':'Meeting','start':'2026-10-27T09:00:00+01:00','end':'2026-10-27T10:00:00+01:00'}]

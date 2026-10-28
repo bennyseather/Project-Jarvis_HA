@@ -322,6 +322,7 @@ class HouseholdThinking:
                     # A single correction opportunity, not an open-ended agent loop.
                     # Feedback is code-owned: never turn model prose into authority.
                     feedback={
+                        'Missing overview appointment':'Include every recorded appointment in this small overview, with its start time. Keep the actual question and do not substitute one timetable comparison.',
                         'Missing duration question':'Ask how long the proposed activity should take; do not claim it fits yet.',
                         'Requested activity exceeds the recorded interval':'State that the requested activity is longer than the recorded gap and will not fit inside it. Do not ask the user to do the calculation.',
                         'Missing requested duration':'Include the requested activity duration and directly answer whether that duration fits the recorded gap, with calendar-only uncertainty.',
@@ -377,6 +378,11 @@ class HouseholdThinking:
     @staticmethod
     def validate_goal(answer,board):
         value=answer.casefold()
+        if board['purpose']=='overview' and not board['limited_view'] and 1<len(board['appointments'])<=4:
+            spoken=clock_values(answer)[0]
+            for entry in board['appointments']:
+                times=re.findall(r'\d{2}:\d{2}',entry['when'])
+                if times and times[0] not in spoken:raise ValueError('Missing overview appointment')
         if 'requested_minutes_fit_recorded_gap' in board:
             if board['requested_minutes_fit_recorded_gap'] is False:
                 if not re.search(r"does not fit|doesn.t fit|won.t fit|cannot fit|can.t fit|too short|not enough|longer than|exceeds",value):

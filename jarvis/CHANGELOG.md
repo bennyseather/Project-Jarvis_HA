@@ -61,6 +61,10 @@
 
 # Changelog
 
+## 0.45.95
+
+- Keep all starts in a small calendar overview through neural revision and calculated recovery. A timetable relationship for one event must not replace the other appointments in the requested overview. Preserve permission/action guards and saved voice/household data.
+
 ## 0.45.94
 
 - Distinguish ordinary what-someone-has-on schedule questions from activity preparation in Qwen capability selection.

@@ -206,6 +206,18 @@ def grounded_reply(board, speaker_name):
     def within(name):return 'your' if name==speaker_name else name+'’s'
     def whose(name):return 'you' if name==speaker_name else name
     appointments=board['appointments']
+    if goal=='overview' and 1<len(appointments)<=4:
+        # A complete small overview must not become a single-event relationship.
+        grouped={}
+        for item in appointments:grouped.setdefault(item['owner'],[]).append(item['event']+' on '+item['when'])
+        pieces=[]
+        for owner,entries in grouped.items():
+            who='You' if owner==speaker_name else owner
+            verb='have' if owner==speaker_name or ' and ' in owner else 'has'
+            joined=entries[0]+' and '+entries[1] if len(entries)==2 else ', '.join(entries[:-1])+', and '+entries[-1] if len(entries)>2 else entries[0]
+            pieces.append(who+' '+verb+' '+joined+'.')
+        answer=' '.join(pieces)
+        return answer if len(answer.split())<=100 else None
     if goal=='conflicts':
         conflicts=board['potential_same_person_conflicts']
         if conflicts:
