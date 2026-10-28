@@ -18,11 +18,13 @@ from jarvis.companion_travel import TravelPreparer
 POLICY_FIELDS={'schema_version','enabled','automatic_learning','automatic_travel','improvement_proposals','memory_retention','transport_preference','approval_source','recorded_on'}
 class CompanionPolicy:
  def __init__(self,path,data):
-  if not isinstance(data,dict) or set(data)-{'conversation_mode'}!=POLICY_FIELDS or data['schema_version']!=1:raise ValueError('Invalid assistant policy')
+  if not isinstance(data,dict) or set(data)-{'conversation_mode','interactive_home_routing'}!=POLICY_FIELDS or data['schema_version']!=1:raise ValueError('Invalid assistant policy')
   if any(type(data[k]) is not bool for k in ('enabled','automatic_learning','automatic_travel','improvement_proposals')):raise ValueError('Assistant policy flags must be explicit')
   if data['memory_retention']!='until_deleted' or data['transport_preference']!='driving_first':raise ValueError('Unsupported assistant preferences')
   if not data['approval_source'] or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',data['recorded_on']):raise ValueError('Assistant approval provenance required')
   if data.get('conversation_mode','legacy') not in ('legacy','qwen_tools'):raise ValueError('Invalid conversation mode')
+  routing=data.get('interactive_home_routing')
+  if routing is not None and (not isinstance(routing,dict) or set(routing)!={'enabled','approval_source','recorded_on'} or type(routing['enabled']) is not bool or not isinstance(routing['approval_source'],str) or not routing['approval_source'] or not isinstance(routing['recorded_on'],str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',routing['recorded_on'])):raise ValueError('Explicit home-routing approval provenance required')
   self.path=Path(path) if path else None;self.data=dict(data)
  @classmethod
  def load(cls,path):return cls(path,json.loads(Path(path).read_text(encoding='utf-8')))

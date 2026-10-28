@@ -848,3 +848,22 @@ appointments or canonical routine edits. Memory retention is unchanged. The
 existing correction/forget controls apply; a deletion during reasoning withdraws
 the stale answer. No new booking, device, message or self-development authority
 is granted. Existing calendar confirmations and saved voice are unchanged.
+
+### Interactive driving routes (0.45.100)
+
+Qwen selects local_route for requests to check driving time, including a venue
+statement followed by a question. The fixed tool extracts exact user place names,
+queries the official Entur geocoder/router and supplies the verified duration.
+Named public origins and destinations work without reading the saved home point.
+A town-level result does not establish the exact gym entrance or parking time.
+No live traffic is claimed. General public transport is not implemented in this
+interactive tool; existing airport public-transport alternatives are unchanged.
+
+Interactive saved-home routing is disabled unless assistant_policy.json contains
+an explicitly approved interactive_home_routing object: enabled boolean, a nonempty
+approval_source string, and recorded_on YYYY-MM-DD. It is optional and defaults off.
+A maintainer records it only following direct human approval to send the saved home
+coordinates to Entur for route checks. Conversation or model output cannot grant
+that authority. Home coordinates remain outside Qwen inputs, replies and logs;
+when enabled, the external routing provider necessarily receives the route points.
+No such production approval is enabled by this release.

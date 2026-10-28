@@ -137,6 +137,8 @@ class ReadDialogue:
    'coordination_subjects':subjects,'companion_coordination':len(subjects)>1 and purpose=='conflicts',
    'task':task}
  def observe(self,text,tool,result,members,state,resolved=None):
+  if tool!='route':state.pop('route_pending',None)
+  if tool=='route':return # A route read can supplement the existing planning task.
   if tool not in READ_TOOLS:
    state.pop('read_focus',None);return
   if result.get('status') not in ('success','clarification_required'):

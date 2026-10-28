@@ -77,13 +77,13 @@ class EnturTransport:
         matches.sort(key=lambda v:v[0],reverse=True)
         if len(matches)>1 and matches[0][0]==matches[1][0] and distance_km(matches[0][1]['coordinates'],matches[1][1]['coordinates'])>3:raise ValueError('Airport location ambiguous')
         self.airports[code]=(self.clock(),matches[0][1]);return matches[0][1]
-    def route(self,origin,destination,arrive_by,mode):
-        if mode not in ('driving','public_transport') or not isinstance(arrive_by,datetime) or arrive_by.tzinfo is None:raise ValueError('Invalid transport request')
+    def route(self,origin,destination,arrive_by,mode,*,depart_after=False):
+        if type(depart_after) is not bool or mode not in ('driving','public_transport') or not isinstance(arrive_by,datetime) or arrive_by.tzinfo is None:raise ValueError('Invalid transport request')
         a,b=coordinates(origin),coordinates(destination)
         if not all(57<=v['latitude']<=72 and 3<=v['longitude']<=33 for v in (a,b)):return {'state':'unsupported_region','options':[],'source_url':'https://entur.no/'}
         modes={'accessMode':'foot','egressMode':'foot','directMode':'car' if mode=='driving' else 'foot',
             'transportModes':[] if mode=='driving' else [{'transportMode':v} for v in ('bus','rail','metro','tram','water','coach')]}
-        payload={'query':QUERY,'variables':{'from':{'name':'Trip origin','coordinates':a},'to':{'name':'Airport destination','coordinates':b},'at':arrive_by.isoformat(),'modes':modes}}
+        payload={'query':QUERY.replace('arriveBy:true','arriveBy:false') if depart_after else QUERY,'variables':{'from':{'name':'Trip origin','coordinates':a},'to':{'name':'Trip destination','coordinates':b},'at':arrive_by.isoformat(),'modes':modes}}
         data=self.http(GRAPHQL,payload)
         if data.get('errors'):return {'state':'source_error','options':[],'source_url':'https://entur.no/'}
         trip=data.get('data',{}).get('trip')
@@ -93,7 +93,7 @@ class EnturTransport:
             try:
                 start=datetime.fromisoformat(row['expectedStartTime']);end=datetime.fromisoformat(row['expectedEndTime'])
                 duration=float(row['duration']);legs=row['legs']
-                if start.tzinfo is None or end.tzinfo is None or not start<end<=arrive_by or not 0<duration<=86400:continue
+                if start.tzinfo is None or end.tzinfo is None or not start<end or (end>arrive_by if not depart_after else start.timestamp()<arrive_by.timestamp()-2) or not 0<duration<=86400:continue
                 if abs((end-start).total_seconds()-duration)>120:continue
                 leg_modes=[leg['mode'] for leg in legs]
                 if mode=='driving' and 'car' not in leg_modes:continue
@@ -107,7 +107,7 @@ class EnturTransport:
                 options.append({'departure':start.isoformat(),'arrival':end.isoformat(),'duration_minutes':round(duration/60),
                     'legs':clean_legs,'basis':'Routing estimate, not live road traffic' if mode=='driving' else 'Returned Entur itinerary for the requested date/window'})
             except (KeyError,TypeError,ValueError):continue
-        options.sort(key=lambda v:v['departure'],reverse=True)
+        options.sort(key=lambda v:v['departure'],reverse=not depart_after)
         return {'state':'available' if options else 'routing_error' if trip.get('routingErrors') else 'no_options_in_search_window',
-            'options':options[:3],'mode':mode,'arrive_by':arrive_by.isoformat(),'search_window_minutes':360,
+            'options':options[:3],'mode':mode,('depart_after' if depart_after else 'arrive_by'):arrive_by.isoformat(),'search_window_minutes':360,
             'source':'Entur Journey Planner','source_url':'https://entur.no/','checked_at':datetime.now().astimezone().isoformat()}

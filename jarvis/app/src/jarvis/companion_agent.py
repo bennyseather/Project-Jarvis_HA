@@ -22,6 +22,8 @@ DOMAINS=dict(zip(('identity','remembered_details','household_facts','household_p
 DOMAINS.pop('remembered_details')
 MEMORY_OPERATIONS={'remember_detail':'write','recall_detail':'query','list_memories':'list','manage_memories':'control','memory_subject_reply':'continue'}
 DOMAINS.update({k:'memory' for k in MEMORY_OPERATIONS})
+DOMAINS['local_route']='route'
+TOOLS+=('route',)
 SCHEMA={'type':'object','properties':{'tool':{'type':'string','enum':list(DOMAINS)},'members':{'type':'array','items':{'type':'string'},'maxItems':4}},'required':['tool','members'],'additionalProperties':False}
 PROMPT="""Select ONE Jarvis capability for the LATEST USER TURN, using the scoped
 conversation. Classify meaning, not just keywords. Return only tool and member IDs.
@@ -46,6 +48,11 @@ profile_editor: deliberately change structured household routines, profiles or s
 reminder_tool: reminder requests and replies. booked_travel: EXISTING booked trip/flight questions.
 airport_brief: already prepared airport briefs/updates. departure_brief: combine home,
 calendar,weather and departure preparation. home_tools: devices,weather,network/GPU status.
+local_route: CHECK a driving/journey time or road route from home/a place to
+another place, including after calendar/dinner discussion. Use the routing tool,
+not calendar evidence or general knowledge. A venue statement followed by a
+route QUESTION is local_route, not remember_detail or household_facts.
+'Can you check the driving time from the house to Ulsteinvik?' -> local_route
 internet_research: news/current public facts or requested internet search.
 assistant_settings: pause/resume learning or travel preparation; memory-clear confirmation.
 development_proposals: review improvement ideas. general_chat: ordinary chat or explanations
@@ -132,7 +139,7 @@ class QwenConversation:
   people={p['id']:p['preferred_name'] for p in self.profile._data['members']};schema=deepcopy(SCHEMA);schema['properties']['members']['items']['enum']=list(people)
   data={'reference_date':state['binding'][-1],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':state['history'][-6:],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
-   'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'read_focus':self.reads.prior(state)}
+   'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'read_focus':self.reads.prior(state),'route_focus':{k:v for k,v in (state.get('route_pending') or state.get('route_focus',{})).items() if k in ('origin','destination','mode')}}
   data['latest']=data.pop('latest') # Current turn last; older tool replies are reference context only.
   out=await local_json(self.provider,PROMPT,data,schema,tokens=100)
   if not isinstance(out,dict) or set(out)!={'tool','members'} or out['tool'] not in DOMAINS:raise ValueError('Invalid conversation tool')
@@ -168,7 +175,7 @@ class QwenConversation:
       if self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source):return reply('This conversation changed while I was checking the request. Please ask again.','unavailable')
       if planning_generation!=self.owner.store.generation:return reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       tool=plan['tool']
-      if tool in ('memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
+      if tool in ('memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
       if tool!='identity':state['pending_identity']=False
       if tool not in ('memory','assistant'):self.owner.intake_pending.pop(str(key),None);self.owner.pending.pop(str(key),None)
       if tool not in ('calendar','household_update','reminders','assistant','memory'):self.owner.revoke_other_reviews(key)
@@ -232,6 +239,11 @@ class QwenConversation:
    return await self.owner.handle(text,key,source,semantic='memory_list' if plan['operation']=='list' else 'memory' if plan['operation'] in ('query','continue') else 'control')
   if tool in ('assistant','development','travel_brief'):
    return await self.owner.handle(text,key,source,semantic={'assistant':'control','development':'development','travel_brief':'travel_brief'}[tool])
+  if tool=='route':
+   from jarvis.companion_routing import CompanionRouting
+   obj=getattr(container,'companion_routing',None)
+   if obj is None:obj=CompanionRouting(self.owner);container.companion_routing=obj
+   return await obj.handle(text,key,state)
   if tool in ('home','research'):return await original()
   if tool=='household_update':return await asyncio.to_thread(profile.edit_request,text,key)
   if tool=='reminders':

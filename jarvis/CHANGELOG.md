@@ -61,6 +61,19 @@
 
 # Changelog
 
+## 0.45.100
+
+- Give ordinary Qwen conversations a read-only driving-route capability, including
+  venue statements followed by a route question. Calendar evidence is not used
+  as a substitute for a route lookup.
+- Resolve exact user place names, query Entur and label routing estimates without
+  claiming live traffic, parking or a verified gym entrance. Keep current planning
+  context and qualify any meal-plus-drive comparison against fresh calendar data.
+- Require separately recorded explicit approval before using saved home coordinates
+  with the external routing service. Public named starting points work immediately;
+  no home approval is enabled by this release. Existing airport-brief behaviour stays.
+- Preserve source failures, confirmation rules, saved voice and genuine memories.
+
 ## 0.45.99
 
 - Carry a scoped user-task context across Qwen-selected household plans and
