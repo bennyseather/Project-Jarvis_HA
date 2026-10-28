@@ -245,6 +245,9 @@ class QwenConversation:
    person=next(p for p in self.profile._data['members'] if p['id']==members[0]);obj.resolve('Tell me about '+person['preferred_name'],key)
   query,missing=obj.resolve(query,key)
   if missing:return missing
+  if obj.compound(query) or obj.next_birthday(query):
+   result=await obj.handle(query,key,calendar=getattr(self.owner.container,'household_thinking',None))
+   if result is not None:return result
   exact=employment_answer(query,self.profile._data) or birthday_answer(query,self.profile._data) or self.profile.identity_answer(query) or self.profile.routine_answer(query)
   if exact:return exact
   result=await obj.handle(query,key,calendar=getattr(self.owner.container,'household_thinking',None))

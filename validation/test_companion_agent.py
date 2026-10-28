@@ -48,6 +48,14 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
  async def test_introduced_person_resolves_who_and_my_birthday_for_same_conversation(self):
   await self.intro();out=await self.say('Who am I?',plan('identity','identify'));self.assertIn('introduced yourself as Benny',out['message']);self.assertNotIn('voice',out['message'])
   out=await self.say('When is my birthday?',plan('profile','query',['benny']));self.assertIn('27 September',out['message'])
+ async def test_compound_profile_question_retains_both_requested_facts(self):
+  from unittest.mock import AsyncMock,patch
+  from jarvis.household_reasoning import HouseholdReasoning
+  self.profile._data['members'][0]['employment']={'status':'confirmed','role':'Test engineer','employer':'Fictional Works'}
+  answer={'status':'success','message':'Benny is a Test engineer at Fictional Works. The office is upstairs.'}
+  with patch.object(HouseholdReasoning,'handle',new=AsyncMock(return_value=answer)):
+   out=await self.say("What is Benny's job and where is the office?",plan('profile','query',['benny']))
+  self.assertIn('Test engineer',out['message']);self.assertIn('office is upstairs',out['message'])
  async def test_who_am_i_then_short_name_completes_identity(self):
   out=await self.say('Who am I?',plan('identity','identify'));self.assertEqual(out['status'],'clarification_required')
   out=await self.say('Benny',plan('identity','introduce',['benny'],'Benny'));self.assertIn('Hi Benny',out['message']);self.assertEqual(self.store.memories(),[])

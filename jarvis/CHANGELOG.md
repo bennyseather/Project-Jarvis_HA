@@ -61,6 +61,10 @@
 
 # Changelog
 
+## 0.45.93
+
+- Preserve established multi-fact household interpretation before single-fact shortcuts in the Qwen tool adapter. A question asking both job and office location answers both parts. Keep source-backed reasoning, scoped introductions and saved data/voice intact.
+
 ## 0.45.92
 
 - Present the current turn after bounded reference history and explicitly prioritise its speech act. Keep new introductions distinct from previous memory/profile questions in mixed conversations. No data, permission or saved-voice changes.
