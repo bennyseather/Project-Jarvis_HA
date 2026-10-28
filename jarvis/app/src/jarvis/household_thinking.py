@@ -115,7 +115,7 @@ class HouseholdThinking:
     def clear(self,key):
         if key:self.sessions.pop(str(key),None)
 
-    def request(self,text,key):
+    def request(self,text,key,*,tool_selected=False):
         value=clean(text).casefold()
         value=re.sub(r'^(?:please |jarvis[, ]+)+','',value)
         hint=speaker_context(self.profile._data)
@@ -126,17 +126,20 @@ class HouseholdThinking:
         # Never reinterpret writes/confirmations or steal exact fact questions.
         if len(value)>700 or re.search(r'\b(remind|remember|save|forget|delete|confirm|approve|create|add|cancel|send|book|unlock|turn|switch|set|buy|pay|move|reschedule|change|update)\b',value):
             return None
-        if re.search(r'\b(job|birthday|age|born|gpu|lights?|camera|blinds?|thermostat|internet|whatsapp|sources|integration|entity)\b',value):return None
-        if re.search(r'\bschool\b',value) and re.match(r'^(when|what time)\b',value):return None
-        if value in ('what needs my attention','what should i know','anything i should know','show pending suggestions'):return None
+        # A Qwen-selected read already passed capability selection. Legacy callers
+        # still need the lexical eligibility gate; permission/action guards remain.
+        if not tool_selected:
+            if re.search(r'\b(job|birthday|age|born|gpu|lights?|camera|blinds?|thermostat|internet|whatsapp|sources|integration|entity)\b',value):return None
+            if re.search(r'\bschool\b',value) and re.match(r'^(when|what time)\b',value):return None
+            if value in ('what needs my attention','what should i know','anything i should know','show pending suggestions'):return None
         between=bool(same and re.search(r'\bbetween (?:those|them|both|the appointments|the events)\b',value))
         follow=same and (between or re.match(r'^(and\b|what about\b|how about\b|why\b|so\b)',value)
                          or value in ('tell me more','what does that mean','what matters most','anything to prepare')
                          or (previous['purpose']=='availability' and duration_minutes(value) is not None))
         words=re.search(r'\b(briefing|plans?|calendar|appointments?|schedule|day|week|weekend|prepare|preparation|ready|busy|busier|busiest|hectic|overlaps?|clashes?|conflicts?|free|fit|prioriti\w*|stressful|attention|matters?|focus|important)\b',value)
         question=re.match(r'^(what|when|which|how|is|are|am|do|does|can|could|should|will|give|show|tell|help|any)\b',value)
-        if not follow and not (question and words):return None
-        if re.search(r'\b(next (?:trip|flight|travel|journey)|perth|airport|layover)\b',value):return None
+        if not tool_selected and not follow and not (question and words):return None
+        if not tool_selected and re.search(r'\b(next (?:trip|flight|travel|journey)|perth|airport|layover)\b',value):return None
         people=self.profile._data['members']
         named=tuple(p['id'] for p in people if re.search(r'\b'+re.escape(p['preferred_name'])+r"(?:'s)?\b",value,re.I))
         personal=bool(re.search(r'\b(i|my|me|mine)\b',value))
@@ -168,9 +171,9 @@ class HouseholdThinking:
                 'between':between or bool(follow and previous.get('between')),
                 'weather':bool(re.search(r'\b(prepare|preparation|ready|bring|rain|outside|weather|coat)\b',value))}
 
-    async def handle(self,text,key,*,resolved=None):
+    async def handle(self,text,key,*,resolved=None,tool_selected=False):
         if not shared_knowledge_enabled(self.profile._data):self.clear(key);return None
-        try:plan=resolved if resolved is not None else self.request(text,key)
+        try:plan=resolved if resolved is not None else self.request(text,key,tool_selected=tool_selected)
         except ValueError as error:return reply(str(error),'clarification_required')
         if plan is None:return None
         if key:

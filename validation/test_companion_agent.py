@@ -105,6 +105,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
   await self.say('Read home state',plan('home'),read=False,write=False)
   self.assertEqual(self.original_calls,[('Read home state',True,False)])
   out=await self.say('What is Benny birthday?',plan('profile','query',['benny']),read=False,write=False);self.assertEqual(out['status'],'forbidden')
+  out=await self.say('What does Mia have tomorrow?',plan('plans','query',['mia']),read=False,write=False);self.assertEqual(out['status'],'forbidden')
  async def test_actor_is_required_before_any_model_or_tool(self):
   out=await self.say('Hello',plan('general','answer',answer='Hello'),actor=None);self.assertEqual(out['status'],'forbidden');self.assertEqual(self.provider.calls,[])
  async def test_false_general_identity_is_not_accepted_as_household_evidence(self):

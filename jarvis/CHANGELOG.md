@@ -61,6 +61,12 @@
 
 # Changelog
 
+## 0.45.94
+
+- Distinguish ordinary what-someone-has-on schedule questions from activity preparation in Qwen capability selection.
+- Pass a validated Qwen-selected calendar read into the existing source-backed planning tool without reapplying legacy keyword eligibility. Preserve date/subject calculation, action guards, shared access checks and all legacy caller behaviour.
+- Add exact mixed-conversation and short-question regressions; preserve saved voice and household memories. Audio and reminder acceptance remain held.
+
 ## 0.45.93
 
 - Preserve established multi-fact household interpretation before single-fact shortcuts in the Qwen tool adapter. A question asking both job and office location answers both parts. Keep source-backed reasoning, scoped introductions and saved data/voice intact.

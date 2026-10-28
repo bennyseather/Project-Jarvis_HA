@@ -36,8 +36,11 @@ remember_detail: a useful reported personal statement,preference or plan to reta
 recall_detail: ASK what someone prefers or said before. list_memories: SHOW learned memories.
 manage_memories: forget/correct memories. memory_subject_reply: name reply to whose detail.
 household_facts: confirmed family facts,birthdays,ages,jobs,rooms,routines.
-household_plans: calendar OVERVIEW, school start/finish, weekly plans, coordination.
-activity_preparation: what to bring/wear, activity venue and event-note followups.
+household_plans: what someone HAS ON or IS DOING on a day/week, scheduled events,
+calendar overview, school start/finish, busyness and coordination. A question about
+which events exist is household_plans even if it says have/on/doing instead of calendar.
+activity_preparation: ONLY what to bring/wear/prepare for an event, activity venue
+or organiser instructions. Do not use this for asking what someone has scheduled.
 calendar_editor: FIND a specific appointment, CREATE/ADD/MOVE/CHANGE/CANCEL it, draft replies.
 profile_editor: deliberately change structured household routines, profiles or stay report.
 reminder_tool: reminder requests and replies. booked_travel: EXISTING booked trip/flight questions.
@@ -71,6 +74,9 @@ Examples:
 'What is high fidelity audio?' -> general_chat
 'How are you,Jarvis?' -> general_chat
 'What have we planned this weekend?' -> household_plans
+'What does Mia have tomorrow?' -> household_plans
+'What has Linda got on Friday?' -> household_plans
+'Anything on for Emrik next week?' -> household_plans
 'When does Mia get out of school next Thursday?' -> household_plans
 'What should Mia prepare for tomorrow?' -> activity_preparation
 'Find Mia next gymnastics appointment' -> calendar_editor
@@ -78,6 +84,9 @@ Examples:
 'What should we sort out before leaving tomorrow?' -> departure_brief
 'When is my next trip to Perth?' -> booked_travel
 Return lowercase supplied member IDs only; [] when no person is relevant.
+Final decision concerns LATEST only: direct self-introduction is identity even
+after household_facts or recall_detail. Asking what someone has ON is household_plans;
+asking what to BRING/PREPARE is activity_preparation. Keep these speech acts distinct.
 """
 
 def reply(message,status='success',**extra):return {'provider':'companion','status':status,'message':message,'cacheable':False,'companion_agent_handled':True,**extra}
@@ -215,7 +224,7 @@ class QwenConversation:
    if self.owner.dialogue:
     result=await self.owner.dialogue.handle(text,key,source)
     if result is not None:return result
-   obj=getattr(container,'household_thinking',None);return await obj.handle(text,key) if obj else None
+   obj=getattr(container,'household_thinking',None);return await obj.handle(text,key,tool_selected=True) if obj else None
   if tool=='connected':
    from jarvis.connected_understanding import ConnectedUnderstanding
    obj=getattr(container,'connected_understanding',None)

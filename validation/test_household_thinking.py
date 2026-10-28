@@ -50,6 +50,20 @@ class ThinkingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.provider.calls),1)
         self.assertEqual(self.provider.calls[0]['evidence']['people'],{'mia':'Mia'})
 
+    async def test_selected_calendar_read_accepts_short_natural_question(self):
+        with scope(self.p,'benny','short'):
+            r=await self.thinking.handle('What does Mia have tomorrow?','short',tool_selected=True)
+        self.assertTrue(r['interpreted']);self.assertIn('band practice',r['message'])
+        self.assertEqual(self.provider.calls[0]['evidence']['people'],{'mia':'Mia'})
+        self.assertEqual(self.provider.calls[0]['evidence']['start'],'2026-10-22')
+
+    async def test_selected_read_preserves_action_guard_and_unknown_speaker(self):
+        with scope(self.p,None,'guard'):
+            r=await self.thinking.handle('What do I have tomorrow?','guard',tool_selected=True)
+            self.assertIn('Whose',r['message'])
+            self.assertIsNone(await self.thinking.handle('What does Mia have tomorrow and unlock the door?','guard',tool_selected=True))
+        self.assertEqual(self.provider.calls,[])
+
     async def test_unknown_my_and_named_shared(self):
         self.assertIn('Whose',(await self.ask('What should I prepare for tomorrow?',None))['message'])
         self.assertEqual(len(self.provider.calls),0)
