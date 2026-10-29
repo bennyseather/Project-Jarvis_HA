@@ -158,3 +158,32 @@ a compatibility loader, but the new URL is recommended.
 Remove the two Jarvis entries from `lovelace.dashboards`, remove the Jarvis
 theme and frontend resource, and restart Home Assistant. Existing dashboards,
 entities, Project Jarvis memory, and automations are unaffected.
+
+
+## Household on a phone (UI revision 2026102902)
+
+The separate Household module wraps its controls on narrow screens and offers a
+Section selector on phones. Assistant plans scroll independently while preserving
+your reading position during refresh. The Yoga dashboard's seven navigation
+buttons wrap in portrait and use a compact row in landscape; no zoom setting is
+required. The original wide Yoga layout remains in use on tablets.
+
+A direct Home Assistant panel view can open the Assistant immediately:
+
+```yaml
+title: Household
+path: household
+icon: mdi:account-group
+type: panel
+cards:
+  - type: custom:jarvis-household-card
+    layout: standalone
+    initial_section: assistant
+```
+
+Serve the `www/jarvis` Household/Planner modules from `/local/jarvis/` and register
+`/local/jarvis/jarvis-household.js?v=20261029-mobile` as a JavaScript module resource.
+If using the isolated Yoga dashboard, register
+`/local/jarvis/jarvis-yoga.js?v=20261029-mobile` too. Existing Household/Planner forms
+are retained on compatible module updates. The phone repair changes presentation
+and navigation; it does not change household knowledge, voice or calendar data.
