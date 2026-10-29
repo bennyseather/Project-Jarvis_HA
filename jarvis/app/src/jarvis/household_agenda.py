@@ -168,9 +168,10 @@ class HouseholdAgenda:
    date=(today+timedelta(days=offset)).isoformat();row=self.records.get(date)
    if not row or tuple(row.get('binding',()))!=binding:continue
    item={k:deepcopy(v) for k,v in row.items() if k not in ('binding','fingerprint','built_at')}
+   item['label']='Today' if offset==0 else 'Tomorrow'
    checked=row.get('checked_at')
    if not checked or (self.owner.now()-datetime.fromisoformat(checked)).total_seconds()>180:
-    item.update(state='needs_check',people=[],coverage='Calendar refresh is pending; previous plans are withheld.')
+    item.update(state='needs_check',people=[],coverage=row.get('coverage') if row['state']=='needs_check' else 'Calendar refresh is pending; previous plans are withheld.')
    for person in item.get('people',[]):
     for departure in person.get('departures',[]):
      if datetime.fromisoformat(departure['leave_at'])<=self.owner.now():departure['text']='The suggested home departure time has passed; recheck the journey before setting off. '+departure['text']

@@ -1,3 +1,8 @@
+## 0.45.109
+
+- Retain Today/Tomorrow labels and the source-failure explanation when a
+  background plan is pending, stale or unavailable. Withhold old advice.
+
 ## 0.45.108
 
 - Prepare today/tomorrow household plans in the background with local Node Qwen,

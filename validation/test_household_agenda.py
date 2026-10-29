@@ -40,7 +40,7 @@ class AgendaTests(unittest.IsolatedAsyncioTestCase):
   self.p._data['sharing_policy']['knowledge_access']['mode']='disabled';self.assertFalse(self.agenda.project()['days'])
  async def test_source_outage_does_not_retain_an_old_departure_as_current(self):
   await self.agenda.refresh();self.container.household_thinking.reader.handle=AsyncMock(return_value=None)
-  await self.agenda.refresh();self.assertTrue(all(not d['people'] for d in self.agenda.project()['days']))
+  await self.agenda.refresh();self.assertTrue(all(not d['people'] for d in self.agenda.project()['days']));self.assertEqual([d['label'] for d in self.agenda.project()['days']],['Today','Tomorrow']);self.assertTrue(all('needs checking' in d['coverage'] for d in self.agenda.project()['days']))
  async def test_profile_and_allowlist_change_withdraw_old_projection(self):
   await self.agenda.refresh();self.p._data['revision']+=1;self.assertFalse(self.agenda.project()['days']);self.p._data['revision']-=1
   self.container.proactive_allowed_entities=();self.assertFalse(self.agenda.project()['days']);await self.agenda.refresh();self.assertFalse(self.agenda.project()['days'])
