@@ -200,6 +200,22 @@ class EventTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out['status'],'success',out);self.assertIn('Usual Fictional Hall',out['message'])
         self.assertIn('not confirmed',out['message']);self.assertIn('still the venue',out['message'])
 
+    def ask_for_missing_venue(self):
+        def response(context):
+            return {'status':'success','message':json.dumps({'events':{e['id']:{'use':True,'units':[]} for e in context['events']},'notes':{n['id']:True for n in context['approved_notes']},'suggestion':'none','question':'venue'})}
+        self.provider.respond=response
+
+    async def test_preparation_uses_qualified_usual_venue_without_missing_venue_question(self):
+        self.client.events['calendar.familiekalender'][0]['location']='';self.ask_for_missing_venue()
+        out=await self.ask('What should Mia prepare for gymnastics tomorrow?')
+        self.assertEqual(out['status'],'success',out);self.assertIn('Usual Fictional Hall',out['message']);self.assertIn('usual',out['message'])
+        self.assertIn('check it for this appointment',out['message']);self.assertNotIn('I do not have a usable venue',out['message']);self.assertNotIn('Where will it take place',out['message'])
+
+    async def test_preparation_still_asks_when_no_current_or_usual_venue(self):
+        self.client.events['calendar.familiekalender'][0]['location']='';self.p._data['activity_profiles'][0]['usual_venue']=None;self.ask_for_missing_venue()
+        out=await self.ask('What should Mia prepare for gymnastics tomorrow?')
+        self.assertIn('Where will it take place',out['message']);self.assertNotIn('Usual Fictional Hall',out['message'])
+
     async def test_no_event_no_synthetic_appointment_from_profile(self):
         self.client.events['calendar.familiekalender']=[];out=await self.ask()
         self.assertEqual(out['status'],'clarification_required');self.assertNotIn('water bottle',out['message'])

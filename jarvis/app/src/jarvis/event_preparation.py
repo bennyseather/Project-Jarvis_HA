@@ -563,6 +563,13 @@ class EventPreparation(HouseholdThinking):
                 constraints=[u for u in originals[item['id']]['description_units'] if re.search(
                     r'\b(?:not|no|never|ikke|ikkje|ingen|if|unless|hvis|viss|dersom|forbudt)\b',u,re.I)]
                 item['excerpts']=list(dict.fromkeys(item['excerpts']+constraints))
+        # Blank calendar location is not the same as no usable planning venue.
+        # A matched usual venue remains qualified by the source-bound renderer;
+        # do not append an incompatible missing-venue questionnaire to that advice.
+        if mode!='location' and obj['question']=='venue':
+            missing=[e for e in selected if not e.get('location')]
+            if missing and all((e.get('activity_profile') or {}).get('usual_venue') for e in missing):
+                obj['question']='none'
         answer=self.render(obj,events,notes,plan['speaker'],evidence['checked_on'])
         from jarvis.activity_presentation import prepared
         presented,display,display_notes=prepared(obj,events,notes)

@@ -1,3 +1,11 @@
+## 0.45.107
+
+- Remove the contradictory missing-venue question from preparation advice when
+  every selected appointment without a calendar location has a matched usual
+  venue. Keep the usual/current distinction and appointment-location qualification.
+- Continue asking when an appointment has neither a current nor a usual venue;
+  direct location questions still request confirmation of a usual venue.
+
 ## 0.45.106
 
 - Keep a birthday/age/job pronoun follow-up on the single person established by
