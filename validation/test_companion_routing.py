@@ -14,7 +14,7 @@ class Provider:
  def __init__(self):self.calls=[];self.result={'origin_quote':'the house','destination_quote':'Ulsteinvik','mode':'driving','reverse':False}
  def reason_local(self,**kw):
   self.calls.append(kw);schema=kw['response_schema']['properties']
-  value={'meal_location':getattr(self,'meal_location','unspecified')} if 'meal_location' in schema else {'kind':'place_reply','place_quote':getattr(self,'place_quote','School')} if 'place_quote' in schema else self.result
+  value={'meal_location':getattr(self,'meal_location','unspecified')} if 'meal_location' in schema else getattr(self,'meal_reply',{'applies_to_missing_journey':True,'place_quote':getattr(self,'place_quote','School'),'duration_quote':''}) if 'place_quote' in schema else self.result
   return {'status':'success','message':json.dumps(value)}
 class Transport:
  def __init__(self):self.calls=[];self.minutes=18;self.fail=False
@@ -224,6 +224,49 @@ class AutomaticMealTests(unittest.IsolatedAsyncioTestCase):
   await self.check(15);self.client.events['calendar.familiekalender'][1]['start']='2026-10-29T16:30:00+01:00'
   with calendar_scope({'actor':'u','read':True,'write':False}):r=await self.router.meal_plan('15 minutes','s',self.state,{'status':'success','message':'Old reply'})
   self.assertEqual(r['meal_budget']['gap_minutes'],30);self.assertEqual(r['meal_budget']['remaining_minutes'],-21)
+
+class ReportedJourneyTests(unittest.IsolatedAsyncioTestCase):
+ setUp=RoutingTests.setUp
+ setup_calendar=FreshVenueTests.setup_calendar
+ async def prepare(self):
+  self.setup_calendar();self.client.events['calendar.familiekalender'][0]['location']='';self.owner.policy.data['transport_preference']='driving_first';self.transport.minutes=9
+  with calendar_scope({'actor':'u','read':True,'write':False}):return await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Old reply'})
+ async def answer(self,text,quote='2 minutes',place='Haddal',journey='missing'):
+  self.provider.meal_reply={'applies_to_missing_journey':journey=='missing','place_quote':place,'duration_quote':quote}
+  with calendar_scope({'actor':'u','read':True,'write':False}):return await self.router.handle(text,'s',self.state)
+ async def test_exact_screenshot_uses_reported_two_minutes_and_keeps_dinner(self):
+  await self.prepare();before=deepcopy(self.owner.profile._data);calls=len(self.transport.calls)
+  r=await self.answer('In Haddal, 2 minutes from home')
+  self.assertTrue(r['meal_budget']['complete']);self.assertEqual(r['meal_budget']['meal_minutes'],45);self.assertEqual(r['meal_budget']['remaining_minutes'],4);self.assertEqual(r['meal_budget']['estimate_sources'],['user_reported','Entur']);self.assertIn('56 of the 60',r['message']);self.assertIn('your 2-minute estimate',r['message']);self.assertNotIn('Where is',r['message']);self.assertFalse(any(c[0]=='place' and c[1]=='Haddal' for c in self.transport.calls[calls:]));self.assertEqual(before,self.owner.profile._data)
+ async def test_estimate_without_place_and_spoken_number_is_usable(self):
+  await self.prepare();r=await self.answer('It is two minutes from home',quote='two minutes',place='')
+  self.assertEqual(r['meal_budget']['remaining_minutes'],4);self.assertIn('your 2-minute estimate',r['message'])
+ async def test_reported_decimal_minutes_are_not_rounded_to_a_verified_route(self):
+  await self.prepare();r=await self.answer('It is 2.5 minutes from home',quote='2.5 minutes',place='')
+  self.assertEqual(r['meal_budget']['to_meal_minutes'],2.5);self.assertEqual(r['meal_budget']['remaining_minutes'],3.5)
+ async def test_missing_quote_or_wrong_leg_does_not_complete_plan(self):
+  await self.prepare()
+  for quote,journey in [('3 minutes','missing'),('2 minutes','other'),('2 km','missing'),('16:00','missing')]:
+   r=await self.answer('It is 2 minutes from home',quote=quote,place='',journey=journey)
+   self.assertNotIn('meal_budget',r);self.assertFalse(self.state.get('meal_venue_overrides'))
+ async def test_new_meal_duration_reuses_reported_leg_with_provenance(self):
+  await self.prepare();await self.answer('In Haddal, 2 minutes from home');self.state['read_focus']['duration_minutes']=30
+  with calendar_scope({'actor':'u','read':True,'write':False}):r=await self.router.meal_plan('30 minutes','s',self.state,{'status':'success','message':'Old reply'})
+  self.assertEqual(r['meal_budget']['remaining_minutes'],19);self.assertEqual(r['meal_budget']['estimate_sources'][0],'user_reported')
+ async def test_changed_event_or_expiry_withdraws_user_estimate(self):
+  await self.prepare();await self.answer('In Haddal, 2 minutes from home');self.client.events['calendar.familiekalender'][0]['description']='A changed venue notice.'
+  with calendar_scope({'actor':'u','read':True,'write':False}):r=await self.router.meal_plan('45 minutes','s',self.state,{'status':'success','message':'Old reply'})
+  self.assertFalse(r['meal_budget']['complete']);self.assertEqual(r['meal_budget']['estimate_sources'][0],'unknown')
+  self.clock[0]=500
+  from jarvis.companion_routing import meal_draft
+  self.assertIsNone(meal_draft(self.owner,self.state));self.assertNotIn('meal_venue_overrides',self.state)
+ async def test_report_cannot_trigger_read_without_permissions(self):
+  await self.prepare();self.provider.meal_reply={'applies_to_missing_journey':True,'place_quote':'','duration_quote':'2 minutes'};before=len(self.transport.calls)
+  with calendar_scope({'actor':'u','read':False,'write':False}):r=await self.router.handle('2 minutes from home','s',self.state)
+  self.assertEqual(r['status'],'forbidden');self.assertEqual(len(self.transport.calls),before)
+ def test_reported_duration_validation(self):
+  from jarvis.companion_routing import reported_duration
+  for phrase,expected in [('2 minutes',2),('two minutes',2),('half an hour',30),('about 2 minutes',2),('1.5 hours',90),('0 minutes',None),('1600',None),('2 km',None),('2 minutes or 3 hours',None)]:self.assertEqual(reported_duration(phrase),expected)
 
 class AgentRouteTests(unittest.IsolatedAsyncioTestCase):
  setUp=agent_fixture.AgentTests.setUp

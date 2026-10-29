@@ -908,3 +908,19 @@ venue is an expiring conversation report, not a saved profile/calendar update.
 It is bound to the actor/chat/source/day/profile/voice, current person/date and
 exact event source/title/times/current venue. Later meal-duration replies reuse
 it within that scope; changed events/scopes or expiry withdraw it.
+
+
+### Reported journey times in a meal plan (0.45.103)
+
+When Jarvis asks for the missing activity location, a reply such as In Haddal,
+2 minutes from home can supply the journey estimate directly. Qwen identifies
+which pending activity/home journey the reply concerns and copies its exact
+place/duration quote. Code validates the stated duration and performs arithmetic.
+It does not replace dinner length or infer minutes from a distance or clock time.
+
+The answer distinguishes your estimate from the route service estimate. A
+reported journey can complete a planning budget without geocoding its broad
+place label. It is not independently verified, live traffic or a durable fact.
+These reports share the existing five-minute/event/account/conversation binding,
+are retained for a revised meal duration within that scope, and are withdrawn
+when the source event or scope changes. No calendar/profile/memory write occurs.

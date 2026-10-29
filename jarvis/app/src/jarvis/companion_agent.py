@@ -55,7 +55,9 @@ route QUESTION is local_route, not remember_detail or household_facts.
 'Can you check the driving time from the house to Ulsteinvik?' -> local_route
 'What is the travel time?' after dinner/calendar planning -> local_route.
 When meal_route_pending asks for an activity venue, a reply supplying that place
-uses local_route to finish the dinner/travel calculation, not memory/profile editing.
+or its travel duration to/from home uses local_route to finish the dinner/travel
+calculation, not memory/profile editing. 'In Haddal, 2 minutes from home' supplies
+the missing journey estimate, not a revised dinner duration.
 A bare dinner duration or date-only continuation of an active dinner-fit task is
 household_plans, including after a route/meal budget. Do not mistake it for a new route.
 When route_focus.awaiting is supplied, short replies giving home, a place, or

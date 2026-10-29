@@ -1,3 +1,14 @@
+## 0.45.103
+
+- Accept an explicitly reported journey duration when clarifying a missing
+  activity venue, including a place plus minutes from home or a spoken number.
+- Combine the user estimate with dinner and the independently checked onward
+  route. Attribute each estimate to its source; do not call a reported time
+  an Entur result or overwrite the meal duration.
+- Keep reports within the current event-bound plan, reusing them for revised
+  dinner lengths and withdrawing them after scope/event changes or expiry.
+- Preserve saved voice, household memories, calendar data and sharing policy.
+
 ## 0.45.102
 
 - Automatically include both driving journeys when evaluating dinner between
