@@ -1,3 +1,29 @@
+## Conversational activity knowledge and departure planning (0.45.104)
+
+Tell Jarvis a usual detail, for example: "Mia's band rehearsal usually takes
+place at Haddal School. She needs her instrument and sheet music. It is two
+minutes from home." Qwen binds exact user quotations to the existing person,
+calendar source and activity title. Review the preview, then say "yes" or
+"confirm household change" to save; cancel discards it. "Undo last household
+change" uses the existing reviewed undo workflow. A new chat can ask where the
+activity usually takes place or use its kit in preparation advice.
+
+Follow-ups such as "She also needs a small towel" keep the recently selected
+activity in that conversation. Unknown "I/my" still requires a named person or
+an identified speaker. Dated exceptions are not saved as usual details. A venue
+move withdraws its old home journey estimate; details for other activities remain.
+
+Ask "What should Mia prepare for gymnastics tomorrow, and when should we leave?"
+Jarvis refreshes the calendar, selects the relevant timed event and calculates
+home departure from driving time plus a labelled ten-minute planning allowance
+for arriving early/parking, or an explicit requested allowance. Existing home
+location sharing approval and driving preference remain required. Fresh Entur
+routes take precedence; compatible saved journey reports are labelled user
+estimates. A specific current calendar venue overrides the usual venue and
+prevents reuse of an incompatible saved journey time. Estimates exclude live
+traffic; usual venues still need checking for the appointment. No calendar edit,
+reminder, booking or household-device action is created by these read requests.
+
 ## Qwen-led conversation and tools (0.45.90)
 
 Set conversation_mode to qwen_tools in /config/assistant_policy.json, alongside

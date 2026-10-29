@@ -16,7 +16,7 @@ from jarvis.preparation_wording import activity_name,usual_preparation
 
 FIELDS={'id','person','source','title','activity','equipment','preparation','usual_venue',
         'duration_minutes','recorded_on','provenance'}
-OPTIONAL={'same_activity_as'}
+OPTIONAL={'same_activity_as','home_journey','learning_quote'}
 PREFIX=r'(?:remember|save|note|forget|remove|delete)\s+(?:that\s+)?'
 TARGET=r'(.+?)\s+activity\s+"([^"\n]+)"\s+in\s+the\s+(family|work|travel)\s+calendar'
 
@@ -56,6 +56,14 @@ def validate(records,members):
         if r['usual_venue'] is not None and not safe(r['usual_venue'],180):raise ValueError('Invalid usual venue')
         if r['duration_minutes'] is not None and (type(r['duration_minutes']) is not int or not 1<=r['duration_minutes']<=1440):
             raise ValueError('Invalid usual duration')
+        if 'learning_quote' in r and not safe(r['learning_quote'],700):raise ValueError('Invalid learning quotation')
+        if 'home_journey' in r:
+            h=r['home_journey']
+            if (not isinstance(h,dict) or set(h)!={'minutes','quote','recorded_on','venue'} or
+                type(h['minutes']) not in (int,float) or not 0<h['minutes']<=1440 or
+                not safe(h['quote'],160) or h['venue']!=r['usual_venue'] or
+                not isinstance(h['recorded_on'],str) or datetime.fromisoformat(h['recorded_on']).tzinfo is None):
+                raise ValueError('Invalid usual user-reported home journey')
         keys.add(key);ids.add(r['id'])
     by_id={r['id']:r for r in records}
     for r in records:
@@ -111,7 +119,7 @@ def proposal(text,document):
     if meaning:
         if existing and title_key(record['activity'])!=title_key(meaning[1]):
             record.update(equipment=[],preparation=None,usual_venue=None,duration_minutes=None)
-            record.pop('same_activity_as',None)
+            record.pop('same_activity_as',None);record.pop('home_journey',None)
             reset='; clear old usual equipment, venue, preparation, duration and prior same-activity links because the activity kind changed'
         record['activity']=meaning[1]
     else:
@@ -124,7 +132,9 @@ def proposal(text,document):
             items=[v.strip() for v in equipment[2].split(',')]
             if equipment[1].casefold()=='also needs':items=record['equipment']+items
             record['equipment']=list({title_key(v):v for v in items}.values())
-        elif venue:record['usual_venue']=venue[1]
+        elif venue:
+            if record['usual_venue']!=venue[1]:record.pop('home_journey',None)
+            record['usual_venue']=venue[1]
         elif preparation:record['preparation']=preparation[1]
         elif duration:record['duration_minutes']=int(duration[1])
         elif equivalent:
@@ -134,6 +144,7 @@ def proposal(text,document):
         else:raise ValueError('Specify means "activity", usually needs "items", usually takes place at "venue", usual preparation is "detail", or usually lasts 60 minutes.')
     projected=deepcopy(document);install(projected,{'record':record})
     if existing and all(record.get(k)==existing.get(k) for k in (FIELDS|OPTIONAL)-{'recorded_on'}):return {'unchanged':True}
+    record.pop('learning_quote',None)
     record['recorded_on']=datetime.now(timezone.utc).isoformat()
     detail=record['activity'] if meaning else change
     return {'record':record,'summary':name+"'s exact entry \""+title+'" in the '+source+' calendar: '+detail+reset+
@@ -173,6 +184,7 @@ def view(text,profile):
         '; usual venue: '+(r['usual_venue'] or 'not recorded')+
         '; usual preparation: '+(r['preparation'] or 'not recorded')+
         '; usual duration: '+(str(r['duration_minutes'])+' minutes' if r['duration_minutes'] else 'not recorded')+
+        ('; usual home journey: '+str(r['home_journey']['minutes'])+' minutes (user estimate)' if r.get('home_journey') else '')+
         ('; same activity as "'+next(v['title'] for v in profile._data['activity_profiles'] if v['id']==r['same_activity_as'])+'"' if r.get('same_activity_as') else '') for r in records[:8]]
     return result('\n'.join(lines)+('\nMore profiles are saved; ask for one person.' if len(records)>8 else ''))
 

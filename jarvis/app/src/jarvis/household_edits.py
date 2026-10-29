@@ -234,6 +234,41 @@ class HouseholdEdits:
             'speaker': current_speaker.get().member_id}
         return self.result(f"Proposed shared household change: {summary}. Anyone using the shared interface can approve it. Say 'confirm household change' to save, or 'cancel household change'.", 'clarification_required')
 
+    def propose_activity_record(self, record, conversation_id, summary):
+        """Typed natural-language seam; confirmation uses the existing atomic path."""
+        from jarvis import household_activities as activities
+        from jarvis.household_speaker import current_speaker, shared_knowledge_enabled
+        from jarvis.calendar_context import current_calendar_access
+        with self.lock:
+            access=current_calendar_access.get();policy=self.profile._data.get('conversational_updates',{})
+            if not access.actor or not access.read or not access.write:
+                return self.result('Your signed-in HA account needs permission to save activity details.','forbidden')
+            if not shared_knowledge_enabled(self.profile._data) or policy.get('mode')!='shared_confirmation' or not policy.get('source'):
+                return self.result('Conversational household saving is not enabled.','unavailable')
+            key=str(conversation_id) if conversation_id else None
+            path=getattr(self.profile,'_source_path',None)
+            if not key or path is None:return self.result('A persistent profile and stable conversation are needed. Nothing was saved.','unavailable')
+            self.pending.pop(key,None)
+            try:
+                current=Path(path).read_bytes();document=json.loads(current)
+                if document['revision']!=self.profile._data['revision']:raise ValueError('Changed profile')
+                existing=next((r for r in document.get('activity_profiles',[]) if r['id']==record['id']),None)
+                fields=(activities.FIELDS|activities.OPTIONAL)-{'recorded_on','learning_quote'}
+                def equivalent(a,b):
+                    for k in fields:
+                        if k=='home_journey':
+                            if {x:(a.get(k) or {}).get(x) for x in ('minutes','venue')}!={x:(b.get(k) or {}).get(x) for x in ('minutes','venue')}:return False
+                        elif a.get(k)!=b.get(k):return False
+                    return True
+                if existing and equivalent(existing,record):
+                    return self.result('Those usual activity details are already saved. Nothing changed.')
+                activities.install(document,{'record':deepcopy(record)});type(self.profile)(document)
+                if len(self.pending)>=100:self.pending.pop(next(iter(self.pending)))
+                self.pending[key]={'document':document,'digest':hashlib.sha256(current).hexdigest(),'summary':summary,
+                    'expires':self.clock()+300,'routine':None,'activity':True,'speaker':current_speaker.get().member_id}
+                return self.result('I can remember '+summary+". Say yes or confirm household change to save these usual details, or cancel household change.",'clarification_required')
+            except Exception:return self.result('I could not prepare that activity change. Nothing was saved.','unavailable')
+
     @staticmethod
     def _atomic(path, content):
         temporary = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')

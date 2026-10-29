@@ -1,3 +1,15 @@
+## 0.45.104
+
+- Let local Qwen interpret usual activity venues, equipment, preparation and
+  home journey reports from conversation. Preview structured changes and save
+  only after the existing household confirmation, with history and undo.
+- Keep confirmed details across conversations; resolve short activity follow-ups.
+  Distinguish one-off exceptions and clear obsolete journey estimates after moves.
+- Combine fresh activity preparation with a calculated home departure time,
+  using checked driving routes or a labelled saved usual estimate and an explicit
+  arrival allowance. Current calendar venues take precedence over usual details.
+- Preserve saved voice, genuine memories, calendars, permissions and routing consent.
+
 ## 0.45.103
 
 - Accept an explicitly reported journey duration when clarifying a missing

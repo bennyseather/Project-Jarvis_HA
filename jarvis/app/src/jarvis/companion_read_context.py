@@ -13,7 +13,7 @@ from jarvis.household_speaker import current_speaker
 from jarvis.calendar_insights import duration_minutes
 from jarvis.companion_store import secret, instruction_attempt
 
-READ_TOOLS={'plans','appointments'}
+READ_TOOLS={'plans','appointments','departure'}
 WRITE=re.compile(r'\b(?:remember|save|forget|delete|confirm|approve|create|add|cancel|send|book|unlock|turn|switch|set|buy|pay|move|reschedule|update)\b',re.I)
 PROMPT="""Resolve only the latest READ-ONLY household question against the supplied
 user-task context. Return the exact schema, no answer or invented facts.
@@ -61,13 +61,13 @@ class ReadDialogue:
   old=state.get('read_focus')
   if old and old['expires']>self.owner.clock():return old
   state.pop('read_focus',None);return None
- async def resolve(self,text,tool,members,state):
+ async def resolve(self,text,tool,members,state,*,force=False):
   if tool not in READ_TOOLS:return None
   old=self.prior(state)
-  if len(text)>700 or WRITE.search(text) or secret(text) or instruction_attempt(text):return None
+  if len(text)>700 or WRITE.search(re.sub(r'\bset off\b','leave',text,flags=re.I) if force else text) or secret(text) or instruction_attempt(text):return None
   special=bool(re.search(r'\b(?:between|fit|squeeze|instead|meant|pick.?up|drop.?off|take (?:her|him|them)|coordinate)\b',text,re.I))
   # Complete direct queries retain the fast established executor path.
-  if not old and not special:return None
+  if not old and not special and not force:return None
   people={p['id']:p['preferred_name'] for p in self.owner.profile._data['members']}
   named={p for p,n in people.items() if re.search(r'\b'+re.escape(n)+r'\b',text,re.I)}
   speaker=current_speaker.get().member_id
@@ -144,7 +144,7 @@ class ReadDialogue:
   if result.get('status') not in ('success','clarification_required'):
    state.pop('read_focus',None);return
   key=state['binding'][1];container=self.owner.container
-  executor=getattr(container,'event_preparation' if tool=='appointments' else 'household_thinking',None)
+  executor=getattr(container,'event_preparation' if tool in ('appointments','departure') else 'household_thinking',None)
   actual=resolved or getattr(executor,'sessions',{}).get(key)
   if not actual or not actual.get('start') or not actual.get('end'):return
   if not resolved and actual.get('question','').casefold().strip(' .?!')!=text.casefold().strip(' .?!'):return

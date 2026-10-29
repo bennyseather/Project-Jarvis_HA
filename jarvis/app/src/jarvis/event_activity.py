@@ -43,7 +43,8 @@ STOP=set(('what when where which how should could would can do does did is are a
     'event events appointment appointments activity activities session sessions class classes lesson lessons '
     'commitment commitments day household family one ones meant mean about '
     'morning afternoon evening tonight later early upcoming scheduled coming up '
-    'have has got doing').split())
+    'have has got doing leave leaving depart departing departure set off time arrive arrival '
+    'home drive driving journey travel minutes minute mins min hours hour allowance').split())
 UNCERTAIN=re.compile(r'\b(?:no|not|non|never|without|excluding|if|unless|maybe|possibly|might|could|may|'
     r'cancel\w*|example|or|whether|tbc|tbd|unconfirmed|uncertain|unknown|possible|perhaps|'
     r'ikke|ingen|hvis|dersom|kanskje|muligens|eventuelt|avlyst|eller|uavklart|ubekreftet)\b|'
