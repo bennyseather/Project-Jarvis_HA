@@ -1,3 +1,27 @@
+## Automatic household preparation (0.45.108)
+
+Household > Assistant includes Today/Tomorrow preparation for each member. Select
+one person or Everyone. Plans reuse the connected calendars and confirmed usual
+activity details; calendar appointments are plans, not attendance or availability.
+A suggested home departure is conditional, with the checked driving estimate or
+labelled saved usual estimate plus a ten-minute planning allowance. Current venues
+win; unrecorded venues, drivers and journeys remain questions. No driver is assigned.
+
+The opted-in worker checks about once a minute while Jarvis is idle. Qwen on the
+existing local Node composes useful preparation and calendar interpretation.
+Unchanged inputs reuse the last plan; changed/cancelled entries withdraw old advice
+before replacement, and a source recheck prevents publishing a changed snapshot.
+Checks older than three minutes, profile/day/permission changes and failed source
+reads withhold old plans. Foreground conversations interrupt background work.
+No speech, notifications, reminder delivery, calendar writes or device actions occur.
+
+Explicit approval lives in /config/household_planning_policy.json (schema_version1,
+enabled boolean, approval_source and recorded_on). Missing/disabled approval fails
+closed. Existing shared-knowledge and home-to-Entur permissions still apply. This
+file may be disabled without changing memories, voice or existing travel preparation.
+Prepared projections are kept in memory and rebuilt after restarts; confirmed
+activity knowledge remains in the household profile. Refreshes do not retrain Qwen.
+
 ## Conversational activity knowledge and departure planning (0.45.104)
 
 Tell Jarvis a usual detail, for example: "Mia's band rehearsal usually takes

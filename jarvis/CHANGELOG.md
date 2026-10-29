@@ -1,3 +1,13 @@
+## 0.45.108
+
+- Prepare today/tomorrow household plans in the background with local Node Qwen,
+  confirmed activity preparation and consent-bound home departure estimates.
+- Show individual plans, usual routines, tight gaps, overlaps and missing details
+  in Household > Assistant, with day/person filters and freshness information.
+- Reuse unchanged plans, refresh changed calendar inputs, withhold stale/superseded
+  advice, and cancel background work for foreground conversations. No notifications,
+  reminder delivery, calendar/device actions or voice changes.
+
 ## 0.45.107
 
 - Remove the contradictory missing-venue question from preparation advice when

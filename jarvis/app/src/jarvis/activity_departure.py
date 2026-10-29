@@ -10,6 +10,29 @@ from jarvis.event_preparation import EventPreparation
 from jarvis.calendar_insights import appointment_label
 from jarvis.household_briefing import Brief
 ZONE=ZoneInfo('Europe/Oslo')
+async def checked_journey(owner,event,arrival_allowance=10):
+ """One consent-bound route estimate; never stores coordinates or assigns a driver."""
+ policy=owner.policy.data;approval=policy.get('interactive_home_routing',{})
+ if policy.get('transport_preference')!='driving_first' or not (approval.get('enabled') is True and approval.get('approval_source')):return None
+ routing=getattr(owner.container,'companion_routing',None)
+ if routing is None:routing=CompanionRouting(owner);owner.container.companion_routing=routing
+ venue=routing.venue(event);minutes=None;basis=None
+ at=datetime.fromisoformat(event['start']);arrive=at-timedelta(minutes=arrival_allowance)
+ if venue and venue['planning_place_quote']:
+  try:
+   place=await asyncio.wait_for(asyncio.to_thread(routing.transport.place,venue['planning_place_quote']),6)
+   home=coordinates(await asyncio.wait_for(owner.container.home_assistant.get_home_location(),4))
+   if place:
+    result=await asyncio.wait_for(asyncio.to_thread(routing.transport.route,home,coordinates(place['coordinates']),arrive,'driving'),12)
+    options=result.get('options',[])
+    n=options[0].get('duration_minutes') if result.get('state')=='available' and options else None
+    if type(n) in (int,float) and math.isfinite(n) and 0<n<=1440:minutes=math.ceil(n);basis='Entur'
+  except (ValueError,KeyError,TypeError,OSError,asyncio.TimeoutError):pass
+ if minutes is None and venue and venue.get('usual_home_journey'):
+  minutes=venue['usual_home_journey']['minutes'];basis='saved_user_estimate'
+ if minutes is None:return None
+ return {'minutes':minutes,'basis':basis,'venue':venue}
+
 async def departure(owner,text,key,source,state,members):
  def answer(message,status='success',**extra):return {'provider':'companion_routing','status':status,'message':message,'cacheable':False,'read_only':True,**extra}
  if not current_calendar_access.get().read:return answer('Household read access is needed.','forbidden')
@@ -46,20 +69,9 @@ async def departure(owner,text,key,source,state,members):
  if not (approval.get('enabled') is True and approval.get('approval_source')):return answer('Home-to-Entur routing still needs the existing explicit sharing approval.','clarification_required')
  routing=getattr(owner.container,'companion_routing',None)
  if routing is None:routing=CompanionRouting(owner);owner.container.companion_routing=routing
- venue=routing.venue(event);minutes=None;basis=None
+ result=await checked_journey(owner,event,buffer)
+ venue=result['venue'] if result else routing.venue(event);minutes=result['minutes'] if result else None;basis=result['basis'] if result else None
  at=datetime.fromisoformat(event['start']);arrive=at-timedelta(minutes=buffer)
- if venue and venue['planning_place_quote']:
-  try:
-   place=await asyncio.wait_for(asyncio.to_thread(routing.transport.place,venue['planning_place_quote']),6)
-   home=coordinates(await asyncio.wait_for(owner.container.home_assistant.get_home_location(),4))
-   if place:
-    result=await asyncio.wait_for(asyncio.to_thread(routing.transport.route,home,coordinates(place['coordinates']),arrive,'driving'),12)
-    options=result.get('options',[])
-    n=options[0].get('duration_minutes') if result.get('state')=='available' and options else None
-    if type(n) in (int,float) and math.isfinite(n) and 0<n<=1440:minutes=math.ceil(n);basis='Entur'
-  except (ValueError,KeyError,TypeError,OSError,asyncio.TimeoutError):pass
- if minutes is None and venue and venue.get('usual_home_journey'):
-  minutes=venue['usual_home_journey']['minutes'];basis='saved_user_estimate'
  if minutes is None:return answer((base['message']+' ' if frame['include_preparation'] else '')+'I need a usable activity venue or a confirmed usual home journey estimate before I can calculate when to leave.','clarification_required')
  if revision!=owner.profile._data['revision'] or generation!=owner.store.generation:return answer('The household information changed while I was checking. Please ask again.','unavailable')
  leave=(arrive-timedelta(minutes=minutes)).astimezone(ZONE);local_at=at.astimezone(ZONE)
