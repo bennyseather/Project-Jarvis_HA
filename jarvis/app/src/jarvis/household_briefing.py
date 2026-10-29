@@ -210,16 +210,20 @@ class HouseholdBriefing:
                             raise ValueError('Invalid routine card')
                 return data
             except Exception:return None
-        loaded=await asyncio.gather(summary(),*(calendar(n) for n in source_names))
+        from jarvis.calendar_freshness import collect
+        loaded=await asyncio.gather(summary(),collect(self.client,[n for n in source_names if SOURCES[n] in self.allowed],now),*(calendar(n) for n in source_names))
         if self.now().astimezone(ZONE).date().isoformat()!=reference or self.profile._data['revision']!=pending['revision']:
             if key and self.sessions.get(str(key)) is pending:self.clear(key)
             return result('The household date or saved information changed while I was checking. Please ask again for a fresh briefing.','unavailable')
         if key and self.sessions.get(str(key)) is not pending:
             return result('That briefing was superseded by a newer question. Please ask again.','unavailable')
-        snapshot=loaded[0]
+        snapshot=loaded[0];source_health=loaded[1]
         events=[];unavailable=[];sources=[]
         unavailable.extend(dict.fromkeys(assignment_gaps))
-        for name,items,error in loaded[1:]:
+        for name,items,error in loaded[2:]:
+            health=source_health.get(name,{})
+            if health.get('status') in ('failed','stale','incomplete','refreshing','unknown','unavailable'):
+                items=None;error='source refresh '+health['status']+'; latest calendar changes are not verified'
             if error:unavailable.append(name+' calendar '+error)
             else:
                 sources.append(name)
@@ -235,8 +239,9 @@ class HouseholdBriefing:
             if identity not in seen:unique.append(event);seen.add(identity)
         if structured_only:
             from jarvis.calendar_evidence import calendar_evidence
-            return {**result('Fresh planning evidence checked.'),'provider':'household_briefing','read_only':True,
-                'evidence':calendar_evidence(self.profile,brief,unique,snapshot,sources,unavailable,now,targets=targets,window=window,event_context=event_context,shared_calendar_active=shared_calendar_active)}
+            evidence=calendar_evidence(self.profile,brief,unique,snapshot,sources,unavailable,now,targets=targets,window=window,event_context=event_context,shared_calendar_active=shared_calendar_active)
+            evidence['source_health']=source_health
+            return {**result('Planning evidence checked.'),'provider':'household_briefing','read_only':True,'evidence':evidence}
         person=next((p for p in self.profile._data['members'] if p['id']==brief.subject),None)
         own=person is not None and person['id']==hint['member_id']
         who='your' if own else (person['preferred_name']+"'s" if person else 'the household')

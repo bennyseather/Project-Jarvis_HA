@@ -6,6 +6,7 @@ import asyncio
 import json
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 import websockets
 
@@ -152,6 +153,28 @@ class HomeAssistantClient:
                 return await reader._get_states_once()
         finally:
             await reader.disconnect()
+
+    async def get_calendar_health(self,helpers):
+        """Read only fixed calendar-refresh receipt helpers over bounded HA GETs."""
+        from jarvis.calendar_freshness import SOURCES
+        permitted={row[1] for row in SOURCES.values()}
+        if not isinstance(helpers,list) or not set(helpers).issubset(permitted) or len(helpers)>3:raise ValueError('Invalid calendar health helpers')
+        def read_state(entity,maximum):
+            url=self.url.rstrip('/')+'/api/states/'+quote(entity,safe='')
+            with urlopen(Request(url,headers={'Authorization':'Bearer '+self.token}),timeout=3) as response:
+                raw=response.read(maximum+1)
+            if len(raw)>maximum:raise ValueError('Unbounded calendar state')
+            return json.loads(raw).get('state')
+        calendars={row[1]:row[0] for row in SOURCES.values()}
+        def fetch(entity):
+            monitored=True
+            try:record=read_state(entity,4096)
+            except HTTPError as error:record=None;monitored=error.code!=404
+            except Exception:record=None
+            try:state=read_state(calendars[entity],65536)
+            except Exception:state=None
+            return entity,{'receipt':record,'source_state':state,'monitoring_enabled':monitored}
+        return dict(await asyncio.gather(*(asyncio.to_thread(fetch,e) for e in helpers)))
 
     async def get_calendar_events(self,entity,start,end):
         """Bounded, isolated source read retaining event identity and description."""

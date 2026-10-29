@@ -10,8 +10,8 @@ def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, no
     facts=[]
     def add(kind, owners, text, **fields):
         facts.append({'id':'F'+str(len(facts)+1),'kind':kind,'owners':list(owners),'text':text,**fields})
-    def owners(e):return list(e.get('owners',['mia'] if e['source']=='family' else ['benny']))
-    relevant=[e for e in events if set(owners(e)).intersection(selected)]
+    def event_owners(e):return list(e.get('owners',['mia'] if e['source']=='family' else ['benny']))
+    relevant=[e for e in events if set(event_owners(e)).intersection(selected)]
     windows=[]
     if window!='all_day':
         a,b={'morning':(6,12),'afternoon':(12,18),'evening':(18,24)}[window]
@@ -20,7 +20,7 @@ def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, no
             windows.append((day+timedelta(hours=a),day+timedelta(hours=b)));day+=timedelta(days=1)
         relevant=[e for e in relevant if e['all_day'] or any(e['start'].timestamp()<b.timestamp() and e['end'].timestamp()>a.timestamp() for a,b in windows)]
     for e in relevant[:30]:
-        owner=[p for p in owners(e) if p in selected]
+        owner=[p for p in event_owners(e) if p in selected]
         from jarvis.household_briefing import event_title
         title=event_title(e) if e['source']=='travel' else e['title']
         add('appointment',owner,title,start=e['start'].isoformat(),end=e['end'].isoformat(),
@@ -43,8 +43,8 @@ def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, no
                     continue
                 text=title+': '+'; '.join(card['lines'])
                 groups.setdefault((tuple(owners),text),[]).append(day['date'])
-        for (owners,text),dates in list(groups.items())[:12]:
-            add('routine',owners,text[:650],dates=dates,
+        for (routine_owners,text),dates in list(groups.items())[:12]:
+            add('routine',routine_owners,text[:650],dates=dates,
                 date_labels=[datetime.fromisoformat(d).strftime('%A %d %B') for d in dates],usual_not_attendance=True)
     timed=[e for e in relevant if not e['all_day']]
     total=sum(max(0,int((e['end'].timestamp()-e['start'].timestamp())/60)) for e in timed)
@@ -55,7 +55,7 @@ def calendar_evidence(profile, brief, events, snapshot, sources, unavailable, no
     for i,a in enumerate(timed):
         for b in timed[i+1:]:
             if b['start']>=a['end']:break
-            common=set(owners(a)).intersection(owners(b),selected)
+            common=set(event_owners(a)).intersection(event_owners(b),selected)
             if common and a['title']!=b['title']:
                 for owner in sorted(common):overlaps.append((owner,a,b))
     for owner,a,b in overlaps[:3]:

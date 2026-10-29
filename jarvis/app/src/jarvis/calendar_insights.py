@@ -258,6 +258,7 @@ def day_overview(board,evidence):
             match=re.search(r'usual school.*?(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})',routine['text'],re.I)
             if match:school.append({'owners':routine['owner'],'start':match[1],'finish':match[2],'basis':'usual timetable,not confirmed attendance'})
     return {'day':relative_day(evidence['start'],evidence.get('checked_on')) or evidence['start'],
+        'calendar_scope':'Connected calendar entries only; no inference about whole-day workload or actual free time.',
         'appointments':entries,'usual_school':school,'usual_routines':board['usual_routines'] if not entries and not school else [],
         'empty_calendar_scope':'No appointments were returned from the connected household calendar for this day; this is not proof of actual availability.' if not entries else None}
 

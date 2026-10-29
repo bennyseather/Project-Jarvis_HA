@@ -15,3 +15,8 @@ card.data={assistant:{people,household_planning:plan,memories:[],travel_briefs:[
 assert.match(fs.readFileSync(path,'utf8'),/data-agenda-person/);
 assert.match(fs.readFileSync(path,'utf8'),/scrollTop=oldScroll/);
 console.log('Household agenda UI: day/person filters, disabled/stale handling and scroll preservation PASS');
+
+plan.source_health={work:{name:'Work Reach',status:'failed',last_success:'2026-10-29T10:00:00Z'}};
+assert.ok(card.agendaCards(plan,people)[0].lines.some(line=>line.includes('last refresh failed')&&line.includes('last successful Jarvis refresh')));
+plan.days[1].state='needs_check';assert.ok(card.agendaCards(plan,people)[0].lines.some(line=>line.includes('Work Reach')));
+console.log('Calendar source refresh status remains visible when planning is incomplete PASS');

@@ -1,3 +1,10 @@
+## 0.45.110
+
+- Repair routines plus overlapping appointments in calendar evidence, which could prevent Today's household plan from being built.
+- Track successful, failed, unfinished and overdue Jarvis-requested calendar refreshes, and expose source timestamps in Household Assistant. Withhold stale source events.
+- Keep after-hours remaining-day summaries useful and stop treating sparse calendar entries as proof of a light/free whole day. Local Node Qwen remains in use for meaningful interpretation.
+- Preserve saved voice, confirmed household/calendar data and existing phone navigation. Audio and reminder acceptance tests stay on hold.
+
 ## 0.45.109
 
 - Retain Today/Tomorrow labels and the source-failure explanation when a

@@ -59,7 +59,9 @@ small day summary. Mention the day once and connect activities in time order.
 Include EVERY supplied activity with its start time; the final finish can be useful.
 Do not turn it into a calendar export with repeated dates or full time ranges.
 Do not discuss school clashes,gaps or unknown logistics when the user only asks
-what is on. Do not invent preparation,transport,attendance or free time.
+what is on. Do not invent preparation,transport,attendance or free time. Do not rate the whole
+day as light,quiet,easy or busy from these entries. For an overview,stop after
+connecting the known commitments; do not append an unasked workload judgement.
 When no appointments were returned,say what you can see in the connected household
 calendar. Never say there are no plans or that the whole day is quiet/free. Include
 usual school finish if supplied,using usually;do not repeat an attendance disclaimer.
@@ -427,6 +429,7 @@ class HouseholdThinking:
                         'Missing load assessment':'Give the calculated, qualified calendar-load assessment, not just a count.',
                         'Unmarked inference':'Qualify judgments with looks/seems/based on recorded appointments.',
                         'Appointment assigned to wrong speaker':'The appointment belongs to the named other person, not the speaker. Name its owner; do not address that appointment as yours.',
+                        'Unsupported whole-day assessment':'Describe the recorded appointment load only. Do not rate the whole day or imply remaining time is free.',
                         'Unsupported availability':'A gap is not proof that anyone is free or available. Remove the free/available claim; explain only the known timing and uncertainty.',
                         'Routine treated as attendance':'Any school/work timetable is usual, not confirmed attendance.',
                         'Unscoped empty-calendar claim':'Say what the connected calendar returned, not that the person has no appointments or plans.',
@@ -451,7 +454,7 @@ class HouseholdThinking:
                 except (ValueError,KeyError,TypeError):pass
             known={'Invalid model response','Invalid schema','Invalid length','Uncited claim','Unsupported time',
                    'Unsupported number','Unsupported weekday','Unsafe action claim','Unsupported availability',
-                   'Unsupported empty-calendar conclusion','Unmarked inference','Unmarked suggestion',
+                   'Unsupported empty-calendar conclusion','Unsupported whole-day assessment','Unmarked inference','Unmarked suggestion',
                    'Appointment assigned to wrong speaker','Mixed owners need explicit attribution',
                    'Person not supported by cited evidence','Routine treated as attendance','Work departure is not a work start',
                    'Invented transport responsibility','Not conversational','Local model unavailable'}
@@ -529,9 +532,11 @@ class HouseholdThinking:
             judgements=set(re.findall(r'\b(?:busy|packed|manageable|light|quiet|stressful|easy)\b',piece.casefold()))
             reported_preference=bool(re.search(r'\b(?:prefers?|preference|likes?|said|reported|mentioned)\b',piece,re.I) and any(
                 f['kind']=='conversation_observation' and judgements.issubset(set(re.findall(r'\w+',f['text'].casefold()))) for f in evidence['facts']))
-            scoped_load=bool(re.search(r'\b(recorded|calendar|scheduled|based on|judging)\b',text,re.I) and any(f['kind']=='calendar_load' for f in evidence['facts']))
+            scoped_load=bool(re.search(r'\b(recorded|calendar|scheduled|based on|judging)\b',piece,re.I) and any(f['kind']=='calendar_load' for f in evidence['facts']))
             if re.search(r'\b(busy|packed|manageable|light|quiet|stressful|easy)\b',piece,re.I) and not scoped_load and not reported_preference and not re.search(r'\b(looks?|seems?|suggests?|may|might|could|appears?)\b',piece,re.I):
                 raise ValueError('Unmarked inference')
+            if not reported_preference and re.search(r"\b(?:day|morning|afternoon|evening|week|weekend)\s+(?:(?:is|looks?|seems?|will be|should be)\s+)?(?:(?:relatively|fairly|pretty|quite|mostly|completely|very|a little)\s+)*(?:light|quiet|easy|busy|packed|manageable|stressful|free|clear|available|open)\b",piece,re.I):
+                raise ValueError('Unsupported whole-day assessment')
             refs=obj['used_facts']
             items.append({'text':piece,'evidence':refs,'kind':'fact'})
         return cls.validate(json.dumps({'intent':'overview','sentences':items}),evidence,speaker)

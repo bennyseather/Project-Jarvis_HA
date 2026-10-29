@@ -187,3 +187,11 @@ If using the isolated Yoga dashboard, register
 `/local/jarvis/jarvis-yoga.js?v=20261029-mobile` too. Existing Household/Planner forms
 are retained on compatible module updates. The phone repair changes presentation
 and navigation; it does not change household knowledge, voice or calendar data.
+
+
+Household UI revision2026102903 adds per-source successful refresh times and
+failed/unfinished/overdue/unavailable status. These are Jarvis-requested Home
+Assistant source refreshes; they do not promise instantaneous publication by
+Outlook or Google. A calendar read time is shown separately. Compatible upgrades
+keep the currently selected Assistant section, filters and unsaved planner form.
+Use `/local/jarvis/jarvis-household.js?v=045110-reliability` for this revision.

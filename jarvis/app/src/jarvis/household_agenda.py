@@ -23,7 +23,7 @@ class Superseded(Exception):pass
 class HouseholdAgenda:
  def __init__(self,owner,*,approval=None):
   self.owner=owner;self.approval=approval;self.records={};self.routes={}
-  self.task=None;self.work=None;self.last_scan=-1000.;self.status='not_checked';self.checked_at=None
+  self.source_health={};self.task=None;self.work=None;self.last_scan=-1000.;self.status='not_checked';self.checked_at=None
  def enabled(self):
   try:
    data=self.approval
@@ -69,14 +69,15 @@ class HouseholdAgenda:
   self.status='preparing';people={m['id']:m['preferred_name'] for m in self.owner.profile._data['members']}
   for offset in (0,1):
    day=today+timedelta(days=offset);start=day.isoformat();end=(day+timedelta(days=1)).isoformat()
+   stage='calendar'
    try:
     loaded=await asyncio.wait_for(reader.reader.handle('household preparation',None,resolved=Brief('all',start,end),structured_only=True,targets=tuple(people),event_context=True),15)
     self.valid(binding)
     if not loaded or loaded.get('status')!='success':raise ValueError('Calendar read unavailable')
-    evidence=loaded['evidence'];fingerprint=self.fingerprint(binding,evidence)
+    evidence=loaded['evidence'];self.source_health=evidence.get('source_health',{});stage='planning';fingerprint=self.fingerprint(binding,evidence)
     old=self.records.get(start)
     if old and old.get('fingerprint')==fingerprint and self.owner.clock()-old['built_at']<1800:
-     old['checked_at']=self.owner.now().isoformat();continue
+     old['checked_at']=self.owner.now().isoformat();old['source_health']=deepcopy(self.source_health);continue
     # No old event/time remains on screen once a changed source is observed.
     self.records[start]={'date':start,'state':'preparing','people':[],'binding':binding}
     rows=[]
@@ -88,11 +89,12 @@ class HouseholdAgenda:
     self.valid(binding)
     if not again or again.get('status')!='success' or self.fingerprint(binding,again['evidence'])!=fingerprint:raise Superseded()
     self.records[start]={'date':start,'label':'Today' if not offset else 'Tomorrow','state':'partial' if evidence['source_failures'] or evidence['truncated'] else 'ready',
-     'people':rows,'coordination':self.coordination(evidence,people),'coverage':'Some calendar information could not be checked; these plans may be incomplete.' if evidence['source_failures'] or evidence['truncated'] else 'Connected calendar plans; routines are usual, not confirmed attendance.',
+     'people':rows,'source_health':deepcopy(self.source_health),'coordination':self.coordination(evidence,people),'coverage':'Some calendar information could not be checked; these plans may be incomplete.' if evidence['source_failures'] or evidence['truncated'] else 'Connected calendar plans; routines are usual, not confirmed attendance.',
      'fingerprint':fingerprint,'built_at':self.owner.clock(),'binding':binding,'checked_at':self.owner.now().isoformat()}
    except Superseded:raise
    except asyncio.CancelledError:raise
-   except Exception:self.records[start]={'date':start,'state':'needs_check','people':[],'binding':binding,'coverage':'Calendar information needs checking. Previous plans are withheld.'}
+   except Exception:
+    self.records[start]={'date':start,'state':'needs_check','people':[],'binding':binding,'failure_kind':stage,'source_health':deepcopy(self.source_health),'coverage':'Calendar information needs checking. Previous plans are withheld.' if stage=='calendar' else 'The calendar was checked, but the plan could not be prepared. Previous advice is withheld.'}
   self.valid(binding);self.checked_at=self.owner.now().isoformat();self.status='ready' if all(r['state']=='ready' for r in self.records.values()) else 'partial'
   self.records={d:r for d,r in self.records.items() if d in (today.isoformat(),(today+timedelta(days=1)).isoformat())}
   self.routes={k:v for k,v in self.routes.items() if self.owner.clock()-v[0]<1800}
@@ -117,7 +119,8 @@ class HouseholdAgenda:
    if not safe_detail(event['text']):event['text']='a recorded appointment';event.pop('confirmed_activity',None)
   events.sort(key=lambda e:e['start']);routines=[f['text'] for f in facts if f['kind']=='routine' and safe_detail(f['text'])][:2]
   selected_ids={e['id'] for e in events}
-  summary='No extra appointments appear in the connected calendar for this date; other plans may exist.'
+  current=evidence['start']==now.date().isoformat()
+  summary=('No further appointments are listed for '+name+' today in the connected calendars; other plans may exist.' if current else 'No appointments are listed for '+name+' on this date in the connected calendars; other plans may exist.')
   if evidence['source_failures'] or evidence['truncated']:summary='The calendar view is incomplete, so I cannot rule out other appointments.'
   if events:summary=' '.join((appointment_label(e)+' ('+('all day' if e['all_day'] else e['local_start'])+').') for e in events[:6])
   from jarvis.household_thinking import HouseholdThinking
@@ -128,6 +131,7 @@ class HouseholdAgenda:
    async def handle(self,*args,**kwargs):return {'status':'success','evidence':deepcopy(scoped)}
   engine.reader=Frozen();out=None
   try:
+   if not events:raise ValueError('No remaining appointments need model composition')
    question=('What should '+name+' prepare for ' if family else 'What does '+name+' have on ')+evidence['start']+'?'
    out=await asyncio.wait_for(engine.handle(question,None,**({} if family else {'tool_selected':True})),20)
    self.valid(binding)
@@ -135,7 +139,7 @@ class HouseholdAgenda:
   except (ValueError,asyncio.TimeoutError):pass
   attention=[]
   for f in facts:
-   if f['kind']=='overlap' and safe_detail(f['text']):attention.append(f['text']+'. Check whether both commitments apply.')
+   if f['kind']=='overlap' and safe_detail(f['text']) and datetime.fromisoformat(f['date']+'T'+f['local_end']).replace(tzinfo=ZONE)>now:attention.append(f['text']+'. Check whether both commitments apply.')
   for first,second in zip([e for e in events if not e['all_day']],[e for e in events if not e['all_day']][1:]):
    gap=int((datetime.fromisoformat(second['start'])-datetime.fromisoformat(first['end'])).total_seconds()/60)
    if 0<=gap<=60:attention.append('The recorded gap before '+appointment_label(second)+' is '+str(gap)+' minutes; journeys and getting ready still need allowing for.')
@@ -176,4 +180,5 @@ class HouseholdAgenda:
     for departure in person.get('departures',[]):
      if datetime.fromisoformat(departure['leave_at'])<=self.owner.now():departure['text']='The suggested home departure time has passed; recheck the journey before setting off. '+departure['text']
    days.append(item)
-  return {'status':self.status,'checked_at':self.checked_at,'days':days,'read_only':True,'refresh_interval_seconds':60}
+  from jarvis.calendar_freshness import current_health
+  return {'status':self.status,'checked_at':self.checked_at,'days':days,'source_health':current_health(self.source_health,self.owner.now()),'read_only':True,'refresh_interval_seconds':60}

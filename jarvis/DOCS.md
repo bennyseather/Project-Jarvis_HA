@@ -974,3 +974,26 @@ place label. It is not independently verified, live traffic or a durable fact.
 These reports share the existing five-minute/event/account/conversation binding,
 are retained for a revised meal duration within that scope, and are withdrawn
 when the source event or scope changes. No calendar/profile/memory write occurs.
+
+
+### Planning reliability (0.45.110)
+
+Household Assistant separates the time Jarvis read the calendar from the last
+successful Jarvis-requested source refresh. Read-only receipts live in the three
+`input_text.jarvis_calendar_sync_{work,family,travel}` helpers. Each source has a
+15-minute/startup Home Assistant refresh automation; successful completion records
+its timestamp only when the calendar is available afterward. Failed/unfinished or
+overdue refreshes are flagged and old source events are withheld. No provider
+URL, calendar content or credential is stored in a receipt. Provider publication
+can still lag. Existing default integration polling remains as a fallback.
+
+Today's preparation covers remaining/ongoing appointments; an empty remaining-day
+view does not establish actual availability. Source changes and cancellations
+continue to invalidate old advice. Saved voice and reminder delivery are unchanged.
+
+Refresh receipts are optional for existing installations. Without the helpers,
+calendar reads keep their existing behaviour and report tracking as not configured.
+To enable tracking, create three text helpers named Jarvis Calendar Sync Work,
+Jarvis Calendar Sync Family and Jarvis Calendar Sync Travel (max255), then use the
+reviewed `calendar-refresh-automations.json` configurations. Do not mark an untested
+refresh as successful. No manual edit to Home Assistant's private storage is needed.

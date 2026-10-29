@@ -1,0 +1,212 @@
+{
+  "jarvis_work_reach_calendar_refresh": {
+    "alias": "Jarvis - refresh Work Reach calendar",
+    "description": "Refresh this existing calendar source every 15 minutes and record successful, failed or unfinished attempts. Receipt is last Jarvis-requested refresh, not a guarantee of immediate provider publication. No appointments, devices or notifications are changed.",
+    "triggers": [
+      {
+        "trigger": "time_pattern",
+        "minutes": "/15"
+      },
+      {
+        "trigger": "homeassistant",
+        "event": "start"
+      }
+    ],
+    "variables": {
+      "previous": "{{ states('input_text.jarvis_calendar_sync_work')|from_json({}) }}",
+      "attempted": "{{ as_timestamp(now())|int }}"
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "action": "input_text.set_value",
+        "target": {
+          "entity_id": "input_text.jarvis_calendar_sync_work"
+        },
+        "data": {
+          "value": "{{ {'v':1,'attempt':attempted|int,'success':previous.get('success'),'failure':previous.get('failure'),'status':'refreshing'}|to_json }}"
+        }
+      },
+      {
+        "action": "homeassistant.update_entity",
+        "target": {
+          "entity_id": "calendar.work_reach"
+        }
+      },
+      {
+        "choose": [
+          {
+            "conditions": "{{ states('calendar.work_reach') in ['on','off'] }}",
+            "sequence": [
+              {
+                "action": "input_text.set_value",
+                "target": {
+                  "entity_id": "input_text.jarvis_calendar_sync_work"
+                },
+                "data": {
+                  "value": "{{ {'v':1,'attempt':attempted|int,'success':attempted|int,'failure':previous.get('failure'),'status':'ok'}|to_json }}"
+                }
+              }
+            ]
+          }
+        ],
+        "default": [
+          {
+            "action": "input_text.set_value",
+            "target": {
+              "entity_id": "input_text.jarvis_calendar_sync_work"
+            },
+            "data": {
+              "value": "{{ {'v':1,'attempt':attempted|int,'success':previous.get('success'),'failure':attempted|int,'status':'failed'}|to_json }}"
+            }
+          }
+        ]
+      }
+    ],
+    "mode": "single",
+    "max_exceeded": "silent",
+    "trace": {
+      "stored_traces": 3
+    }
+  },
+  "jarvis_household_calendar_refresh": {
+    "alias": "Jarvis - refresh Household calendar",
+    "description": "Refresh this existing calendar source every 15 minutes and record successful, failed or unfinished attempts. Receipt is last Jarvis-requested refresh, not a guarantee of immediate provider publication. No appointments, devices or notifications are changed.",
+    "triggers": [
+      {
+        "trigger": "time_pattern",
+        "minutes": "/15"
+      },
+      {
+        "trigger": "homeassistant",
+        "event": "start"
+      }
+    ],
+    "variables": {
+      "previous": "{{ states('input_text.jarvis_calendar_sync_family')|from_json({}) }}",
+      "attempted": "{{ as_timestamp(now())|int }}"
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "action": "input_text.set_value",
+        "target": {
+          "entity_id": "input_text.jarvis_calendar_sync_family"
+        },
+        "data": {
+          "value": "{{ {'v':1,'attempt':attempted|int,'success':previous.get('success'),'failure':previous.get('failure'),'status':'refreshing'}|to_json }}"
+        }
+      },
+      {
+        "action": "homeassistant.update_entity",
+        "target": {
+          "entity_id": "calendar.familiekalender"
+        }
+      },
+      {
+        "choose": [
+          {
+            "conditions": "{{ states('calendar.familiekalender') in ['on','off'] }}",
+            "sequence": [
+              {
+                "action": "input_text.set_value",
+                "target": {
+                  "entity_id": "input_text.jarvis_calendar_sync_family"
+                },
+                "data": {
+                  "value": "{{ {'v':1,'attempt':attempted|int,'success':attempted|int,'failure':previous.get('failure'),'status':'ok'}|to_json }}"
+                }
+              }
+            ]
+          }
+        ],
+        "default": [
+          {
+            "action": "input_text.set_value",
+            "target": {
+              "entity_id": "input_text.jarvis_calendar_sync_family"
+            },
+            "data": {
+              "value": "{{ {'v':1,'attempt':attempted|int,'success':previous.get('success'),'failure':attempted|int,'status':'failed'}|to_json }}"
+            }
+          }
+        ]
+      }
+    ],
+    "mode": "single",
+    "max_exceeded": "silent",
+    "trace": {
+      "stored_traces": 3
+    }
+  },
+  "jarvis_travel_calendar_refresh": {
+    "alias": "Jarvis - refresh Jarvis Travels calendar",
+    "description": "Refresh this existing calendar source every 15 minutes and record successful, failed or unfinished attempts. Receipt is last Jarvis-requested refresh, not a guarantee of immediate provider publication. No appointments, devices or notifications are changed.",
+    "triggers": [
+      {
+        "trigger": "time_pattern",
+        "minutes": "/15"
+      },
+      {
+        "trigger": "homeassistant",
+        "event": "start"
+      }
+    ],
+    "variables": {
+      "previous": "{{ states('input_text.jarvis_calendar_sync_travel')|from_json({}) }}",
+      "attempted": "{{ as_timestamp(now())|int }}"
+    },
+    "conditions": [],
+    "actions": [
+      {
+        "action": "input_text.set_value",
+        "target": {
+          "entity_id": "input_text.jarvis_calendar_sync_travel"
+        },
+        "data": {
+          "value": "{{ {'v':1,'attempt':attempted|int,'success':previous.get('success'),'failure':previous.get('failure'),'status':'refreshing'}|to_json }}"
+        }
+      },
+      {
+        "action": "homeassistant.update_entity",
+        "target": {
+          "entity_id": "calendar.jarvis_travels"
+        }
+      },
+      {
+        "choose": [
+          {
+            "conditions": "{{ states('calendar.jarvis_travels') in ['on','off'] }}",
+            "sequence": [
+              {
+                "action": "input_text.set_value",
+                "target": {
+                  "entity_id": "input_text.jarvis_calendar_sync_travel"
+                },
+                "data": {
+                  "value": "{{ {'v':1,'attempt':attempted|int,'success':attempted|int,'failure':previous.get('failure'),'status':'ok'}|to_json }}"
+                }
+              }
+            ]
+          }
+        ],
+        "default": [
+          {
+            "action": "input_text.set_value",
+            "target": {
+              "entity_id": "input_text.jarvis_calendar_sync_travel"
+            },
+            "data": {
+              "value": "{{ {'v':1,'attempt':attempted|int,'success':previous.get('success'),'failure':attempted|int,'status':'failed'}|to_json }}"
+            }
+          }
+        ]
+      }
+    ],
+    "mode": "single",
+    "max_exceeded": "silent",
+    "trace": {
+      "stored_traces": 3
+    }
+  }
+}

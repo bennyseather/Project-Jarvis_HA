@@ -54,7 +54,7 @@ class AgendaTests(unittest.IsolatedAsyncioTestCase):
   self.a.leave()
  async def test_profile_change_during_model_work_cannot_publish(self):
   async def change(*args,**kw):self.p._data['revision']+=1;return {'status':'success','message':'Old advice.'}
-  with patch('jarvis.household_thinking.HouseholdThinking.handle',new=change):
+  with patch('jarvis.household_thinking.HouseholdThinking.handle',new=change),patch('jarvis.event_preparation.EventPreparation.handle',new=change):
    with self.assertRaises(Superseded):await self.agenda.refresh()
   self.assertFalse(self.agenda.project()['days'])
  async def test_source_recheck_prevents_publish_from_changed_snapshot(self):

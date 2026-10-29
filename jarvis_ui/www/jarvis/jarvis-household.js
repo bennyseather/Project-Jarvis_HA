@@ -9,11 +9,11 @@ function householdLines(value,prefix=''){
  return [(prefix?prefix+': ':'')+String(value)];
 }
 class JarvisHouseholdCard extends HTMLElement{
- get uiRevision(){return 2026102902;}
+ get uiRevision(){return 2026102903;}
  setConfig(config){this.config=config||{};this.toggleAttribute?.('data-standalone',this.config.layout==='standalone');this.section=this.config.initial_section==='assistant'?'assistant':'planner';this.render();}
  getCardSize(){return 8;}
  constructor(){super();this.attachShadow({mode:'open'});this.section='planner';this.period='today';this.agendaDay='today';this.agendaPerson='all';this.page=0;this.serial=0;this.error='';this.loading=false;}
- set hass(hass){const upgrade=this._plannerUiRevision!==2026102902;this._plannerUiRevision=2026102902;if(upgrade&&!this.shadowRoot.querySelector?.('jarvis-planner-card'))this.section=this.config?.initial_section==='assistant'?'assistant':'planner';const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(upgrade)this.render();if(!this.data&&!this.loading&&hass)this.load();}
+ set hass(hass){const previousRevision=this._plannerUiRevision,upgrade=previousRevision!==2026102903;this._plannerUiRevision=2026102903;if(upgrade&&!previousRevision&&!this.shadowRoot.querySelector?.('jarvis-planner-card'))this.section=this.config?.initial_section==='assistant'?'assistant':'planner';const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(upgrade)this.render();if(!this.data&&!this.loading&&hass)this.load();}
  connectedCallback(){this.render();this.timer=setInterval(()=>{if(!document.hidden)this.load();},60000);}
  disconnectedCallback(){clearInterval(this.timer);this.serial++;this.data=null;this.loading=false;}
  async load(){if(!this._hass||this.loading||!this.isConnected)return;const serial=++this.serial;this.loading=true;this.error='';this.render();try{const data=await this._hass.callWS({type:'jarvis_conversation/household',period:this.period});if(serial!==this.serial||!this.isConnected)return;if(data.schema_version!==1||data.read_only!==true||(this.period!=='today'&&data.planning?.period!==this.period))throw Error('Invalid response');this.data=data;}catch{if(serial!==this.serial)return;this.data=null;this.error='Household information unavailable. Nothing has been changed. Try Refresh.';}finally{if(serial===this.serial){this.loading=false;this.render();}}}
@@ -21,9 +21,10 @@ class JarvisHouseholdCard extends HTMLElement{
   this.agendaDay??='today';this.agendaPerson??='all';
   if(!plan)return [];
   if(plan.status==='disabled')return [{title:'Household preparation',lines:['Automatic household preparation is not enabled.']}];
+  const sync=Object.values(plan.source_health||{}).map(r=>{const status=({fresh:'last refresh succeeded',failed:'last refresh failed',unavailable:'calendar is currently unavailable',stale:'refresh overdue',refreshing:'refresh in progress',incomplete:'refresh did not finish',unknown:'successful refresh not yet recorded',not_configured:'refresh tracking is not configured'})[r.status]||'status unknown';return (r.name||'Calendar')+': '+status+(r.last_success?' · last successful Jarvis refresh '+new Date(r.last_success).toLocaleString('en-GB',{timeZone:'Europe/Oslo'}):'')+'.';});
   const dayLabel=this.agendaDay==='tomorrow'?'Tomorrow':'Today',day=(plan.days||[]).find(d=>d.label===dayLabel);
-  if(!day)return [{title:dayLabel+' · Household preparation',lines:['The household plan is being prepared. Try Refresh shortly.']}];
-  const result=[{title:dayLabel+' · At a glance',lines:[day.checked_at?'Calendar checked '+new Date(day.checked_at).toLocaleString('en-GB',{timeZone:'Europe/Oslo'}):'Calendar refresh is pending.',day.coverage||'Preparation is being checked.',...(day.coordination||[])]}];
+  if(!day)return [{title:dayLabel+' · Household preparation',lines:[...sync,'The household plan is being prepared. Try Refresh shortly.']}];
+  const result=[{title:dayLabel+' · At a glance',lines:[day.checked_at?'Calendar checked '+new Date(day.checked_at).toLocaleString('en-GB',{timeZone:'Europe/Oslo'}):'Calendar refresh is pending.',...sync,day.coverage||'Preparation is being checked.',...(day.coordination||[])]}];
   if(!['ready','partial'].includes(day.state))return result;
   const selected=(day.people||[]).filter(p=>this.agendaPerson==='all'||p.id===this.agendaPerson);
   for(const person of selected)result.push({title:dayLabel+' · '+(people[person.id]||person.name),lines:[person.summary,...(person.departures||[]).map(d=>d.text),...(person.attention||[]),...(person.routines||[])]});
@@ -70,7 +71,7 @@ if(this.section==='changes')cards=(d.changes||[]).map(c=>({title:'Revision '+c.r
 customElements.whenDefined('ha-card').then(()=>{
  const active=customElements.get('jarvis-household-card');
  if(!active)customElements.define('jarvis-household-card',JarvisHouseholdCard);
- else if((active.prototype.uiRevision||0)<2026102902){
+ else if((active.prototype.uiRevision||0)<2026102903){
   // HA can announce this module to a still-open companion WebView. Upgrade its
   // existing compatible element instead of silently retaining the cached class.
   for(const name of Object.getOwnPropertyNames(JarvisHouseholdCard.prototype)){
