@@ -1,3 +1,10 @@
+## 0.45.105
+
+- Preserve an active dinner/travel calculation when a reply supplies a missing
+  home journey duration; do not send it to activity preparation or departure.
+- Keep explicit meal-fit questions on the household planning tool while retaining
+  the new confirmed activity knowledge and preparation/departure features.
+
 ## 0.45.104
 
 - Let local Qwen interpret usual activity venues, equipment, preparation and

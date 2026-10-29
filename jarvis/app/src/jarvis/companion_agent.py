@@ -149,6 +149,14 @@ class QwenConversation:
   routing=previous_route(self.owner,state);meal=meal_draft(self.owner,state)
   if routing and state['last_tool']=='route' and text.casefold().strip(' .?!') in ('driving','by car','car','home','from home','public transport','by bus','bus'):
    schema['properties']['tool']['enum']=['local_route']
+  # Existing meal slots must not be stolen by a newer activity capability.
+  # Bound Qwen's choice only for an explicit reported home-journey duration or
+  # an explicit meal-fit question; the executor still validates the exact scope.
+  from jarvis.companion_routing import reported_duration_quotes
+  temporary_journey=bool(meal and len(meal['missing'])==1 and reported_duration_quotes(text) and re.search(r'\bhome\b',text,re.I) and not re.search(r'\b(?:remember|save|usually|usual|forget)\b',text,re.I) and not re.match(r'^(?:what|when|where|how|can|could|should|does|do|is|are)\b',text,re.I))
+  if temporary_journey:schema['properties']['tool']['enum']=['local_route']
+  meal_fit=bool(re.search(r'\b(?:dinner|meal)\b',text,re.I) and re.search(r'\b(?:fit|squeeze|enough time|time for)\b',text,re.I) and not re.search(r'\b(?:save|add|create|book|cancel)\b',text,re.I))
+  if meal_fit:schema['properties']['tool']['enum']=['household_plans']
   focus=self.reads.prior(state)
   if focus and focus['purpose']=='availability' and focus.get('between') and re.search(r'\b(?:dinner|meal)\b',focus.get('task',''),re.I):
    from jarvis.companion_read_context import duration_quotes
