@@ -158,6 +158,17 @@ class QwenConversation:
   meal_fit=bool(re.search(r'\b(?:dinner|meal)\b',text,re.I) and re.search(r'\b(?:fit|squeeze|enough time|time for)\b',text,re.I) and not re.search(r'\b(?:save|add|create|book|cancel)\b',text,re.I))
   if meal_fit:schema['properties']['tool']['enum']=['household_plans']
   focus=self.reads.prior(state)
+  # A personal-topic pronoun may not silently switch an established subject.
+  if re.search(r'\b(?:her|his|their)\s+(?:birthday|age|job)\b',text,re.I) and not any(re.search(r'\b'+re.escape(n)+r'\b',text,re.I) for n in people.values()):
+   referenced=list(focus['subjects']) if focus and focus['subjects']!=['all'] else []
+   if not referenced:
+    for turn in reversed(state['history']):
+     if turn['role']!='user':continue
+     mentioned=[m for m,n in people.items() if re.search(r'\b'+re.escape(n)+r'\b',turn['text'],re.I)]
+     if mentioned:referenced=mentioned;break
+   if len(referenced)==1:
+    schema['properties']['members'].update(minItems=1,maxItems=1)
+    schema['properties']['members']['items']['enum']=referenced
   if focus and focus['purpose']=='availability' and focus.get('between') and re.search(r'\b(?:dinner|meal)\b',focus.get('task',''),re.I):
    from jarvis.companion_read_context import duration_quotes
    from jarvis.household_planning import DATE_PATTERN
@@ -183,7 +194,7 @@ class QwenConversation:
   data['latest']=data.pop('latest') # Current turn last; older tool replies are reference context only.
   out=await local_json(self.provider,PROMPT,data,schema,tokens=100)
   if not isinstance(out,dict) or set(out)!={'tool','members'} or out['tool'] not in DOMAINS:raise ValueError('Invalid conversation tool')
-  if not isinstance(out['members'],list) or len(out['members'])>4 or any(m not in people for m in out['members']):raise ValueError('Unknown household subject')
+  if not isinstance(out['members'],list) or len(out['members'])>4 or any(m not in schema['properties']['members']['items']['enum'] for m in out['members']) or len(out['members'])<schema['properties']['members'].get('minItems',0):raise ValueError('Unknown household subject')
   tool=DOMAINS[out['tool']];result={'tool':tool,'operation':'query','members':out['members'],'name_quote':'','answer':''}
   if tool=='identity':
    named={p:n for p,n in people.items() if re.search(r'\b'+re.escape(n)+r'\b',text,re.I)}

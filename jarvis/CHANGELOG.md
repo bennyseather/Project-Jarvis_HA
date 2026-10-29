@@ -1,3 +1,9 @@
+## 0.45.106
+
+- Keep a birthday/age/job pronoun follow-up on the single person established by
+  the current read task or latest named user turn. Reject model-selected subjects
+  outside that scoped reference instead of silently switching family members.
+
 ## 0.45.105
 
 - Preserve an active dinner/travel calculation when a reply supplies a missing

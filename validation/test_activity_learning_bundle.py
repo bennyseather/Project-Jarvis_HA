@@ -43,6 +43,12 @@ class LearningTests(unittest.IsolatedAsyncioTestCase):
  async def save(self):
   r=await self.say();self.assertEqual(r['status'],'clarification_required',r)
   r=await self.say('yes');self.assertEqual(r['status'],'success',r);return self.p._data['activity_profiles'][0]
+ async def test_pronoun_profile_topic_cannot_switch_established_member(self):
+  provider=SimpleNamespace(reason_local=lambda **kw:{'status':'success','message':json.dumps({'tool':'household_facts','members':['linda']})})
+  self.a.agent.provider=provider
+  with calendar_scope({'actor':'fixture','read':True,'write':True}):
+   state=self.a.agent.state('subject','fixture');state['history']=[{'role':'user','text':'What does Mia have tomorrow?'},{'role':'assistant','text':'Mia has rehearsal.'}]
+   with self.assertRaises(ValueError):await self.a.agent.plan('And her birthday?','subject','fixture',state)
  def test_tool_prompt_fits_actual_adapter_system_budget(self):
   from jarvis.companion_agent import PROMPT
   from jarvis.providers.local_first_provider import LocalReasoningPolicy
