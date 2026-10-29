@@ -47,12 +47,13 @@ async def extract(owner,item,text,active_step=None,scope=None):
  if frame['intent'] in ('readiness','clear','unrelated','unclear'):
   frame.update(venue='',equipment=[],preparation='',journey_quote='',equipment_mode='keep')
  def quote(value,maximum):
-  if not isinstance(value,str) or value and (value.casefold() not in text.casefold() or not safe(value,maximum)):raise ValueError('That detail was not stated in your reply.')
-  return value
+  if not isinstance(value,str) or value and not safe(value,maximum):raise ValueError('Invalid preparation detail text')
+  # Ignore an ungrounded OPTIONAL field rather than losing other exact user
+  # quotes. The explicit review lists only what can actually be saved.
+  return value if not value or value.casefold() in text.casefold() else ''
  frame['venue']=quote(frame['venue'],180);frame['preparation']=quote(frame['preparation'],240)
  if not isinstance(frame['equipment'],list) or len(frame['equipment'])>12:raise ValueError('Invalid equipment list')
- frame['equipment']=[quote(v,100) for v in frame['equipment']]
- if any(not v for v in frame['equipment']):raise ValueError('An equipment item was empty')
+ frame['equipment']=[q for v in frame['equipment'] if (q:=quote(v,100))]
  if frame['journey_quote'] not in ['']+durations:raise ValueError('The journey time was not stated')
  if frame['journey_quote'] and not re.search(r'\bhome\b|hjem|heim',text,re.I) and 'journey' not in item.get('gaps',[]):raise ValueError('Is that the journey between home and this activity?')
  if frame['journey_quote'] and reported_duration(frame['journey_quote']) is None:raise ValueError('That journey estimate needs a unit')
@@ -63,6 +64,9 @@ async def extract(owner,item,text,active_step=None,scope=None):
  if frame['member'] and not item['person']:
   name=next(p['preferred_name'] for p in owner.profile._data['members'] if p['id']==frame['member'])
   if not re.search(r'(?<!\w)'+re.escape(name)+r'(?!\w)',text,re.I):raise ValueError('Please name the household member explicitly.')
+ # A requirement is not a completion report, even if the model fills ready ids.
+ asserted_ready=bool(re.search(r'\b(?:packed|ready|prepared|done|pakket|ferdig|klart)\b',text,re.I) or active_step and re.fullmatch(r'(?:yes|no|not yet)[.!]?',text,re.I))
+ if not asserted_ready:frame['ready']=[];frame['not_ready']=[]
  for field in ('ready','not_ready'):
   if not isinstance(frame[field],list) or any(s not in steps for s in frame[field]):raise ValueError('That checklist item is not part of this appointment')
   for sid in frame[field]:

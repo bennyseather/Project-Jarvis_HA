@@ -55,7 +55,7 @@ class FollowupTests(unittest.IsolatedAsyncioTestCase):
  async def test_model_cannot_invent_change_scope_person_or_readiness(self):
   item,s=await self.opened()
   self.frame['venue']='Invented Hall'
-  with self.assertRaises(ValueError):await self.f.answer(s,'owner',self.text)
+  grounded=await self.f.answer(s,'owner',self.text);self.assertEqual(grounded['state'],'review');self.assertNotIn('Invented Hall',' '.join(grounded['lines']));self.assertNotIn('venue',self.f.sessions[s]['pending']['details'])
   self.frame['venue']='Elm School';self.frame['scope']='usual';result=await self.f.answer(s,'owner',self.text);self.assertEqual(result['scope'],'one_off')
   self.frame['member']='benny'
   with self.assertRaises(ValueError):await self.f.answer(s,'owner',self.text)
@@ -108,4 +108,7 @@ class FollowupTests(unittest.IsolatedAsyncioTestCase):
   finally:store.close()
  async def test_usual_update_keeps_dated_report_current(self):
   item,s=await self.opened();r=await self.f.answer(s,'owner',self.text);await self.f.confirm(s,'owner',r['token']);opened=await self.f.open(item['id'],item['version'],'owner');r=await self.f.answer(opened['session'],'owner',self.text,scope='usual');await self.f.confirm(opened['session'],'owner',r['token']);self.assertIsNotNone(self.f.reports.get(self.f.items[item['id']]))
+ async def test_requirement_does_not_mark_anything_ready_even_if_model_does(self):
+  item,s=await self.opened();r=await self.f.answer(s,'owner',self.text);await self.f.confirm(s,'owner',r['token']);item=self.f.items[item['id']];step=item['checklist'][0]['id'];self.frame['ready']=[step]
+  opened=await self.f.open(item['id'],item['version'],'owner');r=await self.f.answer(opened['session'],'owner',self.text);self.assertTrue(r['state'] in ('conversation','review'));self.assertFalse(any(st['ready'] for st in self.f.items[item['id']]['checklist']))
 if __name__=='__main__':unittest.main()

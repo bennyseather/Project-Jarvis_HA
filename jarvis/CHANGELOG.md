@@ -1,3 +1,9 @@
+## 0.45.112
+
+- Keep independently verified details when local Qwen adds an unsupported optional field. Ungrounded fields are omitted from the explicit review and are never saved; unsafe values still reject the request.
+- A requirement such as “needs water” cannot become a packed/ready report.
+- Completes the .111 planning follow-through bundle after the installed HA workflow exposed this interpretation edge case.
+
 ## 0.45.111
 
 - Shared seven-day Needs attention queue with person/date filters and focused preparation conversations.
