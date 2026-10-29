@@ -997,3 +997,12 @@ To enable tracking, create three text helpers named Jarvis Calendar Sync Work,
 Jarvis Calendar Sync Family and Jarvis Calendar Sync Travel (max255), then use the
 reviewed `calendar-refresh-automations.json` configurations. Do not mark an untested
 refresh as successful. No manual edit to Home Assistant's private storage is needed.
+
+
+### Reviewed planning follow-through (.111)
+
+Open Household → Assistant → Needs attention. Filter the next seven days by person or date, choose Discuss and prepare, and give several details in one reply. Review with Jarvis uses local Qwen. Confirm the displayed review to save. The default is a Jarvis-only dated report; Usual activity knowledge uses the existing reversible household profile change history. A separate location correction edits only the selected Household calendar occurrence after explicit confirmation. Work/Travel sources remain read-only.
+
+Readiness is a household report, never verified attendance, location, transport or a driver assignment. Source changes/cancellations, revoked permissions, expired sessions or competing reports require a new review. Resolved/reported-ready rows are hidden by default; Show resolved / reported ready reopens them. Clear the dated report removes that appointment report. Usual profile changes can use the existing undo last household change command. Reports live in the existing protected assistant SQLite store and existing backups. No extra database or continuous model polling.
+
+Ask Assist “Which appointments need attention?” or “What preparation details have been reported for Mia tomorrow?” to read current reports. Use the selected panel conversation for reviewed writes. Audio/accent and reminder delivery acceptance remain deferred.

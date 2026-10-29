@@ -22,6 +22,7 @@ DOMAINS=dict(zip(('identity','remembered_details','household_facts','household_p
 DOMAINS.pop('remembered_details')
 MEMORY_OPERATIONS={'remember_detail':'write','recall_detail':'query','list_memories':'list','manage_memories':'control','memory_subject_reply':'continue'}
 DOMAINS.update({k:'memory' for k in MEMORY_OPERATIONS})
+DOMAINS['planning_followthrough']='planning_followthrough'
 DOMAINS['local_route']='route'
 DOMAINS['activity_knowledge']='activity_knowledge'
 DOMAINS['activity_departure']='departure'
@@ -108,6 +109,7 @@ Examples:
 'When should we leave for Mia band practice tomorrow?' -> activity_departure
 'What should we sort out before leaving tomorrow?' -> departure_brief
 
+planning_followthrough: ASK saved one-off preparation details, what is packed/ready, or which appointments need attention. Usual knowledge stays activity_knowledge.
 The final latest field is the current task. Return only tool and member IDs.
 """
 
@@ -226,7 +228,7 @@ class QwenConversation:
       if self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source):return reply('This conversation changed while I was checking the request. Please ask again.','unavailable')
       if planning_generation!=self.owner.store.generation:return reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       tool=plan['tool']
-      if tool in ('memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route','activity_knowledge','departure') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
+      if tool in ('planning_followthrough','memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route','activity_knowledge','departure') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
       if tool!='activity_knowledge':state.pop('activity_learning_draft',None)
       if tool not in ('activity_knowledge','appointments','departure'):state.pop('activity_focus',None)
       if tool!='identity':state['pending_identity']=False
@@ -289,6 +291,7 @@ class QwenConversation:
   return reply('Hi '+name+'. I will use your name for this conversation.')
  async def execute(self,plan,text,key,source,state,original):
   tool=plan['tool'];container=self.owner.container;profile=self.profile
+  if tool=='planning_followthrough':return await self.owner.followups.native_read(text,plan['members'])
   if tool=='identity':return self.identity(plan,text,key,source,state)
   if tool=='general':
    from jarvis.household_speaker import PERSONAL,TOPIC

@@ -57,6 +57,8 @@ class Companion:
   self.agent=QwenConversation(self,clock=clock)
   from jarvis.household_agenda import HouseholdAgenda
   self.agenda=HouseholdAgenda(self)
+  from jarvis.planning_followup import PlanningFollowups
+  self.followups=PlanningFollowups(self)
   self.profile._companion=self
  async def process(self,operation,text,key,source):
   # Run at the authenticated bridge boundary after generic pending confirmations
@@ -89,13 +91,13 @@ class Companion:
  def binding(self,key,source):
   a=current_calendar_access.get();return (a.actor,str(key),source or '',current_speaker.get().member_id,self.profile._data['revision'])
  def enter(self):
-  self.foreground+=1;self.last_activity=self.clock();self.agenda.interrupt()
+  self.foreground+=1;self.last_activity=self.clock();self.agenda.interrupt();self.followups.interrupt()
  def leave(self):self.foreground=max(0,self.foreground-1);self.last_activity=self.clock()
  def start(self):
   if self.task is None:self.task=asyncio.create_task(self.run())
-  self.agenda.start()
+  self.agenda.start();self.followups.start()
  async def close(self):
-  await self.agenda.close()
+  await self.agenda.close();await self.followups.close()
   if self.task:
    self.task.cancel();await asyncio.gather(self.task,return_exceptions=True)
   self.store.close()
@@ -123,6 +125,7 @@ class Companion:
   except asyncio.CancelledError:raise
   except Exception:self.store.retry(job);return {'saved':False,'ids':[]}
  def capture(self,text,result,key,source):
+  if result.get('agent_tool')=='planning_followthrough':return
   access=current_calendar_access.get()
   if not (self.policy.data['enabled'] and self.policy.data['automatic_learning'] and access.actor and access.write and shared_knowledge_enabled(self.profile._data)):return
   value=' '.join(text.strip().split());low=value.casefold()
@@ -335,7 +338,7 @@ class Companion:
   return {'conversation_mode':self.policy.data.get('conversation_mode','legacy'),'enabled':self.policy.data['enabled'],'learning_enabled':self.policy.data['automatic_learning'],'travel_enabled':self.policy.data['automatic_travel'],
    'retention':'Until corrected or deleted','transport_preference':'Driving first, public transport alternatives',
    'people':{p['id']:p['preferred_name'] for p in self.profile._data['members']},'memories':self.store.memories(include_historical=True)[:30],'learning_jobs':self.store.job_counts(),'travel_briefs':self.store.briefs()[:8],
-   'household_planning':self.agenda.project(),'travel_status':self.travel.status if self.travel else 'not_configured','improvements':self.store.improvements()[:10],
+   'household_planning':self.agenda.project(),'planning_followthrough':self.followups.project(),'travel_status':self.travel.status if self.travel else 'not_configured','improvements':self.store.improvements()[:10],
    'development_mode':'Ideas and proposals only; no autonomous code execution or deployment','read_only':True}
 
 def create_companion(container):

@@ -1,3 +1,10 @@
+## 0.45.111
+
+- Shared seven-day Needs attention queue with person/date filters and focused preparation conversations.
+- Local Qwen extracts several user-stated details; separate explicit reviews for dated reports, usual activity knowledge and calendar venue changes.
+- Household-reported preparation checklists persist across restarts; changed/cancelled sources and concurrent corrections invalidate old reviews.
+- Read saved appointment reports in normal Assist text conversations. No voice changes or reminder delivery.
+
 ## 0.45.110
 
 - Repair routines plus overlapping appointments in calendar evidence, which could prevent Today's household plan from being built.

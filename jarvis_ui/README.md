@@ -195,3 +195,6 @@ Assistant source refreshes; they do not promise instantaneous publication by
 Outlook or Google. A calendar read time is shown separately. Compatible upgrades
 keep the currently selected Assistant section, filters and unsaved planner form.
 Use `/local/jarvis/jarvis-household.js?v=045110-reliability` for this revision.
+
+
+Household Assistant planning follow-through (.111): `jarvis-household.js` imports `jarvis-followup-panel.js`. Deploy both assets together and revise the household Lovelace resource query. The panel uses the existing authenticated planner review route; every write requires a source-bound explicit review and confirmation. Forms remain attached to their selected appointment across parent refreshes; account changes clear drafts. No browser storage, model polling, credentials, audio or reminder delivery.

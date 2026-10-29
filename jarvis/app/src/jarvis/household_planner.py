@@ -139,7 +139,7 @@ class HouseholdPlanner:
     async def read(self,start,end,source=CALENDAR):
         if source not in self.allowed:raise ValueError('Calendar is not shared')
         return await asyncio.wait_for(self.client.get_calendar_events(source,start,end),12)
-    async def agenda(self,payload):
+    async def agenda(self,payload,*,enrich=True):
         self.guard();start=local_time(payload['start'],True);end=local_time(payload['end'],True)
         if not 1<=(end.date()-start.date()).days<=14:raise ValueError('Choose one to fourteen days')
         selected=payload.get('members',[])
@@ -151,7 +151,7 @@ class HouseholdPlanner:
         rows=[];gaps=[];annotations=self.annotations()
         for source,events,error in await asyncio.gather(*(load(s) for s in sources)):
             if error:gaps.append(error);continue
-            if source==CALENDAR:await self.enrich(events);annotations=self.annotations()
+            if source==CALENDAR and enrich:await self.enrich(events);annotations=self.annotations()
             for event in events:
                 if event.get('status')=='cancelled':continue
                 from jarvis.household_briefing import interval
@@ -316,6 +316,13 @@ class HouseholdPlanner:
     async def request(self,action,payload,owner):
         if not isinstance(payload,dict) or not isinstance(owner,str) or not 1<=len(owner)<=200:raise ValueError('Invalid planner request')
         if action=='agenda':return await self.agenda(payload)
+        if action=='review' and 'followup_operation' in payload:
+            followups=getattr(self,'followups',None)
+            if followups is None:raise ValueError('Planning follow-through is unavailable')
+            from jarvis.calendar_context import calendar_scope
+            from jarvis.companion_store import digest
+            with calendar_scope({'actor':digest(owner),'read':True,'write':True}):
+                return await followups.ui_request(payload,owner)
         if action=='review':return await self.review(payload,owner)
         if action=='assign_review':return await self.review_assignment(payload,owner)
         if action=='confirm':return await self.confirm(payload,owner)
@@ -335,4 +342,6 @@ def get_planner(container):
             path=Path(source).parent/'household_planner.sqlite3' if source else None,
             interpreter=AppointmentInterpreter(getattr(container,'local_reasoning_provider',None),profile))
         container.household_planner=planner
+    if hasattr(container,'proactive_allowed_entities'):planner.allowed=frozenset(container.proactive_allowed_entities)
+    planner.followups=getattr(getattr(container,'companion',None),'followups',None) or getattr(getattr(container.household_profile,'_companion',None),'followups',None)
     return planner
