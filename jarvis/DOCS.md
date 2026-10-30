@@ -1006,3 +1006,12 @@ Open Household → Assistant → Needs attention. Filter the next seven days by 
 Readiness is a household report, never verified attendance, location, transport or a driver assignment. Source changes/cancellations, revoked permissions, expired sessions or competing reports require a new review. Resolved/reported-ready rows are hidden by default; Show resolved / reported ready reopens them. Clear the dated report removes that appointment report. Usual profile changes can use the existing undo last household change command. Reports live in the existing protected assistant SQLite store and existing backups. No extra database or continuous model polling.
 
 Ask Assist “Which appointments need attention?” or “What preparation details have been reported for Mia tomorrow?” to read current reports. Use the selected panel conversation for reviewed writes. Audio/accent and reminder delivery acceptance remain deferred.
+
+
+### Connected appointment reports (.113)
+
+Confirmed dated reports now accompany fresh, matching calendar facts in ordinary preparation, household planning, activity departure and Today/Tomorrow dashboard briefs. Local Qwen can focus on remaining tasks while code keeps source times, calculation and provenance fixed. Ask a preparation question for a named person/date, then ask “What is left before we leave?”, “Where is it?” or “When should we leave?”. A date-only follow-up reads that new date; another person/activity does not inherit the old report.
+
+A one-off report is not promoted to a usual profile or edited into the calendar. A conflicting explicit calendar venue is shown for clarification and no departure is calculated from that conflict. A dated household journey estimate is labelled as reported and excludes live traffic; a route estimate remains separate. Packed/ready is a household report, not attendance or proof that everything is ready. Unchecked means not reported ready, not definitely unpacked. Current organiser restrictions remain authoritative.
+
+Report/source/profile/permission changes invalidate affected summaries and route budgets. Updates use a revision key inside the existing assistant_state table; existing reports and backups remain compatible. No voice reference, recognition threshold, audio or reminder-delivery setting changes.

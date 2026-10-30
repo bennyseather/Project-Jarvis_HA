@@ -37,7 +37,7 @@ class HouseholdAgenda:
   except (ValueError,TypeError,KeyError,OSError):return False
  def binding(self):
   return (self.owner.profile._data['revision'],self.owner.now().astimezone(ZONE).date().isoformat(),
-   tuple(sorted(getattr(self.owner.container,'proactive_allowed_entities',()))),digest(self.owner.policy.data),self.owner.store.generation)
+   tuple(sorted(getattr(self.owner.container,'proactive_allowed_entities',()))),digest(self.owner.policy.data),self.owner.store.generation,self.owner.followups.reports.revision)
  def valid(self,binding):
   if self.owner.foreground or not self.enabled() or binding!=self.binding():raise Superseded()
  def start(self):
@@ -156,8 +156,9 @@ class HouseholdAgenda:
      journey=await asyncio.wait_for(checked_journey(self.owner,event,10),24);self.valid(binding);self.routes[key]=(self.owner.clock(),journey)
     if journey:
      leave=datetime.fromisoformat(event['start'])-timedelta(minutes=journey['minutes']+10)
-     venue=journey['venue'];basis='Entur driving estimate' if journey['basis']=='Entur' else 'saved usual user estimate'
+     venue=journey['venue'];basis='Entur driving estimate' if journey['basis']=='Entur' else 'dated household journey report' if journey['basis']=='dated_user_estimate' else 'saved usual user estimate'
      text='If leaving from home for '+appointment_label(event)+', aim for '+leave.astimezone(ZONE).strftime('%H:%M')+' ('+str(journey['minutes'])+' minutes, '+basis+', plus a 10-minute planning allowance).'
+     if venue.get('reported_venue'):text+=' This uses the venue reported for this appointment.'
      if venue.get('usual_venue'):text+=' This uses the usual venue; check the current appointment location.'
      text+=' Not live traffic; no driver is assigned.'
      departures.append({'event':event['text'],'leave_at':leave.astimezone(ZONE).isoformat(),'text':text,'basis':journey['basis'],'minutes':journey['minutes'],'allowance_minutes':10})

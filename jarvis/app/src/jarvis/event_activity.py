@@ -40,6 +40,7 @@ CHILDREN={'music':('band','piano','choir'),'gymnastics':('rhythmic_gymnastics',)
 STOP=set(('what when where which how should could would can do does did is are am will i we us me my our your you '
     'her his their she he they s it that this those these for to of on in at and the a an please jarvis help '
     'need needs needed prepare preparation bring pack equipment kit get ready anything something else '
+    'left remaining still already packed checked checking before done '
     'event events appointment appointments activity activities session sessions class classes lesson lessons '
     'commitment commitments day household family one ones meant mean about '
     'morning afternoon evening tonight later early upcoming scheduled coming up '

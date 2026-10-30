@@ -1,3 +1,11 @@
+## 0.45.113
+
+- Use current, source-bound one-off preparation reports in ordinary plans, preparation replies, departure estimates and dashboard briefs.
+- Local Qwen writes practical remaining-task replies; reported-ready items are distinguished from unchecked items and attendance.
+- Keep person/date/activity context through status, venue, departure and date-only follow-ups.
+- Current calendar/report venue conflicts require clarification; report changes invalidate cached advice and routes.
+- Keep organiser restrictions through the existing reviewed English translation path. No new calendar writes, voice changes or reminder delivery.
+
 ## 0.45.112
 
 - Keep independently verified details when local Qwen adds an unsupported optional field. Ungrounded fields are omitted from the explicit review and are never saved; unsafe values still reject the request.

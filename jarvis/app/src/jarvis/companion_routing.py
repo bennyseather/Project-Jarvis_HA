@@ -67,7 +67,8 @@ def reported_duration_quotes(text):
 
 def read_binding(owner,state):
  prior=owner.agent.reads.prior(state)
- return [list(prior['subjects']),prior['start'],prior['end']] if prior else None
+ from jarvis.planning_context import revision
+ return [list(prior['subjects']),prior['start'],prior['end'],revision(owner.profile)] if prior else None
 
 def previous_route(owner,state):
  old=state.get('route_pending') or state.get('route_focus')
@@ -81,7 +82,7 @@ def meal_draft(owner,state):
   state.pop('meal_route_pending',None);state.pop('meal_venue_overrides',None);return None
  return old
 
-def event_binding(f):return [f['source'],f['text'],f['start'],f['end'],f.get('location',''),hashlib.sha256(str(f.get('description','')).encode()).hexdigest()]
+def event_binding(f):return [__import__('jarvis.planning_context',fromlist=['project']).project(f),f['source'],f['text'],f['start'],f['end'],f.get('location',''),hashlib.sha256(str(f.get('description','')).encode()).hexdigest()]
 
 class CompanionRouting:
  def __init__(self,owner,*,transport=None):self.owner=owner;self.transport=transport or EnturTransport()
@@ -100,14 +101,17 @@ class CompanionRouting:
   event=dict(f,description_units=description_units(f.get('description','')))
   event['_activity_source_complete']=f.get('description','')==' '.join(event['description_units'])
   record=match(self.owner.profile._data,event);usual=(record or {}).get('usual_venue') or ''
-  current=str(f.get('location') or '')
+  from jarvis.planning_context import route_context
+  dated=route_context(f)
+  if dated and dated['conflict']:return None
+  current=str(f.get('location') or (dated or {}).get('venue') or '')
   current=current if safe_detail(current) and len(current)<=180 else ''
   generic=current.casefold().strip(' .') in ('','turnhallen','turnhall','gym','the gym','gymnasium','sports hall','gymnastics hall','gymnastics building')
   compatible=generic or bool(record and title_key_venue(current)==title_key_venue(record.get('usual_venue') or ''))
   home_journey=(record or {}).get('home_journey') if compatible else None
   if not generic:usual=''
   if not (current or usual or home_journey):return None
-  return {'event':f['text'],'current_venue':current,'usual_venue':usual,'planning_place_quote':planning_place(current,usual),'usual_home_journey':home_journey,'basis':'Current calendar location; usual venue is planning context only. A town estimate is not the exact venue.'}
+  return {'event':f['text'],'current_venue':current,'usual_venue':usual,'planning_place_quote':planning_place(current,usual),'usual_home_journey':home_journey,'reported_home_journey':({'minutes':dated['journey_minutes']} if dated and dated['journey_minutes'] else None),'reported_venue':bool(dated and dated['reported_venue']),'basis':'Current calendar location; usual venue is planning context only. A town estimate is not the exact venue.'}
  async def context_venues(self,state):
   """Retrieve current dated endpoints; remembered prose is never a route source."""
   from jarvis.calendar_insights import insights
@@ -152,6 +156,9 @@ class CompanionRouting:
    if value['event_binding']==event_binding(endpoints[int(index)]):
     if value.get('minutes') is not None:reports[int(index)]=value
     quote=value['quote'];venues[int(index)]={'event':endpoints[int(index)]['text'],'current_venue':quote,'usual_venue':'','planning_place_quote':quote,'basis':'User supplied this venue for the current plan only.'}
+  for i in (0,1):
+   dated=venues[i].get('reported_home_journey') if venues[i] else None
+   if reports[i] is None and dated:reports[i]={'minutes':dated['minutes'],'basis':'dated_user_estimate'}
   labels=[appointment_label(f) for f in endpoints];estimates=[None,None]
   loader=getattr(self.owner.container.home_assistant,'get_home_location',None)
   if loader is None:return base
@@ -183,6 +190,8 @@ class CompanionRouting:
    usual=venues[i].get('usual_home_journey') if venues[i] else None
    if estimates[i] is None and usual:
     estimates[i]=usual['minutes'];reports[i]={'minutes':usual['minutes'],'basis':'saved_user_estimate'}
+   dated=venues[i].get('reported_home_journey') if venues[i] else None
+   if estimates[i] is None and dated:estimates[i]=dated['minutes'];reports[i]={'minutes':dated['minutes'],'basis':'dated_user_estimate'}
   duration=prior.get('duration_minutes');known=sum(v for v in estimates if v is not None);gap_minutes=gap['calendar_gap_minutes'];complete=all(v is not None for v in estimates)
   number=lambda v:str(int(v)) if int(v)==v else str(v)
   name=gap['owner'];prefix='If dinner is at home, ';journeys='both journeys' if any(reports) else 'both drives'
@@ -216,6 +225,10 @@ class CompanionRouting:
   if any(v and v['usual_venue'] for v in venues):message+=' The usual venue gives a planning estimate; its exact location still needs checking.'
   if any(v is not None for v in estimates):message+=' Driving estimates exclude live traffic.'
   if not complete and duration is not None and len(missing)==1:message+=' Where is '+labels[missing[0]]+' taking place?'
+  if any(f.get('planning_context') for f in endpoints):
+   fresh=await self.dated_evidence(state)
+   from jarvis.planning_context import fingerprint
+   if fresh is None or fingerprint(fresh)!=fingerprint(e):return {**base,'message':'The calendar or reported details changed while I was checking the journeys. Please ask again.','meal_travel_checked':False}
   return {**base,'message':message,'composition':'meal_and_travel_budget','meal_travel_checked':True,'meal_budget':{'gap_minutes':gap_minutes,'meal_minutes':duration,'to_meal_minutes':estimates[0],'to_next_minutes':estimates[1],'checked_travel_minutes':known,'complete':complete,'remaining_minutes':gap_minutes-duration-known if duration is not None else None,'meal_location':'home_planning_assumption','estimate_sources':[reports[i].get('basis','user_reported') if reports[i] else 'Entur' if estimates[i] is not None else 'unknown' for i in (0,1)],'user_reported_minutes':[reports[i]['minutes'] if reports[i] else None for i in (0,1)],'live_traffic':False}}
  async def meal_venue_reply(self,text,key,state):
   pending=meal_draft(self.owner,state)

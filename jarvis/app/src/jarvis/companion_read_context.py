@@ -128,14 +128,18 @@ class ReadDialogue:
   if quote and minutes is None:raise ValueError('How long should it take?')
   between=data['between'] if purpose=='availability' else False
   if between and not re.search(r'\bbetween\b',text,re.I) and not (old and old.get('between')):raise ValueError('Which appointments should I compare?')
-  task=old.get('task',old['question']) if old and (date_only or duration_only or correction) else text
+  from jarvis.event_activity import requirement,requested
+  latest_activity=requirement(text,people.values());prior_activity=requirement((old or {}).get('task',''),people.values())
+  preparation_follow=bool(old and tool=='appointments' and set(subjects)==set(prior_people) and (not requested(latest_activity) or latest_activity==prior_activity))
+  task=old.get('task',old['question']) if old and (date_only or duration_only or correction or preparation_follow) else text
+  event_focus=old.get('event_focus',[]) if preparation_follow and a==old['start'] and b==old['end'] else []
   return {'subjects':tuple(subjects),'start':a,'end':b,'speaker':speaker,'date':reference,
    'revision':self.owner.profile._data['revision'],'expires':self.owner.clock()+300,
    'question':text,'previous_question':old.get('task') or old['question'] if old else None,
    'window':window,'purpose':purpose,'between':between,'weather':False,
    'requested_duration':minutes,'shared_read_context':True,
    'coordination_subjects':subjects,'companion_coordination':len(subjects)>1 and purpose=='conflicts',
-   'task':task}
+   'task':task,'source_focus':event_focus}
  def observe(self,text,tool,result,members,state,resolved=None):
   if tool!='route':state.pop('route_pending',None)
   if tool=='route':return # A route read can supplement the existing planning task.
@@ -154,4 +158,4 @@ class ReadDialogue:
    'question':text[:350],'task':actual.get('task') or text[:350],
    'purpose':actual.get('purpose','overview'),'window':actual.get('window','all_day'),
    'between':actual.get('between',False),'duration_minutes':actual.get('requested_duration') or duration_minutes(text),
-   'expires':self.owner.clock()+600}
+   'expires':self.owner.clock()+600,'event_focus':actual.get('source_focus',[])}

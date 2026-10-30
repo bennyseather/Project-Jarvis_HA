@@ -218,8 +218,10 @@ class HouseholdThinking:
         if key:
             self.sessions[str(key)]=plan
             while len(self.sessions)>100:self.sessions.popitem(last=False)
+        from jarvis.planning_context import revision as planning_revision
+        report_revision=planning_revision(self.profile)
         def changed():
-            return (plan['revision']!=self.profile._data['revision'] or plan['date']!=self.now().astimezone(ZONE).date().isoformat()
+            return (planning_revision(self.profile)!=report_revision or plan['revision']!=self.profile._data['revision'] or plan['date']!=self.now().astimezone(ZONE).date().isoformat()
                     or not shared_knowledge_enabled(self.profile._data) or (key and self.sessions.get(str(key)) is not plan))
         subject=plan['subjects'][0] if len(plan['subjects'])==1 else 'all'
         loaded=await self.reader.handle('semantic planning',None,resolved=Brief(subject,plan['start'],plan['end']),structured_only=True,
@@ -288,11 +290,16 @@ class HouseholdThinking:
             evidence['facts'].append({'id':'O'+str(i+1),'kind':'conversation_observation','owners':note.get('subjects',[]),
                 'text':json.dumps({**{k:note.get(k) for k in ('confidence','anchor','valid_from','valid_until','date_unresolved')},'quote':str(note.get('quote',''))[:260],'interpretation':str(note.get('interpretation',''))[:100]},ensure_ascii=False)})
         if changed():return reply('That question was superseded or its context changed. Please ask again.','unavailable')
+        for fact in list(evidence['facts']):
+            if fact.get('planning_context'):
+                evidence['facts'].append({'id':'R'+str(len(evidence['facts'])),'kind':'preparation_report','owners':fact['owners'],'text':json.dumps(fact['planning_context'],ensure_ascii=False)})
         if plan.get('between'):evidence['between_requested']=True
         if plan.get('companion_coordination'):
             evidence['facts'].append({'id':'C1','kind':'request_constraint','owners':plan['coordination_subjects'],
                 'text':'User-requested hypothetical coordination: '+text+'. This does not assign a driver, establish availability or change a calendar.'})
         board=insights(evidence,text,plan['speaker'],plan['purpose'],duration_override=plan.get('requested_duration'))
+        board['preparation_reports']=[{'event':f['text'],'owners':f['owners'],'date':f['date'],'context':f['planning_context']} for f in evidence['facts'] if f.get('planning_context')]
+        if board['preparation_reports']:board['answer_the_question']+=' Use relevant confirmed one-off reports for this appointment only. Readiness is reported, not attendance. Explicit calendar/report venue conflicts need clarification, not a guessed location.'
         if 'remaining_calendar_minutes_after_activity' in board:
             evidence['facts'].append({'id':'Q2','kind':'request_constraint','owners':list(evidence['people']),
                 'text':str(board['remaining_calendar_minutes_after_activity'])+' minutes remain after the requested activity inside the recorded interval; travel and transitions are unknown.'})
@@ -354,8 +361,9 @@ class HouseholdThinking:
         context['evidence']={k:evidence[k] for k in ('people','start','end_exclusive','window','source_failures','truncated')}
         context['evidence']['facts']=[{'id':f['id'],'kind':f['kind'],'owners':f['owners'],
             'text':appointment_label(f) if f['kind']=='appointment' else f['text']}
-            for f in evidence['facts'] if f['kind'] in ('home_weather','reminder','personal_background','confirmed_note','conversation_observation','request_constraint')]
+            for f in evidence['facts'] if f['kind'] in ('preparation_report','home_weather','reminder','personal_background','confirmed_note','conversation_observation','request_constraint')]
         brief=day_overview(spoken_board,evidence) if not any(f['kind'] in ('home_weather','reminder','request_constraint','conversation_observation') for f in context['evidence']['facts']) else None
+        if brief and board['preparation_reports']:brief['preparation_reports']=board['preparation_reports']
         if brief:board['day_overview']=day_overview(board,evidence)
         compose_context=({k:context[k] for k in ('question','previous_question','speaker','style','evidence')}|{'reasoning':brief}) if brief else context
         compose_instructions=DAY_OVERVIEW_INSTRUCTIONS if brief else ANSWER_INSTRUCTIONS
@@ -531,7 +539,7 @@ class HouseholdThinking:
         for piece in pieces:
             judgements=set(re.findall(r'\b(?:busy|packed|manageable|light|quiet|stressful|easy)\b',piece.casefold()))
             reported_preference=bool(re.search(r'\b(?:prefers?|preference|likes?|said|reported|mentioned)\b',piece,re.I) and any(
-                f['kind']=='conversation_observation' and judgements.issubset(set(re.findall(r'\w+',f['text'].casefold()))) for f in evidence['facts']))
+                f['kind'] in ('conversation_observation','preparation_report') and judgements.issubset(set(re.findall(r'\w+',f['text'].casefold()))) for f in evidence['facts']))
             scoped_load=bool(re.search(r'\b(recorded|calendar|scheduled|based on|judging)\b',piece,re.I) and any(f['kind']=='calendar_load' for f in evidence['facts']))
             if re.search(r'\b(busy|packed|manageable|light|quiet|stressful|easy)\b',piece,re.I) and not scoped_load and not reported_preference and not re.search(r'\b(looks?|seems?|suggests?|may|might|could|appears?)\b',piece,re.I):
                 raise ValueError('Unmarked inference')

@@ -48,7 +48,7 @@ school start/finish, busyness, dinner/break BETWEEN events and proposed helpers.
 activity_preparation: ASK what to bring/wear/prepare, venue or organiser instructions
 for an appointment. A 'need anything tomorrow?' QUESTION is preparation, not an
 update to usual knowledge. Where is it? after an event asks its venue, not a route.
-After asking which appointment, a short activity label continues activity_preparation.
+Short activity labels and remaining/packed-status follow-ups use activity_preparation.
 calendar_editor: FIND a specific appointment; CREATE/ADD/MOVE/CHANGE/CANCEL events
 or replies to drafts. Never turn planning suggestions into calendar edits.
 profile_editor: explicitly change structured routines/profiles or report a stay.
@@ -109,7 +109,8 @@ Examples:
 'When should we leave for Mia band practice tomorrow?' -> activity_departure
 'What should we sort out before leaving tomorrow?' -> departure_brief
 
-planning_followthrough: ASK saved one-off preparation details, what is packed/ready, or which appointments need attention. Usual knowledge stays activity_knowledge.
+planning_followthrough: list appointments needing attention.
+Packed/ready/remaining tasks for an activity use activity_preparation.
 The final latest field is the current task. Return only tool and member IDs.
 """
 
@@ -190,6 +191,10 @@ class QwenConversation:
   activity_statement=bool(activity_reference and '?' not in text and not re.match(r'^(?:what|when|where|how|can|could|should|does|do|is|are)\b',text,re.I) and re.search(r'\b(?:needs?|has moved|is at|takes place|usually|no longer|now at)\b',text,re.I))
   focused_statement=bool(state.get('activity_focus') and '?' not in text and re.match(r'^(?:she|he|they|it|also)\b',text,re.I) and re.search(r'\b(?:needs?|has moved|is at|usually|no longer)\b',text,re.I))
   if activity_statement or focused_statement or usual_reference and not re.search(r'\b(?:check|calculate)\b',text,re.I) or re.search(r'\b(?:show|list)\b.*\bactivity profiles?\b',text,re.I):schema['properties']['tool']['enum']=['activity_knowledge']
+  from jarvis.household_planning import DATE_PATTERN
+  date_only=bool(DATE_PATTERN.search(text.casefold()) and not re.sub(r'\b(?:and|what about|how about|on)\b','',DATE_PATTERN.sub(' ',text.casefold())).strip(' .?!'))
+  if focus and date_only and state['last_tool'] in ('plans','appointments','departure'):schema['properties']['tool']['enum']=[domain for domain,target in DOMAINS.items() if target==state['last_tool']]
+  if focus and '?' in text and re.search(r'\b(?:left|remaining|packed|ready)\b',text,re.I) and not re.search(r'\b(?:birthday|job|age|school finish)\b',text,re.I):schema['properties']['tool']['enum']=['activity_preparation']
   data={'reference_date':state['binding'][-2],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':state['history'][-6:],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
    'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'activity_focus':{k:v for k,v in state.get('activity_focus',{}).items() if k in ('person','title','source')},'activity_knowledge_pending':bool(state.get('activity_learning_draft')),'activity_review_pending':bool(pending_edit and pending_edit.get('activity')),'read_focus':self.reads.prior(state),'meal_route_pending':[{'activity':v['event']} for v in meal['missing']] if meal else [],'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}
@@ -222,11 +227,13 @@ class QwenConversation:
    try:
     async with state['lock']:
      with self.scope(state):
+      from jarvis.planning_context import revision as report_revision
+      report_generation=report_revision(self.profile)
       planning_generation=self.owner.store.generation
       try:plan=await self.plan(text,key,source,state)
       except (ValueError,asyncio.TimeoutError):return reply('I could not interpret that request reliably just now. Please try again.','unavailable')
       if self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source):return reply('This conversation changed while I was checking the request. Please ask again.','unavailable')
-      if planning_generation!=self.owner.store.generation:return reply('The remembered details changed while I was checking. Please ask again.','unavailable')
+      if planning_generation!=self.owner.store.generation or report_generation!=report_revision(self.profile):return reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       tool=plan['tool']
       if tool in ('planning_followthrough','memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route','activity_knowledge','departure') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
       if tool!='activity_knowledge':state.pop('activity_learning_draft',None)
@@ -247,7 +254,7 @@ class QwenConversation:
        records=self.owner.observations(text+(' '+prior.get('task','') if prior else ''),subjects) if access.read else []
        memory_generation=self.owner.store.generation
        with observation_scope(records):result=await self.execute(plan,text,key,source,state,original)
-       if records and memory_generation!=self.owner.store.generation:
+       if records and memory_generation!=self.owner.store.generation or report_generation!=report_revision(self.profile):
         result=reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       except ValueError as error:
        result=reply(str(error),'clarification_required') if str(error) in ('Whose plans do you mean? Please name a household member.','Whose plans should I check?','Please clarify which plans you mean.','Which person or appointment do you mean?','Which household members should I compare?','Please name the person you meant.','Which household member do you mean?','Please state the date or duration you mean.','Which date should I use?','Which day should I check?','Please clarify the comparison.','How long should it take?','Which appointments should I compare?') else reply('I could not complete that tool request reliably. Nothing is confirmed as changed.','unavailable')
@@ -261,7 +268,7 @@ class QwenConversation:
        if routing is None:routing=CompanionRouting(self.owner);self.owner.container.companion_routing=routing
        try:result=await routing.meal_plan(text,key,state,result)
        except Exception:result={**result,'message':str(result.get('message',''))+' I could not verify the journeys yet, so this only compares the calendar gap.','meal_travel_checked':False}
-       if self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source) or memory_generation!=self.owner.store.generation:
+       if self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source) or memory_generation!=self.owner.store.generation or report_generation!=report_revision(self.profile):
         result=reply('The planning context changed while I was checking the journeys. Please ask again.','unavailable')
       if result is None:result=reply('I need a little more detail to use that tool. What exactly would you like me to check or change?','clarification_required')
       result={**result,'cacheable':False,'companion_agent_handled':True,'agent_tool':tool,'agent_planned_by':'local_qwen'}
@@ -335,7 +342,7 @@ class QwenConversation:
   if tool=='appointments':
    from jarvis.event_preparation import EventPreparation
    obj=getattr(container,'event_preparation',None)
-   if obj is None:obj=EventPreparation(profile,container.home_assistant,getattr(container,'proactive_allowed_entities',()),self.provider);container.event_preparation=obj
+   if obj is None:obj=EventPreparation(profile,container.home_assistant,getattr(container,'proactive_allowed_entities',()),self.provider,now=self.owner.now);container.event_preparation=obj
    resolved=await self.reads.resolve(text,tool,plan['members'],state)
    if resolved:state['_resolved_read']=resolved
    return await obj.handle(text,key,**({'resolved':resolved} if resolved else {}))

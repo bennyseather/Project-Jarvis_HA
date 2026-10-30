@@ -17,6 +17,8 @@ async def checked_journey(owner,event,arrival_allowance=10):
  routing=getattr(owner.container,'companion_routing',None)
  if routing is None:routing=CompanionRouting(owner);owner.container.companion_routing=routing
  venue=routing.venue(event);minutes=None;basis=None
+ if venue and venue.get('reported_home_journey'):
+  return {'minutes':venue['reported_home_journey']['minutes'],'basis':'dated_user_estimate','venue':venue}
  at=datetime.fromisoformat(event['start']);arrive=at-timedelta(minutes=arrival_allowance)
  if venue and venue['planning_place_quote']:
   try:
@@ -28,6 +30,8 @@ async def checked_journey(owner,event,arrival_allowance=10):
     n=options[0].get('duration_minutes') if result.get('state')=='available' and options else None
     if type(n) in (int,float) and math.isfinite(n) and 0<n<=1440:minutes=math.ceil(n);basis='Entur'
   except (ValueError,KeyError,TypeError,OSError,asyncio.TimeoutError):pass
+ if minutes is None and venue and venue.get('reported_home_journey'):
+  minutes=venue['reported_home_journey']['minutes'];basis='dated_user_estimate'
  if minutes is None and venue and venue.get('usual_home_journey'):
   minutes=venue['usual_home_journey']['minutes'];basis='saved_user_estimate'
  if minutes is None:return None
@@ -36,6 +40,8 @@ async def checked_journey(owner,event,arrival_allowance=10):
 async def departure(owner,text,key,source,state,members):
  def answer(message,status='success',**extra):return {'provider':'companion_routing','status':status,'message':message,'cacheable':False,'read_only':True,**extra}
  if not current_calendar_access.get().read:return answer('Household read access is needed.','forbidden')
+ from jarvis.planning_context import revision as planning_revision,fingerprint
+ report_revision=planning_revision(owner.profile)
  generation=owner.store.generation;revision=owner.profile._data['revision']
  named=any(re.search(r'\b'+re.escape(p['preferred_name'])+r'\b',text,re.I) for p in owner.profile._data['members'])
  query=re.sub(r'\bI\b','the household',text) if named else text
@@ -47,6 +53,7 @@ async def departure(owner,text,key,source,state,members):
  if obj is None:
   obj=EventPreparation(owner.profile,owner.container.home_assistant,getattr(owner.container,'proactive_allowed_entities',()),owner.provider,now=owner.now);owner.container.event_preparation=obj
  base=await obj.handle(text,key,resolved=resolved)
+ if base and base.get('report_venue_conflict'):return base
  if not base or base.get('status')!='success':return base or answer('Please name the activity and day.','clarification_required')
  plan=obj.sessions.get(str(key),{});focus=plan.get('source_focus',[])
  if not focus:return base
@@ -73,13 +80,17 @@ async def departure(owner,text,key,source,state,members):
  venue=result['venue'] if result else routing.venue(event);minutes=result['minutes'] if result else None;basis=result['basis'] if result else None
  at=datetime.fromisoformat(event['start']);arrive=at-timedelta(minutes=buffer)
  if minutes is None:return answer((base['message']+' ' if frame['include_preparation'] else '')+'I need a usable activity venue or a confirmed usual home journey estimate before I can calculate when to leave.','clarification_required')
- if revision!=owner.profile._data['revision'] or generation!=owner.store.generation:return answer('The household information changed while I was checking. Please ask again.','unavailable')
+ if revision!=owner.profile._data['revision'] or generation!=owner.store.generation or report_revision!=planning_revision(owner.profile):return answer('The household information changed while I was checking. Please ask again.','unavailable')
  leave=(arrive-timedelta(minutes=minutes)).astimezone(ZONE);local_at=at.astimezone(ZONE)
  label=appointment_label(event);n=lambda value:str(int(value)) if int(value)==value else str(value)
  message=('For '+label+', starting at '+local_at.strftime('%H:%M')+' on '+local_at.strftime('%A %d %B')+', ')
  message=('If setting off from home, aim to leave around '+leave.strftime('%H:%M')+'. ') if frame['include_preparation'] else message+'if setting off from home, aim to leave around '+leave.strftime('%H:%M')+'. '
- message+=('That uses Entur’s '+n(minutes)+'-minute driving estimate' if basis=='Entur' else 'That uses your saved usual '+n(minutes)+'-minute journey estimate')+' plus a '+n(buffer)+'-minute '+('arrival allowance you requested.' if frame['arrival_allowance_quote'] else 'planning allowance for arriving early and parking.')
+ message+=('That uses Entur’s '+n(minutes)+'-minute driving estimate' if basis=='Entur' else 'That uses your reported '+n(minutes)+'-minute journey estimate for this appointment' if basis=='dated_user_estimate' else 'That uses your saved usual '+n(minutes)+'-minute journey estimate')+' plus a '+n(buffer)+'-minute '+('arrival allowance you requested.' if frame['arrival_allowance_quote'] else 'planning allowance for arriving early and parking.')
+ if venue.get('reported_venue'):message+=' The destination is your reported venue for this appointment.'
  if venue.get('usual_venue') and not frame['include_preparation']:message+=' The usual venue is planning context; check the current appointment location.'
  message+=' Allow for traffic and other delays.'
  if frame['include_preparation']:message=base['message']+' '+message
+ if event.get('planning_context'):
+  recheck=await asyncio.wait_for(thinking.reader.handle('departure report recheck',None,resolved=Brief(resolved['subjects'][0],resolved['start'],resolved['end']),structured_only=True,targets=tuple(resolved['subjects']),event_context=True),6)
+  if not recheck or recheck.get('status')!='success' or fingerprint(recheck['evidence'])!=fingerprint(e) or report_revision!=planning_revision(owner.profile):return answer('The appointment or reports changed during the journey check. Please ask again.','unavailable')
  return answer(message,composition='activity_preparation_departure',departure={'event_start':local_at.isoformat(),'leave_home_at':leave.isoformat(),'travel_minutes':minutes,'arrival_allowance_minutes':buffer,'basis':basis,'calendar_title':event['text'],'usual_venue_used':bool(venue.get('usual_venue')),'live_traffic':False},period={'start':resolved['start'],'end':resolved['end']})

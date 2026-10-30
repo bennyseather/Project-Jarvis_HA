@@ -403,7 +403,9 @@ class EventPreparation(HouseholdThinking):
             self.sessions[str(key)]=plan
             while len(self.sessions)>100:self.sessions.popitem(last=False)
         allowed=self.allowed
-        valid=lambda:self.scope_valid(plan,key,allowed)
+        from jarvis.planning_context import revision as planning_revision
+        report_revision=planning_revision(self.profile)
+        valid=lambda:self.scope_valid(plan,key,allowed) and planning_revision(self.profile)==report_revision
         loaded=await self.reader.handle('event preparation',None,resolved=Brief(
             plan['subjects'][0] if len(plan['subjects'])==1 else 'all',plan['start'],plan['end']),
             structured_only=True,targets=None if plan['subjects']==('all',) else plan['subjects'],
@@ -467,6 +469,16 @@ class EventPreparation(HouseholdThinking):
                     local_model_interpretation=False,activity_evidence_bound=True)
             events=supported
             focus=[identifier for identifier in focus if any(e['id']==identifier for e in events)]
+        from jarvis.report_presentation import compose as compose_reports
+        if any(e.get('planning_context') for e in events):
+            report_answer=await compose_reports(self.provider,events,plan['question'],plan.get('previous_question'),evidence['people'],valid,mode,focus,broad=not selection and not event_activity.requested(activity) and not plan.get('short_follow'))
+            if report_answer:
+                if report_answer.get('changed') or not valid():return reply('The appointment reports changed while I was checking. Please ask again.','unavailable')
+                recheck=await self.reader.handle('reported planning recheck',None,resolved=Brief(plan['subjects'][0] if len(plan['subjects'])==1 else 'all',plan['start'],plan['end']),structured_only=True,targets=None if plan['subjects']==('all',) else plan['subjects'],window=plan['window'],event_context=True)
+                from jarvis.planning_context import fingerprint
+                if not recheck or recheck.get('status')!='success' or fingerprint(recheck['evidence'])!=fingerprint(evidence) or not valid():return reply('The calendar or preparation reports changed. Please ask again for current advice.','unavailable')
+                plan.pop('pending_choice',None);plan['source_focus']=[self.event_identity(e) for e in report_answer['selected']]
+                return reply(report_answer['answer'],local_model_interpretation=True,language_model_composition=report_answer['language_model_composition'],composition='source_bound_report_preparation',report_goal=report_answer['goal'],language_fallback_reason=report_answer.get('fallback_reason'),report_venue_conflict=report_answer['conflict'],subject=plan['subjects'][0] if len(plan['subjects'])==1 else None,period={'start':plan['start'],'end':plan['end']})
         try:notes=self.notes_for(events,evidence)
         except Exception:notes=[] # Calendar facts remain usable if optional notes fail.
         usual=household_activities.notes(events,mode)

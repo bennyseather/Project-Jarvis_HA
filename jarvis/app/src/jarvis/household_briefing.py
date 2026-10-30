@@ -154,7 +154,13 @@ class HouseholdBriefing:
             while len(self.sessions)>100:self.sessions.popitem(last=False)
         start,end=(datetime.fromisoformat(x).replace(tzinfo=ZONE) for x in (brief.start,brief.end))
         selected=set(targets) if targets is not None else ({p['id'] for p in self.profile._data['members']} if brief.subject=='all' else {brief.subject})
+        from jarvis.planning_context import revision as planning_revision,source_context
+        report_revision=planning_revision(self.profile)
         planner=getattr(self.profile,'_planner',None)
+        companion=getattr(self.profile,'_companion',None)
+        if planner is None and companion is not None and companion.followups.reports.present():
+            from jarvis.household_planner import get_planner
+            planner=get_planner(companion.container)
         shared_calendar_active=bool(planner is not None and planner.ready)
         source_names=['family'] if 'mia' in selected or shared_calendar_active else []
         if 'benny' in selected:source_names+=['work','travel']
@@ -174,6 +180,7 @@ class HouseholdBriefing:
                 events=[]
                 for e in raw:
                     if e.get('status')=='cancelled':continue
+                    original=e
                     if name=='family':
                         from jarvis.calendar_membership import assignment
                         meta=planner.assign(e) if planner else assignment(e,{p['id'] for p in self.profile._data['members']})
@@ -182,11 +189,14 @@ class HouseholdBriefing:
                         if not selected.intersection(meta['members']):continue
                         e={**e,'description':meta['notes'],'location':e.get('location') or meta.get('extracted_location','')}
                         owners=meta['members']
-                    else:owners=['benny']
+                    else:
+                        owners=['benny'];meta={'members':owners,'category':'work' if name=='work' else 'travel','notes':interval(e,event_context=True).get('description','')}
                     item={**interval(e,event_context=event_context),'owners':owners}
                     from jarvis.household_activities import calendar_meaning
                     meaning=calendar_meaning(self.profile._data,item['title'],owners,name,e.get('description',''))
                     if meaning:item['confirmed_activity']=meaning
+                    context=source_context(self.profile,original,name,meta,now)
+                    if context:item['planning_context']=context
                     events.append(item)
                 return name,[e for e in events if e['end']>start and e['start']<end],None
             except Exception:return name,None,'temporarily unavailable'
@@ -212,7 +222,7 @@ class HouseholdBriefing:
             except Exception:return None
         from jarvis.calendar_freshness import collect
         loaded=await asyncio.gather(summary(),collect(self.client,[n for n in source_names if SOURCES[n] in self.allowed],now),*(calendar(n) for n in source_names))
-        if self.now().astimezone(ZONE).date().isoformat()!=reference or self.profile._data['revision']!=pending['revision']:
+        if self.now().astimezone(ZONE).date().isoformat()!=reference or self.profile._data['revision']!=pending['revision'] or planning_revision(self.profile)!=report_revision:
             if key and self.sessions.get(str(key)) is pending:self.clear(key)
             return result('The household date or saved information changed while I was checking. Please ask again for a fresh briefing.','unavailable')
         if key and self.sessions.get(str(key)) is not pending:
@@ -240,7 +250,7 @@ class HouseholdBriefing:
         if structured_only:
             from jarvis.calendar_evidence import calendar_evidence
             evidence=calendar_evidence(self.profile,brief,unique,snapshot,sources,unavailable,now,targets=targets,window=window,event_context=event_context,shared_calendar_active=shared_calendar_active)
-            evidence['source_health']=source_health
+            evidence['source_health']=source_health; evidence['planning_revision']=report_revision
             return {**result('Planning evidence checked.'),'provider':'household_briefing','read_only':True,'evidence':evidence}
         person=next((p for p in self.profile._data['members'] if p['id']==brief.subject),None)
         own=person is not None and person['id']==hint['member_id']

@@ -17,7 +17,7 @@ class PlanningFollowups:
  def __init__(self,owner):
   self.owner=owner;self.reports=PlanningReports(owner.store);self.items={};self.sessions={};self.checked_at=None;self.checked_clock=-1000.;self.status='preparing';self.source_health={};self.failures=[];self.task=None;self.work=None;self.binding=None
  def enabled(self):return bool(self.owner.policy.data['enabled'] and self.owner.agenda.enabled())
- def scope(self):return (self.owner.profile._data['revision'],tuple(sorted(self.owner.container.proactive_allowed_entities)),self.owner.now().astimezone(ZONE).date().isoformat(),self.owner.store.generation)
+ def scope(self):return (self.owner.profile._data['revision'],tuple(sorted(self.owner.container.proactive_allowed_entities)),self.owner.now().astimezone(ZONE).date().isoformat(),self.owner.store.generation,self.reports.revision)
  def start(self):
   if self.task is None:self.task=asyncio.create_task(self.run())
  def interrupt(self):
@@ -196,6 +196,7 @@ class PlanningFollowups:
     else:raise ValueError('Unsupported planning confirmation')
    except Exception:
     pending['kind']='sending';raise
+   self.owner.agenda.last_scan=-1000.
    session['binding']=self.scope();session['expires']=self.owner.clock()+1200
    try:await self.refresh()
    except Exception:self.items={};self.status='needs_check'
