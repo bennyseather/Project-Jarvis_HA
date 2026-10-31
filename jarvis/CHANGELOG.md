@@ -189,6 +189,12 @@
 
 # Changelog
 
+## 0.45.118
+
+- Use local Node Qwen to compose short, reviewed United briefings from the latest result, league position, next fixture and one attributed news angle.
+- Preserve exact scores, result orientation, opponent, home/away, position, points, date and Norway kick-off time; keep headline speculation qualified and fall back to concise verified prose on rejection or timeout.
+- Apply the concise style to daily written briefings without replaying final-score alerts; full fixture/result lists and the league table remain available on explicit request.
+
 ## 0.45.117
 
 - Continue preparation conversations with reviewed one-off venue, equipment, journey and packed-item reports; reuse existing persistent reports and source-change guards.

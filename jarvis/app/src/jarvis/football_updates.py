@@ -156,6 +156,20 @@ class FootballUpdates:
    sources.extend({'title':n['title'],'url':n['url']} for n in news[:3])
   lines.extend(self.errors)
   return {'title':'Manchester United · '+now.astimezone(ZONE).strftime('%d %B'),'lines':lines or ['I could not verify current football information.'],'sources':sources,'checked_at':now.isoformat()}
+ async def present(self,topic='brief',*,expanded=False,background=False):
+  if expanded and topic in ('fixtures','results','standings'):
+   b=self.brief(topic);return {**b,'language_model_composition':False,'expanded':True}
+  from jarvis.football_wording import board,compose
+  from jarvis.companion_store import digest
+  facts=board(self,topic)
+  def signature(f):return digest([f['units'],f['coverage'],f['sources']])
+  before=signature(facts)
+  def valid():return before==signature(board(self,topic))
+  provider=getattr(self.owner,'background' if background else 'provider',None)
+  wording=await compose(provider,facts,valid)
+  if not valid():facts=board(self,topic);wording={'answer':facts['fallback'],'language_model_composition':False,'fallback_reason':'changed'}
+  message=wording['answer']+(' '+facts['coverage'] if facts['coverage'] and facts['coverage']!=wording['answer'] else '')
+  return {'title':'Manchester United · '+self.owner.now().astimezone(ZONE).strftime('%d %B'),'lines':[message],'sources':facts['sources'],'checked_at':facts['checked_at'],**{k:v for k,v in wording.items() if k!='answer'},'style_revision':2,'expanded':False}
  async def notify(self,key,title,message):
   client=self.owner.container.home_assistant
   task=await asyncio.wait_for(client.dispatch_service('persistent_notification','create',{'notification_id':key,'title':title,'message':message}),10)
@@ -167,7 +181,7 @@ class FootballUpdates:
   today=self.owner.now().astimezone(ZONE).date().isoformat();known=self.cache.get('fixtures',{}).get('data',[])
   matchday=any(moment(e['date']).astimezone(ZONE).date().isoformat()==today for e in known)
   interval=120 if matchday else 900
-  daily_due=self.owner.now().astimezone(ZONE).hour>=8 and self.state()['daily']!=today
+  daily_due=self.owner.now().astimezone(ZONE).hour>=8 and (self.state()['daily']!=today or self.state().get('style_revision')!=2)
   if self.owner.clock()-self.last_poll<interval and not daily_due:return
   await self.refresh(force=daily_due);s=self.state();now=self.owner.now();today=now.astimezone(ZONE).date().isoformat();activated=moment(self.config['activated_at']);changed=False
   finals=[e for e in self.current('results') or [] if e['final']]
@@ -184,16 +198,20 @@ class FootballUpdates:
    if len(s['seen'])>300:s['seen'].pop(next(iter(s['seen'])))
    self.save(s) # keep successful deliveries if a later one fails
   if self.current('results') is not None and not s.get('seeded'):s['seeded']=True;changed=True
-  if now.astimezone(ZONE).hour>=8 and s['daily']!=today:
-   b=self.brief();message='\n\n'.join(b['lines'])+'\n\n'+' · '.join('['+v['title']+']('+v['url']+')' for v in b['sources'])
+  if now.astimezone(ZONE).hour>=8 and (s['daily']!=today or s.get('style_revision')!=2):
+   b=await self.present(background=True);message='\n\n'.join(b['lines'])+'\n\n'+' · '.join('['+v['title']+']('+v['url']+')' for v in b['sources'])
    await self.notify('jarvis_mu_daily',b['title'],message)
-   s['daily']=today;s['briefs']=[b]+s['briefs'][:9];changed=True
+   s['daily']=today;s['style_revision']=2;s['briefs']=[b]+[v for v in s['briefs'] if not (v.get('title')==b['title'] and v.get('checked_at','')[:10]==b['checked_at'][:10])][:9];changed=True
   if changed:self.save(s)
- async def read(self,text):
+ async def read(self,text,*,state=None):
   from jarvis.companion_memory import local_json
-  schema={'type':'object','properties':{'topic':{'type':'string','enum':['brief','fixtures','results','standings','news']}},'required':['topic'],'additionalProperties':False}
-  data=await local_json(self.owner.provider,'Select the topic of this Manchester United men first-team question: fixtures for upcoming matches,results for scores,standings for league table,news for news,brief for overall update. JSON only; no facts or actions.',{'latest':bounded(text,700)},schema,tokens=40)
-  if data.get('topic') not in schema['properties']['topic']['enum']:raise ValueError('Unknown football topic')
-  await self.refresh();b=self.brief(data['topic']);return {'provider':'companion','status':'success' if b['sources'] else 'unavailable','message':' '.join(b['lines']),'sources':b['sources'],'cacheable':False,'football_checked_at':b['checked_at']}
+  schema={'type':'object','properties':{'topic':{'type':'string','enum':['brief','fixtures','results','standings','news']},'expanded':{'type':'boolean'}},'required':['topic','expanded'],'additionalProperties':False}
+  data=await local_json(self.owner.provider,'Select the topic of this Manchester United men first-team question: fixtures for upcoming matches,results for scores,standings for league table,news for news,brief for overall update. A short follow-up such as tell me more keeps previous_topic. expanded=true ONLY if the latest explicitly asks for full/all/more details, a list or several fixtures/results. Ordinary next-match or how-are-they-doing questions are concise. JSON only; no facts or actions.',{'latest':bounded(text,700),'previous_topic':(state or {}).get('football_topic')},schema,tokens=60)
+  if set(data)!=set(schema['required']) or data['topic'] not in schema['properties']['topic']['enum'] or type(data['expanded']) is not bool:raise ValueError('Unknown football topic')
+  # The model cannot silently request a full table for an ordinary update.
+  expanded=data['expanded'] and bool(re.search(r'\b(?:full|all|more|list|several|detailed)\b',text,re.I))
+  await self.refresh();b=await self.present(data['topic'],expanded=expanded)
+  if state is not None:state['football_topic']=data['topic']
+  return {'provider':'companion','status':'success' if b['sources'] else 'unavailable','message':' '.join(b['lines']),'sources':b['sources'],'cacheable':False,'football_checked_at':b['checked_at'],'language_model_composition':b.get('language_model_composition',False),'football_fallback_reason':b.get('fallback_reason'),'football_expanded':b['expanded']}
  def project(self):
   s=self.state();return {'enabled':self.enabled(),'team':'Manchester United men’s first team','daily_time':'08:00 Europe/Oslo','delivery':'Written HA notifications and Assistant page; no spoken alerts','final_scores':bool(self.config.get('final_scores')),'polling':'About two minutes on known match days; fifteen minutes otherwise, while services and sources are available.','issues':list(self.errors),'briefs':s['briefs'][:10]}

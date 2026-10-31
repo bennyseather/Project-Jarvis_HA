@@ -308,7 +308,7 @@ class QwenConversation:
   return reply('Hi '+name+'. I will use your name for this conversation.')
  async def execute(self,plan,text,key,source,state,original):
   tool=plan['tool'];container=self.owner.container;profile=self.profile
-  if tool=='football':return await self.owner.football.read(text)
+  if tool=='football':return await self.owner.football.read(text,state=state)
   if tool=='planning_report':return await self.owner.planning_conversation.handle(text,key,source,state)
   if tool=='planning_followthrough':return await self.owner.followups.native_read(text,plan['members'])
   if tool=='identity':return self.identity(plan,text,key,source,state)
