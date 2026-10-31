@@ -456,7 +456,7 @@ class EventPreparation(HouseholdThinking):
                          subject=plan['subjects'][0] if len(plan['subjects'])==1 else None)
         focus=[e['id'] for e in events if self.event_identity(e) in plan.get('source_focus',[])]
         people=[p['preferred_name'] for p in self.profile._data['members']]
-        activity=event_activity.requirement(plan['question'],people)
+        activity=event_activity.requirement(plan.get('activity_question',plan['question']) if plan.get('shared_read_context') else plan['question'],people)
         continuing=bool(plan.get('source_focus') and plan.get('shared_read_context') and (not event_activity.requested(activity) or plan.get('event_continuation')))
         if continuing:
             if not focus:return reply('The selected appointment changed or is no longer available. Please name the event and date again.','clarification_required')

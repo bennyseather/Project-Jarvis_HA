@@ -130,17 +130,30 @@ class ReadDialogue:
   between=data['between'] if purpose=='availability' else False
   if between and not re.search(r'\bbetween\b',text,re.I) and not (old and old.get('between')):raise ValueError('Which appointments should I compare?')
   from jarvis.event_activity import requirement,requested
-  latest_activity=requirement(text,people.values());prior_activity=requirement((old or {}).get('task',''),people.values())
+  from jarvis.conversation_topics import RETURN
+  returning=RETURN.search(text.strip()) if state.get('returned_topic') else None
+  activity_question=text.strip()[returning.end():].strip() if returning else text
+  latest_activity=requirement(activity_question,people.values());prior_activity=requirement((old or {}).get('task',''),people.values())
+  selected=(old or {}).get('event_focus',[])
+  # A generic original question can still have selected one concrete source
+  # event. Its title is part of the identity, not a cached appointment answer.
+  selected_title=selected[0][0] if len(selected)==1 and len(selected[0])==5 and isinstance(selected[0][0],str) else ''
+  selected_activity=requirement(selected_title,people.values())
+  known_groups=set(prior_activity['groups'])|set(selected_activity['groups'])
   relation=data.get('event_relation','unspecified')
   if relation not in ('continue','new','unspecified'):raise ValueError('Please clarify which plans you mean.')
-  new_kind=bool(latest_activity['groups'] and not set(latest_activity['groups']).issubset(prior_activity['groups']))
+  new_kind=bool(latest_activity['groups'] and not set(latest_activity['groups']).issubset(known_groups))
+  if returning and selected_title:
+   label=requirement(activity_question.split(',',1)[0],people.values())
+   known_literals=set(prior_activity['literals'])|set(selected_activity['literals'])
+   if not set(label['groups']).issubset(known_groups) or not set(label['literals']).issubset(known_literals):new_kind=True
   same_event=bool(old and old.get('event_focus') and relation=='continue' and not new_kind)
   preparation_follow=bool(old and relation!='new' and tool=='appointments' and set(subjects)==set(prior_people) and (not requested(latest_activity) or latest_activity==prior_activity or same_event))
   task=old.get('task',old['question']) if old and (date_only or duration_only or correction or preparation_follow) else text
   event_focus=old.get('event_focus',[]) if preparation_follow and a==old['start'] and b==old['end'] else []
   return {'subjects':tuple(subjects),'start':a,'end':b,'speaker':speaker,'date':reference,
    'revision':self.owner.profile._data['revision'],'expires':self.owner.clock()+300,
-   'question':text,'previous_question':old.get('task') or old['question'] if old else None,
+   'activity_question':activity_question,'question':text,'previous_question':old.get('task') or old['question'] if old else None,
    'window':window,'purpose':purpose,'between':between,'weather':False,
    'requested_duration':minutes,'shared_read_context':True,
    'coordination_subjects':subjects,'companion_coordination':len(subjects)>1 and purpose=='conflicts',

@@ -203,3 +203,27 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
             with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'recall_detail','members':['benny']})) as model:
                 result=await self.a.agent.plan('What do I prefer when listening to music?','chat','phone',state)
             self.assertEqual((result['tool'],result['operation']),('memory','query'));self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['recall_detail'])
+
+    async def test_generic_preparation_return_uses_single_selected_source_title(self):
+        with self.scope():
+            state=self.selected();state['read_focus'].update(task='What should Mia prepare for Monday?',event_focus=[['Fellesøving Korps','family','2026-10-29T15:40:00+01:00','2026-10-29T16:00:00+01:00',['mia']]])
+            state['returned_topic']={'tool':'appointments','subjects':['mia'],'question':state['read_focus']['task']}
+            with patch('jarvis.companion_read_context.local_json',new=AsyncMock(return_value=frame(purpose='preparation',event_relation='continue'))):
+                resolved=await self.a.agent.reads.resolve("back to mia's rehearsal, what should she bring?",'appointments',['mia'],state)
+            self.assertEqual(resolved['source_focus'],state['read_focus']['event_focus']);self.assertTrue(resolved['event_continuation'])
+            self.assertEqual(resolved['activity_question'],"mia's rehearsal, what should she bring?")
+    async def test_return_does_not_relabel_a_rehearsal_as_swimming_or_robotics(self):
+        with self.scope():
+            for label in ('swimming','robotics'):
+                state=self.selected();state['read_focus']['task']='What should Mia prepare for Monday?'
+                state['returned_topic']={'tool':'appointments','subjects':['mia'],'question':state['read_focus']['task']}
+                with patch('jarvis.companion_read_context.local_json',new=AsyncMock(return_value=frame(purpose='preparation',event_relation='continue'))):
+                    resolved=await self.a.agent.reads.resolve("Back to Mia's "+label+", what should she bring?",'appointments',['mia'],state)
+                self.assertFalse(resolved['source_focus']);self.assertFalse(resolved['event_continuation'])
+    async def test_several_selected_events_do_not_prove_a_generic_rehearsal_reference(self):
+        with self.scope():
+            state=self.selected();state['read_focus']['task']='What should Mia prepare for Monday?';state['read_focus']['event_focus']*=2
+            state['returned_topic']={'tool':'appointments','subjects':['mia'],'question':state['read_focus']['task']}
+            with patch('jarvis.companion_read_context.local_json',new=AsyncMock(return_value=frame(purpose='preparation',event_relation='continue'))):
+                resolved=await self.a.agent.reads.resolve("Back to Mia's rehearsal, what should she bring?",'appointments',['mia'],state)
+            self.assertFalse(resolved['source_focus'])

@@ -1,3 +1,10 @@
+## Returning after a generic preparation question (0.45.126)
+
+After “What should Mia prepare for Monday?”, you can discuss another topic and
+return with “Back to Mia’s rehearsal, what should she bring?”. The selected
+calendar entry supplies the activity reference; Jarvis still checks its current
+source details. A different activity does not inherit the previous appointment.
+
 ## Preference follow-ups (0.45.125)
 
 Questions about a person’s saved preferences use the memory source, including

@@ -1,3 +1,8 @@
+## 0.45.126
+
+- Retain a single selected calendar event when returning to its activity after an initially generic preparation question.
+- Match the activity against the selected source identity and recheck current calendar data; incompatible activities and ambiguous selections remain separate.
+
 ## 0.45.125
 
 - Answer personal preference questions from saved memories after profile or planning topics, rather than treating them as unknown profile fields.
