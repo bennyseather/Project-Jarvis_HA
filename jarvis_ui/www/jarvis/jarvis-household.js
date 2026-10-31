@@ -10,11 +10,11 @@ function householdLines(value,prefix=''){
  return [(prefix?prefix+': ':'')+String(value)];
 }
 class JarvisHouseholdCard extends HTMLElement{
- get uiRevision(){return 2026103001;}
+ get uiRevision(){return 2026103101;}
  setConfig(config){this.config=config||{};this.toggleAttribute?.('data-standalone',this.config.layout==='standalone');this.section=this.config.initial_section==='assistant'?'assistant':'planner';this.render();}
  getCardSize(){return 8;}
  constructor(){super();this.attachShadow({mode:'open'});this.section='planner';this.period='today';this.agendaDay='today';this.agendaPerson='all';this.page=0;this.serial=0;this.error='';this.loading=false;}
- set hass(hass){const previousRevision=this._plannerUiRevision,upgrade=previousRevision!==2026103001;this._plannerUiRevision=2026103001;if(upgrade&&!previousRevision&&!this.shadowRoot.querySelector?.('jarvis-planner-card'))this.section=this.config?.initial_section==='assistant'?'assistant':'planner';const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(upgrade)this.render();if(!this.data&&!this.loading&&hass)this.load();}
+ set hass(hass){const previousRevision=this._plannerUiRevision,upgrade=previousRevision!==2026103101;this._plannerUiRevision=2026103101;if(upgrade&&!previousRevision&&!this.shadowRoot.querySelector?.('jarvis-planner-card'))this.section=this.config?.initial_section==='assistant'?'assistant':'planner';const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(upgrade)this.render();if(!this.data&&!this.loading&&hass)this.load();}
  connectedCallback(){this.render();this.timer=setInterval(()=>{if(!document.hidden)this.load();},60000);}
  disconnectedCallback(){clearInterval(this.timer);this.serial++;this.data=null;this.loading=false;}
  async load(){if(!this._hass||this.loading||!this.isConnected)return;const serial=++this.serial;this.loading=true;this.error='';this.render();try{const data=await this._hass.callWS({type:'jarvis_conversation/household',period:this.period});if(serial!==this.serial||!this.isConnected)return;if(data.schema_version!==1||data.read_only!==true||(this.period!=='today'&&data.planning?.period!==this.period))throw Error('Invalid response');this.data=data;}catch{if(serial!==this.serial)return;this.data=null;this.error='Household information unavailable. Nothing has been changed. Try Refresh.';}finally{if(serial===this.serial){this.loading=false;this.render();}}}
@@ -37,6 +37,7 @@ class JarvisHouseholdCard extends HTMLElement{
   cards=[{title:'Your assistant',lines:[a.learning_enabled?'Learning useful details from conversations.':'Automatic learning is paused.',a.retention+' · '+a.transport_preference,
    (a.learning_jobs?.failed?'Some recent details need another check. ':'')+((a.learning_jobs?.queued||a.learning_jobs?.processing)?'Recent conversation details are being checked.':'Ask Jarvis what he has learned, or quote a memory ID to correct or forget it.')]},
    ...this.agendaCards(a.household_planning,a.people||{}),
+   ...(a.football?.enabled?[{title:a.football.team,lines:[a.football.daily_time,a.football.delivery,a.football.polling,...(a.football.issues||[])]},...(a.football.briefs||[]).map(r=>({title:r.title,lines:r.lines,links:r.sources||[]}))]:[]),
    ...(a.travel_briefs||[]).map(r=>({title:(r.title||'Travel preparation')+' · '+r.id,lines:[r.summary,...(r.questions||[]),'To supply trip details, ask: Update travel brief '+r.id+': leaving from [place], onward to [destination].',r.prepared_at?'Prepared '+new Date(r.prepared_at).toLocaleString('en-GB',{timeZone:'Europe/Oslo'}):'Preparation needs checking.'],links:r.sources||[]})),
    ...(a.memories||[]).map(r=>({title:(r.subjects||[]).map(id=>a.people?.[id]||id).join(' and ')||'Unattributed conversation detail',lines:[r.quote,
     r.kind==='hint'?'Possible inference: '+(r.interpretation||'Not confirmed.'):r.currently_applicable?'Reported in conversation.':'Retained as history or awaiting a date clarification.',
@@ -73,7 +74,7 @@ if(this.section==='changes')cards=(d.changes||[]).map(c=>({title:'Revision '+c.r
 customElements.whenDefined('ha-card').then(()=>{
  const active=customElements.get('jarvis-household-card');
  if(!active)customElements.define('jarvis-household-card',JarvisHouseholdCard);
- else if((active.prototype.uiRevision||0)<2026103001){
+ else if((active.prototype.uiRevision||0)<2026103101){
   // HA can announce this module to a still-open companion WebView. Upgrade its
   // existing compatible element instead of silently retaining the cached class.
   for(const name of Object.getOwnPropertyNames(JarvisHouseholdCard.prototype)){

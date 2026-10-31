@@ -189,6 +189,12 @@
 
 # Changelog
 
+## 0.45.117
+
+- Continue preparation conversations with reviewed one-off venue, equipment, journey and packed-item reports; reuse existing persistent reports and source-change guards.
+- Interpret Manchester United fixtures, results, headlines and league-table questions with local Qwen and current public ESPN/BBC facts. Opt-in silent daily 08:00 Norway brief and final-score HA notifications run on the home server, with durable deduplication and source-gap reporting.
+- Preserve saved voice; no audio or reminder delivery changes.
+
 ## 0.45.100
 
 - Give ordinary Qwen conversations a read-only driving-route capability, including

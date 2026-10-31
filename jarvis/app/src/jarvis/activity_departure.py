@@ -83,7 +83,7 @@ async def departure(owner,text,key,source,state,members):
   people={p['id']:p['preferred_name'] for p in owner.profile._data['members']};owners=' and '.join(people[p] for p in event['owners']);label=appointment_label(event)
   lead=owners+"'s "+label+' starts at '+event['local_start']+' on '+event.get('date_label',event['date'])+'. '
   missing=('I could not check the journey time just now. How long does the journey from home usually take?' if venue else 'I do not have a usable venue for this appointment yet. Where will it take place?')
-  return answer((base['message']+' ' if frame['include_preparation'] else lead)+missing,'clarification_required',composition='activity_departure_missing_detail',selected_calendar_event=event['text'],period={'start':resolved['start'],'end':resolved['end']})
+  return answer((base['message']+' ' if frame['include_preparation'] else lead)+missing,'clarification_required',composition='activity_departure_missing_detail',followup_detail='journey' if venue else 'venue',selected_calendar_event=event['text'],period={'start':resolved['start'],'end':resolved['end']})
  if revision!=owner.profile._data['revision'] or generation!=owner.store.generation or report_revision!=planning_revision(owner.profile):return answer('The household information changed while I was checking. Please ask again.','unavailable')
  leave=(arrive-timedelta(minutes=minutes)).astimezone(ZONE);local_at=at.astimezone(ZONE)
  label=appointment_label(event);n=lambda value:str(int(value)) if int(value)==value else str(value)

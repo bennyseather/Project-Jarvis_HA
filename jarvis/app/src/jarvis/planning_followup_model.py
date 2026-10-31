@@ -17,7 +17,7 @@ items have been packed/prepared or are not ready; clear for explicitly forgettin
 the dated report; unrelated for birthday/weather/general questions or a different
 appointment; unclear when the reply cannot be bound to this question.
 Copy venue,preparation,equipment and journey_quote ONLY as exact spans of latest.
-Several details in one sentence are allowed. Empty values mean unstated/keep.
+Several details in one sentence are allowed. Equipment contains physical things to bring (instrument, sheet music, water). Preparation contains actions (wear tights, tie hair), not physical equipment nouns. Empty values mean unstated/keep.
 equipment_mode=append unless explicitly replacing/removing the listed equipment.
 Packing an item is NOT evidence it is required; use readiness, not details.
 ready and not_ready contain exact supplied checklist step ids only. A short yes
@@ -27,20 +27,27 @@ scope=usual ONLY for explicit usual/normally/always/from now on wording. Otherwi
 use one_off: this particular appointment. mixed scopes require one short question.
 member is an explicitly named household member only when the appointment is
 unassigned. Do not infer identity from the HA account, room or microphone.
+A short place-name answer to awaiting_detail=venue supplies the venue. awaiting_detail=journey is a HOME journey question, so a bare duration can answer it.
 For a duration use a supplied duration_phrase and only an explicitly stated HOME
 journey, not meal/activity length. Do not invent a venue, kit, instructions or time.
 question is one brief English clarification only when needed. Never confirm/save.
 """
-async def extract(owner,item,text,active_step=None,scope=None):
+async def extract(owner,item,text,active_step=None,scope=None,*,expected_detail=None):
  text=bounded(text,700)
  if not text or secret(text) or instruction_attempt(text):raise ValueError('Please give the preparation detail without credentials or instructions.')
  if active_step is not None and active_step not in [s['id'] for s in item.get('checklist',[])]:raise ValueError('Choose a current checklist item')
  steps=[s['id'] for s in item.get('checklist',[])];durations=reported_duration_quotes(text)
+ all_reported=bool(re.search(r'\b(?:all|everything)\b.{0,25}\b(?:ready|packed|done|prepared)\b',text,re.I))
+ terms=set(re.findall(r'\w+',text.casefold()))
+ eligible=[s['id'] for s in item.get('checklist',[]) if all_reported or s['id']==active_step or (set(re.findall(r'\w+',s['text'].casefold())).intersection(terms)-{'the','a','and','for','usual','check','ready','notes'})]
  props={'intent':{'type':'string','enum':['details','readiness','clear','unrelated','unclear']},'scope':{'type':'string','enum':['one_off','usual','unclear']},'venue':{'type':'string'},'equipment':{'type':'array','items':{'type':'string'},'maxItems':12},'equipment_mode':{'type':'string','enum':['append','replace','remove','keep']},'preparation':{'type':'string'},'journey_quote':{'type':'string','enum':['']+durations},'ready':{'type':'array','items':{'type':'string','enum':steps},'maxItems':20},'not_ready':{'type':'array','items':{'type':'string','enum':steps},'maxItems':20},'member':{'type':'string','enum':['']+[p['id'] for p in owner.profile._data['members']]},'question':{'type':'string'}}
  # Avoid an empty enum in JSON grammars while still rejecting unsupported ids below.
- for key in ('ready','not_ready'):props[key]['items']['enum']=steps or ['']
+ for key in ('ready','not_ready'):props[key]['items']['enum']=eligible or ['']
+ negated=bool(re.search(r'\b(?:not|never|isnt|isn.t|havent|haven.t|yet)\b',text,re.I))
+ props['ready']['maxItems']=0 if negated or not eligible else len(eligible)
+ props['not_ready']['maxItems']=len(eligible) if negated else 0
  schema={'type':'object','properties':props,'required':list(props),'additionalProperties':False}
- frame=await local_json(owner.provider,PROMPT,{'appointment':{k:item[k] for k in ('title','person','date','source')},'gaps':item.get('gaps',[]),'checklist':item.get('checklist',[]),'active_step':active_step,'latest':text,'duration_phrases':durations},schema,tokens=440)
+ frame=await local_json(owner.provider,PROMPT,{'appointment':{k:item[k] for k in ('title','person','date','source')},'gaps':item.get('gaps',[]),'checklist':item.get('checklist',[]),'active_step':active_step,'awaiting_detail':expected_detail,'latest':text,'duration_phrases':durations},schema,tokens=440)
  if not isinstance(frame,dict) or set(frame)!=set(props):raise ValueError('I could not reliably interpret that preparation detail.')
  for field in ('intent','scope','equipment_mode','member'):
   if frame[field] not in props[field]['enum']:raise ValueError('Invalid preparation decision')
@@ -55,7 +62,7 @@ async def extract(owner,item,text,active_step=None,scope=None):
  if not isinstance(frame['equipment'],list) or len(frame['equipment'])>12:raise ValueError('Invalid equipment list')
  frame['equipment']=[q for v in frame['equipment'] if (q:=quote(v,100))]
  if frame['journey_quote'] not in ['']+durations:raise ValueError('The journey time was not stated')
- if frame['journey_quote'] and not re.search(r'\bhome\b|hjem|heim',text,re.I) and 'journey' not in item.get('gaps',[]):raise ValueError('Is that the journey between home and this activity?')
+ if frame['journey_quote'] and not re.search(r'\bhome\b|hjem|heim',text,re.I) and 'journey' not in item.get('gaps',[]) and expected_detail!='journey':raise ValueError('Is that the journey between home and this activity?')
  if frame['journey_quote'] and reported_duration(frame['journey_quote']) is None:raise ValueError('That journey estimate needs a unit')
  if scope not in (None,'one_off','usual'):raise ValueError('Invalid chosen scope')
  if scope:frame['scope']=scope

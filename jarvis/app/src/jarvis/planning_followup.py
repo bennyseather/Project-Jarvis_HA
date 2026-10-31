@@ -116,11 +116,11 @@ class PlanningFollowups:
   if details.get('preparation'):lines.append('Preparation: '+details['preparation'])
   if details.get('journey_minutes'):lines.append('Home journey: '+str(details['journey_minutes'])+' minutes (your estimate)')
   return lines
- async def answer(self,token,owner,text,*,scope=None,active_step=None):
+ async def answer(self,token,owner,text,*,scope=None,active_step=None,expected_detail=None):
   session=self.session(token,owner)
   async with session['lock']:
    item=await self.resolve(session['item'],session['version']);self.cancel_pending(session)
-   frame=await extract(self.owner,item,text,active_step,scope);self.session(token,owner)
+   frame=await extract(self.owner,item,text,active_step,scope,expected_detail=expected_detail);self.session(token,owner)
    await self.resolve(session['item'],session['version'])
    if frame['intent'] in ('unrelated','unclear') or frame['scope']=='unclear':return {'state':'conversation','session':token,'item':self.public(item),'message':frame['question'] or 'Please give the detail for this appointment, or use Ask Jarvis for another topic.'}
    pending={'token':secrets.token_hex(18),'kind':frame['intent'],'frame':frame,'quote':text,'expires':self.owner.clock()+300,'item':deepcopy(item),'scope':frame['scope'],'report_digest':digest(self.reports.get(item))}

@@ -146,6 +146,7 @@ class ReadDialogue:
    'coordination_subjects':subjects,'companion_coordination':len(subjects)>1 and purpose=='conflicts',
    'task':task,'source_focus':event_focus,'event_continuation':bool(preparation_follow and event_focus)}
  def observe(self,text,tool,result,members,state,resolved=None):
+  if tool=='planning_report':return # Reviewed writes keep selected identity, never cached source facts.
   if tool!='route':state.pop('route_pending',None)
   if tool=='route':return # A route read can supplement the existing planning task.
   if tool not in READ_TOOLS:
@@ -165,4 +166,4 @@ class ReadDialogue:
    'question':text[:350],'task':actual.get('task') or text[:350],
    'purpose':actual.get('purpose','overview'),'window':actual.get('window','all_day'),
    'between':actual.get('between',False),'duration_minutes':actual.get('requested_duration') or duration_minutes(text),
-   'expires':self.owner.clock()+600,'event_focus':focused}
+   'expires':self.owner.clock()+600,'event_focus':focused,'awaiting_detail':result.get('followup_detail')}

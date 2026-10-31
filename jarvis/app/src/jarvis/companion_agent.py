@@ -26,6 +26,8 @@ DOMAINS['planning_followthrough']='planning_followthrough'
 DOMAINS['local_route']='route'
 DOMAINS['activity_knowledge']='activity_knowledge'
 DOMAINS['activity_departure']='departure'
+DOMAINS['planning_report']='planning_report'
+DOMAINS['football_updates']='football'
 TOOLS+=('route','activity_knowledge','departure')
 SCHEMA={'type':'object','properties':{'tool':{'type':'string','enum':list(DOMAINS)},'members':{'type':'array','items':{'type':'string'},'maxItems':4}},'required':['tool','members'],'additionalProperties':False}
 PROMPT="""Select ONE Jarvis capability for the LATEST USER TURN. Priority: a combined
@@ -84,16 +86,8 @@ Emrik' corrects active read subject, not profile. Unknown speaker isn't Benny
 merely because his name appears in history. Proposed helpers are household_plans.
 
 Examples:
-'Hi Jarvis,this is Benny speaking' / 'Who am I?' -> identity
-'Forget who I am' -> identity (clear scoped name, not manage_memories)
 'What is my job?' / 'When is my birthday?' / 'And her birthday?' -> household_facts
 'I prefer high fidelity music' / 'Benny prefer high fidelity music' -> remember_detail
-'What does Benny prefer when listening to music?' -> recall_detail
-'Show learned memories' -> list_memories
-'Pause automatic learning' -> assistant_settings
-'How are you, Jarvis?' -> general_chat
-'What is high fidelity audio?' -> general_chat
-'Show travel briefs' -> airport_brief
 'When is my next trip to Perth?' -> booked_travel
 'What does Mia have tomorrow?' / 'What has Linda got on Friday?' -> household_plans
 'Does Mia need anything for gymnastics tomorrow?' -> activity_preparation
@@ -103,12 +97,12 @@ Examples:
 'About 45 minutes' after dinner duration question -> household_plans
 'Find Mia next gymnastics appointment' -> calendar_editor
 'Mia gymnastics has moved to Elm Hall' / 'Mia needs water for gymnastics' -> activity_knowledge
-'Where does Mia usually do gymnastics?' -> activity_knowledge
-'Band practice takes two minutes from home; remember that' -> activity_knowledge
 'What should Mia prepare tomorrow, and when should we leave?' -> activity_departure
 'When should we leave for Mia band practice tomorrow?' -> activity_departure
 'What should we sort out before leaving tomorrow?' -> departure_brief
 
+football_updates: current Manchester United men first-team fixtures,results,news,league standings or an overall club update. A favourite-club personal statement is remember_detail.
+planning_report: REPORT a one-off preparation detail,packed or not-ready item,venue correction or home journey estimate for the previously selected appointment. Examples: Her instrument is packed; It is at Elm Hall this week; The drive home takes two minutes. A QUESTION asking what is ready/left is activity_preparation. A short answer to read_focus.awaiting_detail is planning_report. Questions never assert readiness.
 planning_followthrough: list appointments needing attention.
 Packed/ready/remaining tasks for an activity use activity_preparation.
 The final latest field is the current task. Return only tool and member IDs.
@@ -198,6 +192,8 @@ class QwenConversation:
   # Exact, quoted activity-profile commands already have a validated typed
   # parser and explicit review. Do not reinterpret their title as a read request
   # or make a new calendar activity depend on an existing profile alias.
+  reported_preparation=bool(focus and len(focus.get('event_focus',[]))==1 and '?' not in text and not re.match(r'^(?:what|when|where|why|how|is|are|has|have|can|could|does|do|should|will)\b',text,re.I) and re.search(r'\b(?:packed|not ready|already ready|needs?|is at|takes place|different hall|minutes? from home|minutes? to home)\b',text,re.I))
+  if reported_preparation and not temporary_journey:schema['properties']['tool']['enum']=['planning_report']
   from jarvis.household_activities import is_request as activity_command
   if activity_command(text) and not re.match(r'^(?:show|list)\b',text.strip(),re.I):
    schema['properties']['tool']['enum']=['profile_editor']
@@ -206,7 +202,7 @@ class QwenConversation:
    'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'activity_focus':{k:v for k,v in state.get('activity_focus',{}).items() if k in ('person','title','source')},'activity_knowledge_pending':bool(state.get('activity_learning_draft')),'activity_review_pending':bool(pending_edit and pending_edit.get('activity')),'read_focus':self.reads.prior(state),'meal_route_pending':[{'activity':v['event']} for v in meal['missing']] if meal else [],'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}
   data['latest']=data.pop('latest') # Current turn last; older tool replies are reference context only.
   out=await local_json(self.provider,PROMPT,data,schema,tokens=100)
-  if not isinstance(out,dict) or set(out)!={'tool','members'} or out['tool'] not in DOMAINS:raise ValueError('Invalid conversation tool')
+  if not isinstance(out,dict) or set(out)!={'tool','members'} or out['tool'] not in schema['properties']['tool']['enum']:raise ValueError('Invalid conversation tool')
   if not isinstance(out['members'],list) or len(out['members'])>4 or any(m not in schema['properties']['members']['items']['enum'] for m in out['members']) or len(out['members'])<schema['properties']['members'].get('minItems',0):raise ValueError('Unknown household subject')
   tool=DOMAINS[out['tool']];result={'tool':tool,'operation':'query','members':out['members'],'name_quote':'','answer':''}
   if tool=='identity':
@@ -233,6 +229,13 @@ class QwenConversation:
    try:
     async with state['lock']:
      with self.scope(state):
+      try:checked=await self.owner.planning_conversation.confirm(text,key,source,state)
+      except ValueError:
+       self.owner.planning_conversation.clear(state);return reply('I could not confirm that preparation change. Please reopen the appointment and review it again.','clarification_required')
+      if checked is not None:
+       state['binding']=self.binding(key,source)
+       state['history'].extend([{'role':'user','text':text[:450]},{'role':'assistant','text':checked['message'][:700]}]);state['history']=state['history'][-6:]
+       return checked
       from jarvis.planning_context import revision as report_revision
       report_generation=report_revision(self.profile)
       planning_generation=self.owner.store.generation
@@ -241,12 +244,13 @@ class QwenConversation:
       if self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source):return reply('This conversation changed while I was checking the request. Please ask again.','unavailable')
       if planning_generation!=self.owner.store.generation or report_generation!=report_revision(self.profile):return reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       tool=plan['tool']
-      if tool in ('planning_followthrough','memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route','activity_knowledge','departure') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
+      if tool in ('football','planning_report','planning_followthrough','memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route','activity_knowledge','departure') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
+      if tool!='planning_report':self.owner.planning_conversation.clear(state)
       if tool!='activity_knowledge':state.pop('activity_learning_draft',None)
       if tool not in ('activity_knowledge','appointments','departure'):state.pop('activity_focus',None)
       if tool!='identity':state['pending_identity']=False
       if tool not in ('memory','assistant'):self.owner.intake_pending.pop(str(key),None);self.owner.pending.pop(str(key),None)
-      if tool not in ('calendar','household_update','activity_knowledge','reminders','assistant','memory'):self.owner.revoke_other_reviews(key)
+      if tool not in ('calendar','household_update','activity_knowledge','reminders','assistant','memory','planning_report'):self.owner.revoke_other_reviews(key)
       async def original():
        nonlocal used
        used=True;token=coded_backend_only.set(True)
@@ -304,6 +308,8 @@ class QwenConversation:
   return reply('Hi '+name+'. I will use your name for this conversation.')
  async def execute(self,plan,text,key,source,state,original):
   tool=plan['tool'];container=self.owner.container;profile=self.profile
+  if tool=='football':return await self.owner.football.read(text)
+  if tool=='planning_report':return await self.owner.planning_conversation.handle(text,key,source,state)
   if tool=='planning_followthrough':return await self.owner.followups.native_read(text,plan['members'])
   if tool=='identity':return self.identity(plan,text,key,source,state)
   if tool=='general':

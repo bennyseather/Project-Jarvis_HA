@@ -1,6 +1,7 @@
 """Opted-in local assistant: learning, preparation, coordination and reviewable ideas.
 
-No bookings, notifications, reminder delivery, device actions or self-deployment.
+No bookings, reminder delivery, device actions or self-deployment.
+Opted-in football updates use only silent HA written notifications.
 The existing authenticated HA boundary and action confirmation remain authoritative.
 """
 import asyncio,json,re,time
@@ -59,6 +60,10 @@ class Companion:
   self.agenda=HouseholdAgenda(self)
   from jarvis.planning_followup import PlanningFollowups
   self.followups=PlanningFollowups(self)
+  from jarvis.football_updates import FootballUpdates
+  self.football=FootballUpdates(self)
+  from jarvis.planning_conversation import PlanningConversation
+  self.planning_conversation=PlanningConversation(self)
   self.profile._companion=self
  async def process(self,operation,text,key,source):
   # Run at the authenticated bridge boundary after generic pending confirmations
@@ -95,9 +100,9 @@ class Companion:
  def leave(self):self.foreground=max(0,self.foreground-1);self.last_activity=self.clock()
  def start(self):
   if self.task is None:self.task=asyncio.create_task(self.run())
-  self.agenda.start();self.followups.start()
+  self.agenda.start();self.followups.start();self.football.start()
  async def close(self):
-  await self.agenda.close();await self.followups.close()
+  await self.agenda.close();await self.followups.close();await self.football.close()
   if self.task:
    self.task.cancel();await asyncio.gather(self.task,return_exceptions=True)
   self.store.close()
@@ -125,7 +130,7 @@ class Companion:
   except asyncio.CancelledError:raise
   except Exception:self.store.retry(job);return {'saved':False,'ids':[]}
  def capture(self,text,result,key,source):
-  if result.get('agent_tool')=='planning_followthrough':return
+  if result.get('agent_tool') in ('planning_followthrough','planning_report'):return
   access=current_calendar_access.get()
   if not (self.policy.data['enabled'] and self.policy.data['automatic_learning'] and access.actor and access.write and shared_knowledge_enabled(self.profile._data)):return
   value=' '.join(text.strip().split());low=value.casefold()
@@ -337,7 +342,7 @@ class Companion:
  def overview(self):
   return {'conversation_mode':self.policy.data.get('conversation_mode','legacy'),'enabled':self.policy.data['enabled'],'learning_enabled':self.policy.data['automatic_learning'],'travel_enabled':self.policy.data['automatic_travel'],
    'retention':'Until corrected or deleted','transport_preference':'Driving first, public transport alternatives',
-   'people':{p['id']:p['preferred_name'] for p in self.profile._data['members']},'memories':self.store.memories(include_historical=True)[:30],'learning_jobs':self.store.job_counts(),'travel_briefs':self.store.briefs()[:8],
+   'people':{p['id']:p['preferred_name'] for p in self.profile._data['members']},'memories':self.store.memories(include_historical=True)[:30],'learning_jobs':self.store.job_counts(),'football':self.football.project(),'travel_briefs':self.store.briefs()[:8],
    'household_planning':self.agenda.project(),'planning_followthrough':self.followups.project(),'travel_status':self.travel.status if self.travel else 'not_configured','improvements':self.store.improvements()[:10],
    'development_mode':'Ideas and proposals only; no autonomous code execution or deployment','read_only':True}
 
