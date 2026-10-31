@@ -394,7 +394,13 @@ class EventPreparation(HouseholdThinking):
                 if WRITE.search(text) or SECRET.search(text):return None
                 prior=self.sessions.get(str(key)) if key else None
                 same=bool(prior and prior['subjects']==resolved['subjects'] and prior['start']==resolved['start'] and prior['end']==resolved['end'] and self.scope_valid(prior,key,self.allowed))
-                original=self.request(text,key) if same else None
+                original=None
+                if same:
+                    try:original=self.request(text,key)
+                    except ValueError:
+                        # The shared resolver has already bound subject/date.
+                        # A legacy pronoun heuristic must not veto that read.
+                        if not resolved.get('shared_read_context'):raise
                 plan={**(original or {}),**resolved}
                 if original and original.get('previous_question'):plan['previous_question']=original['previous_question']
         except ValueError as error:return reply(str(error),'clarification_required')

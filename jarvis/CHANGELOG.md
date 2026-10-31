@@ -1,3 +1,8 @@
+## 0.45.124
+
+- Keep an explicit United update in the football capability after a household topic, without confusing airline requests.
+- Keep the resolved person/date for pronoun preparation questions while rechecking the current calendar.
+
 ## 0.45.123
 
 - Return to an earlier household, travel, memory, football or general topic using local Qwen and bounded conversation references.

@@ -1,3 +1,8 @@
+## Explicit topic switches (0.45.124)
+
+A United update can start a football discussion directly after household planning.
+Subsequent short table requests retain the football topic.
+
 ## Conversation topic returns (0.45.123)
 
 You can interrupt a planning discussion with football or general chat, then say

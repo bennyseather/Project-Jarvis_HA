@@ -178,3 +178,21 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
             with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'local_route','members':['mia']})) as model:
                 result=await self.a.agent.plan("whats the travel time?",'chat','phone',state)
             self.assertEqual(result['tool'],'route');self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['local_route'])
+
+    async def test_explicit_united_update_switches_from_household_to_football(self):
+        with self.scope():
+            state=self.selected();state['last_tool']='profile'
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'football_updates','members':[]})) as model:
+                result=await self.a.agent.plan('give me a united update','chat','phone',state)
+            self.assertEqual(result['tool'],'football');self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['football_updates'])
+
+    async def test_validated_read_context_survives_a_legacy_pronoun_clarification(self):
+        from jarvis.event_preparation import EventPreparation
+        from test_planning_preparation_bundle import Client
+        from test_companion_coordinator import NOW
+        prep=EventPreparation(self.profile,Client(),('calendar.familiekalender',),self.provider,now=lambda:NOW)
+        resolved={'subjects':('mia',),'start':'2026-10-29','end':'2026-10-30','speaker':None,'date':'2026-10-28','revision':self.profile._data['revision'],'expires':999,'question':'Is her instrument packed?','window':'all_day','shared_read_context':True}
+        prep.sessions['chat']=dict(resolved)
+        with self.scope(),patch.object(prep,'scope_valid',return_value=True),patch.object(prep,'request',side_effect=ValueError('Whose event should I check? Please name a household member.')),patch.object(prep.reader,'handle',new=AsyncMock(return_value={'status':'unavailable'})) as read:
+            result=await prep.handle('Is her instrument packed?','chat',resolved=resolved)
+        read.assert_awaited_once();self.assertEqual(result['status'],'unavailable');self.assertNotIn('Whose',result['message'])
