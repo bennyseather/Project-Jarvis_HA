@@ -1,3 +1,11 @@
+## Midnight conversations (0.45.127)
+
+A birthday question can finish across midnight. Stable profile facts are refreshed
+once if needed; ages use the current Norway date. A recent person reference can
+continue into the new day, while planning slots and pending confirmations expire.
+A date-sensitive request that spans midnight asks which day you mean. Device
+actions and writes are never repeated as part of this handling.
+
 ## Returning after a generic preparation question (0.45.126)
 
 After “What should Mia prepare for Monday?”, you can discuss another topic and

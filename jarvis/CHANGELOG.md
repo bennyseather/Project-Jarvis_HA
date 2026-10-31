@@ -1,3 +1,9 @@
+## 0.45.127
+
+- Let stable household facts finish safely across midnight, with one read-only refresh for date-derived ages.
+- Preserve only the recent person reference on a date-only rollover; expire planning slots, topic references and pending confirmations.
+- Explain a date-sensitive interruption as a date change, without a misleading journey error. Never repeat actions or relax access checks.
+
 ## 0.45.126
 
 - Retain a single selected calendar event when returning to its activity after an initially generic preparation question.

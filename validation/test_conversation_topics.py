@@ -227,3 +227,73 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
             with patch('jarvis.companion_read_context.local_json',new=AsyncMock(return_value=frame(purpose='preparation',event_relation='continue'))):
                 resolved=await self.a.agent.reads.resolve("Back to Mia's rehearsal, what should she bring?",'appointments',['mia'],state)
             self.assertFalse(resolved['source_focus'])
+
+    def midnight_clock(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        times=[datetime(2026,10,31,23,59,59,tzinfo=ZoneInfo('Europe/Oslo'))]
+        self.a.now=lambda:times[0]
+        self.profile._data['members'][2]['birth_date']={'status':'confirmed','value':'2017-08-21'}
+        return times
+    async def test_birthday_survives_midnight_during_interpretation(self):
+        times=self.midnight_clock()
+        async def decide(*args):times[0]+=timedelta(seconds=2);return plan('profile',members=['mia'])
+        with self.scope(),patch.object(self.a.agent,'plan',new=decide):
+            r=await self.a.process(AsyncMock()(),"When is Mia's birthday?",'chat','phone')
+        self.assertEqual(r['status'],'success');self.assertIn('21 August',r['message'])
+    async def test_birthday_read_retries_once_if_midnight_passes_during_execution(self):
+        times=self.midnight_clock();execute=self.a.agent.execute
+        async def advancing(*args):
+            result=await execute(*args);times[0]+=timedelta(seconds=2);return result
+        with self.scope(),patch.object(self.a.agent,'plan',new=AsyncMock(return_value=plan('profile',members=['mia']))),patch.object(self.a.agent,'execute',new=advancing),patch.object(self.a.agent,'profile_read',new=AsyncMock(wraps=self.a.agent.profile_read)) as read:
+            r=await self.a.process(AsyncMock()(),"When is Mia's birthday?",'chat','phone')
+        self.assertEqual(r['status'],'success');self.assertIn('21 August',r['message']);self.assertEqual(read.await_count,2)
+    async def test_age_is_refreshed_when_midnight_is_the_birthday(self):
+        times=self.midnight_clock();self.profile._data['members'][0]['birth_date']={'status':'confirmed','value':'1985-11-01'}
+        execute=self.a.agent.execute;answers=[]
+        async def advancing(*args):
+            result=await execute(*args);answers.append(result['message']);times[0]+=timedelta(seconds=2);return result
+        with self.scope(),patch.object(self.a.agent,'plan',new=AsyncMock(return_value=plan('profile',members=['benny']))),patch.object(self.a.agent,'execute',new=advancing):
+            r=await self.a.process(AsyncMock()(),'How old is Benny?','chat','phone')
+        self.assertIn('40 years old',answers[0]);self.assertIn('41 years old',r['message']);self.assertEqual(r['status'],'success')
+    async def test_midnight_keeps_only_subject_and_introduced_name_not_planning_state(self):
+        times=self.midnight_clock()
+        with self.scope():
+            state=self.selected();state['introduced']='benny';state['planning_review']={'session':'old','token':'old'};state['route_pending']={'awaiting':'mode'}
+            times[0]+=timedelta(seconds=2);current=self.a.agent.state('chat','phone')
+            self.assertIs(current,state);self.assertEqual(current['subject_reference']['subjects'],['mia']);self.assertEqual(current['introduced'],'benny')
+            for field in ('read_focus','topic_references','planning_review','route_pending'):self.assertNotIn(field,current)
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'household_facts','members':['mia']})) as model:
+                p=await self.a.agent.plan('And her birthday?','chat','phone',current)
+            self.assertEqual(p['members'],['mia']);self.assertEqual(model.call_args.args[3]['properties']['members']['items']['enum'],['mia'])
+    async def test_midnight_does_not_restore_expired_person_reference(self):
+        times=self.midnight_clock()
+        with self.scope():
+            state=self.selected();self.clock[0]=700;times[0]+=timedelta(seconds=2)
+            self.assertNotIn('subject_reference',self.a.agent.state('chat','phone'))
+    async def test_date_sensitive_plans_are_not_silently_reanchored_or_run_twice(self):
+        times=self.midnight_clock();execute=AsyncMock(return_value={'status':'success','message':'old calendar read'})
+        async def advancing(*args):times[0]+=timedelta(seconds=2);return await execute(*args)
+        with self.scope(),patch.object(self.a.agent,'plan',new=AsyncMock(return_value=plan('plans',members=['mia']))),patch.object(self.a.agent,'execute',new=advancing),patch.object(self.a.agent,'profile_read',new=AsyncMock()) as read:
+            r=await self.a.process(AsyncMock()(),'What does Mia have tomorrow?','chat','phone')
+        self.assertEqual(r['status'],'clarification_required');self.assertEqual(r['context_change_reason'],'date');self.assertNotIn('journey',r['message']);self.assertEqual(execute.await_count,1);read.assert_not_awaited()
+    async def test_date_change_does_not_repeat_a_home_action(self):
+        times=self.midnight_clock();execute=AsyncMock(return_value={'status':'success','message':'home tool finished'})
+        async def advancing(*args):times[0]+=timedelta(seconds=2);return await execute(*args)
+        with self.scope(),patch.object(self.a.agent,'plan',new=AsyncMock(return_value=plan('home'))),patch.object(self.a.agent,'execute',new=advancing):
+            r=await self.a.process(AsyncMock()(),'Turn on the fictional light','chat','phone')
+        self.assertEqual(execute.await_count,1);self.assertEqual(r['context_change_reason'],'date')
+    async def test_profile_revision_change_at_midnight_still_blocks_profile_retry(self):
+        times=self.midnight_clock()
+        async def advancing(*args):
+            times[0]+=timedelta(seconds=2);self.profile._data['revision']+=1;return {'status':'success','message':'old profile'}
+        with self.scope(),patch.object(self.a.agent,'plan',new=AsyncMock(return_value=plan('profile',members=['mia']))),patch.object(self.a.agent,'execute',new=advancing),patch.object(self.a.agent,'profile_read',new=AsyncMock()) as read:
+            r=await self.a.process(AsyncMock()(),"When is Mia's birthday?",'chat','phone')
+        self.assertEqual(r['status'],'unavailable');self.assertEqual(r['context_change_reason'],'scope');read.assert_not_awaited()
+    async def test_permissions_changed_at_midnight_still_block_profile_retry(self):
+        times=self.midnight_clock()
+        async def advancing(*args):
+            times[0]+=timedelta(seconds=2);self.container.proactive_allowed_entities=('calendar.changed',);return {'status':'success','message':'old profile'}
+        with self.scope(),patch.object(self.a.agent,'plan',new=AsyncMock(return_value=plan('profile',members=['mia']))),patch.object(self.a.agent,'execute',new=advancing),patch.object(self.a.agent,'profile_read',new=AsyncMock()) as read:
+            r=await self.a.process(AsyncMock()(),"When is Mia's birthday?",'chat','phone')
+        self.assertEqual(r['status'],'unavailable');self.assertEqual(r['context_change_reason'],'access');read.assert_not_awaited()

@@ -118,19 +118,42 @@ class QwenConversation:
  def binding(self,key,source):return (current_calendar_access.get().actor,str(key),source or '',self.profile._data['revision'],self.owner.now().astimezone(ZONE).date().isoformat(),current_speaker.get().member_id if current_speaker.get().basis=='voice_match' else None)
  def access_scope(self):
   access=current_calendar_access.get();return (access.read,access.write,tuple(sorted(getattr(self.owner.container,'proactive_allowed_entities',()) or ())))
+ def context_change(self,state,key,source):
+  if self.sessions.get(str(key)) is not state:return 'session'
+  if state['access_scope']!=self.access_scope():return 'access'
+  current=self.binding(key,source);old=state['binding']
+  if old[:4]+old[5:]!=current[:4]+current[5:]:return 'scope'
+  return 'date' if old[4]!=current[4] else None
+ def clear_dated_context(self,state,key):
+  self.owner.revoke_other_reviews(key);self.owner.planning_conversation.clear(state)
+  self.owner.intake_pending.pop(str(key),None);self.owner.pending.pop(str(key),None)
+  for name in ('household_thinking','event_preparation','household_reasoning'):
+   sessions=getattr(getattr(self.owner.container,name,None),'sessions',None)
+   if isinstance(sessions,dict):sessions.pop(str(key),None)
+  travel=getattr(self.owner.container,'travel_calendar_intelligence',None)
+  if callable(getattr(travel,'clear_context',None)):travel.clear_context(str(key))
+ def rollover(self,state,key,source):
+  # Keep only a recent person reference, never yesterday's plans or proposals.
+  prior=self.reads.prior(state) or state.get('subject_reference') or {}
+  subjects=list(prior.get('subjects',[]));expiry=prior.get('expires',0)
+  self.clear_dated_context(state,key)
+  for field in ('read_focus','topic_references','returned_topic','route_focus','route_pending','meal_route_pending','meal_venue_overrides','activity_focus','activity_learning_draft','football_focus_until','history','pending_identity','subject_reference'):
+   state.pop(field,None)
+  state.update(binding=self.binding(key,source),history=[],pending_identity=False)
+  if len(subjects)==1 and 'all' not in subjects and expiry>self.clock():state['subject_reference']={'subjects':subjects,'expires':expiry}
+ def stable_profile_question(self,text,tool):
+  if tool!='profile':return False
+  from jarvis.household_planning import DATE_PATTERN
+  return not DATE_PATTERN.search(text.casefold()) and not re.search(r'\b(?:plans?|calendar|appointments?|schedule|attendance|school|bus|bedtime|wake)\b',text,re.I)
+ def changed_reply(self,reason):
+  if reason=='date':return reply('The date changed while I was checking. Please ask again using the day or date you mean.','clarification_required',context_change_reason='date')
+  return reply('This conversation changed while I was checking. Please ask again.','unavailable',context_change_reason=reason)
  def state(self,key,source):
-  binding=self.binding(key,source);state=self.sessions.get(str(key))
-  scope=self.access_scope()
-  if state is None or state['binding']!=binding or state['expires']<=self.clock() or state.get('access_scope')!=scope:
-   if state is not None:
-    self.owner.revoke_other_reviews(key)
-    self.owner.planning_conversation.clear(state)
-    self.owner.intake_pending.pop(str(key),None);self.owner.pending.pop(str(key),None)
-    for name in ('household_thinking','event_preparation','household_reasoning'):
-     sessions=getattr(getattr(self.owner.container,name,None),'sessions',None)
-     if isinstance(sessions,dict):sessions.pop(str(key),None)
-    travel=getattr(self.owner.container,'travel_calendar_intelligence',None)
-    if callable(getattr(travel,'clear_context',None)):travel.clear_context(str(key))
+  binding=self.binding(key,source);state=self.sessions.get(str(key));scope=self.access_scope()
+  active=bool(state and state['expires']>self.clock())
+  if active and self.context_change(state,key,source)=='date':self.rollover(state,key,source);binding=state['binding']
+  if state is None or state['binding']!=binding or not active or state.get('access_scope')!=scope:
+   if state is not None:self.clear_dated_context(state,key)
    state={'binding':binding,'access_scope':scope,'expires':self.clock()+1800,'introduced':None,'history':[],'last_tool':None,'pending_identity':False,'lock':asyncio.Lock()};self.sessions[str(key)]=state
   voice=current_speaker.get()
   if voice.basis=='voice_match' and voice.member_id and state['introduced'] not in (None,voice.member_id):state['introduced']=None;state['history']=[];state['pending_identity']=False
@@ -170,7 +193,7 @@ class QwenConversation:
   focus=self.reads.prior(state)
   # A personal-topic pronoun may not silently switch an established subject.
   if re.search(r'\b(?:her|his|their)\s+(?:birthday|age|job)\b',text,re.I) and not any(re.search(r'\b'+re.escape(n)+r'\b',text,re.I) for n in people.values()):
-   referenced=list(focus['subjects']) if focus and focus['subjects']!=['all'] else state.get('returned_topic',{}).get('subjects',[])
+   referenced=list(focus['subjects']) if focus and focus['subjects']!=['all'] else state.get('returned_topic',{}).get('subjects',[]) or (state.get('subject_reference',{}).get('subjects',[]) if state.get('subject_reference',{}).get('expires',0)>self.clock() else [])
    if not referenced:
     for turn in reversed(state['history']):
      if turn['role']!='user':continue
@@ -241,7 +264,7 @@ class QwenConversation:
   if re.search(r'\b(?:find|search|look up)\b.*\bnews\b',text,re.I) and not re.search(r'\b(?:united|man[ .-]*utd)\b',text,re.I):schema['properties']['tool']['enum']=['internet_research']
   data={'reference_date':state['binding'][-2],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':[v for v in state['history'][-6:] if v['role']=='user'],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
-   'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'activity_focus':{k:v for k,v in state.get('activity_focus',{}).items() if k in ('person','title','source')},'activity_knowledge_pending':bool(state.get('activity_learning_draft')),'activity_review_pending':bool(pending_edit and pending_edit.get('activity')),'returned_topic':state.get('returned_topic'),'read_focus':self.reads.prior(state),'meal_route_pending':[{'activity':v['event']} for v in meal['missing']] if meal else [],'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}
+   'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'activity_focus':{k:v for k,v in state.get('activity_focus',{}).items() if k in ('person','title','source')},'activity_knowledge_pending':bool(state.get('activity_learning_draft')),'activity_review_pending':bool(pending_edit and pending_edit.get('activity')),'subject_reference':state.get('subject_reference') if state.get('subject_reference',{}).get('expires',0)>self.clock() else None,'returned_topic':state.get('returned_topic'),'read_focus':self.reads.prior(state),'meal_route_pending':[{'activity':v['event']} for v in meal['missing']] if meal else [],'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}
   data['latest']=data.pop('latest') # Current turn last; older tool replies are reference context only.
   out=await local_json(self.provider,PROMPT,data,schema,tokens=100)
   if not isinstance(out,dict) or set(out)!={'tool','members'} or out['tool'] not in schema['properties']['tool']['enum']:raise ValueError('Invalid conversation tool')
@@ -288,7 +311,9 @@ class QwenConversation:
        if resumed:return reply(resumed,'clarification_required')
        plan=await self.plan(text,key,source,state)
       except (ValueError,asyncio.TimeoutError):return reply('I could not interpret that request reliably just now. Please try again.','unavailable')
-      if self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source) or state['access_scope']!=self.access_scope():return reply('This conversation changed while I was checking the request. Please ask again.','unavailable')
+      changed=self.context_change(state,key,source)
+      if changed=='date' and self.stable_profile_question(text,plan['tool']):self.rollover(state,key,source);changed=None
+      if changed:return self.changed_reply(changed)
       if planning_generation!=self.owner.store.generation or report_generation!=report_revision(self.profile):return reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       tool=plan['tool'];state['_topic_operation']=plan['operation']
       if tool in ('football','planning_report','planning_followthrough','memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route','activity_knowledge','departure') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
@@ -316,11 +341,20 @@ class QwenConversation:
       except ValueError as error:
        result=reply(str(error),'clarification_required') if str(error) in ('Whose plans do you mean? Please name a household member.','Whose plans should I check?','Please clarify which plans you mean.','Which person or appointment do you mean?','Which household members should I compare?','Please name the person you meant.','Which household member do you mean?','Please state the date or duration you mean.','Which date should I use?','Which day should I check?','Please clarify the comparison.','How long should it take?','Which appointments should I compare?') else reply('I could not complete that tool request reliably. Nothing is confirmed as changed.','unavailable')
       except Exception as error:result=reply('I could not complete that tool request reliably. Nothing is confirmed as changed.','unavailable')
-      if self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source) or state['access_scope']!=self.access_scope() or tool=='departure' and memory_generation!=self.owner.store.generation:
-       result=reply('The planning context changed while I was checking the journey. Please ask again.','unavailable')
+      changed=self.context_change(state,key,source)
+      if changed=='date' and self.stable_profile_question(text,tool):
+       self.rollover(state,key,source)
+       # One read-only retry refreshes date-derived ages/next birthdays. Never
+       # repeat a device action, write or a relative-date planning request.
+       try:result=await self.profile_read(plan,text,key)
+       except Exception:result=reply('I could not refresh that household fact just now. Please ask again.','unavailable')
+       changed=self.context_change(state,key,source)
+       if records and memory_generation!=self.owner.store.generation or report_generation!=report_revision(self.profile):result=reply('The remembered details changed while I was checking. Please ask again.','unavailable')
+      if changed:result=self.changed_reply(changed)
+      elif tool=='departure' and memory_generation!=self.owner.store.generation:result=reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       if tool!='football' and isinstance(result,dict) and result.get('status')=='success':state.pop('football_focus_until',None)
-      if isinstance(result,dict):self.reads.observe(text,tool,result,plan['members'],state,state.pop('_resolved_read',None))
-      if tool=='plans' and isinstance(result,dict):
+      if isinstance(result,dict) and not changed:self.reads.observe(text,tool,result,plan['members'],state,state.pop('_resolved_read',None))
+      if tool=='plans' and isinstance(result,dict) and not changed:
        from jarvis.companion_routing import CompanionRouting
        routing=getattr(self.owner.container,'companion_routing',None)
        if routing is None:routing=CompanionRouting(self.owner);self.owner.container.companion_routing=routing
@@ -330,6 +364,9 @@ class QwenConversation:
         result=reply('The planning context changed while I was checking the journeys. Please ask again.','unavailable')
       if result is None:result=reply('I need a little more detail to use that tool. What exactly would you like me to check or change?','clarification_required')
       result={**result,'cacheable':False,'companion_agent_handled':True,'agent_tool':tool,'agent_planned_by':'local_qwen'}
+      if result.get('status')=='success' and tool in ('profile','plans','appointments','departure','memory'):
+       focus=self.reads.prior(state);subjects=focus['subjects'] if focus else plan['members']
+       if subjects and 'all' not in subjects:state['subject_reference']={'subjects':list(subjects),'expires':self.clock()+600}
       self.topics.observe(text,tool,result,plan['members'],state)
       try:self.owner.after(text,result,key,source)
       except Exception:pass
@@ -441,7 +478,7 @@ class QwenConversation:
   query,missing=resolve_question(text,self.profile._data)
   if missing:return missing
   obj=getattr(self.owner.container,'household_reasoning',None)
-  if obj is None:obj=HouseholdReasoning(self.profile,self.provider);self.owner.container.household_reasoning=obj
+  if obj is None:obj=HouseholdReasoning(self.profile,self.provider,now=self.owner.now);self.owner.container.household_reasoning=obj
   members=plan['members']
   if len(members)==1:
    person=next(p for p in self.profile._data['members'] if p['id']==members[0]);obj.resolve('Tell me about '+person['preferred_name'],key)
@@ -450,7 +487,7 @@ class QwenConversation:
   if obj.compound(query) or obj.next_birthday(query):
    result=await obj.handle(query,key,calendar=getattr(self.owner.container,'household_thinking',None))
    if result is not None:return result
-  exact=employment_answer(query,self.profile._data) or birthday_answer(query,self.profile._data) or self.profile.identity_answer(query) or self.profile.routine_answer(query)
+  exact=employment_answer(query,self.profile._data) or birthday_answer(query,self.profile._data,today=self.owner.now().astimezone(ZONE).date()) or self.profile.identity_answer(query) or self.profile.routine_answer(query)
   if exact:return exact
   result=await obj.handle(query,key,calendar=getattr(self.owner.container,'household_thinking',None))
   if result is not None:return result
