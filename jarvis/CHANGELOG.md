@@ -1,3 +1,9 @@
+## 0.45.128
+
+- Understand short prospective preparation questions such as “What should she remember?” after household plans.
+- Keep the person and date, read current requirements, and leave actual memory-saving commands and reminder requests with their existing tools.
+- Treat generic planning words as context rather than an activity name.
+
 ## 0.45.127
 
 - Let stable household facts finish safely across midnight, with one read-only refresh for date-derived ages.

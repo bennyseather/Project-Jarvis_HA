@@ -191,6 +191,9 @@ class QwenConversation:
   meal_fit=bool(re.search(r'\b(?:dinner|meal)\b',text,re.I) and re.search(r'\b(?:fit|squeeze|enough time|time for)\b',text,re.I) and not re.search(r'\b(?:save|add|create|book|cancel)\b',text,re.I))
   if meal_fit:schema['properties']['tool']['enum']=['household_plans']
   focus=self.reads.prior(state)
+  from jarvis.event_activity import preparation_question
+  preparation_read=bool(focus and preparation_question(text,people.values()))
+  if preparation_read:schema['properties']['tool']['enum']=['activity_preparation']
   # A personal-topic pronoun may not silently switch an established subject.
   if re.search(r'\b(?:her|his|their)\s+(?:birthday|age|job)\b',text,re.I) and not any(re.search(r'\b'+re.escape(n)+r'\b',text,re.I) for n in people.values()):
    referenced=list(focus['subjects']) if focus and focus['subjects']!=['all'] else state.get('returned_topic',{}).get('subjects',[]) or (state.get('subject_reference',{}).get('subjects',[]) if state.get('subject_reference',{}).get('expires',0)>self.clock() else [])
@@ -240,6 +243,7 @@ class QwenConversation:
   if not focus or not focus.get('event_focus'):
    schema['properties']['tool']['enum']=[v for v in schema['properties']['tool']['enum'] if v!='planning_report']
   read_question=bool(re.match(r'^(?:what|when|where|why|how|is|are|has|have|does|do|did|can|could|should|will|tell me|show me|explain|check whether)\b',text.strip(),re.I) and not re.search(r'\b(?:remember|save|forget|add|create|book|cancel|move|reschedule|set|change|update|remind)\b',text,re.I))
+  read_question=read_question or preparation_read
   if read_question:schema['properties']['tool']['enum']=[v for v in schema['properties']['tool']['enum'] if v not in ('planning_report','remember_detail','profile_editor')]
   # Booked personal itinerary reads belong to the live travel executor, never
   # an unsourced general answer. Unknown identity is still resolved by that tool.
@@ -441,6 +445,8 @@ class QwenConversation:
    prior=getattr(getattr(container,'event_preparation',None),'sessions',{}).get(str(key))
    return await obj.handle(text,key,source,prior)
   if tool=='appointments':
+   from jarvis.event_activity import preparation_question
+   text=preparation_question(text,(p['preferred_name'] for p in profile._data['members'])) or text
    from jarvis.event_preparation import EventPreparation
    obj=getattr(container,'event_preparation',None)
    if obj is None:obj=EventPreparation(profile,container.home_assistant,getattr(container,'proactive_allowed_entities',()),self.provider,now=self.owner.now);container.event_preparation=obj

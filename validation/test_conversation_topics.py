@@ -297,3 +297,34 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
         with self.scope(),patch.object(self.a.agent,'plan',new=AsyncMock(return_value=plan('profile',members=['mia']))),patch.object(self.a.agent,'execute',new=advancing),patch.object(self.a.agent,'profile_read',new=AsyncMock()) as read:
             r=await self.a.process(AsyncMock()(),"When is Mia's birthday?",'chat','phone')
         self.assertEqual(r['status'],'unavailable');self.assertEqual(r['context_change_reason'],'access');read.assert_not_awaited()
+
+    async def test_prospective_remember_questions_preserve_person_and_read_intent(self):
+        from jarvis.event_activity import preparation_question
+        cases={'what should she remember?':'What should she prepare?', 'What should Mia remember to bring?':'What should Mia bring?', 'What does he need to remember':'What should he prepare?', 'Anything we should remember?':'What should we prepare?', 'Does she need to remember anything?':'What should she prepare?', 'What should I not forget?':'What should I prepare?'}
+        for text,expected in cases.items():self.assertEqual(preparation_question(text,['Mia']),expected)
+    async def test_prospective_read_does_not_rewrite_memory_commands_or_recall(self):
+        from jarvis.event_activity import preparation_question
+        for text in ('Remember Mia needs water','Can you remember that Mia needs water?','What did Benny tell you to remember?','What should Jarvis remember?','What should she remember? Save her details.','Forget that memory'):
+            self.assertIsNone(preparation_question(text,['Mia','Benny']),text)
+    async def test_scoped_remember_question_only_offers_preparation_read(self):
+        with self.scope():
+            state=self.selected();state['last_tool']='plans'
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'activity_preparation','members':['mia']})) as model:
+                result=await self.a.agent.plan('what should she remember?','chat','phone',state)
+            self.assertEqual(result['tool'],'appointments');self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['activity_preparation'])
+    async def test_preparation_read_normalises_remember_before_existing_write_guards(self):
+        with self.scope():
+            state=self.selected();self.container.event_preparation=SimpleNamespace(handle=AsyncMock(return_value={'status':'success','message':'Bring the instrument.'}))
+            with patch.object(self.a.agent.reads,'resolve',new=AsyncMock(return_value=None)) as resolve,patch.object(self.a,'preference_intake',new=AsyncMock()) as memory:
+                await self.a.agent.execute(plan('appointments',members=['mia']),'What should she remember?','chat','phone',state,AsyncMock())
+            self.assertEqual(resolve.call_args.args[0],'What should she prepare?');self.assertEqual(self.container.event_preparation.handle.call_args.args[0],'What should she prepare?');memory.assert_not_awaited()
+    async def test_generic_planning_words_do_not_become_an_activity_label(self):
+        from jarvis.event_activity import requirement,requested
+        self.assertFalse(requested(requirement('what should mia plan for on monday?',['Mia'])))
+        self.assertIn('swimming',requirement('what should Mia plan for swimming on Monday?',['Mia'])['groups'])
+    async def test_remember_question_without_active_plans_is_not_forced_to_an_event(self):
+        with self.scope():
+            state=self.a.agent.state('chat','phone')
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=ValueError())) as model:
+                with self.assertRaises(ValueError):await self.a.agent.plan('What should she remember?','chat','phone',state)
+            self.assertGreater(len(model.call_args.args[3]['properties']['tool']['enum']),1)

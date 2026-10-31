@@ -42,7 +42,7 @@ STOP=set(('what when where which how should could would can do does did is are a
     'need needs needed prepare preparation bring pack equipment kit get ready anything something else '
     'left remaining still already packed checked checking before done '
     'event events appointment appointments activity activities session sessions class classes lesson lessons '
-    'commitment commitments day household family one ones meant mean about '
+    'commitment commitments day household family one ones meant mean about plan plans planning '
     'morning afternoon evening tonight later early upcoming scheduled coming up '
     'have has got doing leave leaving depart departing departure set off time arrive arrival '
     'home drive driving journey travel minutes minute mins min hours hour allowance').split())
@@ -50,6 +50,24 @@ UNCERTAIN=re.compile(r'\b(?:no|not|non|never|without|excluding|if|unless|maybe|p
     r'cancel\w*|example|or|whether|tbc|tbd|unconfirmed|uncertain|unknown|possible|perhaps|'
     r'ikke|ingen|hvis|dersom|kanskje|muligens|eventuelt|avlyst|eller|uavklart|ubekreftet)\b|'
     r"don['’]t|instead of|used to|rather than|[/\\?]",re.I)
+
+
+def preparation_question(text,people=()):
+    """Prospective kit questions are reads, not requests for Jarvis to save data.
+
+    Whole-question grammar preserves the person. Direct commands, 'you/Jarvis',
+    recall questions and extra clauses are deliberately left to their own tools.
+    """
+    value=' '.join(text.strip().split())
+    subject=r'(she|he|they|we|i'+''.join('|'+re.escape(name) for name in people)+r')'
+    patterns=(r'what (?:should|must) '+subject+r' (?:remember|not forget)',
+              r'what (?:does|do) '+subject+r' need to remember',
+              r'(?:is there )?anything '+subject+r' (?:should|needs? to) remember',
+              r'(?:does|do) '+subject+r' need to remember (?:anything|something)')
+    for pattern in patterns:
+        match=re.fullmatch(r'(?:and )?'+pattern+r'(?: to (?:bring|pack))?[ .?!]*',value,re.I)
+        if match:return 'What should '+match[1]+(' bring?' if re.search(r'\bto (?:bring|pack)\b',value,re.I) else ' prepare?')
+    return None
 
 
 def normalise(text):return unicodedata.normalize('NFKC',text).casefold()

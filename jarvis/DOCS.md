@@ -1,3 +1,11 @@
+## What should she remember? (0.45.128)
+
+After discussing a person’s plans, “What should she remember?” asks what that
+person needs to prepare. Jarvis rechecks the selected day and uses calendar
+instructions and saved usual equipment. This question does not save a memory,
+create a reminder or mark any item ready. Commands asking Jarvis to remember
+information retain their normal behaviour.
+
 ## Midnight conversations (0.45.127)
 
 A birthday question can finish across midnight. Stable profile facts are refreshed
