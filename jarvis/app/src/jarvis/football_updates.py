@@ -148,7 +148,10 @@ class FootballUpdates:
    sources.append({'title':'ESPN results','url':PUBLIC['results']})
   if topic in ('brief','standings') and rank is not None:
    united=next(r for r in rank if r['id']==TEAM);lines.append('United are '+str(united['rank'])+' in the Premier League with '+str(united['points'])+' points from '+str(united['gamesPlayed'])+' matches ('+str(united['wins'])+' wins, '+str(united['ties'])+' draws, '+str(united['losses'])+' losses).')
-   if topic=='standings':lines.extend(str(r['rank'])+'. '+r['team']+' — '+str(r['points'])+' pts' for r in rank)
+   if topic=='standings':
+    # Native Android Assist renders plain text. Explicit newlines and a marker
+    # remain readable there without relying on Markdown/HTML support.
+    lines=['Premier League — full table','']+[str(r['rank'])+'. '+('★ MANCHESTER UNITED' if r['id']==TEAM else r['team'])+' — '+str(r['points'])+(' pt' if r['points']==1 else ' pts') for r in rank]
    sources.append({'title':'ESPN league table','url':PUBLIC['standings']})
   if topic in ('brief','news') and news is not None:
    if news:lines.append('BBC headlines: '+'; '.join('“'+n['title']+'”' for n in news[:3])+'. These are attributed headlines, including any speculation.')
@@ -214,6 +217,6 @@ class FootballUpdates:
   expanded=full_table or data['expanded'] and bool(re.search(r'\b(?:full|all|more|list|several|detailed|entire|complete|whole)\b',text,re.I))
   await self.refresh();b=await self.present(data['topic'],expanded=expanded)
   if state is not None:state['football_topic']=data['topic']
-  return {'provider':'companion','status':'success' if b['sources'] else 'unavailable','message':' '.join(b['lines']),'sources':b['sources'],'cacheable':False,'football_checked_at':b['checked_at'],'language_model_composition':b.get('language_model_composition',False),'football_fallback_reason':b.get('fallback_reason'),'football_expanded':b['expanded']}
+  return {'provider':'companion','status':'success' if b['sources'] else 'unavailable','message':('\n'.join(b['lines']) if b['expanded'] and data['topic']=='standings' else ' '.join(b['lines'])),'sources':b['sources'],'cacheable':False,'football_checked_at':b['checked_at'],'language_model_composition':b.get('language_model_composition',False),'football_fallback_reason':b.get('fallback_reason'),'football_expanded':b['expanded']}
  def project(self):
   s=self.state();return {'enabled':self.enabled(),'team':'Manchester United men’s first team','daily_time':'08:00 Europe/Oslo','delivery':'Written HA notifications and Assistant page; no spoken alerts','final_scores':bool(self.config.get('final_scores')),'polling':'About two minutes on known match days; fifteen minutes otherwise, while services and sources are available.','issues':list(self.errors),'briefs':s['briefs'][:10]}

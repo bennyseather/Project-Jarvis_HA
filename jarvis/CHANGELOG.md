@@ -189,6 +189,10 @@
 
 # Changelog
 
+## 0.45.120
+
+- Display the requested full Premier League table with one club per line and a star beside MANCHESTER UNITED. Preserve line breaks through Assist, including native Android plain-text chat.
+
 ## 0.45.119
 
 - Keep full-league-table and other clear football follow-ups in the football capability; do not route them to appointment preparation reports.

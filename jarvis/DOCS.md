@@ -1055,3 +1055,6 @@ The same style applies to silent daily08:00 Norway written briefings. The first 
 
 
 0.45.119 also keeps explicit football follow-ups in their football conversation. A full league table request returns the table rather than entering an appointment preparation review. Saved voice, daily time, final-score receipts and calendars are preserved.
+
+
+0.45.120 formats an explicitly requested full league table as plain text: a heading, one ranked club per line, and a star/uppercase Manchester United row. This works without Markdown support in native Android Assist. The concise default briefing, source values, notification schedule and saved voice stay unchanged.

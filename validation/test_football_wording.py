@@ -37,7 +37,10 @@ class WordingTests(unittest.IsolatedAsyncioTestCase):
  async def test_partial_failed_sources_do_not_reuse_previous_facts(self):
   await self.prepared();self.f.errors=['standings source unavailable; previous data is withheld.'];facts=board(self.f);self.assertNotIn('6th',facts['fallback']);self.assertIn('league table',facts['coverage']);self.assertEqual(len([u for u in facts['units'] if u['kind']=='fixture']),1)
  async def test_full_table_and_fixtures_available_only_explicitly(self):
-  await self.prepared();short=await self.f.present('standings');full=await self.f.present('standings',expanded=True);self.assertEqual(len(short['lines']),1);self.assertGreater(len(full['lines']),15);self.assertTrue(full['expanded'])
+  await self.prepared();short=await self.f.present('standings');full=await self.f.present('standings',expanded=True);self.assertEqual(len(short['lines']),1);self.assertGreater(len(full['lines']),15);self.assertTrue(full['expanded']);self.owner.provider=object()
+  with patch('jarvis.companion_memory.local_json',new=AsyncMock(return_value={'topic':'standings','expanded':True})):reply=await self.f.read('Show the full league table')
+  rows=[line for line in reply['message'].splitlines() if __import__('re').match(r'^\d+\.',line)]
+  self.assertEqual(len(rows),20);self.assertEqual([int(line.split('.')[0]) for line in rows],list(range(1,21)));self.assertEqual(sum('★' in line for line in rows),1);self.assertIn('★ MANCHESTER UNITED',rows[5]);self.assertNotIn('**',reply['message']);self.assertIn('Premier League',reply['message'])
  async def test_sources_changed_during_wording_rebuilds_fallback(self):
   await self.prepared()
   async def changed(provider,facts,valid):
