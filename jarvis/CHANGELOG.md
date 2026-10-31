@@ -1,3 +1,10 @@
+## 0.45.114
+
+- Retain the current appointment through short preparation and departure follow-ups, including unpunctuated questions such as “whats left”.
+- Distinguish unknown packing status from a saved readiness report; do not invent a kit list when no organiser instructions are known.
+- Ask for the missing venue or journey time for the selected appointment instead of asking the user to select it again.
+- Reread current sources; a new person, date or activity does not inherit the previous event. Saved voices, calendar data and reminder delivery are unchanged.
+
 ## 0.45.113
 
 - Use current, source-bound one-off preparation reports in ordinary plans, preparation replies, departure estimates and dashboard briefs.

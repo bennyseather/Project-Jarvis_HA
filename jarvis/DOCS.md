@@ -1,3 +1,12 @@
+## Short preparation follow-ups (0.45.114)
+
+After selecting an appointment, questions such as “whats left before we leave?”
+and “when should we leave?” retain its person/date/reference while rereading the
+calendar. With no saved checklist, readiness remains unknown; no packing status
+or kit is inferred. Departure calculation asks for a missing venue or journey
+estimate for that appointment. A different person, date, activity, expired context
+or changed/cancelled source cannot silently reuse old event facts.
+
 ## Automatic household preparation (0.45.108)
 
 Household > Assistant includes Today/Tomorrow preparation for each member. Select

@@ -41,6 +41,23 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
  async def test_preparation_after_overview_keeps_person_and_date(self):
   r=await self.resolve('What should she bring?',frame(purpose='preparation'),tool='appointments')
   self.assertEqual((r['subjects'],r['start']),(('mia',),'2026-10-29'));self.assertEqual(r['previous_question'],'What does Mia have tomorrow?')
+ async def test_short_practical_followup_keeps_selected_event_reference(self):
+  for text in ('whats left before we leave?','Do we have everything?','When should we leave?'):
+   self.prior(purpose='preparation',task='What should Mia prepare for tomorrow?',event_focus=[['family','event-key']])
+   r=await self.resolve(text,frame(purpose='preparation',event_relation='continue'),tool='appointments')
+   self.assertEqual(r['source_focus'],[['family','event-key']]);self.assertTrue(r['event_continuation'])
+ async def test_new_activity_date_or_person_does_not_retain_selected_event(self):
+  for text,decision in [('What about swimming?',frame(purpose='preparation',event_relation='continue')),('What about robotics?',frame(purpose='preparation',event_relation='new')),('And Friday?',frame(date_quote='friday',purpose='preparation',event_relation='continue')),('What should Emrik prepare?',frame(['emrik'],purpose='preparation',event_relation='continue'))]:
+   self.prior(purpose='preparation',task='What should Mia prepare for tomorrow?',event_focus=[['family','event-key']])
+   r=await self.resolve(text,decision,tool='appointments');self.assertFalse(r['source_focus'],text)
+ async def test_unknown_relation_or_extra_schema_key_is_rejected(self):
+  for extra in ({'event_relation':'invented'},{'arbitrary':'x'}):
+   with self.assertRaises(ValueError):await self.resolve('Where is it?',frame(purpose='preparation',**extra),tool='appointments')
+ async def test_observe_keeps_executor_fresh_event_choice(self):
+  self.prior();actual=dict(subjects=('mia',),start='2026-10-29',end='2026-10-30',question='Where is it?',purpose='preparation',source_focus=[])
+  self.c.event_preparation=SimpleNamespace(sessions={'s':{**actual,'source_focus':[['family','fresh']]}})
+  self.a.agent.reads.observe('Where is it?','appointments',{'status':'success'},['mia'],self.state,actual)
+  self.assertEqual(self.state['read_focus']['event_focus'],[['family','fresh']])
  async def test_date_only_followup_is_computed_from_prior_period(self):
   r=await self.resolve('And Friday?',frame(date_quote='friday'));self.assertEqual(r['start'],'2026-10-30')
  async def test_correction_replaces_child_not_confirmed_profile(self):

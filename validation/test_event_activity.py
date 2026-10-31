@@ -13,6 +13,12 @@ class ActivityEvidenceTests(unittest.TestCase):
                          'What should Alex prepare for tomorrow evening?','What should Alex bring for her activities tomorrow?'):
             self.assertFalse(requested(requirement(question,['Alex'])),question)
 
+    def test_contracted_question_openings_are_not_activity_names(self):
+        for q in ("whats left before we leave?", "what's left before we leave?", "what’s left before we leave?", "Jarvis, whats left before we leave?", "wheres it?", "whens it?"):
+            self.assertFalse(requested(requirement(q,['Mia'])),q)
+        self.assertTrue(requested(requirement('What about robotics?',['Mia'])))
+        self.assertTrue(support(requirement('whats needed for swimming?',['Mia']),self.event('Swimming lesson')))
+
     def test_generic_training_does_not_prove_a_specific_sport(self):
         for activity in ('swimming','gymnastics','football','handball','dance','tennis'):
             for title in ('Training','Trening','Fitness session','Treningsøkt'):

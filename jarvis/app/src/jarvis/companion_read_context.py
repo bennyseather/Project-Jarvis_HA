@@ -37,6 +37,7 @@ Select a duration_quote from supplied latest phrases; empty can retain a prior
 requested duration for the same availability task. Do not invent travel/meal times.
 For a single previous subject, 'her' refers to that person. A named proposed
 helper plus that single subject is unambiguous; do not return ambiguous for it.
+Set event_relation=continue for a practical follow-up about the selected event (including 'whats left', 'do we have everything', where or departure time), new for a different named activity, unspecified otherwise. Do not mistake question spelling for an activity. Prior event_focus is reference identity only; facts are read again.
 The LATEST question determines purpose. 'What should she bring?' is preparation,
 not the prior overview. 'Actually I meant Emrik' is correction with Emrik only.
 'Can we fit dinner between those appointments?' is availability, between=true.
@@ -49,7 +50,7 @@ SCHEMA={'type':'object','properties':{
  'date_quote':{'type':'string'},
  'purpose':{'type':'string','enum':['overview','preparation','conflicts','availability','busyness','priorities']},
  'window':{'type':'string','enum':['all_day','morning','afternoon','evening']},
- 'between':{'type':'boolean'},'duration_quote':{'type':'string'}},
+ 'between':{'type':'boolean'},'duration_quote':{'type':'string'},'event_relation':{'type':'string','enum':['continue','new','unspecified']}},
  'required':['intent','subjects','date_quote','purpose','window','between','duration_quote'],'additionalProperties':False}
 
 def duration_quotes(text):
@@ -101,10 +102,10 @@ class ReadDialogue:
   permitted_windows=sorted({'evening' if v.casefold()=='tonight' else v.casefold() for v in windows})
   if not permitted_windows:permitted_windows=[old['window'] if old else 'all_day']
   schema['properties']['window']['enum']=permitted_windows
-  prior={k:old.get(k) for k in ('subjects','start','end','question','task','purpose','window','between','duration_minutes')} if old else None
+  prior={k:old.get(k) for k in ('subjects','start','end','question','task','purpose','window','between','duration_minutes','event_focus')} if old else None
   data=await local_json(self.owner.provider,PROMPT,{'selected_capability':tool,'selected_members':members,
    'people':{p:people.get(p,'Whole household') for p in allowed},'speaker':speaker,'prior_user_task':prior,'latest_date_phrases':dates,'latest_duration_phrases':durations,'latest':text},schema,tokens=200)
-  if not isinstance(data,dict) or set(data)!=set(SCHEMA['required']):raise ValueError('Please clarify which plans you mean.')
+  if not isinstance(data,dict) or not set(SCHEMA['required']).issubset(data) or set(data)-set(SCHEMA['properties']):raise ValueError('Please clarify which plans you mean.')
   if data['intent']=='ambiguous':raise ValueError('Which person or appointment do you mean?')
   if data['intent'] not in ('read','correction'):raise ValueError('Please clarify which plans you mean.')
   subjects=data['subjects']
@@ -130,7 +131,11 @@ class ReadDialogue:
   if between and not re.search(r'\bbetween\b',text,re.I) and not (old and old.get('between')):raise ValueError('Which appointments should I compare?')
   from jarvis.event_activity import requirement,requested
   latest_activity=requirement(text,people.values());prior_activity=requirement((old or {}).get('task',''),people.values())
-  preparation_follow=bool(old and tool=='appointments' and set(subjects)==set(prior_people) and (not requested(latest_activity) or latest_activity==prior_activity))
+  relation=data.get('event_relation','unspecified')
+  if relation not in ('continue','new','unspecified'):raise ValueError('Please clarify which plans you mean.')
+  new_kind=bool(latest_activity['groups'] and set(latest_activity['groups'])!=set(prior_activity['groups']))
+  same_event=bool(old and old.get('event_focus') and relation=='continue' and not new_kind)
+  preparation_follow=bool(old and relation!='new' and tool=='appointments' and set(subjects)==set(prior_people) and (not requested(latest_activity) or latest_activity==prior_activity or same_event))
   task=old.get('task',old['question']) if old and (date_only or duration_only or correction or preparation_follow) else text
   event_focus=old.get('event_focus',[]) if preparation_follow and a==old['start'] and b==old['end'] else []
   return {'subjects':tuple(subjects),'start':a,'end':b,'speaker':speaker,'date':reference,
@@ -139,7 +144,7 @@ class ReadDialogue:
    'window':window,'purpose':purpose,'between':between,'weather':False,
    'requested_duration':minutes,'shared_read_context':True,
    'coordination_subjects':subjects,'companion_coordination':len(subjects)>1 and purpose=='conflicts',
-   'task':task,'source_focus':event_focus}
+   'task':task,'source_focus':event_focus,'event_continuation':bool(preparation_follow and event_focus)}
  def observe(self,text,tool,result,members,state,resolved=None):
   if tool!='route':state.pop('route_pending',None)
   if tool=='route':return # A route read can supplement the existing planning task.
@@ -154,8 +159,10 @@ class ReadDialogue:
   if not resolved and actual.get('question','').casefold().strip(' .?!')!=text.casefold().strip(' .?!'):return
   subjects=list(actual['subjects'])
   if not subjects:return
+  selected=getattr(executor,'sessions',{}).get(key) or {}
+  focused=selected.get('source_focus',[]) if selected.get('subjects')==actual['subjects'] and selected.get('start')==actual['start'] and selected.get('end')==actual['end'] else actual.get('source_focus',[])
   state['read_focus']={'subjects':subjects,'start':actual['start'],'end':actual['end'],
    'question':text[:350],'task':actual.get('task') or text[:350],
    'purpose':actual.get('purpose','overview'),'window':actual.get('window','all_day'),
    'between':actual.get('between',False),'duration_minutes':actual.get('requested_duration') or duration_minutes(text),
-   'expires':self.owner.clock()+600,'event_focus':actual.get('source_focus',[])}
+   'expires':self.owner.clock()+600,'event_focus':focused}

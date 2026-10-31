@@ -451,7 +451,11 @@ class EventPreparation(HouseholdThinking):
         focus=[e['id'] for e in events if self.event_identity(e) in plan.get('source_focus',[])]
         people=[p['preferred_name'] for p in self.profile._data['members']]
         activity=event_activity.requirement(plan['question'],people)
-        if not event_activity.requested(activity) and not selection:
+        continuing=bool(plan.get('source_focus') and plan.get('shared_read_context') and (not event_activity.requested(activity) or plan.get('event_continuation')))
+        if continuing:
+            if not focus:return reply('The selected appointment changed or is no longer available. Please name the event and date again.','clarification_required')
+            events=[e for e in events if e['id'] in focus];exact_selection=True
+        if not continuing and not event_activity.requested(activity) and not selection:
             activity=plan.get('previous_activity') or event_activity.requirement(plan['previous_question'] or '',people)
         plan['activity_request']=activity
         if event_activity.requested(activity) and not exact_selection:
@@ -470,8 +474,9 @@ class EventPreparation(HouseholdThinking):
             events=supported
             focus=[identifier for identifier in focus if any(e['id']==identifier for e in events)]
         from jarvis.report_presentation import compose as compose_reports
-        if any(e.get('planning_context') for e in events):
-            report_answer=await compose_reports(self.provider,events,plan['question'],plan.get('previous_question'),evidence['people'],valid,mode,focus,broad=not selection and not event_activity.requested(activity) and not plan.get('short_follow'))
+        status_followup=bool(re.search(r'\b(?:left|remaining|packed|ready)\b|have (?:we|i) (?:got )?everything|(?:we|i) have (?:got )?everything',text,re.I))
+        if any(e.get('planning_context') for e in events) or status_followup:
+            report_answer=await compose_reports(self.provider,events,plan['question'],plan.get('previous_question'),evidence['people'],valid,mode,focus,broad=not selection and not event_activity.requested(activity) and not plan.get('short_follow'),allow_unreported=status_followup)
             if report_answer:
                 if report_answer.get('changed') or not valid():return reply('The appointment reports changed while I was checking. Please ask again.','unavailable')
                 recheck=await self.reader.handle('reported planning recheck',None,resolved=Brief(plan['subjects'][0] if len(plan['subjects'])==1 else 'all',plan['start'],plan['end']),structured_only=True,targets=None if plan['subjects']==('all',) else plan['subjects'],window=plan['window'],event_context=True)

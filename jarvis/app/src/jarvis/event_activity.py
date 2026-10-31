@@ -57,7 +57,11 @@ def normalise(text):return unicodedata.normalize('NFKC',text).casefold()
 
 def requirement(question,people):
     """Only actual question words establish a requested kind, not model claims."""
-    value=DATE_PATTERN.sub(' ',normalise(question))
+    value=normalise(question)
+    # Question contractions without punctuation are not activity names. Limit
+    # this surface repair to the question's opening, never source titles.
+    value=re.sub(r"^(\s*(?:(?:please|jarvis)[, ]+)*)(what|where|when|how)(?:['’]s|s)\b",lambda m:m[1]+m[2]+' is',value)
+    value=DATE_PATTERN.sub(' ',value)
     for name in people:value=re.sub(r'(?<!\w)'+re.escape(normalise(name))+r'(?!\w)',' ',value)
     groups=[]
     # Strip matched aliases before retrieving unknown literal labels. Specific
