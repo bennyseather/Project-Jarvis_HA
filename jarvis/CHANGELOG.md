@@ -1,3 +1,8 @@
+## 0.45.115
+
+- Route exact, quoted activity-profile changes to their existing typed parser and explicit review instead of mistaking a new activity title for an appointment question.
+- Keep normal permissions, confirmation and current-source protections. Voice, calendars and reminder delivery are unchanged.
+
 ## 0.45.114
 
 - Retain the current appointment through short preparation and departure follow-ups, including unpunctuated questions such as “whats left”.

@@ -1,3 +1,10 @@
+## Explicit activity corrections (0.45.115)
+
+Quoted activity commands use the existing structured household update and explicit
+confirmation even when the activity has no profile yet. Usual details remain
+scoped by person, source and title. An event with another title needs a confirmed
+association; equipment requirements do not establish that a bag is packed.
+
 ## Short preparation follow-ups (0.45.114)
 
 After selecting an appointment, questions such as “whats left before we leave?”

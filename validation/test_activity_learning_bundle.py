@@ -49,6 +49,17 @@ class LearningTests(unittest.IsolatedAsyncioTestCase):
   with calendar_scope({'actor':'fixture','read':True,'write':True}):
    state=self.a.agent.state('subject','fixture');state['history']=[{'role':'user','text':'What does Mia have tomorrow?'},{'role':'assistant','text':'Mia has rehearsal.'}]
    with self.assertRaises(ValueError):await self.a.agent.plan('And her birthday?','subject','fixture',state)
+ async def test_explicit_new_activity_command_keeps_typed_review_route(self):
+  captured=[]
+  def decide(**kw):
+   captured.append(kw);return {'status':'success','message':json.dumps({'tool':'profile_editor','members':['mia']})}
+  self.a.agent.provider=SimpleNamespace(reason_local=decide)
+  for tail in ('means "band rehearsal"','usually needs "instrument, sheet music"','usually takes place at "Elm School"'):
+   text='Remember Mia'+chr(39)+'s activity "New rehearsal" in the family calendar '+tail
+   with calendar_scope({'actor':'fixture','read':True,'write':True}):
+    state=self.a.agent.state('typed','fixture');result=await self.a.agent.plan(text,'typed','fixture',state)
+   self.assertEqual(result['tool'],'household_update');self.assertEqual(captured[-1]['response_schema']['properties']['tool']['enum'],['profile_editor'])
+  self.assertEqual(self.p._data.get('activity_profiles',[]),[])
  def test_tool_prompt_fits_actual_adapter_system_budget(self):
   from jarvis.companion_agent import PROMPT
   from jarvis.providers.local_first_provider import LocalReasoningPolicy

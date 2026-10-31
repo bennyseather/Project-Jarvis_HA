@@ -195,6 +195,12 @@ class QwenConversation:
   date_only=bool(DATE_PATTERN.search(text.casefold()) and not re.sub(r'\b(?:and|what about|how about|on)\b','',DATE_PATTERN.sub(' ',text.casefold())).strip(' .?!'))
   if focus and date_only and state['last_tool'] in ('plans','appointments','departure'):schema['properties']['tool']['enum']=[domain for domain,target in DOMAINS.items() if target==state['last_tool']]
   if focus and '?' in text and re.search(r'\b(?:left|remaining|packed|ready)\b',text,re.I) and not re.search(r'\b(?:birthday|job|age|school finish)\b',text,re.I):schema['properties']['tool']['enum']=['activity_preparation']
+  # Exact, quoted activity-profile commands already have a validated typed
+  # parser and explicit review. Do not reinterpret their title as a read request
+  # or make a new calendar activity depend on an existing profile alias.
+  from jarvis.household_activities import is_request as activity_command
+  if activity_command(text) and not re.match(r'^(?:show|list)\b',text.strip(),re.I):
+   schema['properties']['tool']['enum']=['profile_editor']
   data={'reference_date':state['binding'][-2],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':state['history'][-6:],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
    'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'activity_focus':{k:v for k,v in state.get('activity_focus',{}).items() if k in ('person','title','source')},'activity_knowledge_pending':bool(state.get('activity_learning_draft')),'activity_review_pending':bool(pending_edit and pending_edit.get('activity')),'read_focus':self.reads.prior(state),'meal_route_pending':[{'activity':v['event']} for v in meal['missing']] if meal else [],'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}
