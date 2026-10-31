@@ -1,3 +1,9 @@
+## 0.45.116
+
+- Reject unrelated geocoder results rather than routing to the first returned place.
+- Resolve an English school label through that member's confirmed Norwegian school name when the distinctive name matches.
+- Keep explicit venue precedence and do not guess a different person's school, address or travel time.
+
 ## 0.45.115
 
 - Route exact, quoted activity-profile changes to their existing typed parser and explicit review instead of mistaking a new activity title for an appointment question.

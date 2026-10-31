@@ -7,7 +7,7 @@ import asyncio,re,math,hashlib
 from datetime import datetime,timedelta
 from zoneinfo import ZoneInfo
 from jarvis.companion_memory import local_json
-from jarvis.companion_transport import EnturTransport,coordinates
+from jarvis.companion_transport import EnturTransport,coordinates,place_tokens
 from jarvis.companion_store import secret,instruction_attempt
 from jarvis.calendar_context import current_calendar_access
 ZONE=ZoneInfo('Europe/Oslo')
@@ -111,7 +111,14 @@ class CompanionRouting:
   home_journey=(record or {}).get('home_journey') if compatible else None
   if not generic:usual=''
   if not (current or usual or home_journey):return None
-  return {'event':f['text'],'current_venue':current,'usual_venue':usual,'planning_place_quote':planning_place(current,usual),'usual_home_journey':home_journey,'reported_home_journey':({'minutes':dated['journey_minutes']} if dated and dated['journey_minutes'] else None),'reported_venue':bool(dated and dated['reported_venue']),'basis':'Current calendar location; usual venue is planning context only. A town estimate is not the exact venue.'}
+  query=planning_place(current,usual)
+  # A saved household school name resolves a language alias, never an unrelated
+  # current venue or another member's school. Source/display provenance stays.
+  if len(f.get('owners',[]))==1:
+   member=next((p for p in self.owner.profile._data['members'] if p['id']==f['owners'][0]),{})
+   school=member.get('schedule',{}).get('school',{}).get('name')
+   if isinstance(school,str) and place_tokens(query)==place_tokens(school):query=school
+  return {'event':f['text'],'current_venue':current,'usual_venue':usual,'planning_place_quote':query,'usual_home_journey':home_journey,'reported_home_journey':({'minutes':dated['journey_minutes']} if dated and dated['journey_minutes'] else None),'reported_venue':bool(dated and dated['reported_venue']),'basis':'Current calendar location; usual venue is planning context only. A town estimate is not the exact venue.'}
  async def context_venues(self,state):
   """Retrieve current dated endpoints; remembered prose is never a route source."""
   from jarvis.calendar_insights import insights

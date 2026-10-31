@@ -1,6 +1,6 @@
 """Bounded official Entur routing; no guessed timetables or live-traffic claims."""
 from datetime import datetime
-import json,math,time
+import json,math,time,re,unicodedata
 from urllib.parse import urlencode
 from urllib.request import Request,urlopen,build_opener,HTTPRedirectHandler
 
@@ -31,6 +31,12 @@ def distance_km(a,b):
     dp=math.radians(b['latitude']-a['latitude']);dl=math.radians(b['longitude']-a['longitude'])
     return 6371*2*math.asin(min(1,math.sqrt(math.sin(dp/2)**2+math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2)))
 
+def place_tokens(name):
+    """Compare named places, preserving distinctive words and house numbers."""
+    aliases={'skule':'school','skole':'school','lufthavn':'airport','lufthamn':'airport'}
+    value=unicodedata.normalize('NFKC',str(name)).casefold()
+    return {aliases.get(v,v) for v in re.findall(r'[^\W_]+',value) if v not in {'the','in','at','of'}}
+
 class EnturTransport:
     def __init__(self,*,http=None,clock=time.monotonic):
         self.http=http or self._http;self.clock=clock;self.airports={}
@@ -45,9 +51,13 @@ class EnturTransport:
             return json.loads(raw)
     def place(self,name):
         if not isinstance(name,str) or not 3<=len(name)<=160 or '://' in name:raise ValueError('Give a specific starting place')
+        required=place_tokens(name)
+        if not required-{'school','airport','station','building','hall','venue','centre','center'}:return None
         data=self.http(GEOCODER+'?'+urlencode({'text':name,'size':3,'lang':'en'}));matches=[]
         for feature in data.get('features',[]):
             try:
+                props=feature.get('properties',{})
+                if not required.issubset(place_tokens(str(props.get('name') or '')+' '+str(props.get('label') or ''))):continue
                 xy=feature['geometry']['coordinates'];point=coordinates({'latitude':xy[1],'longitude':xy[0]})
                 if not 57<=point['latitude']<=72 or not 3<=point['longitude']<=33:continue
                 matches.append({'label':str(feature['properties'].get('label') or name)[:160],'coordinates':point,'source':'Entur Geocoder'})

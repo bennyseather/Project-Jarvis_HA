@@ -1,3 +1,10 @@
+## Place identity (0.45.116)
+
+Routing checks that returned place names match the requested distinctive words
+and address numbers. A household member's saved school name can resolve the same
+school's English/Norwegian label. Unrelated results remain unresolved; route
+estimates cannot establish attendance or live traffic conditions.
+
 ## Explicit activity corrections (0.45.115)
 
 Quoted activity commands use the existing structured household update and explicit
