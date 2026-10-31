@@ -140,7 +140,9 @@ class JarvisConversationEntity(conversation.ConversationEntity):
 
         answer = str(payload.get("message", "Jarvis is unavailable."))
         if voice_mode:
-            answer = sanitize_spoken_reply(answer)
+            answer = sanitize_spoken_reply(
+                answer, preserve_line_breaks=answer.startswith("Premier League — full table\n")
+            )
         if payload.get("status") != "in_progress":
             chat_log.async_add_assistant_content_without_tools(
                 AssistantContent(agent_id=user_input.agent_id, content=answer)

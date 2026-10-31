@@ -68,7 +68,7 @@ def format_spoken_response(message: str, maximum_characters: int = 700) -> str:
     return shortened + "."
 
 
-def sanitize_spoken_reply(message: str) -> str:
+def sanitize_spoken_reply(message: str, *, preserve_line_breaks: bool = False) -> str:
     """Remove citation syntax and addresses from every spoken response path."""
     text = re.sub(
         r"(?:^|\n+)\s*(?:#{1,6}\s*)?"
@@ -89,4 +89,8 @@ def sanitize_spoken_reply(message: str) -> str:
     text = re.sub(r"<https?://[^>]+>", "", text)
     text = re.sub(r"https?://[^\s)>]*[^\s)>.,;:!?]", "", text)
     text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    if preserve_line_breaks:
+        # Preserve a display list without weakening the URL/citation filtering.
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        return "\n".join(" ".join(line.split()) for line in text.split("\n")).strip()
     return " ".join(text.split()).strip()

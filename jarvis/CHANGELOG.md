@@ -189,6 +189,10 @@
 
 # Changelog
 
+## 0.45.121
+
+- Preserve full-table line breaks in the HA conversation adapter, which also handles phone text requests as voice-mode requests. Keep citation/URL filtering and the existing spoken formatter.
+
 ## 0.45.120
 
 - Display the requested full Premier League table with one club per line and a star beside MANCHESTER UNITED. Preserve line breaks through Assist, including native Android plain-text chat.

@@ -1058,3 +1058,6 @@ The same style applies to silent daily08:00 Norway written briefings. The first 
 
 
 0.45.120 formats an explicitly requested full league table as plain text: a heading, one ranked club per line, and a star/uppercase Manchester United row. This works without Markdown support in native Android Assist. The concise default briefing, source values, notification schedule and saved voice stay unchanged.
+
+
+0.45.121 includes a Core conversation-adapter update: the validated full-table heading opts into preserving display line breaks during spoken-reply sanitization. Source/citation removal still applies; other replies and the external spoken formatter keep their existing behavior. A Core restart loads the updated adapter. Saved voice and configuration settings are preserved.
