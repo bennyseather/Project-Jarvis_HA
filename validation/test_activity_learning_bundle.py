@@ -49,6 +49,14 @@ class LearningTests(unittest.IsolatedAsyncioTestCase):
   with calendar_scope({'actor':'fixture','read':True,'write':True}):
    state=self.a.agent.state('subject','fixture');state['history']=[{'role':'user','text':'What does Mia have tomorrow?'},{'role':'assistant','text':'Mia has rehearsal.'}]
    with self.assertRaises(ValueError):await self.a.agent.plan('And her birthday?','subject','fixture',state)
+ async def test_full_league_table_followup_stays_football(self):
+  captured=[]
+  def decide(**kw):
+   captured.append(kw);return {'status':'success','message':json.dumps({'tool':'football_updates','members':[]})}
+  self.a.agent.provider=SimpleNamespace(reason_local=decide)
+  with calendar_scope({'actor':'fixture','read':True,'write':True}):
+   state=self.a.agent.state('football','fixture');state['last_tool']='football';result=await self.a.agent.plan('Show me the full league table','football','fixture',state)
+  self.assertEqual(result['tool'],'football');self.assertEqual(captured[-1]['response_schema']['properties']['tool']['enum'],['football_updates'])
  async def test_explicit_new_activity_command_keeps_typed_review_route(self):
   captured=[]
   def decide(**kw):

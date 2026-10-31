@@ -1052,3 +1052,6 @@ Manchester United men’s first-team questions use fixed ESPN public fixtures/re
 Local Node Qwen now writes the default United briefing as one short paragraph: latest final result, current league position, next future fixture and one BBC headline angle. Source-bound required phrases and number checks retain result orientation, home/away, rank, points, date, kick-off timezone and competition. A separate Qwen review checks factual support and headline attribution/speculation. Rejected or late prose falls back to a concise verified summary. These checks reduce errors but are not a proof of arbitrary model prose. Full tables and additional fixtures/results require an explicit full/all/more/list request.
 
 The same style applies to silent daily08:00 Norway written briefings. The first run after upgrade rewrites today’s existing daily notification once, with the same notification ID, while preserving final-score delivery receipts and deduplication. No voice, reminder testing, phone push or calendar change is enabled.
+
+
+0.45.119 also keeps explicit football follow-ups in their football conversation. A full league table request returns the table rather than entering an appointment preparation review. Saved voice, daily time, final-score receipts and calendars are preserved.

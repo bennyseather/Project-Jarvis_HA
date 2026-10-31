@@ -197,6 +197,12 @@ class QwenConversation:
   from jarvis.household_activities import is_request as activity_command
   if activity_command(text) and not re.match(r'^(?:show|list)\b',text.strip(),re.I):
    schema['properties']['tool']['enum']=['profile_editor']
+  # Keep explicit football reads and their short follow-ups in the public
+  # sports capability, without turning a favourite-club statement into a read.
+  sports_words=bool(re.search(r'\b(?:league table|standings|fixtures|results|next match|latest news|united update|united news)\b',text,re.I))
+  sports_reference=bool(re.search(r'\b(?:manchester united|man[ .-]*utd)\b',text,re.I) or state.get('last_tool')=='football')
+  sports_read=not re.search(r'\b(?:remember|save|forget|prefer|support|supports|add|create|book|cancel|reschedule|calendar|appointment)\b',text,re.I)
+  if sports_words and sports_reference and sports_read:schema['properties']['tool']['enum']=['football_updates']
   data={'reference_date':state['binding'][-2],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':state['history'][-6:],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
    'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'activity_focus':{k:v for k,v in state.get('activity_focus',{}).items() if k in ('person','title','source')},'activity_knowledge_pending':bool(state.get('activity_learning_draft')),'activity_review_pending':bool(pending_edit and pending_edit.get('activity')),'read_focus':self.reads.prior(state),'meal_route_pending':[{'activity':v['event']} for v in meal['missing']] if meal else [],'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}

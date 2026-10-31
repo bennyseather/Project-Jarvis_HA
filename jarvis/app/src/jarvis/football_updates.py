@@ -206,10 +206,12 @@ class FootballUpdates:
  async def read(self,text,*,state=None):
   from jarvis.companion_memory import local_json
   schema={'type':'object','properties':{'topic':{'type':'string','enum':['brief','fixtures','results','standings','news']},'expanded':{'type':'boolean'}},'required':['topic','expanded'],'additionalProperties':False}
+  full_table=bool(re.search(r'\b(?:full|all|entire|complete|whole)\b',text,re.I) and re.search(r'\b(?:table|standings)\b',text,re.I))
+  if full_table:schema['properties']['topic']['enum']=['standings'];schema['properties']['expanded']['const']=True
   data=await local_json(self.owner.provider,'Select the topic of this Manchester United men first-team question: fixtures for upcoming matches,results for scores,standings for league table,news for news,brief for overall update. A short follow-up such as tell me more keeps previous_topic. expanded=true ONLY if the latest explicitly asks for full/all/more details, a list or several fixtures/results. Ordinary next-match or how-are-they-doing questions are concise. JSON only; no facts or actions.',{'latest':bounded(text,700),'previous_topic':(state or {}).get('football_topic')},schema,tokens=60)
   if set(data)!=set(schema['required']) or data['topic'] not in schema['properties']['topic']['enum'] or type(data['expanded']) is not bool:raise ValueError('Unknown football topic')
   # The model cannot silently request a full table for an ordinary update.
-  expanded=data['expanded'] and bool(re.search(r'\b(?:full|all|more|list|several|detailed)\b',text,re.I))
+  expanded=full_table or data['expanded'] and bool(re.search(r'\b(?:full|all|more|list|several|detailed|entire|complete|whole)\b',text,re.I))
   await self.refresh();b=await self.present(data['topic'],expanded=expanded)
   if state is not None:state['football_topic']=data['topic']
   return {'provider':'companion','status':'success' if b['sources'] else 'unavailable','message':' '.join(b['lines']),'sources':b['sources'],'cacheable':False,'football_checked_at':b['checked_at'],'language_model_composition':b.get('language_model_composition',False),'football_fallback_reason':b.get('fallback_reason'),'football_expanded':b['expanded']}

@@ -189,6 +189,11 @@
 
 # Changelog
 
+## 0.45.119
+
+- Keep full-league-table and other clear football follow-ups in the football capability; do not route them to appointment preparation reports.
+- Honour explicit full-table requests while retaining the concise Qwen-written default and preserved delivery receipts.
+
 ## 0.45.118
 
 - Use local Node Qwen to compose short, reviewed United briefings from the latest result, league position, next fixture and one attributed news angle.
