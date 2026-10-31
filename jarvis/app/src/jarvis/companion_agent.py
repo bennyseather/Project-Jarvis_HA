@@ -229,6 +229,9 @@ class QwenConversation:
   sports_reference=bool(re.search(r'\b(?:manchester united|man[ .-]*utd)\b',text,re.I) or sports_words and re.search(r'\bunited\b',text,re.I) and not re.search(r'\b(?:airlines?|flights?|booking)\b',text,re.I) or state.get('last_tool')=='football' or state.get('football_focus_until',0)>self.clock())
   sports_read=not re.search(r'\b(?:remember|save|forget|prefer|support|supports|add|create|book|cancel|reschedule|calendar|appointment)\b',text,re.I)
   if sports_words and sports_reference and sports_read:schema['properties']['tool']['enum']=['football_updates']
+  named_person=any(re.search(r'\b'+re.escape(name)+r'\b',text,re.I) for name in people.values())
+  if read_question and re.search(r'\b(?:prefer\w*|favourit\w*|favorit\w*|likes?|dislikes?)\b',text,re.I) and (named_person or re.search(r'\b(?:i|my|her|his|their)\b',text,re.I)):
+   schema['properties']['tool']['enum']=['recall_detail']
   # Canonical controls have existing exact executors. They must not become
   # an unsourced general claim that a setting or identity was changed.
   command=' '.join(text.casefold().strip(' .?!').split())

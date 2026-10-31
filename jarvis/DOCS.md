@@ -1,3 +1,8 @@
+## Preference follow-ups (0.45.125)
+
+Questions about a person’s saved preferences use the memory source, including
+a first-person question after an introduction and a job or profile discussion.
+
 ## Explicit topic switches (0.45.124)
 
 A United update can start a football discussion directly after household planning.

@@ -1,3 +1,7 @@
+## 0.45.125
+
+- Answer personal preference questions from saved memories after profile or planning topics, rather than treating them as unknown profile fields.
+
 ## 0.45.124
 
 - Keep an explicit United update in the football capability after a household topic, without confusing airline requests.

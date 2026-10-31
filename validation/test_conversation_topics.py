@@ -196,3 +196,10 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
         with self.scope(),patch.object(prep,'scope_valid',return_value=True),patch.object(prep,'request',side_effect=ValueError('Whose event should I check? Please name a household member.')),patch.object(prep.reader,'handle',new=AsyncMock(return_value={'status':'unavailable'})) as read:
             result=await prep.handle('Is her instrument packed?','chat',resolved=resolved)
         read.assert_awaited_once();self.assertEqual(result['status'],'unavailable');self.assertNotIn('Whose',result['message'])
+
+    async def test_personal_preference_query_uses_memory_after_a_profile_topic(self):
+        with self.scope():
+            state=self.a.agent.state('chat','phone');state['last_tool']='profile';state['introduced']='benny'
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'recall_detail','members':['benny']})) as model:
+                result=await self.a.agent.plan('What do I prefer when listening to music?','chat','phone',state)
+            self.assertEqual((result['tool'],result['operation']),('memory','query'));self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['recall_detail'])
