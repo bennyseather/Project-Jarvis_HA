@@ -1061,3 +1061,6 @@ The same style applies to silent daily08:00 Norway written briefings. The first 
 
 
 0.45.121 includes a Core conversation-adapter update: the validated full-table heading opts into preserving display line breaks during spoken-reply sanitization. Source/citation removal still applies; other replies and the external spoken formatter keep their existing behavior. A Core restart loads the updated adapter. Saved voice and configuration settings are preserved.
+
+
+0.45.122 repairs short football references such as “show me the full table”, “give me the full table”, and polite table requests. Their typed reference is kept for ten minutes through an unsuccessful clarification and cleared on a successful different topic. Appointment-report writes are unavailable without a selected source event. Different named tables do not trigger the short-reference shortcut. The Core line-break adapter stays at0.45.121; no Core restart is needed for this backend repair.

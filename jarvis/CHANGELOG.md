@@ -189,6 +189,12 @@
 
 # Changelog
 
+## 0.45.122
+
+- Route short table references, including show/give/display variants, to the current football topic and honour their full-table intent.
+- Keep a scoped recent football reference through a mistaken clarification; expire it on timeout or a successful topic switch.
+- Hide preparation-report writes when no appointment has been selected, preventing unrelated reads from asking which appointment to update.
+
 ## 0.45.121
 
 - Preserve full-table line breaks in the HA conversation adapter, which also handles phone text requests as voice-mode requests. Keep citation/URL filtering and the existing spoken formatter.

@@ -55,8 +55,35 @@ class LearningTests(unittest.IsolatedAsyncioTestCase):
    captured.append(kw);return {'status':'success','message':json.dumps({'tool':'football_updates','members':[]})}
   self.a.agent.provider=SimpleNamespace(reason_local=decide)
   with calendar_scope({'actor':'fixture','read':True,'write':True}):
-   state=self.a.agent.state('football','fixture');state['last_tool']='football';result=await self.a.agent.plan('Show me the full league table','football','fixture',state)
-  self.assertEqual(result['tool'],'football');self.assertEqual(captured[-1]['response_schema']['properties']['tool']['enum'],['football_updates'])
+   state=self.a.agent.state('football','fixture');state['last_tool']='football'
+   for text in ('Show me the full league table','show me the full table','give me the full table','can you show me the table please','the whole table','display the table'):
+    result=await self.a.agent.plan(text,'football','fixture',state)
+    self.assertEqual(result['tool'],'football');self.assertEqual(captured[-1]['response_schema']['properties']['tool']['enum'],['football_updates'])
+ async def test_unscoped_report_is_not_an_available_read_capability(self):
+  captured=[]
+  def decide(**kw):
+   captured.append(kw);return {'status':'success','message':json.dumps({'tool':'planning_report','members':[]})}
+  self.a.agent.provider=SimpleNamespace(reason_local=decide)
+  with calendar_scope({'actor':'fixture','read':True,'write':True}):
+   state=self.a.agent.state('unscoped','fixture')
+   with self.assertRaises(ValueError):await self.a.agent.plan('show me the full table','unscoped','fixture',state)
+  self.assertNotIn('planning_report',captured[-1]['response_schema']['properties']['tool']['enum']);self.assertFalse(self.store.memories())
+ async def test_football_focus_survives_wrong_clarification_but_expires(self):
+  captured=[]
+  def decide(**kw):
+   captured.append(kw);return {'status':'success','message':json.dumps({'tool':'football_updates','members':[]})}
+  self.a.agent.provider=SimpleNamespace(reason_local=decide)
+  with calendar_scope({'actor':'fixture','read':True,'write':True}):
+   state=self.a.agent.state('recover','fixture');state['last_tool']='planning_report';state['football_focus_until']=self.clock[0]+600
+   result=await self.a.agent.plan('show me the full table','recover','fixture',state);self.assertEqual(result['tool'],'football');self.assertEqual(captured[-1]['response_schema']['properties']['tool']['enum'],['football_updates'])
+   self.clock[0]+=601;await self.a.agent.plan('show me the full table','recover','fixture',state);self.assertGreater(len(captured[-1]['response_schema']['properties']['tool']['enum']),1)
+ async def test_football_focus_does_not_capture_a_different_named_table(self):
+  self.a.agent.provider=SimpleNamespace()
+  with calendar_scope({'actor':'fixture','read':True,'write':True}):
+   state=self.a.agent.state('other-table','fixture');state['last_tool']='football'
+   with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=ValueError())) as model:
+    with self.assertRaises(ValueError):await self.a.agent.plan('show me the dining table','other-table','fixture',state)
+   self.assertGreater(len(model.call_args.args[3]['properties']['tool']['enum']),1)
  async def test_explicit_new_activity_command_keeps_typed_review_route(self):
   captured=[]
   def decide(**kw):

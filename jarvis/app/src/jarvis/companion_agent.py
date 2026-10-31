@@ -199,8 +199,14 @@ class QwenConversation:
    schema['properties']['tool']['enum']=['profile_editor']
   # Keep explicit football reads and their short follow-ups in the public
   # sports capability, without turning a favourite-club statement into a read.
-  sports_words=bool(re.search(r'\b(?:league table|standings|fixtures|results|next match|latest news|united update|united news)\b',text,re.I))
-  sports_reference=bool(re.search(r'\b(?:manchester united|man[ .-]*utd)\b',text,re.I) or state.get('last_tool')=='football')
+  # Report writes require a selected source event. An unrelated read must not
+  # enter a preparation-write capability simply because the model chose it.
+  if not focus or not focus.get('event_focus'):
+   schema['properties']['tool']['enum']=[v for v in schema['properties']['tool']['enum'] if v!='planning_report']
+  from jarvis.football_updates import table_request
+  table_followup=table_request(text)
+  sports_words=table_followup or bool(re.search(r'\b(?:league table|standings|fixtures|results|next match|latest news|united update|united news)\b',text,re.I))
+  sports_reference=bool(re.search(r'\b(?:manchester united|man[ .-]*utd)\b',text,re.I) or state.get('last_tool')=='football' or state.get('football_focus_until',0)>self.clock())
   sports_read=not re.search(r'\b(?:remember|save|forget|prefer|support|supports|add|create|book|cancel|reschedule|calendar|appointment)\b',text,re.I)
   if sports_words and sports_reference and sports_read:schema['properties']['tool']['enum']=['football_updates']
   data={'reference_date':state['binding'][-2],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
@@ -277,6 +283,7 @@ class QwenConversation:
       except Exception as error:result=reply('I could not complete that tool request reliably. Nothing is confirmed as changed.','unavailable')
       if tool=='departure' and (self.sessions.get(str(key)) is not state or state['binding']!=self.binding(key,source) or memory_generation!=self.owner.store.generation):
        result=reply('The planning context changed while I was checking the journey. Please ask again.','unavailable')
+      if tool!='football' and isinstance(result,dict) and result.get('status')=='success':state.pop('football_focus_until',None)
       if isinstance(result,dict):self.reads.observe(text,tool,result,plan['members'],state,state.pop('_resolved_read',None))
       if tool=='plans' and isinstance(result,dict):
        from jarvis.companion_routing import CompanionRouting

@@ -21,6 +21,10 @@ PUBLIC={'fixtures':'https://www.espn.com/soccer/team/fixtures/_/id/360/mancheste
         'standings':'https://www.espn.com/soccer/table/_/league/eng.1',
         'news':'https://www.bbc.com/sport/football/teams/manchester-united'}
 FINAL={'STATUS_FULL_TIME','STATUS_FINAL','STATUS_FINAL_AET','STATUS_FINAL_PEN','STATUS_FULL_TIME_AET','STATUS_FULL_TIME_PEN'}
+def table_request(text):
+ """A short table-read reference, excluding differently named tables."""
+ return bool(re.fullmatch(r'(?:(?:can|could|would) you )?(?:please |and |then )?(?:(?:show|give|display|list)(?: me)? |let me see )?(?:the )?(?:(?:full|whole|entire|complete|league|premier league) )?table(?: please)?',' '.join(text.casefold().strip(' .?!').split())))
+
 def moment(value):
  d=datetime.fromisoformat(value.replace('Z','+00:00'))
  if d.tzinfo is None:raise ValueError('Source time has no timezone')
@@ -209,14 +213,14 @@ class FootballUpdates:
  async def read(self,text,*,state=None):
   from jarvis.companion_memory import local_json
   schema={'type':'object','properties':{'topic':{'type':'string','enum':['brief','fixtures','results','standings','news']},'expanded':{'type':'boolean'}},'required':['topic','expanded'],'additionalProperties':False}
-  full_table=bool(re.search(r'\b(?:full|all|entire|complete|whole)\b',text,re.I) and re.search(r'\b(?:table|standings)\b',text,re.I))
+  full_table=table_request(text) or bool(re.search(r'\b(?:full|all|entire|complete|whole)\b',text,re.I) and re.search(r'\b(?:table|standings)\b',text,re.I))
   if full_table:schema['properties']['topic']['enum']=['standings'];schema['properties']['expanded']['const']=True
   data=await local_json(self.owner.provider,'Select the topic of this Manchester United men first-team question: fixtures for upcoming matches,results for scores,standings for league table,news for news,brief for overall update. A short follow-up such as tell me more keeps previous_topic. expanded=true ONLY if the latest explicitly asks for full/all/more details, a list or several fixtures/results. Ordinary next-match or how-are-they-doing questions are concise. JSON only; no facts or actions.',{'latest':bounded(text,700),'previous_topic':(state or {}).get('football_topic')},schema,tokens=60)
   if set(data)!=set(schema['required']) or data['topic'] not in schema['properties']['topic']['enum'] or type(data['expanded']) is not bool:raise ValueError('Unknown football topic')
   # The model cannot silently request a full table for an ordinary update.
   expanded=full_table or data['expanded'] and bool(re.search(r'\b(?:full|all|more|list|several|detailed|entire|complete|whole)\b',text,re.I))
   await self.refresh();b=await self.present(data['topic'],expanded=expanded)
-  if state is not None:state['football_topic']=data['topic']
+  if state is not None:state['football_topic']=data['topic'];state['football_focus_until']=self.owner.clock()+600
   return {'provider':'companion','status':'success' if b['sources'] else 'unavailable','message':('\n'.join(b['lines']) if b['expanded'] and data['topic']=='standings' else ' '.join(b['lines'])),'sources':b['sources'],'cacheable':False,'football_checked_at':b['checked_at'],'language_model_composition':b.get('language_model_composition',False),'football_fallback_reason':b.get('fallback_reason'),'football_expanded':b['expanded']}
  def project(self):
   s=self.state();return {'enabled':self.enabled(),'team':'Manchester United men’s first team','daily_time':'08:00 Europe/Oslo','delivery':'Written HA notifications and Assistant page; no spoken alerts','final_scores':bool(self.config.get('final_scores')),'polling':'About two minutes on known match days; fifteen minutes otherwise, while services and sources are available.','issues':list(self.errors),'briefs':s['briefs'][:10]}
