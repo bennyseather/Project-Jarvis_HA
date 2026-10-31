@@ -133,7 +133,7 @@ class ReadDialogue:
   latest_activity=requirement(text,people.values());prior_activity=requirement((old or {}).get('task',''),people.values())
   relation=data.get('event_relation','unspecified')
   if relation not in ('continue','new','unspecified'):raise ValueError('Please clarify which plans you mean.')
-  new_kind=bool(latest_activity['groups'] and set(latest_activity['groups'])!=set(prior_activity['groups']))
+  new_kind=bool(latest_activity['groups'] and not set(latest_activity['groups']).issubset(prior_activity['groups']))
   same_event=bool(old and old.get('event_focus') and relation=='continue' and not new_kind)
   preparation_follow=bool(old and relation!='new' and tool=='appointments' and set(subjects)==set(prior_people) and (not requested(latest_activity) or latest_activity==prior_activity or same_event))
   task=old.get('task',old['question']) if old and (date_only or duration_only or correction or preparation_follow) else text

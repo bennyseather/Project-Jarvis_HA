@@ -1,3 +1,11 @@
+## 0.45.123
+
+- Return to an earlier household, travel, memory, football or general topic using local Qwen and bounded conversation references.
+- Keep new questions separate from old preparation context; use confirmed sources for personal facts and booked travel.
+- Preserve a selected rehearsal when the follow-up uses a broader label, and recheck changed or removed source events.
+- Keep questions out of preparation-report writes. Reset conversation references when identity, source, day, profile, access or exposed entities change.
+- Preserve saved voices and household data. Audio and reminder acceptance remain deferred.
+
 ## 0.45.116
 
 - Reject unrelated geocoder results rather than routing to the first returned place.

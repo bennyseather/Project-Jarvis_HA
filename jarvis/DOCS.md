@@ -1,3 +1,15 @@
+## Conversation topic returns (0.45.123)
+
+You can interrupt a planning discussion with football or general chat, then say
+“Back to Mia's rehearsal, what should she bring?” Jarvis uses local Node Qwen to
+select a recent user-task reference and rereads the relevant source. Up to eight
+references remain for ten minutes within the same scoped conversation. If the
+reference is missing or ambiguous, Jarvis asks which task you mean.
+
+These references do not cache answers, restore pending confirmations or identify
+the speaker. Confirmed knowledge and saved preferences retain their existing
+storage. Normal source checks and reviewed changes still apply.
+
 ## Place identity (0.45.116)
 
 Routing checks that returned place names match the requested distinctive words
