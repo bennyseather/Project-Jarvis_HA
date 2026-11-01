@@ -47,7 +47,8 @@ Do not copy question verbs, venue requests, organiser, equipment, clothing or
 readiness words as an activity name. Do not drop a newly named activity to keep
 an old one. 'Anything she needs to take along?' has activity_quote="".
 For preparation_goal: none for a non-preparation overview/timing question;
-kit asks what to bring/pack, clothing asks what to wear, venue asks where, instructions
+kit asks what to bring/pack, clothing asks what to wear, timing asks a selected
+appointment's start/finish time, venue asks where, instructions
 asks organiser notes, remaining asks what still needs doing, status asks whether
 things are ready/all set, prepare is other preparation. These are READ questions,
 never reports that anything is ready. event_scope=focused for a singular 'it/that'
@@ -65,7 +66,7 @@ SCHEMA={'type':'object','properties':{
  'window':{'type':'string','enum':['all_day','morning','afternoon','evening']},
  'between':{'type':'boolean'},'duration_quote':{'type':'string'},'event_relation':{'type':'string','enum':['continue','new','unspecified']},
  'activity_quote':{'type':'string','maxLength':100},
- 'preparation_goal':{'type':'string','enum':['none','prepare','kit','clothing','venue','instructions','remaining','status']},
+ 'preparation_goal':{'type':'string','enum':['none','prepare','kit','clothing','timing','venue','instructions','remaining','status']},
  'event_scope':{'type':'string','enum':['focused','all']}},
  'required':['intent','subjects','date_quote','purpose','window','between','duration_quote'],'additionalProperties':False}
 
@@ -75,6 +76,7 @@ def duration_quotes(text):
 def preparation_goals(text):
  """Narrow clear question words; other wording remains for Qwen to interpret."""
  if re.match(r'^(?:and )?where\b',text.strip(),re.I):return ['venue']
+ if re.search(r'\b(?:what time|when)\b.*\b(?:start\w*|finish\w*|end\w*|begin\w*)\b',text,re.I) and not re.search(r'\b(?:school|work|bus|flight|trip|alarm|timer)\b',text,re.I):return ['timing']
  patterns={'clothing':r'\b(?:wear|clothing|outfit|dress code|uniform)\b',
   'instructions':r'\b(?:organi[sz]er|instructions|event notes)\b',
   'venue':r'\b(?:venue|location)\b',
@@ -149,7 +151,7 @@ class ReadDialogue:
   permitted_windows=sorted({'evening' if v.casefold()=='tonight' else v.casefold() for v in windows})
   if not permitted_windows:permitted_windows=[old['window'] if old else 'all_day']
   schema['properties']['window']['enum']=permitted_windows
-  prior={k:old.get(k) for k in ('subjects','start','end','question','task','purpose','window','between','duration_minutes','event_focus','preparation_goal')} if old else None
+  prior={k:old.get(k) for k in ('subjects','start','end','question','task','purpose','window','between','duration_minutes','event_focus','preparation_goal','timing_kind')} if old else None
   data=await local_json(self.owner.provider,PROMPT,{'selected_capability':tool,'selected_members':members,
    'people':{p:people.get(p,'Whole household') for p in allowed},'speaker':speaker,'prior_user_task':prior,'latest_date_phrases':dates,'latest_duration_phrases':durations,'latest':text},schema,tokens=260)
   if not isinstance(data,dict) or not set(SCHEMA['required']).issubset(data) or set(data)-set(SCHEMA['properties']):raise ValueError('Please clarify which plans you mean.')
@@ -219,9 +221,13 @@ class ReadDialogue:
   if semantic_preparation and 'activity_quote' in data and not (old and (date_only or correction or preparation_follow)):
    task='What should '+(' and '.join(people.get(p,'the household') for p in subjects))+' prepare'+(' for '+activity_question if activity_question else '')+'?'
   event_focus=old.get('event_focus',[]) if preparation_follow and a==old['start'] and b==old['end'] else []
+  timing_kind=None
+  if preparation_goal=='timing':
+   ending=bool(re.search(r'\b(?:finish\w*|end\w*)\b',text,re.I));beginning=bool(re.search(r'\b(?:start\w*|begin\w*)\b',text,re.I))
+   timing_kind='both' if ending and beginning else 'finish' if ending else 'start' if beginning else (old or {}).get('timing_kind') or 'start'
   return {'subjects':tuple(subjects),'start':a,'end':b,'speaker':speaker,'date':reference,
    'revision':self.owner.profile._data['revision'],'expires':self.owner.clock()+300,
-   'activity_question':activity_question,'preparation_goal':preparation_goal,'event_scope':data.get('event_scope','all'),'question':text,'previous_question':old.get('task') or old['question'] if old else None,
+   'activity_question':activity_question,'preparation_goal':preparation_goal,'timing_kind':timing_kind,'event_scope':data.get('event_scope','all'),'question':text,'previous_question':old.get('task') or old['question'] if old else None,
    'window':window,'purpose':purpose,'between':between,'weather':False,
    'requested_duration':minutes,'shared_read_context':True,
    'coordination_subjects':subjects,'companion_coordination':len(subjects)>1 and purpose=='conflicts',
@@ -247,4 +253,4 @@ class ReadDialogue:
    'question':text[:350],'task':actual.get('task') or text[:350],
    'purpose':actual.get('purpose','overview'),'window':actual.get('window','all_day'),
    'between':actual.get('between',False),'duration_minutes':actual.get('requested_duration') or duration_minutes(text),
-   'expires':self.owner.clock()+600,'event_focus':focused,'awaiting_detail':result.get('followup_detail'),'preparation_goal':actual.get('preparation_goal')}
+   'expires':self.owner.clock()+600,'event_focus':focused,'awaiting_detail':result.get('followup_detail'),'preparation_goal':actual.get('preparation_goal'),'timing_kind':actual.get('timing_kind') or selected.get('timing_kind')}

@@ -106,6 +106,38 @@ class PreparationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['status'],'success');self.assertIn('do not see any organiser instructions',result['message'])
         self.assertNotIn('Do you have any instructions',result['message'])
 
+    async def semantic_timing(self,text='What time does it finish?'):
+        with scope(self.p,'benny','timing'):
+            resolved=self.h.request('What should Mia prepare for tomorrow?','timing')
+            resolved.update(shared_read_context=True,activity_question='',preparation_goal='timing',event_scope='focused')
+            return await self.h.handle(text,'timing',resolved=resolved)
+
+    async def test_event_finish_uses_end_clock_instead_of_start(self):
+        result=await self.semantic_timing()
+        self.assertEqual(result['status'],'success');self.assertIn('finishes at 18:00',result['message'])
+        self.assertNotIn('finishes at 17:00',result['message']);self.assertEqual(self.provider.calls,[])
+
+    async def test_event_timing_can_return_start_and_finish(self):
+        result=await self.semantic_timing('What time does it start and finish?')
+        self.assertIn('starts at 17:00',result['message']);self.assertIn('finishes at 18:00',result['message'])
+
+    async def test_overnight_finish_uses_the_end_date(self):
+        self.client.events['calendar.familiekalender'][0]['end']='2026-10-25T01:00:00+02:00'
+        result=await self.semantic_timing()
+        self.assertIn('finishes at 01:00 on Sunday 25 October',result['message'])
+
+    async def test_all_day_timing_does_not_invent_a_clock_time(self):
+        self.client.events['calendar.familiekalender'][0].update(start='2026-10-24',end='2026-10-25')
+        result=await self.semantic_timing()
+        self.assertIn('all-day calendar entry',result['message']);self.assertIn('no start or finish clock time',result['message'])
+
+    async def test_retained_finish_selector_applies_to_a_date_only_read(self):
+        with scope(self.p,'benny','timing'):
+            resolved=self.h.request('What should Mia prepare for tomorrow?','timing')
+            resolved.update(shared_read_context=True,activity_question='',preparation_goal='timing',timing_kind='finish',event_scope='focused')
+            result=await self.h.handle('And Saturday?','timing',resolved=resolved)
+        self.assertIn('finishes at 18:00',result['message']);self.assertNotIn('starts at',result['message'])
+
     async def test_answer_to_clarification_keeps_location_person_and_day(self):
         await self.pending_choice()
         r=await self.ask('Fitness')

@@ -1,3 +1,14 @@
+## Appointment times and personal facts (0.45.130)
+
+“What time does it finish?” reads the selected appointment’s end time, with a
+choice when several appointments could apply. All-day entries do not acquire
+invented clock times; overnight finishes use their end date.
+
+An explicit question about your job, birthday or age uses household facts even
+after football or news. Your name must still come from the current conversation
+or voice match. Questions about a birthday party or job interview remain planning
+questions rather than profile lookups.
+
 ## More natural follow-ups (0.45.129)
 
 After discussing plans, ask “Anything she needs to take along?”, “Where will that

@@ -141,8 +141,8 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
         with self.scope():
             state=self.selected()
             with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'general_chat','members':['mia']})) as model:
-                result=await self.a.agent.plan('And her birthday?','chat','phone',state)
-            self.assertEqual(result['tool'],'profile');self.assertEqual(model.await_count,1)
+                with self.assertRaises(ValueError):await self.a.agent.plan('And her birthday?','chat','phone',state)
+            self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['household_facts']);self.assertEqual(model.await_count,1)
 
     async def test_general_topics_remain_distinct_and_public_topics_have_no_person(self):
         with self.scope():
@@ -508,7 +508,8 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
         for text in ('What did the organiser say?','What did the organizer say?','Any event notes?'):
             self.assertEqual(preparation_goals(text),['instructions'])
         self.assertEqual(preparation_goals('Anything she needs to take along?'),['kit'])
-        self.assertEqual(preparation_goals('What time does it finish?'),[])
+        self.assertEqual(preparation_goals('What time does it finish?'),['timing'])
+        self.assertEqual(preparation_goals('When does Mia finish school?'),[])
 
     async def test_topic_label_is_not_lost_when_model_omits_it_from_activity_quote(self):
         with self.scope():
@@ -535,3 +536,33 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
             with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'household_plans','members':['mia']})) as model:
                 await self.a.agent.plan(text,'chat','phone',state)
             self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['household_plans'])
+
+    async def test_current_personal_fact_cannot_be_stolen_by_old_football_topic(self):
+        with self.scope():
+            state=self.selected();state['last_tool']='identity';state['introduced']='benny';state['football_topic']='news';state['football_focus_until']=500
+            for text in ('What is my job?',"What is Benny's occupation?",'And her birthday?'):
+                with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'household_facts','members':['mia'] if text=='And her birthday?' else ['benny']})) as model:
+                    await self.a.agent.plan(text,'chat','phone',state)
+                self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['household_facts'])
+
+    async def test_unknown_speaker_job_read_still_requires_a_name(self):
+        with self.scope():
+            state=self.a.agent.state('new','phone')
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'household_facts','members':[]})):
+                decision=await self.a.agent.plan('What is my job?','new','phone',state)
+            result=await self.a.agent.execute(decision,'What is my job?','new','phone',state,AsyncMock())
+            self.assertEqual(result['status'],'clarification_required');self.assertIn('Whose',result['message'])
+
+    async def test_job_interview_and_birthday_party_do_not_become_profile_facts(self):
+        with self.scope():
+            state=self.selected()
+            for text in ("What is Mia's birthday party venue?",'What time is my job interview tomorrow?'):
+                with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'household_plans','members':['mia']})) as model:
+                    await self.a.agent.plan(text,'chat','phone',state)
+                self.assertGreater(len(model.call_args.args[3]['properties']['tool']['enum']),1)
+
+    async def test_date_only_time_question_keeps_finish_selector(self):
+        with self.scope():
+            state=self.selected(preparation_goal='timing',timing_kind='finish')
+            r=await self.semantic_preparation('And Friday?',goal='timing',state=state,date_quote='friday')
+            self.assertEqual(r['timing_kind'],'finish');self.assertFalse(r['source_focus'])

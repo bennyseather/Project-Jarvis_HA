@@ -1,3 +1,9 @@
+## 0.45.130
+
+- Answer appointment start/finish follow-ups from the current calendar clocks, including all-day and overnight entries.
+- Keep explicit personal job/birthday/age reads on household facts after unrelated football conversation.
+- Preserve unknown-speaker clarification and leave birthday-party/job-interview planning with the calendar tools.
+
 ## 0.45.129
 
 - Interpret preparation, kit, clothing, venue, organiser and readiness questions as structured reads with quoted activity names.

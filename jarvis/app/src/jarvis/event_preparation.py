@@ -223,6 +223,7 @@ class EventPreparation(HouseholdThinking):
         # Retain identities and intent, never a cached venue, description or answer.
         plan['pending_choice']={'events':[self.event_identity(e) for e in events[:8]],
                                 'mode':mode,'allowed':self.allowed}
+        if mode=='timing':plan['pending_choice']['timing_question']=plan['question']
         labels=['"'+e['text']+'"' for e in events[:8]] if offer_labels else []
         question=QUESTIONS['which_event']
         if labels:question+=' '+(' or '.join(labels) if len(labels)<=2 else ', '.join(labels[:-1])+' or '+labels[-1])+'?'
@@ -434,7 +435,7 @@ class EventPreparation(HouseholdThinking):
                 event['activity_profile']=activity_profile
                 event['activity_equivalence']=household_activities.equivalence_key(self.profile._data,activity_profile)
         mode='location' if re.search(r'\b(where|venue|location)\b',text,re.I) else 'requirements' if re.search(r'\b(bring|pack|equipment|kit)\b',text,re.I) else 'preparation'
-        if plan.get('preparation_goal'):mode={'venue':'location','kit':'requirements','clothing':'clothing','instructions':'instructions'}.get(plan['preparation_goal'],'preparation')
+        if plan.get('preparation_goal'):mode={'venue':'location','kit':'requirements','clothing':'clothing','instructions':'instructions','timing':'timing'}.get(plan['preparation_goal'],'preparation')
         selection=plan.get('selection_reply',False)
         exact_selection=False
         if selection:
@@ -481,9 +482,31 @@ class EventPreparation(HouseholdThinking):
                     local_model_interpretation=False,activity_evidence_bound=True)
             events=supported
             focus=[identifier for identifier in focus if any(e['id']==identifier for e in events)]
-        if plan.get('event_scope')=='focused' and plan.get('preparation_goal') in ('venue','instructions') and not selection:
+        if plan.get('event_scope')=='focused' and plan.get('preparation_goal') in ('venue','instructions','timing') and not selection:
             distinct={(e.get('activity_equivalence') or self.event_identity(e),e['start'],e['end']) for e in events}
             if len(distinct)>1:return self.ask_choice(plan,events,mode)
+        if mode=='timing':
+            from jarvis.calendar_insights import appointment_label
+            from datetime import datetime
+            if len(events)>3:return self.ask_choice(plan,events,mode)
+            timing_question=plan['pending_choice'].get('timing_question',text) if selection else text
+            ending=bool(re.search(r'\b(?:finish\w*|end\w*)\b',timing_question,re.I) or plan.get('timing_kind') in ('finish','both'))
+            beginning=bool(re.search(r'\b(?:start\w*|begin\w*)\b',timing_question,re.I) or plan.get('timing_kind') in ('start','both'))
+            plan['timing_kind']='both' if ending and beginning else 'finish' if ending else 'start'
+            pieces=[]
+            for event in events:
+                title=event['owner_name']+"'s "+appointment_label(event)
+                if event['all_day']:
+                    pieces.append(title+' is an all-day calendar entry; no start or finish clock time is recorded.')
+                    continue
+                if beginning or not ending:pieces.append(title+' starts at '+event['local_start']+' on '+event['date_label']+'.')
+                if ending:
+                    end=datetime.fromisoformat(event['end']).astimezone(ZONE)
+                    pieces.append(title+' finishes at '+event['local_end']+' on '+end.strftime('%A %d %B')+'.')
+            plan.pop('pending_choice',None);plan['source_focus']=[self.event_identity(e) for e in events]
+            answer=' '.join(pieces)
+            if evidence['source_failures']:answer+=' Some other appointments could not be checked.'
+            return reply(answer,composition='source_bound_event_time',subject=plan['subjects'][0] if len(plan['subjects'])==1 else None,period={'start':plan['start'],'end':plan['end']})
         from jarvis.report_presentation import compose as compose_reports
         status_followup=bool(plan.get('preparation_goal') in ('remaining','status') or re.search(r'\b(?:left|remaining|packed|ready)\b|have (?:we|i) (?:got )?everything|(?:we|i) have (?:got )?everything',text,re.I))
         if mode!='instructions' and (any(e.get('planning_context') for e in events) or status_followup):

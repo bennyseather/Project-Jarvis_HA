@@ -269,6 +269,10 @@ class QwenConversation:
   sports_read=not re.search(r'\b(?:remember|save|forget|prefer|support|supports|add|create|book|cancel|reschedule|calendar|appointment)\b',text,re.I)
   if sports_words and sports_reference and sports_read:schema['properties']['tool']['enum']=['football_updates']
   named_person=any(re.search(r'\b'+re.escape(name)+r'\b',text,re.I) for name in people.values())
+  personal_fact=bool((named_person or re.search(r'\b(?:my|her|his|their)\b',text,re.I)) and re.search(r'\b(?:birthday|age|job|profession|occupation|employer)\b',text,re.I))
+  fact_followup=bool(re.fullmatch(r'(?:and|what about|how about) (?:my|her|his|their|(?:'+names+r')[\u2019\x27]s) (?:birthday|age|job|profession|occupation|employer)[ .?!]*',text.strip(),re.I))
+  if (read_question or fact_followup) and personal_fact and self.stable_profile_question(text,'profile') and not re.search(r'\b(?:interview|application|apply|prepare|bring|need|party|gift|present|news|league|match|event|weather|forecast)\b',text,re.I):
+   schema['properties']['tool']['enum']=['household_facts']
   if read_question and re.search(r'\b(?:prefer\w*|favourit\w*|favorit\w*|likes?|dislikes?)\b',text,re.I) and (named_person or re.search(r'\b(?:i|my|her|his|their)\b',text,re.I)):
    schema['properties']['tool']['enum']=['recall_detail']
   # Canonical controls have existing exact executors. They must not become
