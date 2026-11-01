@@ -1,3 +1,8 @@
+## 0.45.131
+
+- Keep a generic dated planning question on the agenda view.
+- Let explicit preparation wording replace a previous timing or venue view, preserving the selected person and day while reading current kit/instructions.
+
 ## 0.45.130
 
 - Answer appointment start/finish follow-ups from the current calendar clocks, including all-day and overnight entries.

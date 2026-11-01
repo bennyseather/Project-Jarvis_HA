@@ -83,7 +83,9 @@ def preparation_goals(text):
   'remaining':r'\b(?:left|remaining|sorting out|still.*(?:do|check|prepare|sort))\b',
   'status':r'\b(?:all set|ready|packed|have.*everything)\b',
   'kit':r'\b(?:bring|pack|equipment|kit|take along|have with)\b'}
- return [goal for goal,pattern in patterns.items() if re.search(pattern,text,re.I)]
+ goals=[goal for goal,pattern in patterns.items() if re.search(pattern,text,re.I)]
+ if not goals and re.search(r'\b(?:prepare|preparation)\b|\bget ready\b',text,re.I):return ['prepare']
+ return goals
 
 def meal_remainder(text,prior):
  return bool(prior and prior.get('purpose')=='availability' and prior.get('between') and re.search(r'\b(?:dinner|meal)\b',prior.get('task',''),re.I)

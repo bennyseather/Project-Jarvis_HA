@@ -1,3 +1,10 @@
+## Changing what you ask about (0.45.131)
+
+After asking when an appointment starts or finishes, “What should she remember?”
+switches to preparation details. It keeps the person and day, and checks the kit
+and instructions rather than repeating the clock time. A generic dated “What
+should Mia plan for on Monday?” begins with the agenda view.
+
 ## Appointment times and personal facts (0.45.130)
 
 “What time does it finish?” reads the selected appointment’s end time, with a

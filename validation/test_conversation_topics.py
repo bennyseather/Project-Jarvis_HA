@@ -566,3 +566,19 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
             state=self.selected(preparation_goal='timing',timing_kind='finish')
             r=await self.semantic_preparation('And Friday?',goal='timing',state=state,date_quote='friday')
             self.assertEqual(r['timing_kind'],'finish');self.assertFalse(r['source_focus'])
+
+    async def test_generic_preparation_overrides_a_prior_clock_view(self):
+        with self.scope():
+            state=self.selected(preparation_goal='timing',timing_kind='start')
+            response=frame(purpose='preparation',activity_quote='',preparation_goal='prepare',event_scope='focused')
+            with patch('jarvis.companion_read_context.local_json',new=AsyncMock(return_value=response)) as model:
+                r=await self.a.agent.reads.resolve('What should she prepare?','appointments',['mia'],state,force=True)
+            self.assertEqual(model.call_args.args[3]['properties']['preparation_goal']['enum'],['prepare'])
+            self.assertEqual(r['preparation_goal'],'prepare');self.assertIsNone(r['timing_kind'])
+
+    async def test_generic_dated_plan_question_is_overview_not_a_clock_selection(self):
+        with self.scope():
+            state=self.a.agent.state('new','phone')
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'household_plans','members':['mia']})) as model:
+                await self.a.agent.plan('What should Mia plan for on Monday?','new','phone',state)
+            self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['household_plans'])

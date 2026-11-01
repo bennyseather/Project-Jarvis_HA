@@ -201,6 +201,9 @@ class QwenConversation:
   focus=self.reads.prior(state)
   from jarvis.event_activity import preparation_question
   from jarvis.household_planning import DATE_PATTERN
+  from jarvis.event_activity import requirement,requested
+  if re.match(r'^what should\b',text.strip(),re.I) and re.search(r'\bplan for\b',text,re.I) and DATE_PATTERN.search(text.casefold()) and not requested(requirement(text,people.values())):
+   schema['properties']['tool']['enum']=['household_plans']
   preparation_read=bool(preparation_question(text,people.values()) and (focus or DATE_PATTERN.search(text.casefold()) and re.search(r'\b(?:'+names+r')\b',text,re.I)))
   if preparation_read:schema['properties']['tool']['enum']=['activity_preparation']
   from jarvis.companion_read_context import meal_remainder
