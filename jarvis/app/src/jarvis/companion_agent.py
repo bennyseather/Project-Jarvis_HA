@@ -79,7 +79,7 @@ A bare dinner duration or date-only continuation of an active dinner-fit task is
 household_plans even after a route/meal budget, not local_route.
 internet_research: current public facts,news or explicit internet search.
 assistant_settings: pause/resume learning/travel preparation, memory-clear confirmation.
-development_proposals: supervised code/workspace inspection, patch/tests. general_chat: chat/explanations
+development_proposals: code inspection/case follow-ups, patch/tests. general_chat: chat/explanations
 without local/live data. clarification: no clear task.
 
 Date-only followups keep capability. Birthday uses household_facts.
@@ -309,7 +309,7 @@ class QwenConversation:
   if acknowledgement(text) or definition or presentation:schema['properties']['tool']['enum']=['general_chat']
   from jarvis.development_workspace import workspace_command
   workspace=getattr(self.owner,'development',None)
-  if workspace and workspace.enabled and workspace_command(text):schema['properties']['tool']['enum']=['development_proposals']
+  if workspace and workspace.routes(text,key,source,state.get('last_tool')):schema['properties']['tool']['enum']=['development_proposals']
   data={'reference_date':state['binding'][-2],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':[v for v in state['history'][-6:] if v['role']=='user'],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
    'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'activity_focus':{k:v for k,v in state.get('activity_focus',{}).items() if k in ('person','title','source')},'activity_knowledge_pending':bool(state.get('activity_learning_draft')),'activity_review_pending':bool(pending_edit and pending_edit.get('activity')),'subject_reference':state.get('subject_reference') if state.get('subject_reference',{}).get('expires',0)>self.clock() else None,'returned_topic':state.get('returned_topic'),'read_focus':self.reads.prior(state),'meal_route_pending':[{'activity':v['event']} for v in meal['missing']] if meal else [],'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}
@@ -406,7 +406,7 @@ class QwenConversation:
       report_generation=report_revision(self.profile)
       planning_generation=(self.owner.store.generation,self.owner.store.revision)
       try:
-       resumed=await self.topics.resume(text,state)
+       resumed=None if self.owner.development.routes(text,key,source,state.get('last_tool')) else await self.topics.resume(text,state)
        if resumed:return reply(resumed,'clarification_required')
        plan=await self.plan(text,key,source,state)
       except (ValueError,asyncio.TimeoutError):return reply('I could not interpret that request reliably just now. Please try again.','unavailable')
@@ -415,6 +415,7 @@ class QwenConversation:
       if changed:return self.changed_reply(changed)
       if planning_generation!=(self.owner.store.generation,self.owner.store.revision) or report_generation!=report_revision(self.profile):return reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       tool=plan['tool'];state['_topic_operation']=plan['operation']
+      if tool!='development':self.owner.development.deactivate(key,source)
       if tool in ('football','planning_report','planning_followthrough','memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route','activity_knowledge','departure') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
       if tool!='planning_report':self.owner.planning_conversation.clear(state)
       if tool!='activity_knowledge':state.pop('activity_learning_draft',None)

@@ -15,6 +15,7 @@ SCOPES={
   'tests':['test_companion_memory','test_memory_followthrough']},
  'conversation':{'label':'Conversation references','files':{'src/jarvis/companion_read_context.py':['duration_quotes','preparation_goals','meal_remainder']},
   'tests':['test_companion_read_context','test_conversation_topics']},
+ 'workspace':{'label':'Development test wording','files':{'src/jarvis/development_dialogue.py':['phase_line']},'tests':['test_development_dialogue']},
  'fixture':{'label':'Fictional sandbox canary','files':{'src/jarvis/workshop_fixture.py':['join_items']},'tests':['test_workshop_fixture']}}
 PUBLIC_SCOPES=tuple(k for k in SCOPES if k!='fixture')
 MAX_SOURCE_BYTES=8_000_000

@@ -1,3 +1,10 @@
+## 0.45.139
+
+- Follow the current development case within one authenticated conversation using natural findings, patch and test-result questions.
+- Keep diagnostic cases in history and focus default summaries on household-requested work.
+- Show review-required test evidence and expandable, escaped source/patch details without losing reading state.
+- Preserve explicit authority checks, supervised deployment review, saved voice and held audio/reminder tests.
+
 ## 0.45.138
 
 - Add separately enabled, supervised own-code inspection through the Node Qwen.

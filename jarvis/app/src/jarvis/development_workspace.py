@@ -4,12 +4,14 @@ Only public source and a bounded problem description leave this module. HA
 authority comes from the authenticated request, never a name or model output.
 """
 import asyncio,json,re,secrets,time,urllib.request
+from collections import OrderedDict
 from pathlib import Path
 from jarvis.calendar_context import current_calendar_access
 from jarvis.companion_store import bounded,secret,stamp
 from jarvis.companion_dialogue import response as base_response
 from jarvis.companion_memory import local_json
 from jarvis.development_contract import PUBLIC_SCOPES,SCOPES,canonical,sha,apply_candidate,make_snapshot
+from jarvis.development_dialogue import followup,resumed,state_words,result_lines,case_title
 
 ACTIVE={'selecting','inspecting','drafting','regression','submitting','testing'}
 FIELDS={'enabled','url','token','snapshot','approval_source','recorded_on'}
@@ -29,7 +31,7 @@ class Client:
     def __init__(self,config):self.config=config
     def request(self,path,body=None):
         # Callers construct paths from fixed routes, digests and validated IDs.
-        if not re.fullmatch(r'/v1/(?:health|inspect|cancel|jobs(?:/W[0-9a-f]{12})?|catalog/[0-9a-f]{64}/(?:preparation|memory|conversation|fixture))',path):raise ValueError('Unsupported workspace operation')
+        if not re.fullmatch(r'/v1/(?:health|inspect|cancel|jobs(?:/W[0-9a-f]{12})?|catalog/[0-9a-f]{64}/(?:preparation|memory|conversation|workspace|fixture))',path):raise ValueError('Unsupported workspace operation')
         data=None if body is None else canonical(body).encode('utf-8')
         if data is not None and len(data)>20000:raise ValueError('Workspace request too large')
         request=urllib.request.Request(self.config['url']+path,data=data,headers={'Authorization':'Bearer '+self.config['token'],'Content-Type':'application/json'})
@@ -45,9 +47,9 @@ TEXT={'type':'string'}
 
 def workspace_command(text):
     value=text.strip()
-    return bool(re.fullmatch(r'(?:show |check |list )?(?:the |my |your )?(?:development )?(?:workspace|development cases|development status|development proposals|improvement proposals)[ .?!]*',value,re.I)
-      or re.match(r'^(?:inspect|investigate) (?:your |the )?(?:weekly )?(?:preparation|memory|conversation)\b.*\bcode\b',value,re.I)
-      or re.fullmatch(r'(?:show|check|status|review|cancel)(?: (?:patch|case|diff))? W[0-9a-f]{12}[ .?!]*',value,re.I))
+    return bool(re.fullmatch(r'(?:show |check |list )?(?:the |my |your )?(?:development )?(?:workspace|development cases|development status|development history|development proposals|improvement proposals)[ .?!]*',value,re.I)
+      or re.match(r'^(?:inspect|investigate) (?:your |the )?(?:weekly )?(?:preparation|memory|conversation|workspace)\b.*\bcode\b',value,re.I)
+      or re.fullmatch(r'(?:show|check|status|review|cancel)(?: (?:patch|case|diff|test results))? W[0-9a-f]{12}[ .?!]*',value,re.I))
 
 class DevelopmentWorkspace:
     def __init__(self,owner,*,config=None,client=None,source_root=None):
@@ -56,7 +58,11 @@ class DevelopmentWorkspace:
         except (ValueError,OSError):self.config=None
         self.client=client or (Client(self.config) if self.config else None)
         self.source_root=source_root or Path(__file__).resolve().parents[1]
-        self.task=None;self.work=None;self.status='idle';self.closed=False
+        self.task=None;self.work=None;self.status='idle';self.closed=False;self.focus=OrderedDict()
+        # Exact installed-check IDs only; retain their evidence as history.
+        for row in self.jobs():
+            if row['id'] in {'W27a70035bbd3','Waebacc1aa8a9','Wc22fa732281b'} and row.get('mode')=='inspect' and row.get('scope')=='preparation' and row.get('problem') in ('Inspect your weekly preparation code','Inspect your weekly preparation code and explain which helper groups repeated kit.'):
+                if not row.get('diagnostic'):row['diagnostic']=True;self.save(row)
     @property
     def enabled(self):return bool(self.config and self.config['enabled'] and self.owner.policy.data['enabled'] and self.owner.policy.data['improvement_proposals'])
     def jobs(self):
@@ -65,12 +71,25 @@ class DevelopmentWorkspace:
     def save(self,row):
         with self.owner.store.db:self.owner.store.db.execute('INSERT INTO assistant_state VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',('development_job:'+row['id'],canonical(row)))
     def public(self,row):
-        out={k:row[k] for k in ('id','scope','problem','state','created_at','summary','snapshot','citations','diff','source_quote') if k in row}
+        out={k:row[k] for k in ('id','scope','problem','state','created_at','summary','snapshot','citations','diff','source_quote','diagnostic') if k in row}
         if row.get('result'):
             result=row['result'];out['result']={k:v for k,v in result.items() if k not in ('phases','diff')}
             out['result']['phases']={name:{k:v for k,v in phase.items() if k not in ('output',)} for name,phase in result.get('phases',{}).items()}
-        out['review_required']=True;return out
-    def project(self):return {'enabled':self.enabled,'status':self.status,'mode':'Supervised source inspection and isolated candidate tests; production release requires review','cases':[self.public(r) for r in self.jobs()[:20]]}
+        out.update(review_required=True,state_label=state_words(row['state']),title=case_title(row),test_summary=result_lines(row) if row.get('result') or row.get('state')=='inspection_complete' else [])
+        return out
+    def project(self):return {'enabled':self.enabled,'status':self.status,'mode':'Supervised source inspection and isolated candidate tests; production release requires review','diagnostic_count':sum(bool(r.get('diagnostic')) for r in self.jobs()),'cases':[self.public(r) for r in self.jobs()[:32]]}
+    def focus_key(self,key,source):return (current_calendar_access.get().actor,str(key),source or '')
+    def selected(self,key,source,*,active_only=False):
+        item=self.focus.get(self.focus_key(key,source))
+        return next((r for r in self.jobs() if r['id']==item['id']),None) if item and item['expires']>self.owner.clock() and (not active_only or item.get('active')) else None
+    def select(self,row,key,source):
+        self.focus[self.focus_key(key,source)]={'id':row['id'],'expires':self.owner.clock()+1800,'active':True}
+        while len(self.focus)>100:self.focus.popitem(last=False)
+    def deactivate(self,key,source):
+        item=self.focus.get(self.focus_key(key,source))
+        if item:item['active']=False
+    def routes(self,text,key,source,last_tool=None):
+        return bool(self.enabled and (workspace_command(text) or resumed(text) and followup(resumed(text)) or last_tool=='development' and followup(text)))
     def start(self):
         if self.task is None and self.enabled:self.task=asyncio.create_task(self.run())
     def interrupt(self):
@@ -81,33 +100,46 @@ class DevelopmentWorkspace:
             if task:task.cancel()
         await asyncio.gather(*(t for t in (self.work,self.task) if t),return_exceptions=True)
     async def request(self,path,body=None):return await asyncio.to_thread(self.client.request,path,body)
-    async def handle(self,text):
+    async def handle(self,text,key=None,source=None):
         access=current_calendar_access.get()
         if not access.actor or not access.read:return response('Your signed-in Home Assistant account needs read access to this workspace.','forbidden')
         if not self.enabled:return response('The supervised development workspace is not enabled here. Your existing improvement ideas are still retained.','unavailable')
-        value=text.strip();rows=self.jobs();ids=[r['id'] for r in rows]
+        value=(resumed(text) or text).strip();rows=self.jobs();ids=[r['id'] for r in rows];read_kind=followup(value)
         if re.search(r'\b(?:deploy|publish|install|shell|production|credentials)\b',value,re.I):return response('This workspace can inspect source and test candidates. Production publishing and installation use the independently reviewed release process.','clarification_required',development_workspace=True)
         # Exact operational commands also work when Qwen is temporarily busy.
         identifier=next((i for i in ids if i.casefold() in value.casefold()),'')
         explicit=re.match(r'^(inspect|investigate)\b',value,re.I)
         scopes=[s for s in PUBLIC_SCOPES if re.search(r'\b'+s+r'\b',value,re.I)]
-        if explicit and len(scopes)==1:action=explicit[1].lower();scope=scopes[0];problem=value
-        elif re.fullmatch(r'(?:show |check |list )?(?:the |my |your )?(?:development )?(?:workspace|development cases|development status|development proposals|improvement proposals)[ .?!]*',value,re.I):action='list';scope='';problem=''
+        if read_kind:
+            selected=self.selected(key,source,active_only=not bool(resumed(text)))
+            if selected is None:return response('Which development case do you mean? Open an inspection in this conversation or give its case ID.','clarification_required',development_workspace=True)
+            identifier=selected['id'];action='status';scope='';problem=''
+        elif explicit and len(scopes)==1:action=explicit[1].lower();scope=scopes[0];problem=value
+        elif re.fullmatch(r'(?:show |check |list )?(?:the |my |your )?(?:development )?(?:workspace|development cases|development status|development history|development proposals|improvement proposals)[ .?!]*',value,re.I):action='list';scope='';problem=''
         elif identifier and re.match(r'^(?:show|check|status|review|cancel)\b',value,re.I):action='cancel' if value.lower().startswith('cancel') else 'status';scope='';problem=''
         else:
             schema=object_schema({'action':{'type':'string','enum':['list','status','inspect','investigate','cancel','clarify']},'scope':{'type':'string','enum':['',*PUBLIC_SCOPES]},'case':{'type':'string','enum':['',*ids]},'problem_quote':TEXT})
             try:
-                frame=await local_json(self.owner.provider,'Interpret this supervised development request. Inspect means read/explain selected own code. Investigate means draft a small patch and regression test in isolation. Scope preparation=weekly summaries/wording; memory=recall; conversation=references. No deploy, shell, live edits or permission changes exist. Problem_quote must be an exact excerpt of latest. For a missing scope or unclear target use clarify. JSON only.',{'latest':value,'cases':[{'id':r['id'],'scope':r['scope'],'problem':r['problem'][:100]} for r in rows[:8]]},schema,tokens=160,timeout=5)
+                frame=await local_json(self.owner.provider,'Interpret this supervised development request. Inspect=read/explain code. Investigate=draft a small patch and regression in isolation. Scope preparation=weekly summaries; memory=recall; conversation=references; workspace=test result wording. No deployment or permission changes. Problem_quote must exactly quote latest. Missing scope: clarify. JSON only.',{'latest':value,'current_case':(self.selected(key,source,active_only=True) or {}).get('id'),'cases':[{'id':r['id'],'scope':r['scope'],'problem':r['problem'][:100]} for r in rows[:8]]},schema,tokens=160,timeout=5)
                 if set(frame)!=set(schema['properties']):raise ValueError('Invalid intent')
                 action,scope,identifier,problem=frame['action'],frame['scope'],frame['case'],frame['problem_quote']
                 if action not in schema['properties']['action']['enum'] or scope not in ('',*PUBLIC_SCOPES) or identifier not in ('',*ids) or not isinstance(problem,str) or problem not in value:raise ValueError('Unsupported intent')
             except (ValueError,TimeoutError):return response('I could not reliably interpret that development request. Try “show development workspace” or “inspect your preparation code”.','unavailable')
         if action=='list':
-            summary='; '.join(r['id']+' — '+r['state'].replace('_',' ')+': '+r['problem'][:160] for r in rows[:6])
-            return response('The supervised workspace is enabled. '+(summary+'. Ask for a case ID to see its evidence.' if summary else 'Ask me to inspect my preparation, memory or conversation code, or investigate a specific problem in one of those areas.'),'success',development_workspace=True)
+            if 'history' in value.casefold():
+                message='Development history: '+'; '.join(r['id']+' — '+state_words(r['state'])+(' (diagnostic)' if r.get('diagnostic') else '') for r in rows[:12])+'.' if rows else 'There are no development cases yet.'
+            else:
+                visible=[r for r in rows if not r.get('diagnostic')];active=[r for r in visible if r['state'] in ACTIVE]
+                latest=(active or visible)[:1]
+                if latest:
+                    self.select(latest[0],key,source)
+                    message=('I have '+str(len(active))+' development case'+('s' if len(active)!=1 else '')+' in progress. ' if active else 'Your latest development case is ')+case_title(latest[0])+': '+state_words(latest[0]['state'])+'. '+latest[0].get('summary','')+' You can ask what I found, for the patch, or for the test results.'
+                else:message='The supervised workspace is enabled. Ask me to inspect my preparation, memory or conversation code. Diagnostic cases are kept in development history.'
+            return response(message,'success',development_workspace=True)
         if action in ('status','cancel'):
             row=next((r for r in rows if r['id']==identifier),None)
             if row is None:return response('Which development case do you mean? Please include its W case ID.')
+            self.select(row,key,source)
             if action=='cancel':
                 if not access.write:return response('Your signed-in HA account needs control permission to cancel a development case.','forbidden')
                 if row['owner']!=sha(access.actor):return response('This case must be cancelled from the HA account that started it.','forbidden')
@@ -117,7 +149,8 @@ class DevelopmentWorkspace:
                         except Exception:return response('I could not confirm cancellation on the Node. The case still needs checking.','unavailable')
                     row['state']='cancelled';self.save(row)
                 return response(identifier+' is '+row['state'].replace('_',' ')+'.','success',development_workspace=True)
-            if re.search(r'\b(?:diff|patch)\b',value,re.I):return response(identifier+' candidate patch (unreviewed):\n'+row.get('diff','No candidate patch has been produced.'),'success',development_workspace=True,development_case=identifier)
+            if read_kind=='tests' or re.search(r'\btest results\b',value,re.I):return response(' '.join(result_lines(row)),'success',development_workspace=True,development_case=identifier)
+            if read_kind=='patch' or re.search(r'\b(?:diff|patch)\b',value,re.I):return response((identifier+' candidate patch (unreviewed):\n'+row['diff']) if row.get('diff') else 'No candidate patch has been produced for this case.','success',development_workspace=True,development_case=identifier)
             return self.explain(row)
         if action not in ('inspect','investigate') or scope not in PUBLIC_SCOPES:return response('Which part should I inspect: preparation summaries, memory lookup or conversation references?')
         if not access.write:return response('Your signed-in HA account needs control permission to start a development case.','forbidden')
@@ -126,15 +159,13 @@ class DevelopmentWorkspace:
         if not problem or secret(problem):return response('Please describe the code problem without credentials or private configuration.')
         if len(rows)>=32 or sum(r['state'] in ACTIVE for r in rows)>=3:return response('The workspace queue needs review before I can start another case.','unavailable')
         row={'id':'W'+secrets.token_hex(6),'owner':sha(access.actor),'scope':scope,'problem':problem,'mode':action,'state':'selecting','created_at':stamp(self.owner.now()),'snapshot':self.config['snapshot'],'attempts':0}
-        self.save(row);self.start()
-        return response('I have opened '+row['id']+'. I will '+('inspect that code' if action=='inspect' else 'inspect the code, draft a small candidate and test it in isolation')+' when conversation is idle. Ask “show '+row['id']+'” for progress.','success',development_workspace=True,development_case=row['id'])
+        self.save(row);self.select(row,key,source);self.start()
+        return response('I have opened '+row['id']+'. I will '+('inspect that code' if action=='inspect' else 'inspect the code, draft a small candidate and test it in isolation')+' when conversation is idle. You can ask “What did you find?” or “How is it going?” here.','success',development_workspace=True,development_case=row['id'])
     def explain(self,row):
-        message=row['id']+' — '+row['state'].replace('_',' ')+'. '+row.get('summary','')
+        message=row['id']+' — '+state_words(row['state'])+'. '+row.get('summary','')
+        if row.get('result'):message+=' '+' '.join(result_lines(row))
         citations=row.get('citations',[])
         if citations:message+=' Source: '+'; '.join(r['path']+':'+str(r['start'])+' '+r['symbol'] for r in citations)+'.'
-        result=row.get('result',{})
-        if result:
-            message+=' '+('; '.join(k.replace('_',' ')+': '+str(v.get('tests_reported',0))+' tests reported, '+('passed' if v.get('passed') else 'did not pass') for k,v in result.get('phases',{}).items()))+'. Results require independent review before release.'
         return response(message,'success',development_workspace=True,development_case=row['id'])
     async def run(self):
         while not self.closed:

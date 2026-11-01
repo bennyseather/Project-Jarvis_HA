@@ -334,7 +334,7 @@ class Companion:
     return response(summary,'success')
    if 'what needs my attention' not in value:return response('I have not prepared an upcoming flight brief yet. I check the connected travel calendar automatically; an unknown starting point or missing source will appear as a question.','success')
   if semantic=='development' or re.search(r'\b(?:development proposals|improvement proposals|improve yourself|improve your own|your development|your own code|what should you improve)\b',value):
-   if self.development.enabled:return await self.development.handle(text)
+   if self.development.enabled:return await self.development.handle(text,key,source)
    self.revoke_other_reviews(key);rows=self.store.improvements()
    if rows:return response('I have these improvement ideas for review: '+'; '.join(r.get('proposal') or r.get('quote','') for r in rows[:4])+'. These are proposals; I have not changed or executed my own code.','success')
    return response('I can collect and draft improvement proposals using local Qwen. The next development stage is an isolated code-and-test workspace; I cannot yet change or deploy my running code myself.','success')

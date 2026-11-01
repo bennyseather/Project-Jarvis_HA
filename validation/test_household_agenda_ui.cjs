@@ -23,8 +23,11 @@ console.log('Calendar source refresh status remains visible when planning is inc
 card.data.assistant.development_workspace={enabled:true,mode:'Supervised source inspection and isolated tests',cases:[{id:'W123456789abc',state:'review_required',problem:'Fictional wording problem',summary:'Candidate needs independent review.',citations:[{path:'src/jarvis/preparation_wording.py',start:12,symbol:'join_words',version:'0.45.138'}]}]};
 const workshopCards=card.cards();
 assert.ok(workshopCards.some(c=>c.title==='Jarvis development workspace'));
-assert.ok(workshopCards.some(c=>c.title==='W123456789abc · review required'&&c.lines.some(l=>l.includes('join_words')&&l.includes('0.45.138'))));
-assert.ok(workshopCards.some(c=>c.lines.some(l=>l.includes('show patch W123456789abc'))));
+assert.ok(workshopCards.some(c=>c.devId==='W123456789abc'&&c.lines.some(l=>l.includes('join_words')&&l.includes('0.45.138'))));
+const dev=card.developmentCards({enabled:true,diagnostic_count:1,cases:[{id:'W000000000001',state:'inspection_complete',diagnostic:true,problem:'Diagnostic'},{id:'W000000000002',state:'review_required',problem:'Real change',diff:'<script>unsafe()</script>',source_quote:'return items',test_summary:['Candidate suite: 2 reported tests passed.']}]});
+assert.equal(dev.length,2);assert.ok(dev[1].lines.some(l=>l.includes('2 reported tests')));
+const html=card.developmentEvidence(dev[1]);assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(html.includes('Candidate patch'));
+card._devHistory=true;assert.equal(card.developmentCards({enabled:true,cases:[{diagnostic:true,state:'cancelled',problem:'Diagnostic'}]}).length,2);
 card.data.assistant.development_workspace.enabled=false;
 assert.ok(!card.cards().some(c=>c.title==='Jarvis development workspace'));
 console.log('Supervised development cases, source citations, review status and disabled state PASS');
