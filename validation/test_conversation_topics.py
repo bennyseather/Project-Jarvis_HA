@@ -627,6 +627,29 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
             self.assertLess(len(second.split()),len(first.split()));self.assertEqual(model.call_args_list[2].args[2]['previous_answer'],first)
             self.assertEqual(state['response_reference']['expires'],300)
 
+    async def test_shortening_names_required_kit_instead_of_generic_kit(self):
+        with self.scope():
+            state=self.selected();self.profile._data['activity_profiles']=[{'equipment':['instrument','sheet music']}]
+            state['response_reference']={'text':'For the rehearsal tomorrow, Mia should bring her instrument and sheet music, which have not been reported packed.','expires':300}
+            good='Bring instrument and sheet music; neither is reported packed.'
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'answer':'Bring the required kit.'},{'answer':good},{'faithful':True}])) as model:
+                self.assertEqual(await self.a.agent.present_answer('Make that shorter',state),good)
+            self.assertEqual(model.call_args_list[0].args[2]['required_kit'],['instrument','sheet music'])
+    async def test_shortening_keeps_explicit_check_when_it_keeps_usual_venue(self):
+        with self.scope():
+            state=self.selected();self.profile._data['activity_profiles']=[{'usual_venue':'Elm School'}]
+            state['response_reference']={'text':'Mia has band rehearsal tomorrow. Bring her instrument and sheet music. It usually takes place at Elm School; check it for this appointment.','expires':300}
+            good='Bring instrument and sheet music; usually at Elm School, but confirm the venue.'
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'answer':'Bring instrument and sheet music; usually at Elm School.'},{'answer':good},{'faithful':True}])) as model:
+                self.assertEqual(await self.a.agent.present_answer('Make that shorter',state),good)
+            self.assertIn('explicit request',model.call_args_list[1].args[2]['feedback'])
+    async def test_restatement_retry_distinguishes_kit_requirement_from_packed_report(self):
+        with self.scope():
+            state=self.selected();self.profile._data['activity_profiles']=[{'equipment':['instrument','sheet music']}];state['response_reference']={'text':'For the rehearsal tomorrow, Mia should bring her instrument and sheet music, which have not been reported packed.','expires':300}
+            good='Bring instrument and sheet music; neither is reported packed.'
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'answer':'Her instrument and sheet music are ready.'},{'faithful':False},{'answer':good},{'faithful':True}])) as model:
+                self.assertEqual(await self.a.agent.present_answer('Make that shorter',state),good)
+            self.assertIn('NOT a claim',model.call_args_list[2].args[2]['feedback'])
     async def test_shorter_venue_qualification_is_checked_before_model_review(self):
         with self.scope():
             state=self.selected();self.profile._data['activity_profiles']=[{'usual_venue':'Elm School'}]

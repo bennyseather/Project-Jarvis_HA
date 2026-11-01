@@ -1,3 +1,8 @@
+## 0.45.136
+
+- Keep explicit kit names and usual-venue checks when shortening preparation answers.
+- Give the bounded retry concrete source-grounded wording while retaining fidelity review and readiness distinctions.
+
 ## 0.45.135
 
 - Recall retained details through English and Norwegian search concepts, with original-source grounding and explicit historical context.
