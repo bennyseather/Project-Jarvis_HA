@@ -663,7 +663,9 @@ class EventPreparation(HouseholdThinking):
         if any('calendar' in gap for gap in evidence['source_failures']):answer+=' Some other appointments could not be checked.'
         if evidence['truncated'] or len(events)>len(obj['events']) and obj['events']:
             answer+=' This focuses on the selected appointments; there may be more to consider.'
+        from jarvis.assistant_issues import event_fingerprint
         return reply(answer,'clarification_required' if obj['question']=='which_event' else 'success',
+                     assistant_issue_sources=[{'identity':self.event_identity(e),'fingerprint':event_fingerprint(e)} for e in selected],
                      local_model_interpretation=True,fact_binding=True,followup_detail=obj['question'] if obj['question'] in ('venue','requirements') else None,
                      composition='local_model_preparation_reviewed' if language['text'] else 'local_event_context',
                      language_model_composition=bool(language['text']),language_fallback_reason=language['reason'],

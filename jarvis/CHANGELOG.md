@@ -1,3 +1,11 @@
+## 0.45.141
+
+- Report a wrong or incomplete answer in the same conversation without naming code or case IDs.
+- Attach the original question/reply, recheck the selected appointment and distinguish saved omissions from new activity knowledge.
+- Reuse confirmed usual/detailed preparation edits; keep code repairs scoped, tested and independently reviewed.
+- Keep private issue evidence in HA, show linked reports in Assistant, and retain source-change/privacy/authority checks.
+- Preserve saved voice and held audio/reminder tests.
+
 ## 0.45.140
 
 - Recover once from internal memory IDs in answer prose while retaining every grounding check.

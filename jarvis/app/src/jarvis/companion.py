@@ -66,6 +66,8 @@ class Companion:
   self.planning_conversation=PlanningConversation(self)
   from jarvis.development_workspace import DevelopmentWorkspace
   self.development=DevelopmentWorkspace(self)
+  from jarvis.assistant_issues import AssistantIssues
+  self.issues=AssistantIssues(self)
   self.profile._companion=self
  async def process(self,operation,text,key,source):
   # Run at the authenticated bridge boundary after generic pending confirmations
@@ -349,7 +351,7 @@ class Companion:
    'retention':'Until corrected or deleted','transport_preference':'Driving first, public transport alternatives',
    'people':{p['id']:p['preferred_name'] for p in self.profile._data['members']},'memories':self.store.memories(include_historical=True)[:30],'learning_jobs':self.store.job_counts(),'football':self.football.project(),'travel_briefs':self.store.briefs()[:8],
    'household_planning':self.agenda.project(),'planning_followthrough':self.followups.project(),'travel_status':self.travel.status if self.travel else 'not_configured','improvements':self.store.improvements()[:10],
-   'development_workspace':self.development.project(),'development_mode':'Supervised source inspection and isolated tests; production releases require independent review','read_only':True}
+   'development_workspace':self.development.project(),'answer_problems':self.issues.project(),'development_mode':'Supervised source inspection and isolated tests; production releases require independent review','read_only':True}
 
 def create_companion(container):
  profile=getattr(container,'household_profile',None);source=getattr(profile,'_source_path',None)

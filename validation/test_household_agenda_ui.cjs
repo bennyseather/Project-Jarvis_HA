@@ -34,3 +34,6 @@ card._devHistory=true;assert.equal(card.developmentCards({enabled:true,cases:[{d
 card.data.assistant.development_workspace.enabled=false;
 assert.ok(!card.cards().some(c=>c.title==='Jarvis development workspace'));
 console.log('Supervised development cases, source citations, review status and disabled state PASS');
+card.data.assistant.answer_problems=[{id:'I000000000001',status:'investigating',summary:'Saved kit omitted from answer.',question:'What should Mia bring?',answer:'Rehearsal at 17:00.',report:'You forgot instrument.',development_case:'W000000000001',development_state:'inspecting'}];
+const issueCards=card.cards();assert.ok(issueCards.some(c=>c.title.startsWith('Reported answer problem')&&c.lines.some(l=>l.includes('What should Mia bring?'))&&c.lines.some(l=>l.includes('Rehearsal at 17:00'))&&c.lines.some(l=>l.includes('W000000000001'))));
+console.log('Reported answer evidence and linked investigation remain visible PASS');

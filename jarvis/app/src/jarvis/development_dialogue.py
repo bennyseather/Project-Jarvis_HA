@@ -32,7 +32,9 @@ def result_lines(row):
     result=row.get('result') or {}
     if not result:
         return ['This was an inspection; no tests were run.'] if row.get('mode')=='inspect' and row.get('state')=='inspection_complete' else ['No completed test results are available yet.']
-    lines=[phase_line(name,phase) for name,phase in result.get('phases',{}).items()]
+    phases=result.get('phases',{})
+    order=[n for n in ('original_suite','original_regression','candidate_suite') if n in phases]+[n for n in phases if n not in ('original_suite','original_regression','candidate_suite')]
+    lines=[phase_line(name,phases[name])+'.' for name in order]
     if release_note(row):lines.append(release_note(row))
     elif row.get('state')=='review_required':lines.append('The candidate still needs independent review before release.')
     else:lines.append('The full candidate check has not passed; independent review is needed.')

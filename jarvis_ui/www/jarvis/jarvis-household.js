@@ -10,11 +10,11 @@ function householdLines(value,prefix=''){
  return [(prefix?prefix+': ':'')+String(value)];
 }
 class JarvisHouseholdCard extends HTMLElement{
- get uiRevision(){return 2026110103;}
+ get uiRevision(){return 2026110104;}
  setConfig(config){this.config=config||{};this.toggleAttribute?.('data-standalone',this.config.layout==='standalone');this.section=this.config.initial_section==='assistant'?'assistant':'planner';this.render();}
  getCardSize(){return 8;}
  constructor(){super();this.attachShadow({mode:'open'});this.section='planner';this.period='today';this.agendaDay='today';this.agendaPerson='all';this.page=0;this.serial=0;this.error='';this.loading=false;}
- set hass(hass){const previousRevision=this._plannerUiRevision,upgrade=previousRevision!==2026110103;this._plannerUiRevision=2026110103;if(upgrade&&!previousRevision&&!this.shadowRoot.querySelector?.('jarvis-planner-card'))this.section=this.config?.initial_section==='assistant'?'assistant':'planner';const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(upgrade)this.render();if(!this.data&&!this.loading&&hass)this.load();}
+ set hass(hass){const previousRevision=this._plannerUiRevision,upgrade=previousRevision!==2026110104;this._plannerUiRevision=2026110104;if(upgrade&&!previousRevision&&!this.shadowRoot.querySelector?.('jarvis-planner-card'))this.section=this.config?.initial_section==='assistant'?'assistant':'planner';const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(upgrade)this.render();if(!this.data&&!this.loading&&hass)this.load();}
  connectedCallback(){this.render();this.timer=setInterval(()=>{if(!document.hidden)this.load();},60000);}
  disconnectedCallback(){clearInterval(this.timer);this.serial++;this.data=null;this.loading=false;}
  async load(){if(!this._hass||this.loading||!this.isConnected)return;const serial=++this.serial;this.loading=true;this.error='';this.render();try{const data=await this._hass.callWS({type:'jarvis_conversation/household',period:this.period});if(serial!==this.serial||!this.isConnected)return;if(data.schema_version!==1||data.read_only!==true||(this.period!=='today'&&data.planning?.period!==this.period))throw Error('Invalid response');this.data=data;}catch{if(serial!==this.serial)return;this.data=null;this.error='Household information unavailable. Nothing has been changed. Try Refresh.';}finally{if(serial===this.serial){this.loading=false;this.render();}}}
@@ -56,6 +56,7 @@ class JarvisHouseholdCard extends HTMLElement{
    ...(a.memories||[]).map(r=>({title:(r.subjects||[]).map(id=>a.people?.[id]||id).join(' and ')||'Unattributed conversation detail',lines:[r.quote,
     r.kind==='hint'?'Possible inference: '+(r.interpretation||'Not confirmed.'):r.currently_applicable?'Reported in conversation.':'Retained as history or awaiting a date clarification.',
     r.id+' · learned '+new Date(r.created_at).toLocaleDateString('en-GB',{timeZone:'Europe/Oslo'})]})),
+   ...(a.answer_problems||[]).map(r=>({title:'Reported answer problem · '+r.status.replaceAll('_',' '),lines:[r.summary,'Original question: '+r.question,'Previous answer: '+r.answer,'Your report: '+r.report,r.development_case?'Investigation '+r.development_case+' · '+(r.development_state||'awaiting review'):'Knowledge corrections require their own confirmation.']})),
    ...this.developmentCards(a.development_workspace),
    ...(a.improvements||[]).map(r=>({title:'Improvement idea for review',lines:[r.proposal||r.quote,'Proposed only — no code has been changed or executed.']}))];
   return cards;
@@ -91,7 +92,7 @@ if(this.section==='changes')cards=(d.changes||[]).map(c=>({title:'Revision '+c.r
 customElements.whenDefined('ha-card').then(()=>{
  const active=customElements.get('jarvis-household-card');
  if(!active)customElements.define('jarvis-household-card',JarvisHouseholdCard);
- else if((active.prototype.uiRevision||0)<2026110103){
+ else if((active.prototype.uiRevision||0)<2026110104){
   // HA can announce this module to a still-open companion WebView. Upgrade its
   // existing compatible element instead of silently retaining the cached class.
   for(const name of Object.getOwnPropertyNames(JarvisHouseholdCard.prototype)){

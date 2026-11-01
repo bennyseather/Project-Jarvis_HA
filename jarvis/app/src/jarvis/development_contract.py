@@ -9,8 +9,10 @@ from pathlib import PurePosixPath
 SCOPES={
  'preparation':{'label':'Weekly preparation summaries','files':{
   'src/jarvis/assistant_priorities.py':['preparation_groups','priority_key','fallback'],
-  'src/jarvis/preparation_wording.py':['join_words','activity_name','kit_item','usual_preparation']},
-  'tests':['test_priority_summary','test_preparation_wording','test_memory_followthrough']},
+  'src/jarvis/preparation_wording.py':['join_words','activity_name','kit_item','usual_preparation'],
+  'src/jarvis/household_activities.py':['match'],
+  'src/jarvis/event_preparation.py':['EventPreparation.notes_for','EventPreparation.render']},
+  'tests':['test_priority_summary','test_preparation_wording','test_memory_followthrough','test_event_preparation','test_household_activities']},
  'memory':{'label':'Relevant memory lookup and answers','files':{'src/jarvis/companion_store.py':['CompanionStore.relevant'],'src/jarvis/companion_memory.py':['answer_memory']},
   'tests':['test_companion_memory','test_memory_followthrough']},
  'conversation':{'label':'Conversation references','files':{'src/jarvis/companion_read_context.py':['duration_quotes','preparation_goals','meal_remainder']},

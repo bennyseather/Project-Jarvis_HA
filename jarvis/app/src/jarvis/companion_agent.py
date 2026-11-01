@@ -14,6 +14,7 @@ from jarvis.calendar_context import current_calendar_access
 from jarvis.household_speaker import current_speaker,SpeakerReference,shared_knowledge_enabled,resolve_question,employment_answer,birthday_answer
 from jarvis.companion_memory import local_json
 from jarvis.companion_store import secret,bounded
+from jarvis.assistant_issues import report_request
 ZONE=ZoneInfo('Europe/Oslo')
 coded_backend_only=ContextVar('qwen_coded_backend_only',default=False)
 TOOLS=('identity','memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','home','research','assistant','development','general','clarify')
@@ -28,10 +29,11 @@ DOMAINS['activity_knowledge']='activity_knowledge'
 DOMAINS['activity_departure']='departure'
 DOMAINS['planning_report']='planning_report'
 DOMAINS['football_updates']='football'
+DOMAINS['answer_problem']='issue'
 TOOLS+=('route','activity_knowledge','departure')
 SCHEMA={'type':'object','properties':{'tool':{'type':'string','enum':list(DOMAINS)},'members':{'type':'array','items':{'type':'string'},'maxItems':4}},'required':['tool','members'],'additionalProperties':False}
-PROMPT="""Select ONE capability for the LATEST USER TURN. New questions override old context. Definitions use general_chat. Priority: combined
-preparation AND departure-time question uses activity_departure, not activity_preparation.
+PROMPT="""Select ONE capability for the latest USER turn; new questions override history.
+Combined preparation and departure timing uses activity_departure. Definitions use general_chat.
 A question asking what someone prefers uses recall_detail, never remember_detail.
 Social thanks and definitions ('What is band rehearsal?') use general_chat.
 After plans, organiser notes, 'Are we all set?' and what still needs sorting out
@@ -79,8 +81,7 @@ A bare dinner duration or date-only continuation of an active dinner-fit task is
 household_plans even after a route/meal budget, not local_route.
 internet_research: current public facts,news or explicit internet search.
 assistant_settings: pause/resume learning/travel preparation, memory-clear confirmation.
-development_proposals: code inspection/case follow-ups, patch/tests. general_chat: chat/explanations
-without local/live data. clarification: no clear task.
+development_proposals: own-code cases, patch/tests. answer_problem: report a wrong/incomplete answer and request correction/investigation. general_chat: other chat. clarification: unclear task.
 
 Date-only followups keep capability. Birthday uses household_facts.
 Read_focus supplies prior USER subject/date, not cached truth. 'Actually I meant
@@ -146,6 +147,7 @@ class QwenConversation:
   if old[:4]+old[5:]!=current[:4]+current[5:]:return 'scope'
   return 'date' if old[4]!=current[4] else None
  def clear_dated_context(self,state,key):
+  self.owner.issues.clear(state);state.pop('issue_answer',None)
   self.owner.revoke_other_reviews(key);self.owner.planning_conversation.clear(state)
   self.owner.intake_pending.pop(str(key),None);self.owner.pending.pop(str(key),None)
   for name in ('household_thinking','event_preparation','household_reasoning'):
@@ -395,6 +397,13 @@ class QwenConversation:
    try:
     async with state['lock']:
      with self.scope(state):
+      try:issue=await self.owner.issues.handle(text,key,source,state)
+      except Exception:issue=reply('I could not safely attach that answer report. Please repeat the original question, then describe the problem. Nothing is confirmed as changed.','unavailable') if report_request(text) or state.get('issue_pending') else None
+      if issue is not None:
+       state['history'].extend([{'role':'user','text':text[:450]},{'role':'assistant','text':issue['message'][:700]}]);state['history']=state['history'][-6:]
+       state['last_tool']='development' if issue.get('development_case') else 'issue'
+       self.owner.last_activity=self.clock();return issue
+      if state.get('issue_pending'):self.owner.issues.clear(state)
       try:checked=await self.owner.planning_conversation.confirm(text,key,source,state)
       except ValueError:
        self.owner.planning_conversation.clear(state);return reply('I could not confirm that preparation change. Please reopen the appointment and review it again.','clarification_required')
@@ -415,6 +424,11 @@ class QwenConversation:
       if changed:return self.changed_reply(changed)
       if planning_generation!=(self.owner.store.generation,self.owner.store.revision) or report_generation!=report_revision(self.profile):return reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       tool=plan['tool'];state['_topic_operation']=plan['operation']
+      if tool=='issue':
+       try:result=await self.owner.issues.handle(text,key,source,state,force=True)
+       except Exception:return reply('I could not safely attach that report. Please ask the original question again and describe the error.','unavailable')
+       state['history'].extend([{'role':'user','text':text[:450]},{'role':'assistant','text':result['message'][:700]}]);state['history']=state['history'][-6:]
+       state['last_tool']='development' if result.get('development_case') else 'issue';self.owner.last_activity=self.clock();return result
       if tool!='development':self.owner.development.deactivate(key,source)
       if tool in ('football','planning_report','planning_followthrough','memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route','activity_knowledge','departure') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')
       if tool!='planning_report':self.owner.planning_conversation.clear(state)
@@ -455,6 +469,7 @@ class QwenConversation:
       elif tool=='departure' and memory_generation!=(self.owner.store.generation,self.owner.store.revision):result=reply('The remembered details changed while I was checking. Please ask again.','unavailable')
       if tool!='football' and isinstance(result,dict) and result.get('status')=='success':state.pop('football_focus_until',None)
       social=tool=='general' and (acknowledgement(text) or plan.get('presentation'))
+      issue_focus=state.get('_resolved_read') or self.reads.prior(state)
       if isinstance(result,dict) and not changed and not social:self.reads.observe(text,tool,result,plan['members'],state,state.pop('_resolved_read',None))
       if tool=='plans' and isinstance(result,dict) and not changed:
        from jarvis.companion_routing import CompanionRouting
@@ -476,6 +491,7 @@ class QwenConversation:
       except Exception:pass
       state['history'].extend([{'role':'user','text':'[credential-related text omitted]' if secret(text) else text[:450]},{'role':'assistant','text':str(result.get('message',''))[:700]}]);state['history']=state['history'][-6:]
       if not social:state['last_tool']=tool
+      if not changed:self.owner.issues.observe(text,tool,result,state,focus=self.reads.prior(state) or issue_focus,social=social)
       self.owner.last_activity=self.clock()
       return result
    finally:self.slots.release()

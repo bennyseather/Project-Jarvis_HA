@@ -78,6 +78,19 @@ class DevelopmentWorkspace:
         out.update(review_required=not bool(release_note(row)),release_note=release_note(row),state_label=state_words(row['state']),title=case_title(row),test_summary=result_lines(row) if row.get('result') or row.get('state')=='inspection_complete' else [])
         return out
     def project(self):return {'enabled':self.enabled,'status':self.status,'mode':'Supervised source inspection and isolated candidate tests; production release requires review','diagnostic_count':sum(bool(r.get('diagnostic')) for r in self.jobs()),'cases':[self.public(r) for r in self.jobs()[:32]]}
+    def open_case(self,scope,problem,mode,key,source,*,issue_id=None):
+        access=current_calendar_access.get()
+        if not access.actor or not access.read or not access.write:return response('Your signed-in HA account needs control permission to start a development case.','forbidden')
+        if not self.enabled:return response('The supervised development workspace is not enabled.','unavailable')
+        if scope not in PUBLIC_SCOPES or mode not in ('inspect','investigate'):raise ValueError('Unsupported development case')
+        problem=bounded(problem,600)
+        if not problem or secret(problem) or issue_id is not None and not re.fullmatch(r'I[0-9a-f]{12}',issue_id):raise ValueError('Invalid source problem')
+        rows=self.jobs()
+        if len(rows)>=32 or sum(r['state'] in ACTIVE for r in rows)>=3:return response('The workspace queue needs review before I can start another case.','unavailable')
+        row={'id':'W'+secrets.token_hex(6),'owner':sha(access.actor),'scope':scope,'problem':problem,'mode':mode,'state':'selecting','created_at':stamp(self.owner.now()),'snapshot':self.config['snapshot'],'attempts':0}
+        if issue_id:row['issue_id']=issue_id
+        self.save(row);self.select(row,key,source);self.start()
+        return response('I have opened '+row['id']+'. I will '+('inspect that code' if mode=='inspect' else 'inspect the code, draft a small candidate and test it in isolation')+' when conversation is idle. You can ask “What did you find?” or “How is it going?” here.','success',development_workspace=True,development_case=row['id'])
     def focus_key(self,key,source):return (current_calendar_access.get().actor,str(key),source or '')
     def selected(self,key,source,*,active_only=False):
         item=self.focus.get(self.focus_key(key,source))
@@ -159,9 +172,7 @@ class DevelopmentWorkspace:
         except ValueError:return response('Please give a shorter description of the development problem.')
         if not problem or secret(problem):return response('Please describe the code problem without credentials or private configuration.')
         if len(rows)>=32 or sum(r['state'] in ACTIVE for r in rows)>=3:return response('The workspace queue needs review before I can start another case.','unavailable')
-        row={'id':'W'+secrets.token_hex(6),'owner':sha(access.actor),'scope':scope,'problem':problem,'mode':action,'state':'selecting','created_at':stamp(self.owner.now()),'snapshot':self.config['snapshot'],'attempts':0}
-        self.save(row);self.select(row,key,source);self.start()
-        return response('I have opened '+row['id']+'. I will '+('inspect that code' if action=='inspect' else 'inspect the code, draft a small candidate and test it in isolation')+' when conversation is idle. You can ask “What did you find?” or “How is it going?” here.','success',development_workspace=True,development_case=row['id'])
+        return self.open_case(scope,problem,action,key,source)
     def explain(self,row):
         message=row['id']+' — '+state_words(row['state'])+'. '+row.get('summary','')
         if row.get('result'):message+=' '+' '.join(result_lines(row))
