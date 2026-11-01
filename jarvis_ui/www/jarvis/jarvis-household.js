@@ -1,6 +1,6 @@
 /* Shared household planner and profile view. No browser credentials or storage. */
 import './jarvis-planner.js?v=04580';
-import './jarvis-followup-panel.js?v=045111';
+import './jarvis-followup-panel.js?v=045135';
 const escapeHousehold=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const householdLabel=s=>String(s).replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 function householdLines(value,prefix=''){

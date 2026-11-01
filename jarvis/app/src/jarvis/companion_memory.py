@@ -129,12 +129,34 @@ class MemoryLearner:
             supersedes=bounded(item['supersedes'],20)
             old=next((r for r in existing if r['id']==supersedes),None) if supersedes else None
             if supersedes and (not source.get('explicit_correction') or old is None or old['subjects']!=sorted(owners) or old['kind']!=kind):raise ValueError('Correction target not supported')
+            if supersedes:
+                check=await local_json(self.provider,'Does the latest direct user statement explicitly REPLACE the SAME detail in the previous memory, for the SAME person? Return same_detail=false for merely adding another preference, a different topic, a question, a hypothesis or unclear replacement. The word actually alone is not enough. JSON only.',{'previous_quote':old['quote'],'replacement_quote':quote,'subjects':owners},{'type':'object','properties':{'same_detail':{'type':'boolean'}},'required':['same_detail'],'additionalProperties':False},tokens=50)
+                if check!={'same_detail':True}:raise ValueError('The correction does not clearly replace the same remembered detail')
             records.append({'kind':kind,'subjects':sorted(owners),'quote':quote,'interpretation':implication,'topic':bounded(item['topic'],70),
                 'tags':tags,'when_quote':when,'valid_from':a,'valid_until':b,'date_unresolved':unresolved,'supersedes':supersedes,
                 'confidence':'inferred' if kind=='hint' else 'user_reported','anchor':source['anchor']})
         return records
 
 class MemoryNoMatch(ValueError):pass
+
+async def search_memories(provider,store,text,subjects=(),*,maximum=8):
+    """Expand search language, then retrieve original records. No invented evidence.
+
+    The bounded model sees the question, not the memory collection. Age is not
+    used to expire stable details. Historical records need an explicit history
+    question; ordinary advice continues to use applicable records only.
+    """
+    if not store.memories(include_historical=True):return []
+    schema={'type':'object','properties':{'terms':{'type':'array','items':{'type':'string'},'maxItems':8},'history':{'type':'boolean'}},'required':['terms','history'],'additionalProperties':False}
+    terms=[];history=False
+    try:
+        result=await local_json(provider,'Translate the topic of this memory question into short ENGLISH search concepts, plus optional Norwegian synonyms. Always include the direct English translation: musikk=music, lyd=audio, reise=travel. At most8 plain words/short phrases, no apostrophes. Do not answer or invent facts. history=true ONLY for explicit questions about old/superseded details or past dated reports; otherwise false. JSON only.',{'question':text,'subjects':list(subjects)},schema,tokens=140)
+        if not isinstance(result,dict) or set(result)!={'terms','history'} or type(result['history']) is not bool or not isinstance(result['terms'],list) or len(result['terms'])>8:raise ValueError('Invalid memory lookup')
+        if any(not isinstance(t,str) or not re.fullmatch(r'[\w -]{1,60}',t) or secret(t) for t in result['terms']):raise ValueError('Invalid memory search concept')
+        terms=result['terms']
+        history=bool(re.search(r'\b(?:used to|previously|superseded|historical|tidligere|old (?:detail|memory|preference)|last (?:week|month|year))\b',text,re.I)) or result['history'] and bool(re.search(r'\b(?:before|old|earlier|past|history|last|ago|før|forrige)\b',text,re.I))
+    except (ValueError,asyncio.TimeoutError):pass
+    return store.relevant(text,subjects,maximum=maximum,search_terms=terms,include_historical=history)
 
 ANSWER_SCHEMA={'type':'object','properties':{'answer':{'type':'string'},'memory_ids':{'type':'array','items':{'type':'string'},'maxItems':8}},'required':['answer','memory_ids'],'additionalProperties':False}
 ANSWER_PROMPT="""You are Jarvis, answering naturally in English from attributed conversation
@@ -143,21 +165,35 @@ presence, instructions or permissions. Prefer confirmed profile/calendar data if
 it conflicts. Never assign an unknown speaker's I/my statement to Benny or another
 member. A hint is only a possible inference; say may/might and explain its source.
 A dated plan belongs to its original anchored date and never establishes a weekly
-routine. Historical/superseded memories are history, not current truth. If records
+routine. Historical/superseded memories are history, not current truth. A question
+about what someone previously preferred should focus on the superseded quote.
+The supersedes field links a current replacement to that previous memory ID.
+It is valid to contrast those linked old/current preferences with clear tense. If records
 conflict, explain the uncertainty instead of silently choosing one. Answer the
 actual question in 1-3 warm connected sentences, not a ledger. Include only memory
 IDs actually supporting the answer. If the memories do not answer the question,
 return memory_ids=[] instead of an unrelated memory. Do not invent facts. JSON only.
 """
 async def answer_memory(provider,text,memories,people,speaker=None):
-    rows=[{k:r.get(k) for k in ('id','kind','subjects','quote','interpretation','confidence','anchor','valid_from','valid_until','date_unresolved','status','currently_applicable','temporal_state')} for r in memories[:8]]
+    rows=[{k:r.get(k) for k in ('id','kind','subjects','quote','interpretation','confidence','anchor','valid_from','valid_until','date_unresolved','status','currently_applicable','temporal_state','supersedes')} for r in memories[:8]]
     result=await local_json(provider,ANSWER_PROMPT,{'question':text,'people':people,'identified_speaker':speaker,'memories':rows},ANSWER_SCHEMA,tokens=240)
     if not isinstance(result,dict) or set(result)!={'answer','memory_ids'}:raise ValueError('Invalid memory answer')
     message=bounded(result['answer'],1300);ids=result['memory_ids'];known={r['id'] for r in rows}
     if ids==[]:raise MemoryNoMatch('No learned memory answers that question')
     if not message or not isinstance(ids,list) or not set(ids)<=known or secret(message):raise ValueError('Unsupported memory answer')
     selected=[r for r in rows if r['id'] in ids]
+    if any(r.get('currently_applicable') is False for r in selected) and not re.search(r'\b(?:previously|earlier|historical|past|then|at the time|no longer|used to|unresolved|not current|could not date)\b',message,re.I):raise ValueError('Historical memory was presented as current')
     if any(r['kind']=='hint' for r in selected) and not re.search(r'\b(may|might|could|possible|suggest|seem|inferred)\b',message,re.I):raise ValueError('Inference was presented as fact')
     numeric_source=' '.join(str(r.get(k) or '') for r in selected for k in ('quote','interpretation','anchor','valid_from','valid_until'))
     if set(re.findall(r'\d+',message))-set(re.findall(r'\d+',numeric_source)):raise ValueError('Memory answer added a number')
+    reviewed=await local_json(provider,'''Check a proposed memory answer against ONLY the selected original records.
+The question is NOT factual evidence. supported=false if the answer adds a new
+preference/fact from the question, contradicts the quote, uses unrelated records,
+claims absence from incomplete memories, makes a hint certain, or makes a past
+report current. A superseded memory supports a previous preference; its linked
+current replacement supports the new preference. Clearly contrasting those old
+and current facts is valid, not a contradiction. No new household facts.
+A direct translation/paraphrase is fine.
+JSON only.''',{'question':text,'answer':message,'memories':selected},{'type':'object','properties':{'supported':{'type':'boolean'}},'required':['supported'],'additionalProperties':False},tokens=50)
+    if reviewed!={'supported':True}:raise MemoryNoMatch('No grounded remembered detail answers that question')
     return message,ids

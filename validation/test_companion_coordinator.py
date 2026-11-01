@@ -22,6 +22,8 @@ class Provider:
    text=data['latest_user_statement'];person='linda' if 'Linda' in text else 'mia' if 'Mia' in text else 'benny'
    owners=data.get('explicitly_clarified_subjects') or ([person] if any(n in text for n in ('Benny','Linda','Mia')) or data.get('matched_speaker') else [])
    out={'items':[model_item(text,subjects=owners,kind='fact' if 'often works' in text else 'preference')]}
+  elif 'terms' in schema.get('properties',{}):out={'terms':[],'history':False}
+  elif 'supported' in schema.get('properties',{}):out={'supported':True}
   elif 'memory_ids' in schema.get('properties',{}):out={'answer':'Benny mentioned preferring driving to the airport.','memory_ids':[data['memories'][0]['id']]}
   else:out=self.plans.pop(0)
   return {'status':'success','message':json.dumps(out)}

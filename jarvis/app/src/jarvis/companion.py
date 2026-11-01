@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from jarvis.calendar_context import current_calendar_access
 from jarvis.household_speaker import current_speaker,shared_knowledge_enabled
 from jarvis.companion_store import CompanionStore,digest,bounded,secret,instruction_attempt
-from jarvis.companion_memory import MemoryLearner,answer_memory,local_json,MemoryNoMatch
+from jarvis.companion_memory import MemoryLearner,answer_memory,local_json,MemoryNoMatch,search_memories
 from jarvis.companion_dialogue import CompanionDialogue,response
 from jarvis.companion_travel import TravelPreparer
 
@@ -172,7 +172,7 @@ class Companion:
    if not (self.policy.data['enabled'] and self.policy.data['automatic_learning'] and access.write):return None
    context={'conversation':digest([str(key)]),'actor':digest([access.actor]),'speaker':current_speaker.get().member_id,'speaker_basis':current_speaker.get().basis,
     'anchor':self.now().astimezone(ZoneInfo('Europe/Oslo')).date().isoformat(),'prior_subjects':[],
-    'intake_preference_check':intent=='preference','explicit_correction':False,'text':value}
+    'intake_preference_check':intent=='preference','explicit_correction':bool(re.search(r'\b(?:actually|instead|no longer|from now|egentlig|heller|ikke lenger)\b',value,re.I)),'text':value}
    try:records=await MemoryLearner(self.profile,self.store,self.provider).extract({'source':context})
    except (ValueError,asyncio.TimeoutError):return None
    if len(records)!=1 or records[0]['kind'] not in (('preference',) if intent=='preference' else ('preference','fact','plan','hint')):return None
@@ -291,7 +291,8 @@ class Companion:
    # Drain at most one queued statement when explicitly asking about memory.
    # Other questions never wait for background learning.
    if self.policy.data['automatic_learning'] and self.store.job_counts().get('queued'):await self.learn_one(foreground=True)
-   rows=self.store.memories(include_historical=True) if memory_list else self.store.relevant(text,subjects)
+   revision=self.store.revision
+   rows=self.store.memories(include_historical=True) if memory_list else await search_memories(self.provider,self.store,text,subjects)
    if memory_list and subjects:rows=[r for r in rows if not r['subjects'] or set(r['subjects']).intersection(subjects)]
    if not rows:
     if memory_list:return response('I have not learned any matching conversation details yet. Useful statements are checked in the background; your confirmed household information stays available.','success')
@@ -303,8 +304,8 @@ class Companion:
    else:
     try:text_out,ids=await answer_memory(self.provider,text,rows,{p['id']:p['preferred_name'] for p in self.profile._data['members']},current_speaker.get().member_id)
     except MemoryNoMatch:return None
-    except (ValueError,asyncio.TimeoutError):
-     r=rows[0];ids=[r['id']];text_out='In an earlier conversation, '+('an unidentified speaker' if not r['subjects'] else ' and '.join(next(p['preferred_name'] for p in self.profile._data['members'] if p['id']==s) for s in r['subjects']))+' said: “'+r['quote']+'”.'+(' Any further interpretation is uncertain.' if r['kind']=='hint' else '')
+    except (ValueError,asyncio.TimeoutError):return response('I could not reliably check the relevant remembered detail just now. Please try again.','unavailable')
+   if revision!=self.store.revision:return response('The remembered details changed while I was checking. Please ask again.','unavailable')
    self.selected[str(key)]={'binding':binding,'ids':ids,'expires':self.clock()+300}
    while len(self.selected)>100:self.selected.popitem(last=False)
    return response(text_out,'success')

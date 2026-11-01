@@ -15,9 +15,9 @@ from jarvis.planning_followup_model import extract,details_after
 SOURCE_NAMES={value[0]:key for key,value in SOURCES.items()}
 class PlanningFollowups:
  def __init__(self,owner):
-  self.owner=owner;self.reports=PlanningReports(owner.store);self.items={};self.sessions={};self.checked_at=None;self.checked_clock=-1000.;self.status='preparing';self.source_health={};self.failures=[];self.task=None;self.work=None;self.binding=None
+  self.owner=owner;self.reports=PlanningReports(owner.store);self.items={};self.sessions={};self.checked_at=None;self.checked_clock=-1000.;self.status='preparing';self.source_health={};self.failures=[];self.task=None;self.work=None;self.binding=None;self.brief=None
  def enabled(self):return bool(self.owner.policy.data['enabled'] and self.owner.agenda.enabled())
- def scope(self):return (self.owner.profile._data['revision'],tuple(sorted(self.owner.container.proactive_allowed_entities)),self.owner.now().astimezone(ZONE).date().isoformat(),self.owner.store.generation,self.reports.revision)
+ def scope(self):return (self.owner.profile._data['revision'],tuple(sorted(self.owner.container.proactive_allowed_entities)),self.owner.now().astimezone(ZONE).date().isoformat(),self.owner.store.generation,self.reports.revision,self.owner.store.revision)
  def start(self):
   if self.task is None:self.task=asyncio.create_task(self.run())
  def interrupt(self):
@@ -32,7 +32,10 @@ class PlanningFollowups:
    if not self.enabled():self.items.clear();self.status='disabled';continue
    if self.owner.foreground or self.owner.clock()-self.owner.last_activity<10 or self.owner.clock()-self.checked_clock<60:continue
    self.checked_clock=self.owner.clock();self.work=asyncio.create_task(self.refresh())
-   try:await self.work
+   try:
+    await self.work
+    if not self.owner.foreground:
+     self.work=asyncio.create_task(self.prepare_brief());await self.work
    except asyncio.CancelledError:
     if asyncio.current_task().cancelling():raise
    except Exception:self.items.clear();self.status='needs_check'
@@ -56,7 +59,8 @@ class PlanningFollowups:
    for person in e['members'] or [None]:
     item=self.build(e,person)
     if item['gaps'] or item['checklist'] or item.get('report'):items[item['id']]=item
-  self.items=items;self.source_health=health;self.failures=failures+(['Some appointments are outside this brief'] if truncated else []);self.binding=scope;self.checked_at=self.owner.now().isoformat();self.checked_clock=self.owner.clock();self.status='partial' if self.failures else 'ready'
+  from jarvis.assistant_priorities import priority_key
+  self.items=dict(sorted(items.items(),key=lambda pair:priority_key(pair[1])));self.source_health=health;self.failures=failures+(['Some appointments are outside this brief'] if truncated else []);self.binding=scope;self.checked_at=self.owner.now().isoformat();self.checked_clock=self.owner.clock();self.status='partial' if self.failures else 'ready'
   self.sessions={k:v for k,v in self.sessions.items() if v['expires']>self.owner.clock()}
  def build(self,event,person):
   source=SOURCE_NAMES[event['source']];version=digest({k:event[k] for k in ('key','title','start','end','all_day','members','location','notes')})[:20]
@@ -80,12 +84,28 @@ class PlanningFollowups:
   if event['notes']:step('organiser','Review the organiser notes','calendar notes; requirements are not inferred')
   item['report']=({k:report[k] for k in ('recorded_at','quote','basis')} if report else None)
   item['state']='needs_details' if item['gaps'] else 'resolved' if not item['checklist'] else 'reported_ready' if item['checklist'] and all(s['ready'] for s in item['checklist']) else 'preparation'
+  from jarvis.assistant_priorities import next_steps
+  item['followthrough']=next_steps(item,self.owner.now())
   return item
  def public(self,item):return {k:deepcopy(v) for k,v in item.items() if not k.startswith('_')}
  def project(self):
   if not self.enabled():return {'status':'disabled','items':[],'read_only':True}
   valid=self.binding==self.scope() and self.owner.clock()-self.checked_clock<=180 and all(v['status'] in ('fresh','not_configured') for v in current_health(self.source_health,self.owner.now()).values())
-  return {'status':self.status if valid else 'preparing','checked_at':self.checked_at,'items':[self.public(v) for v in self.items.values()] if valid else [],'source_failures':list(self.failures) if valid else [],'source_health':current_health(self.source_health,self.owner.now()),'read_only':True,'report_basis':'Readiness is household-reported, never attendance or location.'}
+  brief=self.brief if valid and self.brief and self.brief['fingerprint']==self.brief_key() else None
+  return {'status':self.status if valid else 'preparing','checked_at':self.checked_at,'items':[self.public(v) for v in self.items.values()] if valid else [],'summary':brief['summary'] if brief else None,'summary_model_composed':brief['model_composed'] if brief else False,'source_failures':list(self.failures) if valid else [],'source_health':current_health(self.source_health,self.owner.now()),'read_only':True,'report_basis':'Readiness is household-reported, never attendance or location.'}
+ def brief_key(self):return digest([self.scope(),[self.public(i) for i in self.items.values()],self.failures])
+ async def prepare_brief(self):
+  if not self.enabled() or self.owner.foreground or self.binding!=self.scope() or self.status not in ('ready','partial'):return
+  fingerprint=self.brief_key()
+  if self.brief and self.brief['fingerprint']==fingerprint:return
+  from jarvis.assistant_priorities import compose,fallback
+  items=[i for i in self.items.values() if i['followthrough']['actionable']][:6]
+  summary,model=await compose(self.owner,'What should the household focus on preparing in the next seven days?',items,provider=self.owner.background) if items else (fallback([]),False)
+  if self.owner.foreground or self.binding!=self.scope():return
+  await self.refresh() # Recheck source versions after model work, before publishing.
+  if self.owner.foreground or self.binding!=self.scope() or fingerprint!=self.brief_key():return
+  if self.failures:summary+=' Some calendar information could not be checked, so this may be incomplete.'
+  self.brief={'fingerprint':fingerprint,'summary':summary,'model_composed':model}
  async def resolve(self,item_id,version):
   if not self.enabled():raise ValueError('Household planning is paused')
   item=self.items.get(item_id)
@@ -224,6 +244,7 @@ class PlanningFollowups:
   from jarvis.calendar_context import current_calendar_access
   from jarvis.companion_memory import local_json
   if not current_calendar_access.get().read:raise ValueError('Household read access is required')
+  if not self.enabled():return {'provider':'companion','status':'unavailable','message':'Household preparation planning is paused or has not been enabled.','cacheable':False}
   from jarvis.household_speaker import current_speaker
   speaker=current_speaker.get().member_id
   if re.search(r'\b(?:my|me|mine|I)\b',text,re.I) and not members:
@@ -231,19 +252,16 @@ class PlanningFollowups:
    members=[speaker]
   await self.refresh();projection=self.project()
   items=[v for v in projection['items'] if not members or v['person'] in members]
-  schema={'type':'object','properties':{'selection':{'type':'array','items':{'type':'string','enum':['none']+[i['id'] for i in items]},'maxItems':6}},'required':['selection'],'additionalProperties':False}
-  selected=await local_json(self.owner.provider,'Choose only supplied appointments relevant to this preparation-report/needs-attention question. Dates use Norway time. Return selection ids or [none]. No invented facts or actions.',{'today':self.owner.now().astimezone(ZONE).date().isoformat(),'latest':text,'appointments':[{k:i[k] for k in ('id','title','name','date','start','state')} for i in items]},schema,tokens=140)
+  binding=self.scope()
+  schema={'type':'object','properties':{'selection':{'type':'array','items':{'type':'string','enum':['none']+[i['id'] for i in items]},'maxItems':6},'view':{'type':'string','enum':['remaining','status']}},'required':['selection','view'],'additionalProperties':False}
+  selected=await local_json(self.owner.provider,'Choose supplied appointments relevant to this preparation-report/needs-attention question. Dates use Norway time. view=remaining for priorities/unfinished preparations: choose earliest unresolved items, not settled ones. view=status only when explicitly asking what is already ready/reported or for all reports. Return selection ids or [none]. No invented facts or actions.',{'today':self.owner.now().astimezone(ZONE).date().isoformat(),'latest':text,'appointments':[{k:i[k] for k in ('id','title','name','date','start','state')} for i in items]},schema,tokens=160)
   ids=selected.get('selection') if isinstance(selected,dict) else None
-  if not isinstance(ids,list) or len(ids)>6 or any(v not in ['none']+[i['id'] for i in items] for v in ids):raise ValueError('I could not select that preparation report')
+  if not isinstance(ids,list) or len(ids)>6 or any(v not in ['none']+[i['id'] for i in items] for v in ids) or selected.get('view') not in ('remaining','status'):raise ValueError('I could not select that preparation report')
   chosen=[await self.resolve(i['id'],i['version']) for i in items if i['id'] in ids]
-  lines=[]
-  for item in chosen:
-   details=(self.reports.get(item) or {}).get('details',{})
-   lines.append(item['name']+' — '+item['title']+' ('+item['date']+'): '+('; '.join(self.summary(details)) if details else 'No dated preparation details have been reported.'))
-   ready=[s['text'] for s in item['checklist'] if s['ready']]
-   if ready:lines.append('Reported ready: '+', '.join(ready)+'. This is not confirmed attendance.')
-   if item['gaps']:lines.append('Still needs checking: '+', '.join(item['gaps']).replace('_',' ')+'.')
-  if not lines:lines=['I do not have a current matching preparation report in the next seven days.']
-  if projection['source_failures']:lines.append('Some calendar sources could not be checked, so this may be incomplete.')
-  lines.append('You can review or update these details under Household → Assistant → Needs attention.')
-  return {'provider':'companion','status':'success','message':' '.join(lines),'cacheable':False,'planning_report_read':True}
+  if selected['view']=='remaining':chosen=[i for i in chosen if i['followthrough']['actionable']]
+  from jarvis.assistant_priorities import compose,fallback
+  message,model=await compose(self.owner,text,chosen) if chosen else (fallback([]),False)
+  for item in chosen:await self.resolve(item['id'],item['version'])
+  if binding!=self.scope():return {'provider':'companion','status':'unavailable','message':'The preparation details changed while I was checking. Please ask again.','cacheable':False}
+  if projection['source_failures']:message+=' Some calendar sources could not be checked, so this may be incomplete.'
+  return {'provider':'companion','status':'success','message':message,'cacheable':False,'planning_report_read':True,'language_model_composition':model,'priority_items':[i['id'] for i in chosen]}

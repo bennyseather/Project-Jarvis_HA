@@ -24,6 +24,12 @@ class Provider(AgentProvider):
    self.calls.append(kw);return {'status':'success','message':json.dumps(self.frames.pop(0))}
   return super().reason_local(**kw)
 class ReadTests(unittest.IsolatedAsyncioTestCase):
+ async def test_sorting_followup_keeps_current_appointment_instead_of_weekly_queue(self):
+  with calendar_scope({'actor':'u','read':True,'write':True}):
+   self.prior();self.provider.plans=[plan('appointments',members=['mia'])]
+   result=await self.a.agent.plan('What still needs sorting out?','s','phone',self.state)
+  self.assertEqual(result['tool'],'appointments')
+  self.assertEqual(self.provider.calls[0]['response_schema']['properties']['tool']['enum'],['activity_preparation'])
  def setUp(self):
   self.p=profile();self.provider=Provider();self.store=CompanionStore(now=lambda:NOW);self.addCleanup(self.store.close);self.clock=[1]
   self.thinking=SimpleNamespace(sessions={},handle=AsyncMock())

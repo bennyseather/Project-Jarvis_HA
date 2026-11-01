@@ -1164,3 +1164,19 @@ The same style applies to silent daily08:00 Norway written briefings. The first 
 
 
 0.45.122 repairs short football references such as “show me the full table”, “give me the full table”, and polite table requests. Their typed reference is kept for ten minutes through an unsuccessful clarification and cleared on a successful different topic. Appointment-report writes are unavailable without a selected source event. Different named tables do not trigger the short-reference shortcut. The Core line-break adapter stays at0.45.121; no Core restart is needed for this backend repair.
+
+
+### Memory relevance and preparation priorities (.135)
+
+Ask what a named household member mentioned or prefers; lookup can translate
+Norwegian/English concepts without treating those search words as new facts.
+Explicit corrections such as "Actually, [name] now prefers ... instead" are
+checked against the same retained detail. Unrelated preferences are preserved.
+Old dated or superseded reports remain history, not current appointments.
+
+Ask "What should the household focus on preparing this week?" for a short
+priorities summary. Household > Assistant > Needs attention shows the same
+remaining-step evidence and a background brief. Reported-ready steps stay
+inspectable through Show ready and are not requested again as unfinished work.
+Calendar versions, reported readiness and usual venues retain their distinct
+meanings. This feature does not send reminders or operate devices.

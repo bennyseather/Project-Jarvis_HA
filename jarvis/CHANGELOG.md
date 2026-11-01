@@ -1,3 +1,10 @@
+## 0.45.135
+
+- Recall retained details through English and Norwegian search concepts, with original-source grounding and explicit historical context.
+- Apply explicit preference corrections to the matching detail and invalidate advice when memories change.
+- Summarise practical preparation priorities from fresh calendars and reported checklist state; keep reported-ready steps out of unfinished work.
+- Show a concise priorities brief in Household Assistant while retaining reviewed reports and source-change checks.
+
 ## 0.45.134
 
 - Keep an explicitly interpreted activity reference separate from raw agenda question wording.

@@ -25,6 +25,8 @@ class Provider:
   elif 'items' in schema['properties']:
    text=data['latest_user_statement'];names=[k for k,n in data['people'].items() if n in text];owner=names or ([data.get('conversation_speaker') or data.get('matched_speaker')] if data.get('conversation_speaker') or data.get('matched_speaker') else [])
    out={'items':[model_item(text,subjects=owner)]}
+  elif 'terms' in schema['properties']:out={'terms':[],'history':False}
+  elif 'supported' in schema['properties']:out={'supported':True}
   elif 'memory_ids' in schema['properties']:out={'answer':'Benny prefers high fidelity music.','memory_ids':[data['memories'][0]['id']]}
   else:out={'answer':getattr(self,'current',{}).get('answer') or 'This source is a fictional household view.'}
   return {'status':'success','message':json.dumps(out)}

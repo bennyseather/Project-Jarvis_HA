@@ -35,11 +35,21 @@ class CompanionStore:
     def close(self):self.db.close()
     @property
     def generation(self):return int(self.db.execute("SELECT value FROM assistant_state WHERE key='generation'").fetchone()[0])
+    @property
+    def revision(self):
+        row=self.db.execute("SELECT value FROM assistant_state WHERE key='memory_revision'").fetchone()
+        return int(row[0]) if row else 0
+    def touch(self):
+        self.db.execute("INSERT INTO assistant_state VALUES ('memory_revision',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(str(self.revision+1),))
     def enqueue(self,text,context):
         text=bounded(text,1200)
         if not text or secret(text) or instruction_attempt(text):return None
         if not isinstance(context,dict) or len(json.dumps(context))>3500:raise ValueError('Invalid learning context')
-        source={**context,'text':text};key=digest([text,context.get('conversation'),context.get('actor'),context.get('anchor'),context.get('correct_memory'),context.get('clarified_subjects'),context.get('preference_subjects'),self.generation])
+        source={**context,'text':text}
+        if context.get('correct_memory'):
+            target=self.db.execute('SELECT fingerprint,status,payload FROM assistant_memories WHERE id=?',(context['correct_memory'],)).fetchone()
+            source['correction_target']=digest(target)
+        key=digest([text,context.get('conversation'),context.get('actor'),context.get('anchor'),context.get('correct_memory'),source.get('correction_target'),context.get('clarified_subjects'),context.get('preference_subjects'),self.generation])
         if self.db.execute('SELECT 1 FROM assistant_processed WHERE id=?',(key,)).fetchone():return None
         if self.db.execute("SELECT count(*) FROM assistant_capture_jobs").fetchone()[0]>=500:raise ValueError('The learning queue needs attention')
         now=stamp(self.now())
@@ -59,7 +69,7 @@ class CompanionStore:
         current=self.db.execute('SELECT generation,state FROM assistant_capture_jobs WHERE id=?',(job['id'],)).fetchone()
         if current is None or current!=(job['generation'],'processing') or self.generation!=job['generation']:return []
         if not isinstance(records,list) or len(records)>3:raise ValueError('Unbounded learned records')
-        result=[];source=job['source'];now=stamp(self.now())
+        result=[];source=job['source'];now=stamp(self.now());changed=False
         with self.db:
             for record in records:
                 quote=bounded(record.get('quote'),600)
@@ -78,16 +88,25 @@ class CompanionStore:
                 if correction:
                     if len(records)!=1 or not self.db.execute('SELECT 1 FROM assistant_memories WHERE id=?',(correction,)).fetchone():raise ValueError('Memory correction no longer matches')
                     if prior and prior[0]!=correction:raise ValueError('That correction already exists as another memory')
+                    target=self.db.execute('SELECT fingerprint,status,payload FROM assistant_memories WHERE id=?',(correction,)).fetchone()
+                    if source.get('correction_target')!=digest(target):raise ValueError('The correction target changed while learning')
                     identifier=correction
                     self.db.execute('UPDATE assistant_memories SET fingerprint=?,updated_at=?,status=?,payload=? WHERE id=?',(key,now,'reported',json.dumps(payload,ensure_ascii=False),identifier))
+                    changed=True
                 else:
                     old_id=record.get('supersedes')
                     if old_id:
                         old=next((m for m in self.memories() if m['id']==old_id),None)
                         if not source.get('explicit_correction') or old is None or old['subjects']!=record.get('subjects',[]) or old['kind']!=record['kind'] or record['kind']=='hint':raise ValueError('Unsupported memory supersession')
                         self.db.execute("UPDATE assistant_memories SET status='superseded' WHERE id=?",(old_id,))
-                    self.db.execute('INSERT INTO assistant_memories VALUES (?,?,?,?,?,?) ON CONFLICT(fingerprint) DO UPDATE SET updated_at=excluded.updated_at',(identifier,key,now,now,'inferred' if record['kind']=='hint' else 'reported',json.dumps(payload,ensure_ascii=False)))
+                    if old_id and prior:
+                        # An explicit change back can reactivate a previous quote.
+                        # Ordinary duplicate/delayed captures cannot resurrect it.
+                        self.db.execute('UPDATE assistant_memories SET updated_at=?,status=?,payload=? WHERE id=?',(now,'reported',json.dumps(payload,ensure_ascii=False),identifier))
+                    else:self.db.execute('INSERT INTO assistant_memories VALUES (?,?,?,?,?,?) ON CONFLICT(fingerprint) DO UPDATE SET updated_at=excluded.updated_at',(identifier,key,now,now,'inferred' if record['kind']=='hint' else 'reported',json.dumps(payload,ensure_ascii=False)))
+                    changed=changed or not prior or bool(old_id)
                 result.append(identifier)
+            if changed:self.touch()
             self.db.execute('INSERT OR IGNORE INTO assistant_processed VALUES (?,?)',(job['id'],now))
             self.db.execute('DELETE FROM assistant_capture_jobs WHERE id=?',(job['id'],))
         return result
@@ -100,15 +119,21 @@ class CompanionStore:
             timing='upcoming' if current and valid_from and datetime.fromisoformat(valid_from)>now else 'current' if current else 'historical_or_unresolved'
             if include_historical or current:out.append({**item,'id':key,'created_at':created,'updated_at':updated,'status':status,'currently_applicable':current,'temporal_state':timing})
         return out
-    def relevant(self,text,subjects=(),maximum=8):
-        terms={w for w in re.findall(r'\w+',text.casefold()) if len(w)>2}-{'what','when','where','about','remember','please','that','this','does','have','with','from','would','should'}
+    def relevant(self,text,subjects=(),maximum=8,*,search_terms=(),include_historical=False):
+        def words(value):
+            return {w[:-1] if len(w)>4 and w.endswith('s') else w for w in re.findall(r'\w+',value.casefold()) if len(w)>2}
+        stop=words('what when where about remember please that this does have with from would should prefer preference mentioned tell said detail information actually instead now')|set(subjects)
+        terms=words(text)-stop
+        # Semantic expansion is search vocabulary only, never evidence or stored knowledge.
+        expanded=set().union(*(words(t) for t in search_terms)) if search_terms else set()
+        expanded-=stop
         ranked=[]
-        for index,item in enumerate(self.memories()):
+        for index,item in enumerate(self.memories(include_historical=include_historical)):
             owners=set(item.get('subjects',[]))
             if subjects and owners and not owners.intersection(subjects):continue
             if subjects and not owners and re.search(r'\b(i|my|mine|me)\b',item['quote'],re.I):continue
-            tokens=set(re.findall(r'\w+',(' '.join(item.get('tags',[]))+' '+item['quote']+' '+item.get('interpretation','')).casefold()))
-            score=len(terms.intersection(tokens))+(5 if owners.intersection(subjects) else 0)
+            tokens=words(' '.join(item.get('tags',[]))+' '+item.get('topic','')+' '+item['quote']+' '+item.get('interpretation',''))
+            score=4*len(terms.intersection(tokens))+2*len(expanded.intersection(tokens))+(1 if owners.intersection(subjects) else 0)
             if score:ranked.append((score,-index,item))
         ranked.sort(key=lambda row:(row[0],row[1]),reverse=True)
         return [row[2] for row in ranked[:maximum]]
@@ -119,6 +144,7 @@ class CompanionStore:
         with self.db:
             for row in selected:self.db.execute('DELETE FROM assistant_memories WHERE id=?',(row['id'],))
             generation=self.generation+1;self.db.execute("UPDATE assistant_state SET value=? WHERE key='generation'",(str(generation),))
+            if selected:self.touch()
             for key,raw in self.db.execute('SELECT id,payload FROM assistant_capture_jobs').fetchall():
                 source=json.loads(raw)
                 if ids is None or any(q in source['text'] for q in quotes) or source.get('correct_memory') in {m['id'] for m in selected}:

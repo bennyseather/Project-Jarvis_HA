@@ -37,7 +37,7 @@ class HouseholdAgenda:
   except (ValueError,TypeError,KeyError,OSError):return False
  def binding(self):
   return (self.owner.profile._data['revision'],self.owner.now().astimezone(ZONE).date().isoformat(),
-   tuple(sorted(getattr(self.owner.container,'proactive_allowed_entities',()))),digest(self.owner.policy.data),self.owner.store.generation,self.owner.followups.reports.revision)
+   tuple(sorted(getattr(self.owner.container,'proactive_allowed_entities',()))),digest(self.owner.policy.data),self.owner.store.generation,self.owner.followups.reports.revision,self.owner.store.revision)
  def valid(self,binding):
   if self.owner.foreground or not self.enabled() or binding!=self.binding():raise Superseded()
  def start(self):
@@ -133,7 +133,9 @@ class HouseholdAgenda:
   try:
    if not events:raise ValueError('No remaining appointments need model composition')
    question=('What should '+name+' prepare for ' if family else 'What does '+name+' have on ')+evidence['start']+'?'
-   out=await asyncio.wait_for(engine.handle(question,None,**({} if family else {'tool_selected':True})),20)
+   from jarvis.companion_context import observation_scope
+   with observation_scope(self.owner.observations(question+' '+' '.join(e['text'] for e in events),[person])):
+    out=await asyncio.wait_for(engine.handle(question,None,**({} if family else {'tool_selected':True})),20)
    self.valid(binding)
    if out and out.get('status')=='success':summary=out['message']
   except (ValueError,asyncio.TimeoutError):pass
