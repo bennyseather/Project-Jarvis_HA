@@ -35,7 +35,7 @@ class IssueTests(unittest.IsolatedAsyncioTestCase):
   self.a.development.config={'enabled':True,'snapshot':'a'*64};self.a.development.start=lambda:None
  def seed(self,*,answer='Mia has band rehearsal at 15:40.',tool='appointments',source='phone',key='s'):
   state=self.a.agent.state(key,source)
-  event={'text':'Band rehearsal','source':'family','owners':['mia'],'start':self.event['start'],'end':self.event['end'],'location':'Elm School','description':''}
+  event={'text':'Band rehearsal','source':'family','owners':['mia'],'start':self.event['start'],'end':self.event['end'],'location':'Elm School','description':' '.join(description_units(self.event.get('description','')))}
   focus={'subjects':['mia'],'start':'2026-10-29','end':'2026-10-30','purpose':'preparation' if tool=='appointments' else 'overview','event_focus':[EventPreparation.event_identity(event)]}
   state['read_focus']={**focus,'question':'What should Mia prepare for rehearsal tomorrow?','task':'What should Mia prepare for rehearsal tomorrow?','expires':self.a.clock()+600,'window':'all_day','between':False,'preparation_goal':'kit'}
   self.a.issues.observe('What should Mia prepare for band rehearsal tomorrow?',tool,{'status':'success','message':answer,'assistant_issue_sources':[{'identity':EventPreparation.event_identity(event),'fingerprint':event_fingerprint(event)}]},state,focus=focus)
@@ -72,6 +72,16 @@ class IssueTests(unittest.IsolatedAsyncioTestCase):
   with calendar_scope({'actor':'u','read':True,'write':True}):self.seed()
   self.client.events['calendar.familiekalender'][0]['description']='Bring different kit.'
   result=await self.say('You forgot her instrument and sheet music. Fix that.');self.assertIn('changed since',result['message']);self.assertFalse(self.a.development.jobs())
+ async def test_current_organiser_requirement_is_not_misclassified_as_new_usual_knowledge(self):
+  self.event['description']='Bring a water bottle.';self.client.events['calendar.familiekalender'][0]['description']=self.event['description'];self.provider.items=['water bottle']
+  with calendar_scope({'actor':'u','read':True,'write':True}):self.seed()
+  result=await self.say('You forgot her water bottle. Fix that.');self.assertIn('current organiser notes',result['message']);self.assertTrue(result.get('development_case'));self.assertNotIn('issue_pending',self.state);self.assertNotIn('water bottle',self.p._data['activity_profiles'][0]['equipment'])
+ async def test_negative_or_conditional_organiser_instruction_is_not_a_confirmed_omission(self):
+  self.provider.items=['instrument']
+  for note in ('Do not bring the instrument.','If she performs, bring the instrument.','Bring nothing this week.','Ikkje ta med instrument.','Ikke ta med instrument.'):
+   self.event['description']=note;self.client.events['calendar.familiekalender'][0]['description']=note
+   with calendar_scope({'actor':'u','read':True,'write':True}):self.seed()
+   result=await self.say('You forgot her instrument. Fix that.');self.assertIn('qualify the usual kit',result['message']);self.assertFalse(self.a.development.jobs());self.assertFalse(self.p._edits.pending)
  async def test_changed_calendar_before_confirmation_blocks_save(self):
   self.provider.items=['water'];before=self.path.read_bytes()
   with calendar_scope({'actor':'u','read':True,'write':True}):self.seed()

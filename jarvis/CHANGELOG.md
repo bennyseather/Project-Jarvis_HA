@@ -1,3 +1,9 @@
+## 0.45.142
+
+- Check current organiser requirements and negative/conditional exceptions before diagnosing a missing preparation item.
+- Distinguish instructions already in calendar notes from new usual knowledge.
+- Bind repeated-report detection to the source fingerprint so changed evidence is rechecked.
+
 ## 0.45.141
 
 - Report a wrong or incomplete answer in the same conversation without naming code or case IDs.

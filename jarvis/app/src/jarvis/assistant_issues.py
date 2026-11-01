@@ -172,7 +172,8 @@ class AssistantIssues:
   if not items and (frame['request']=='missing_equipment' or re.fullmatch(r'(?:please )?(?:fix|correct|investigate) (?:that|this)(?: please)?[.!?]*',report,re.I)):
    state['issue_pending']={'kind':'detail','packet':packet,'report':report,'expires':self.owner.clock()+300};return response('What equipment should that answer have included? Please say whether it is usual or just for this appointment.' if events else 'What was wrong with that answer, and what should it have said?','clarification_required')
   event=events[0] if events else None;record=match(self.owner.profile._data,event) if event else None
-  keyhash=digest([access.actor,packet['question'],packet['answer'],report,revision])
+  event=events[0] if events else None
+  keyhash=digest([access.actor,packet['question'],packet['answer'],report,revision,packet['tool'],event_fingerprint(event) if event else None])
   prior=next((r for r in self.rows() if r.get('dedup')==keyhash),None)
   if prior:return response(prior['summary']+' This report is already recorded.',assistant_issue_id=prior['id'],development_case=prior.get('development_case'))
   if len(self.rows())>=40:return response('The answer-report journal needs review before I can record more problems.','unavailable')
@@ -191,7 +192,17 @@ class AssistantIssues:
      canonical=[saved[n] if n>=0 else v for v,n in zip(items,mapped['matches'])]
     except (ValueError,asyncio.TimeoutError):return response('I could not reliably compare that equipment with the saved kit. Please use the saved item name or state the new requirement explicitly.','clarification_required')
    if not self.valid(state,key,source,revision):return response('The household context changed while I was checking. Please ask again.','unavailable')
-   unknown=[v for v in canonical if title_key(v) not in {title_key(i) for i in saved}]
+   clauses=event.get('description_units',[])
+   def mentions(clause,item):
+    return bool(re.search(r'(?<!\w)'+re.escape(item)+r'(?!\w)',clause,re.I) or any(re.search(r'\b'+re.escape(w)+r'\w*\b',clause,re.I) for w in re.findall(r'\w{4,}',item)))
+   relevant=[c for c in clauses if any(mentions(c,v) for v in canonical)]
+   qualified=re.compile(r"\b(?:if|unless|only|not|no|never|without|don['’]t|do not|parents?|adults?|teachers?|coaches|ikke|ikkje|ingen|uten|utan|kun|bare|berre|hvis|dersom)\b",re.I)
+   exceptions=[c for c in relevant if qualified.search(c)] or [c for c in clauses if re.search(r'\b(?:bring nothing|no (?:equipment|kit)|nothing (?:is )?(?:needed|required))\b',c,re.I)]
+   if exceptions:
+    row.update(status='needs_source_review',category='organiser_qualification',summary='Current organiser instructions qualify the reported requirement; no automatic requirement or code change was made.');self.save(row)
+    return response('The current organiser notes say: “'+exceptions[0]+'” That can qualify the usual kit, so I have kept the report for review and have not treated it as a confirmed omission or changed the requirements.',assistant_issue_id=row['id'])
+   current_items=[v for v in canonical if any(re.search(r'(?<!\w)'+re.escape(v)+r'(?!\w)',c,re.I) for c in relevant)]
+   unknown=[v for v in canonical if title_key(v) not in {title_key(i) for i in saved} and v not in current_items]
    omitted=[v for v in canonical if v.casefold() not in packet['answer'].casefold()]
    if not omitted:
     row.update(status='already_present',category='answer_explanation',summary='The reported items were already in the preceding answer.');self.save(row);return response('Those items were already in my preceding answer. If you meant a different requirement, tell me which one.',assistant_issue_id=row['id'])
@@ -217,13 +228,13 @@ class AssistantIssues:
      row.update(status='needs_review',category='knowledge_gap',summary='The activity-knowledge proposal could not be confirmed.');self.save(row)
     return response('This looks like a missing saved detail. '+result['message'],result.get('status','unavailable'),assistant_issue_id=row['id'])
    row['category']='possible_answer_omission' if packet['tool'] in ('appointments','departure') else 'feature_request'
-   intro=('I rechecked that appointment. The saved usual kit already includes '+', '.join(saved)+', so I should have included the relevant items in that preparation answer. ') if row['category']=='possible_answer_omission' else ('The saved usual kit is '+', '.join(saved)+'. The earlier answer was a schedule overview, so this does not by itself establish a program error. ')
+   intro=('I found '+', '.join(current_items)+' in the current organiser notes. I have attached those notes and the earlier answer for investigation. ') if current_items else ('I rechecked that appointment. The saved usual kit already includes '+', '.join(saved)+', so I should have included the relevant items in that preparation answer. ') if row['category']=='possible_answer_omission' else ('The saved usual kit is '+', '.join(saved)+'. The earlier answer was a schedule overview, so this does not by itself establish a program error. ')
   else:intro='I have attached the original question, my answer and your report. '
   scope='preparation' if event else 'memory' if packet['tool']=='memory' else None
   if not scope:
    row.update(status='needs_manual_review',summary='The report is recorded, but its code is outside the supported repair scope.');self.save(row);return response(intro+'This needs a manual source check; I cannot safely repair that area from this workspace.',assistant_issue_id=row['id'])
   mode='investigate' if row['category']=='possible_answer_omission' and packet['tool'] in ('appointments','departure') else 'inspect'
-  problem='A preparation answer omitted equipment present in its exact confirmed activity profile. Reproduce with fictional data, preserve current organiser facts and exact owner/source/title matching, and propose only a justified small repair.' if mode=='investigate' else 'Inspect this supported component for a user-reported answer problem. No root cause is established. Check source evidence before suggesting any change; use fictional examples and preserve grounding.'
+  problem='A preparation answer omitted equipment already present in its selected source evidence: confirmed usual activity details or current organiser notes. Reproduce with fictional data, preserve negations/conditions and exact owner/source/title matching, and propose only a justified small repair.' if mode=='investigate' else 'Inspect this supported component for a user-reported answer problem. No root cause is established. Check source evidence before suggesting any change; use fictional examples and preserve grounding.'
   opened=self.owner.development.open_case(scope,problem,mode,key,source,issue_id=row['id'])
   row.update(status='investigating' if opened.get('development_case') else 'needs_review',summary='The original answer and fresh evidence are attached to a supervised code investigation.' if opened.get('development_case') else 'The report was retained, but the code investigation could not start.')
   if opened.get('development_case'):row['development_case']=opened['development_case']
