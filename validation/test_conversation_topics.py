@@ -626,3 +626,15 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
                 second=await self.a.agent.present_answer('Make that shorter',state)
             self.assertLess(len(second.split()),len(first.split()));self.assertEqual(model.call_args_list[2].args[2]['previous_answer'],first)
             self.assertEqual(state['response_reference']['expires'],300)
+
+    async def test_shorter_venue_qualification_is_checked_before_model_review(self):
+        with self.scope():
+            state=self.selected();self.profile._data['activity_profiles']=[{'usual_venue':'Elm School'}]
+            original='Mia should bring her instrument and sheet music for band rehearsal tomorrow. It usually takes place at Elm School; check the venue for this appointment.'
+            state['response_reference']={'text':original,'expires':300}
+            bad='Bring instrument and sheet music to Elm School.'
+            good='Bring instrument and sheet music; usually at Elm School, so confirm the venue.'
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'answer':bad},{'answer':good},{'faithful':True}])) as model:
+                result=await self.a.agent.present_answer('maje that shorter',state)
+            self.assertEqual(result,good);self.assertEqual(model.await_count,3)
+            self.assertIn('only USUAL',model.call_args_list[1].args[2]['feedback'])

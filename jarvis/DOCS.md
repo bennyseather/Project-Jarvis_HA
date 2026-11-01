@@ -1,3 +1,9 @@
+## Qualified venues in short replies (0.45.133)
+
+Shortening keeps a named usual venue explicitly usual, or leaves that venue out.
+A checked activity-profile match enforces this alongside the model review; a
+short reply cannot silently turn a usual venue into a confirmed appointment location.
+
 ## Shorter means shorter (0.45.132)
 
 “Make that shorter” tolerates a small typo such as “maje that shorter”. Shortening

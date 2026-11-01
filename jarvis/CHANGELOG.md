@@ -1,3 +1,8 @@
+## 0.45.133
+
+- Check named usual venues directly when restating an answer: keep a usual qualifier in the venue clause or omit the venue.
+- Retry a draft that promotes a usual venue to a confirmed one, while retaining shorter-answer limits and required kit.
+
 ## 0.45.132
 
 - Understand a single small typo in the verb of a closed shortening request, including “maje that shorter”.
