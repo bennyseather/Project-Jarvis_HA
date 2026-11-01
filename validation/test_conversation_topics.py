@@ -420,11 +420,13 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
         with self.scope():
             state=self.selected();before=deepcopy(state['read_focus'])
             state['response_reference']={'text':'Mia has band rehearsal at 17:30. The venue is not confirmed.','expires':300}
-            answers=[{'answer':'Band rehearsal is at 17:30; the venue is not confirmed.'},{'faithful':True}]
+            original=state['response_reference']['text']
+            answers=[{'answer':'Rehearsal: 17:30; venue not confirmed.'},{'faithful':True}]
             with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=answers)) as model:
                 result=await self.a.agent.present_answer('Can you make that shorter?',state)
             self.assertIn('not confirmed',result);self.assertEqual(state['read_focus'],before)
-            self.assertEqual(model.call_args_list[0].args[2]['previous_answer'],state['response_reference']['text'])
+            self.assertEqual(model.call_args_list[0].args[2]['previous_answer'],original)
+            self.assertLess(len(result.split()),len(original.split()));self.assertEqual(state['response_reference']['expires'],300)
 
     async def test_shorter_reply_rejects_new_time_or_number(self):
         with self.scope():
@@ -436,8 +438,9 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
         with self.scope():
             state=self.selected();original='The usual kit is an instrument; it has not been reported ready.'
             state['response_reference']={'text':original,'expires':300}
-            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'answer':'Her instrument is ready.'},{'faithful':False}])):
-                self.assertEqual(await self.a.agent.present_answer('Summarise that',state),original)
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'answer':'Her instrument is ready.'},{'faithful':False}]*2)):
+                result=await self.a.agent.present_answer('Summarise that',state)
+            self.assertIn('could not shorten',result);self.assertEqual(state['response_reference']['text'],original)
 
     async def test_expired_reply_is_not_rephrased_or_renewed(self):
         with self.scope():
@@ -582,3 +585,44 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
             with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'household_plans','members':['mia']})) as model:
                 await self.a.agent.plan('What should Mia plan for on Monday?','new','phone',state)
             self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['household_plans'])
+
+    async def test_short_style_verb_tolerates_one_typo_without_rewriting_other_text(self):
+        from jarvis.companion_agent import presentation_request
+        for text in ('maje that shorter','mkae that shorter','maek it briefer','please mak that more concise','Can you maje that shorter?'):
+            self.assertTrue(presentation_request(text),text)
+        for text in ('save that shorter','move that shorter','maje that shorter and unlock the door','Mia should make that shorter'):
+            self.assertFalse(presentation_request(text),text)
+
+    async def test_typo_style_request_is_routed_to_presentation_not_calendar(self):
+        with self.scope():
+            state=self.selected()
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'general_chat','members':[]})) as model,patch.object(self.a.agent,'present_answer',new=AsyncMock(return_value='Bring the instrument and sheet music.')):
+                result=await self.a.agent.plan('maje that shorter','chat','phone',state)
+            self.assertTrue(result['presentation']);self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['general_chat'])
+
+    async def test_long_restatement_retries_with_a_measured_word_budget(self):
+        with self.scope():
+            state=self.selected();original='Mia should bring her instrument and sheet music for the band rehearsal tomorrow at 17:30.'
+            state['response_reference']={'text':original,'expires':300}
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'answer':original},{'answer':'Bring her instrument and sheet music.'},{'faithful':True}])) as model:
+                result=await self.a.agent.present_answer('maje that shorter',state)
+            self.assertEqual(model.await_count,3);self.assertLess(len(result.split()),len(original.split()))
+            self.assertIn('too long',model.call_args_list[1].args[2]['feedback']);self.assertEqual(state['response_reference']['expires'],300)
+
+    async def test_restatement_never_silently_returns_a_longer_answer(self):
+        with self.scope():
+            state=self.selected();original='Bring the instrument and sheet music.'
+            state['response_reference']={'text':original,'expires':300}
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'answer':original+' There are several useful details to keep in mind.'})):
+                result=await self.a.agent.present_answer('Make that shorter',state)
+            self.assertIn('could not shorten',result);self.assertNotIn('several useful details',result)
+            self.assertEqual(state['response_reference']['text'],original)
+
+    async def test_further_shortening_uses_latest_reply_without_extending_expiry(self):
+        with self.scope():
+            state=self.selected();state['response_reference']={'text':'Mia should bring her instrument and sheet music for the band rehearsal tomorrow.','expires':300}
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'answer':'Bring her instrument and sheet music.'},{'faithful':True},{'answer':'Instrument and sheet music.'},{'faithful':True}])) as model:
+                first=await self.a.agent.present_answer('Make that shorter',state)
+                second=await self.a.agent.present_answer('Make that shorter',state)
+            self.assertLess(len(second.split()),len(first.split()));self.assertEqual(model.call_args_list[2].args[2]['previous_answer'],first)
+            self.assertEqual(state['response_reference']['expires'],300)

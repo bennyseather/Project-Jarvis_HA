@@ -1,3 +1,11 @@
+## Shorter means shorter (0.45.132)
+
+“Make that shorter” tolerates a small typo such as “maje that shorter”. Shortening
+uses a measured word budget and a bounded retry, while reviewing required kit,
+negation, reported readiness and usual-versus-confirmed venues. A further style
+request uses the latest accepted restatement without extending its five-minute
+expiry. These remain presentation changes, not fresh source checks or writes.
+
 ## Changing what you ask about (0.45.131)
 
 After asking when an appointment starts or finishes, “What should she remember?”

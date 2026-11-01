@@ -1,3 +1,9 @@
+## 0.45.132
+
+- Understand a single small typo in the verb of a closed shortening request, including “maje that shorter”.
+- Enforce a shorter word budget and retry an overlong draft while preserving useful preparation details and qualifications.
+- Keep the latest accepted restatement for further shortening without extending its expiry; report inability instead of silently repeating a longer answer.
+
 ## 0.45.131
 
 - Keep a generic dated planning question on the agenda view.
