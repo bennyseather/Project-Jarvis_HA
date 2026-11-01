@@ -1,3 +1,9 @@
+## 0.45.144
+
+- Route direct preference reports and named dated availability questions to their validated tools.
+- Compare shortening meaning with explicit kit and usual-venue qualifications.
+- Add a cache-only United dashboard projection; refresh the Yoga test dashboard and household summary.
+
 ## 0.45.143
 
 - Redact rejected credential-containing answer reports from conversation history as well as the report journal.

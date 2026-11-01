@@ -1224,3 +1224,5 @@ After an answer, describe an omission and ask Jarvis to investigate or fix it. I
 Current organiser requirements are checked alongside saved usual kit. Negative or conditional instructions are retained for source review rather than labelled a confirmed omission. Changed source content requires a new diagnosis, including when the original question and report words are unchanged.
 
 Credential-containing reports are rejected and redacted from the short conversation history so they are not carried into later model context.
+
+Yoga command-centre overview includes sixteen linked news headlines, a United desk from validated public caches, an explicit seasonal mower display and a household day summary. Calendar edits retain review and confirmation. Saved voice is unchanged.

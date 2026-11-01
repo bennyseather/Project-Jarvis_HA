@@ -39,11 +39,11 @@ const baseline=process.argv.includes('--baseline');
     assert.equal(await planner.locator('[name="title"]').inputValue(),'Unsaved fixture appointment');
     assert.equal(await page.evaluate(()=>existingPlanner===dash.shadowRoot.querySelector('jarvis-household-card').shadowRoot.querySelector('jarvis-planner-card')),true);
    }
-   const nav=page.locator('jarvis-yoga-dashboard-card').locator('[data-nav="household"]');
+   const nav=page.locator('jarvis-yoga-dashboard-card').locator('nav [data-nav="household"]');
    const bounds=await nav.boundingBox();
    assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width+1&&bounds.y+bounds.height<=height,`Household navigation clipped at ${width}x${height}: ${JSON.stringify(bounds)}`);
    await nav.click();
-   const house=page.locator('jarvis-household-card');await house.locator('[data-assistant]').click();
+   const house=page.locator('jarvis-household-card');if(await house.locator('[data-open-assistant]').count())await house.locator('[data-open-assistant]').click();else await house.locator('[data-assistant]').click();
    await house.locator('[data-agenda-person]').selectOption('mia');await house.locator('[data-agenda-day]').selectOption('tomorrow');
    await house.getByRole('heading',{name:'Tomorrow · Mia',exact:true}).waitFor({timeout:2000});
    const geometry=await page.evaluate(()=>{
@@ -58,7 +58,7 @@ const baseline=process.argv.includes('--baseline');
    // Refresh must keep a user's current reading position.
    await house.locator('[data-agenda-person]').selectOption('all');
    const scroll=await page.evaluate(()=>{const h=dash.shadowRoot.querySelector('jarvis-household-card'),box=h.shadowRoot.querySelector('.cards');box.scrollTop=120;const before=box.scrollTop;h.render();return [before,h.shadowRoot.querySelector('.cards').scrollTop];});
-   assert.ok(scroll[0]>0&&scroll[0]===scroll[1],'Plan scroll position changed during refresh');
+   assert.ok(scroll[0]>0&&scroll[0]===scroll[1],'Plan scroll position changed during refresh: '+JSON.stringify(scroll));
    assert.equal(await house.getByText('DIAGNOSTIC_ONLY',{exact:true}).count(),0);
    await house.getByText('Candidate patch — review required',{exact:true}).click();
    await page.waitForTimeout(30);

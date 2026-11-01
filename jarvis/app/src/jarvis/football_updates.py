@@ -183,11 +183,11 @@ class FootballUpdates:
   await asyncio.wait_for(task,15)
  async def tick(self):
   if not self.enabled():return
-  # Two-minute polling on match days; fifteen minutes otherwise. Sources are
+  # Two-minute polling on match days; five minutes otherwise. Sources are
   # fetched only on the home server, never through the development computer.
   today=self.owner.now().astimezone(ZONE).date().isoformat();known=self.cache.get('fixtures',{}).get('data',[])
   matchday=any(moment(e['date']).astimezone(ZONE).date().isoformat()==today for e in known)
-  interval=120 if matchday else 900
+  interval=120 if matchday else 300
   daily_due=self.owner.now().astimezone(ZONE).hour>=8 and (self.state()['daily']!=today or self.state().get('style_revision')!=2)
   if self.owner.clock()-self.last_poll<interval and not daily_due:return
   await self.refresh(force=daily_due);s=self.state();now=self.owner.now();today=now.astimezone(ZONE).date().isoformat();activated=moment(self.config['activated_at']);changed=False
@@ -222,5 +222,16 @@ class FootballUpdates:
   await self.refresh();b=await self.present(data['topic'],expanded=expanded)
   if state is not None:state['football_topic']=data['topic'];state['football_focus_until']=self.owner.clock()+600
   return {'provider':'companion','status':'success' if b['sources'] else 'unavailable','message':('\n'.join(b['lines']) if b['expanded'] and data['topic']=='standings' else ' '.join(b['lines'])),'sources':b['sources'],'cacheable':False,'football_checked_at':b['checked_at'],'language_model_composition':b.get('language_model_composition',False),'football_fallback_reason':b.get('fallback_reason'),'football_expanded':b['expanded']}
+ def dashboard(self):
+  """Read the validated cache only; dashboard refreshes never send updates."""
+  now=self.owner.now();fixtures=self.current('fixtures');results=self.current('results');standings=self.current('standings');news=self.current('news')
+  upcoming=[e for e in fixtures or [] if moment(e['date'])>=now and not e['final']]
+  finished=[e for e in results or [] if e['final'] and moment(e['date'])<=now]
+  return {'next_match':min(upcoming,key=lambda e:e['date']) if upcoming else None,
+   'last_result':max(finished,key=lambda e:e['date']) if finished else None,
+   'standing':next((r for r in standings or [] if r['id']==TEAM),None),
+   'headlines':(news or [])[:3],
+   'sources':{kind:{'url':PUBLIC[kind],'checked_at':self.cache[kind]['checked_at']} for kind in URLS if self.current(kind) is not None},
+   'issues':list(self.errors),'cache_only':True}
  def project(self):
-  s=self.state();return {'enabled':self.enabled(),'team':'Manchester United men’s first team','daily_time':'08:00 Europe/Oslo','delivery':'Written HA notifications and Assistant page; no spoken alerts','final_scores':bool(self.config.get('final_scores')),'polling':'About two minutes on known match days; fifteen minutes otherwise, while services and sources are available.','issues':list(self.errors),'briefs':s['briefs'][:10]}
+  s=self.state();return {'enabled':self.enabled(),'team':'Manchester United men’s first team','daily_time':'08:00 Europe/Oslo','delivery':'Written HA notifications and Assistant page; no spoken alerts','final_scores':bool(self.config.get('final_scores')),'polling':'About two minutes on known match days; five minutes otherwise, while services and sources are available.','issues':list(self.errors),'briefs':s['briefs'][:10],'dashboard':self.dashboard()}
