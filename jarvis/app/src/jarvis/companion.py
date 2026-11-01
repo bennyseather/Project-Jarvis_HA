@@ -64,6 +64,8 @@ class Companion:
   self.football=FootballUpdates(self)
   from jarvis.planning_conversation import PlanningConversation
   self.planning_conversation=PlanningConversation(self)
+  from jarvis.development_workspace import DevelopmentWorkspace
+  self.development=DevelopmentWorkspace(self)
   self.profile._companion=self
  async def process(self,operation,text,key,source):
   # Run at the authenticated bridge boundary after generic pending confirmations
@@ -96,13 +98,13 @@ class Companion:
  def binding(self,key,source):
   a=current_calendar_access.get();return (a.actor,str(key),source or '',current_speaker.get().member_id,self.profile._data['revision'])
  def enter(self):
-  self.foreground+=1;self.last_activity=self.clock();self.agenda.interrupt();self.followups.interrupt()
+  self.foreground+=1;self.last_activity=self.clock();self.agenda.interrupt();self.followups.interrupt();self.development.interrupt()
  def leave(self):self.foreground=max(0,self.foreground-1);self.last_activity=self.clock()
  def start(self):
   if self.task is None:self.task=asyncio.create_task(self.run())
-  self.agenda.start();self.followups.start();self.football.start()
+  self.agenda.start();self.followups.start();self.football.start();self.development.start()
  async def close(self):
-  await self.agenda.close();await self.followups.close();await self.football.close()
+  await self.agenda.close();await self.followups.close();await self.football.close();await self.development.close()
   if self.task:
    self.task.cancel();await asyncio.gather(self.task,return_exceptions=True)
   self.store.close()
@@ -130,6 +132,7 @@ class Companion:
   except asyncio.CancelledError:raise
   except Exception:self.store.retry(job);return {'saved':False,'ids':[]}
  def capture(self,text,result,key,source):
+  if result.get('development_workspace'):return
   if result.get('agent_tool') in ('planning_followthrough','planning_report'):return
   access=current_calendar_access.get()
   if not (self.policy.data['enabled'] and self.policy.data['automatic_learning'] and access.actor and access.write and shared_knowledge_enabled(self.profile._data)):return
@@ -331,6 +334,7 @@ class Companion:
     return response(summary,'success')
    if 'what needs my attention' not in value:return response('I have not prepared an upcoming flight brief yet. I check the connected travel calendar automatically; an unknown starting point or missing source will appear as a question.','success')
   if semantic=='development' or re.search(r'\b(?:development proposals|improvement proposals|improve yourself|improve your own|your development|your own code|what should you improve)\b',value):
+   if self.development.enabled:return await self.development.handle(text)
    self.revoke_other_reviews(key);rows=self.store.improvements()
    if rows:return response('I have these improvement ideas for review: '+'; '.join(r.get('proposal') or r.get('quote','') for r in rows[:4])+'. These are proposals; I have not changed or executed my own code.','success')
    return response('I can collect and draft improvement proposals using local Qwen. The next development stage is an isolated code-and-test workspace; I cannot yet change or deploy my running code myself.','success')
@@ -345,7 +349,7 @@ class Companion:
    'retention':'Until corrected or deleted','transport_preference':'Driving first, public transport alternatives',
    'people':{p['id']:p['preferred_name'] for p in self.profile._data['members']},'memories':self.store.memories(include_historical=True)[:30],'learning_jobs':self.store.job_counts(),'football':self.football.project(),'travel_briefs':self.store.briefs()[:8],
    'household_planning':self.agenda.project(),'planning_followthrough':self.followups.project(),'travel_status':self.travel.status if self.travel else 'not_configured','improvements':self.store.improvements()[:10],
-   'development_mode':'Ideas and proposals only; no autonomous code execution or deployment','read_only':True}
+   'development_workspace':self.development.project(),'development_mode':'Supervised source inspection and isolated tests; production releases require independent review','read_only':True}
 
 def create_companion(container):
  profile=getattr(container,'household_profile',None);source=getattr(profile,'_source_path',None)

@@ -1,3 +1,11 @@
+## 0.45.138
+
+- Add separately enabled, supervised own-code inspection through the Node Qwen.
+- Retain source-pinned development cases, exact citations, candidate diffs and isolated test evidence.
+- Limit edits to approved function bodies; keep candidate execution separate from production and require independent release review.
+- Yield background steps to conversation and show case status in Household Assistant.
+- Preserve saved voice, existing household learning and held audio/reminder acceptance.
+
 ## 0.45.137
 
 - Summarise known preparation across the requested period before mentioning genuine missing details.

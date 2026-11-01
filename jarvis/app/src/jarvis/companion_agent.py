@@ -79,7 +79,7 @@ A bare dinner duration or date-only continuation of an active dinner-fit task is
 household_plans even after a route/meal budget, not local_route.
 internet_research: current public facts,news or explicit internet search.
 assistant_settings: pause/resume learning/travel preparation, memory-clear confirmation.
-development_proposals: review improvements. general_chat: ordinary chat/explanations
+development_proposals: supervised code/workspace inspection, patch/tests. general_chat: chat/explanations
 without local/live data. clarification: no clear task.
 
 Date-only followups keep capability. Birthday uses household_facts.
@@ -307,6 +307,9 @@ class QwenConversation:
   definition=bool(re.fullmatch(r'what is (?:an? )?[\w -]+[? .]*',text.strip(),re.I) and any(p.search(text) for p in PATTERNS.values()) and not named_person and not DATE_PATTERN.search(text.casefold()) and not re.search(r'\b(?:my|her|his|their|time|venue|location|next)\b',text,re.I))
   presentation=presentation_request(text)
   if acknowledgement(text) or definition or presentation:schema['properties']['tool']['enum']=['general_chat']
+  from jarvis.development_workspace import workspace_command
+  workspace=getattr(self.owner,'development',None)
+  if workspace and workspace.enabled and workspace_command(text):schema['properties']['tool']['enum']=['development_proposals']
   data={'reference_date':state['binding'][-2],'time_zone':'Europe/Oslo','latest':text,'people':people,'identified_speaker':{'member':current_speaker.get().member_id,'basis':current_speaker.get().basis},
    'conversation':[v for v in state['history'][-6:] if v['role']=='user'],'last_tool':state['last_tool'],'awaiting_identity_name':state['pending_identity'],
    'awaiting_memory_subject':str(key) in self.owner.intake_pending,'memory_clear_review':str(key) in self.owner.pending,'activity_focus':{k:v for k,v in state.get('activity_focus',{}).items() if k in ('person','title','source')},'activity_knowledge_pending':bool(state.get('activity_learning_draft')),'activity_review_pending':bool(pending_edit and pending_edit.get('activity')),'subject_reference':state.get('subject_reference') if state.get('subject_reference',{}).get('expires',0)>self.clock() else None,'returned_topic':state.get('returned_topic'),'read_focus':self.reads.prior(state),'meal_route_pending':[{'activity':v['event']} for v in meal['missing']] if meal else [],'route_focus':{k:v for k,v in (routing or {}).items() if k in ('origin','destination','mode','awaiting')}}

@@ -1,3 +1,18 @@
+## Separately enabled supervised development workspace (0.45.138)
+
+The Node Qwen can inspect a pinned public-source snapshot, propose a small
+function-body change and draft a regression test. Case status, source citations
+and review-required results appear in Assist and Household Assistant. Candidate
+tests use a separate bounded runner with no network, household data or device
+access. Results do not approve or deploy the candidate.
+
+This feature requires its own approved protected development_workspace.json
+binding and a separately administered Node broker. Installing the add-on alone
+does not enable the broker or grant it Docker authority. The Node controller's
+Docker/LAN boundary uses separately recorded administrator approval. Candidates
+receive no Docker-daemon access, and cannot publish or install themselves.
+Actual audio/accent and reminder-delivery tests stay held.
+
 ## Follow-ups after an imperfectly typed agenda question (0.45.134)
 
 After Jarvis finds a person's plans, preparation follow-ups carry a validated

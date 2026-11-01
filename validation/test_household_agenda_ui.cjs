@@ -20,3 +20,11 @@ plan.source_health={work:{name:'Work Reach',status:'failed',last_success:'2026-1
 assert.ok(card.agendaCards(plan,people)[0].lines.some(line=>line.includes('last refresh failed')&&line.includes('last successful Jarvis refresh')));
 plan.days[1].state='needs_check';assert.ok(card.agendaCards(plan,people)[0].lines.some(line=>line.includes('Work Reach')));
 console.log('Calendar source refresh status remains visible when planning is incomplete PASS');
+card.data.assistant.development_workspace={enabled:true,mode:'Supervised source inspection and isolated tests',cases:[{id:'W123456789abc',state:'review_required',problem:'Fictional wording problem',summary:'Candidate needs independent review.',citations:[{path:'src/jarvis/preparation_wording.py',start:12,symbol:'join_words',version:'0.45.138'}]}]};
+const workshopCards=card.cards();
+assert.ok(workshopCards.some(c=>c.title==='Jarvis development workspace'));
+assert.ok(workshopCards.some(c=>c.title==='W123456789abc · review required'&&c.lines.some(l=>l.includes('join_words')&&l.includes('0.45.138'))));
+assert.ok(workshopCards.some(c=>c.lines.some(l=>l.includes('show patch W123456789abc'))));
+card.data.assistant.development_workspace.enabled=false;
+assert.ok(!card.cards().some(c=>c.title==='Jarvis development workspace'));
+console.log('Supervised development cases, source citations, review status and disabled state PASS');
