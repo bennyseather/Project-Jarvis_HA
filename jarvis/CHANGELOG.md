@@ -1,3 +1,10 @@
+## 0.45.129
+
+- Interpret preparation, kit, clothing, venue, organiser and readiness questions as structured reads with quoted activity names.
+- Carry preparation purpose across calendar tools and date/topic follow-ups, recheck sources and clarify singular references among multiple appointments.
+- Keep plans through a thank-you, explain general concepts independently, and support short restatements without treating old prose as fresh household facts.
+- Ask for relevant missing details instead of a generic tool clarification. Questions never mark preparation ready or save a memory.
+
 ## 0.45.128
 
 - Understand short prospective preparation questions such as “What should she remember?” after household plans.

@@ -391,7 +391,8 @@ class EventPreparation(HouseholdThinking):
             if resolved is None:plan=self.request(text,key)
             else:
                 # The shared read resolver never supplies commands or cached facts.
-                if WRITE.search(text) or SECRET.search(text):return None
+                checked=re.sub(r'\ball set\b','ready',text,flags=re.I) if resolved.get('preparation_goal')=='status' else text
+                if WRITE.search(checked) or SECRET.search(text):return None
                 prior=self.sessions.get(str(key)) if key else None
                 same=bool(prior and prior['subjects']==resolved['subjects'] and prior['start']==resolved['start'] and prior['end']==resolved['end'] and self.scope_valid(prior,key,self.allowed))
                 original=None
@@ -433,6 +434,7 @@ class EventPreparation(HouseholdThinking):
                 event['activity_profile']=activity_profile
                 event['activity_equivalence']=household_activities.equivalence_key(self.profile._data,activity_profile)
         mode='location' if re.search(r'\b(where|venue|location)\b',text,re.I) else 'requirements' if re.search(r'\b(bring|pack|equipment|kit)\b',text,re.I) else 'preparation'
+        if plan.get('preparation_goal'):mode={'venue':'location','kit':'requirements','clothing':'clothing','instructions':'instructions'}.get(plan['preparation_goal'],'preparation')
         selection=plan.get('selection_reply',False)
         exact_selection=False
         if selection:
@@ -479,10 +481,13 @@ class EventPreparation(HouseholdThinking):
                     local_model_interpretation=False,activity_evidence_bound=True)
             events=supported
             focus=[identifier for identifier in focus if any(e['id']==identifier for e in events)]
+        if plan.get('event_scope')=='focused' and plan.get('preparation_goal') in ('venue','instructions') and not selection:
+            distinct={(e.get('activity_equivalence') or self.event_identity(e),e['start'],e['end']) for e in events}
+            if len(distinct)>1:return self.ask_choice(plan,events,mode)
         from jarvis.report_presentation import compose as compose_reports
-        status_followup=bool(re.search(r'\b(?:left|remaining|packed|ready)\b|have (?:we|i) (?:got )?everything|(?:we|i) have (?:got )?everything',text,re.I))
-        if any(e.get('planning_context') for e in events) or status_followup:
-            report_answer=await compose_reports(self.provider,events,plan['question'],plan.get('previous_question'),evidence['people'],valid,mode,focus,broad=not selection and not event_activity.requested(activity) and not plan.get('short_follow'),allow_unreported=status_followup)
+        status_followup=bool(plan.get('preparation_goal') in ('remaining','status') or re.search(r'\b(?:left|remaining|packed|ready)\b|have (?:we|i) (?:got )?everything|(?:we|i) have (?:got )?everything',text,re.I))
+        if mode!='instructions' and (any(e.get('planning_context') for e in events) or status_followup):
+            report_answer=await compose_reports(self.provider,events,plan['question'],plan.get('previous_question'),evidence['people'],valid,mode,focus,broad=not selection and not event_activity.requested(activity) and not plan.get('short_follow'),allow_unreported=status_followup,goal=plan.get('preparation_goal'))
             if report_answer:
                 if report_answer.get('changed') or not valid():return reply('The appointment reports changed while I was checking. Please ask again.','unavailable')
                 recheck=await self.reader.handle('reported planning recheck',None,resolved=Brief(plan['subjects'][0] if len(plan['subjects'])==1 else 'all',plan['start'],plan['end']),structured_only=True,targets=None if plan['subjects']==('all',) else plan['subjects'],window=plan['window'],event_context=True)
@@ -494,6 +499,7 @@ class EventPreparation(HouseholdThinking):
         except Exception:notes=[] # Calendar facts remain usable if optional notes fail.
         usual=household_activities.notes(events,mode)
         notes=[dict(n,id='N'+str(i+1)) for i,n in enumerate((usual+notes)[:4])]
+        if mode=='instructions':notes=[] # Usual/user-reported kit is not a current organiser message.
         activity_filter=event_activity.requested(activity)
         if exact_selection:activity_filter=False
         if mode=='location' and plan.get('short_follow') and len(focus)>1:
@@ -517,6 +523,7 @@ class EventPreparation(HouseholdThinking):
         if selection:context['selection_reply']=plan['question']
         raw=json.dumps(context,ensure_ascii=False,separators=(',',':'))
         instructions=INSTRUCTIONS+('\n'+CHOICE_INSTRUCTIONS if selection else '')
+        if mode=='clothing':instructions+='\nClothing mode: select ONLY clothing/outfit/uniform/hair instructions and directly relevant saved preparation notes. Equipment such as instruments or water is not clothing. Empty relevant instructions means units=[] and notes=false; never invent a dress code.'
         method=getattr(self.provider,'reason_local',None)
         maximum=getattr(getattr(self.provider,'policy',None),'maximum_input_characters',12000)
         if not method or len(raw)+len(instructions)>maximum:
@@ -535,11 +542,18 @@ class EventPreparation(HouseholdThinking):
             if not valid():return reply('That question’s household context changed. Please ask again.','unavailable')
             if output.get('status')!='success':raise ValueError('provider')
             obj=self.decode_choices(output['message'],events,notes)
+            if mode=='clothing':
+                originals={e['id']:e for e in events}
+                for item in obj['events']:
+                    constraints=[u for u in originals[item['id']]['description_units'] if re.search(r'\b(?:not|no|never|ikke|ikkje|ingen|if|unless|hvis|viss|dersom|forbudt)\b',u,re.I)]
+                    item['excerpts']=list(dict.fromkeys(item['excerpts']+constraints))
             selected=[e for e in events if e['id'] in {i['id'] for i in obj['events']}]
             if required and set(required)!={e['id'] for e in selected}:raise ValueError('missing_broad_event')
             if selection and len(selected)!=1:return self.ask_choice(plan,events,mode,local_model_interpretation=True,fact_binding=True)
             candidates=[n for n in notes if n['id'] in obj['notes']]
+            clothing=[{'key':'clothing_'+i['id']+'_'+str(n),'text':clause} for i in obj['events'] for n,clause in enumerate(i['excerpts'])] if mode=='clothing' else []
             checks={**{'event_'+e['id']:({'type':'boolean'} if activity_filter else {'type':'boolean','const':True}) for e in selected},
+                    **{c['key']:{'type':'boolean'} for c in clothing},
                     **{'note_'+n['id']:{'type':'boolean'} for n in candidates}}
             if checks:
                 schema={'type':'object','properties':checks,'required':list(checks),'additionalProperties':False}
@@ -548,13 +562,16 @@ class EventPreparation(HouseholdThinking):
                     'selected_events':[{'key':'event_'+e['id'],'title':e['text'],
                                         'activity_source':event_activity.assertions(e)+
                                             (['User-confirmed recurring entry means '+e['activity_profile']['activity']] if e.get('activity_link_used') else [])} for e in selected],
-                    'notes':[dict(n,key='note_'+n['id']) for n in candidates]},ensure_ascii=False)
+                    'notes':[dict(n,key='note_'+n['id']) for n in candidates],'clothing_clauses':clothing},ensure_ascii=False)
                 remaining=min(4,deadline-time.monotonic())
                 if remaining<0.5:raise ValueError('deadline')
-                checked=await asyncio.wait_for(asyncio.to_thread(infer,NOTE_REVIEW,review,schema,160,remaining),remaining+0.2)
+                instruction=NOTE_REVIEW+('\nClothing mode: clothing_* keys ask whether that WHOLE supplied clause contains clothing/outfit/uniform or hair instructions. Instrument, sheet music and water alone are not clothing. Reject equipment-only note_* context too. Return every requested boolean.' if mode=='clothing' else '')
+                checked=await asyncio.wait_for(asyncio.to_thread(infer,instruction,review,schema,400 if mode=='clothing' else 200,remaining),remaining+0.2)
                 matched=json.loads(checked['message'])
                 if checked.get('status')!='success' or set(matched)!=set(checks) or any(type(v) is not bool for v in matched.values()):raise ValueError('review')
                 obj['events']=[i for i in obj['events'] if matched['event_'+i['id']]]
+                if mode=='clothing':
+                    for i in obj['events']:i['excerpts']=[clause for n,clause in enumerate(i['excerpts']) if matched['clothing_'+i['id']+'_'+str(n)]]
                 selected=[e for e in selected if matched['event_'+e['id']]]
                 surviving={e['id'] for e in selected}
                 obj['notes']=[n['id'] for n in candidates if matched['note_'+n['id']] and surviving.intersection(n['events'])]
@@ -577,7 +594,7 @@ class EventPreparation(HouseholdThinking):
         finally:self.model_lock.release()
         if obj['question']=='which_event':return self.ask_choice(plan,events,mode,offer_labels=selection,
             local_model_interpretation=True,fact_binding=True)
-        if mode!='location':
+        if mode not in ('location','clothing'):
             # A narrowly worded kit question must not hide a current prohibition
             # or condition on the same selected appointment. Preserve whole safe
             # source clauses, not extracted positive fragments.
@@ -594,6 +611,13 @@ class EventPreparation(HouseholdThinking):
             if missing and all((e.get('activity_profile') or {}).get('usual_venue') for e in missing):
                 obj['question']='none'
         answer=self.render(obj,events,notes,plan['speaker'],evidence['checked_on'])
+        missing_clothing=mode=='clothing' and not any(i['excerpts'] for i in obj['events']) and not obj['notes']
+        if missing_clothing:
+            obj['question']='none';obj['suggestion']='none'
+            answer=self.render(obj,events,notes,plan['speaker'],evidence['checked_on'])+' I do not see any special clothing instructions in the details I checked.'
+        if mode=='instructions' and not any(i['excerpts'] for i in obj['events']):
+            obj['question']='none';obj['suggestion']='none'
+            answer=self.render(obj,events,notes,plan['speaker'],evidence['checked_on'])+' I do not see any organiser instructions in this calendar entry.'
         from jarvis.activity_presentation import prepared
         presented,display,display_notes=prepared(obj,events,notes)
         language={'text':None,'reason':'not_applicable','calls':0,'seconds':0}

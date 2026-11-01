@@ -24,7 +24,8 @@ class Provider:
         context=json.loads(kw['input_messages'][0]['content']);self.calls.append(context)
         if kw['instructions'].startswith('Judge activity relevance'):
             return {'status':'success','message':json.dumps({**{e['key']:True for e in context['selected_events']},
-                **{n['key']:'goggles' not in n['text'] for n in context['notes']}})}
+                **{n['key']:('wear' in n['text'].casefold() if context.get('mode')=='clothing' else 'goggles' not in n['text']) for n in context['notes']},
+                **{c['key']:'wear' in c['text'].casefold() for c in context.get('clothing_clauses',[])}})}
         if self.respond:return self.respond(context)
         event=context['events'][0]
         return {'status':'success','message':json.dumps({'events':{e['id']:{'use':e['id']==event['id'],
@@ -61,6 +62,49 @@ class PreparationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(r['status'],'clarification_required')
         self.assertIn('Fitness session',r['message'])
         return r
+
+    async def semantic_clothing(self):
+        with scope(self.p,'benny','clothes'):
+            resolved=self.h.request('What should Mia prepare for tomorrow?','clothes')
+            resolved.update(shared_read_context=True,activity_question='',preparation_goal='clothing',event_scope='focused')
+            return await self.h.handle('Does she need to wear anything special?','clothes',resolved=resolved)
+
+    async def test_clothing_question_does_not_present_equipment_as_clothing(self):
+        result=await self.semantic_clothing()
+        self.assertEqual(result['status'],'success');self.assertIn('do not see any special clothing',result['message'])
+        self.assertNotIn('blue music folder',result['message'])
+
+    async def test_clothing_relevance_keeps_the_whole_negative_clause(self):
+        self.client.events['calendar.familiekalender'][0]['description']='Do not wear trainers.'
+        result=await self.semantic_clothing()
+        self.assertEqual(result['status'],'success');self.assertIn('Do not wear trainers.',result['message'])
+        self.assertNotIn('do not see any special clothing',result['message'])
+
+    async def test_singular_semantic_venue_asks_choice_before_model_selects_one(self):
+        self.client.events['calendar.familiekalender'].append({**self.event,'summary':'Robotics club','start':'2026-10-24T19:00:00+02:00','end':'2026-10-24T20:00:00+02:00','location':'Science Hall'})
+        with scope(self.p,'benny','venue'):
+            resolved=self.h.request('What should Mia prepare for tomorrow?','venue')
+            resolved.update(shared_read_context=True,activity_question='',preparation_goal='venue',event_scope='focused')
+            result=await self.h.handle('Where will that be?','venue',resolved=resolved)
+        self.assertEqual(result['status'],'clarification_required');self.assertIn('Which appointment',result['message'])
+        self.assertEqual(self.provider.calls,[])
+
+    async def test_organiser_question_uses_source_instructions_not_usual_notes(self):
+        with scope(self.p,'benny','organiser'):
+            resolved=self.h.request('What should Mia prepare for tomorrow?','organiser')
+            resolved.update(shared_read_context=True,activity_question='',preparation_goal='instructions',event_scope='focused')
+            result=await self.h.handle('What did the organiser say?','organiser',resolved=resolved)
+        self.assertEqual(result['status'],'success');self.assertIn('blue music folder',result['message'])
+        self.assertEqual(self.provider.calls[0]['approved_notes'],[])
+
+    async def test_empty_organiser_entry_reports_missing_instructions(self):
+        self.client.events['calendar.familiekalender'][0]['description']=''
+        with scope(self.p,'benny','organiser'):
+            resolved=self.h.request('What should Mia prepare for tomorrow?','organiser')
+            resolved.update(shared_read_context=True,activity_question='',preparation_goal='instructions',event_scope='focused')
+            result=await self.h.handle('What did the organiser say?','organiser',resolved=resolved)
+        self.assertEqual(result['status'],'success');self.assertIn('do not see any organiser instructions',result['message'])
+        self.assertNotIn('Do you have any instructions',result['message'])
 
     async def test_answer_to_clarification_keeps_location_person_and_day(self):
         await self.pending_choice()

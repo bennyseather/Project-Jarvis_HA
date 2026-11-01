@@ -328,3 +328,210 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
             with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=ValueError())) as model:
                 with self.assertRaises(ValueError):await self.a.agent.plan('What should she remember?','chat','phone',state)
             self.assertGreater(len(model.call_args.args[3]['properties']['tool']['enum']),1)
+
+    async def semantic_preparation(self,text,quote='',goal='kit',state=None,**kw):
+        state=state or self.selected()
+        decision=frame(**{**dict(purpose='preparation',event_relation='continue',activity_quote=quote,preparation_goal=goal),**kw})
+        with patch('jarvis.companion_read_context.local_json',new=AsyncMock(return_value=decision)):
+            return await self.a.agent.reads.resolve(text,'appointments',['mia'],state,force=True)
+
+    async def test_semantic_kit_questions_do_not_become_activity_labels(self):
+        with self.scope():
+            for text in ('Anything she needs to take along?','Does she need her instrument?','What should she have with her?'):
+                r=await self.semantic_preparation(text)
+                self.assertEqual(r['activity_question'],'');self.assertEqual(r['source_focus'],self.selected()['read_focus']['event_focus'])
+                self.assertEqual(r['preparation_goal'],'kit')
+
+    async def test_semantic_venue_and_organiser_goals_keep_source_reference(self):
+        with self.scope():
+            for text,goal in (('Where will that be?','venue'),('What did the organiser say?','instructions')):
+                r=await self.semantic_preparation(text,goal=goal)
+                self.assertTrue(r['event_continuation']);self.assertEqual(r['preparation_goal'],goal)
+
+    async def test_all_set_is_readiness_question_and_never_a_write(self):
+        with self.scope():
+            before=deepcopy(self.profile._data)
+            r=await self.semantic_preparation('Are we all set for that?',goal='status')
+            self.assertEqual(r['preparation_goal'],'status');self.assertEqual(before,self.profile._data)
+            self.assertIsNone(await self.semantic_preparation('Are we all set and unlock the door?',goal='status'))
+
+    async def test_activity_quote_must_be_verbatim_and_bounded(self):
+        with self.scope():
+            for quote in ('swimming','x'*101,[],None):
+                with self.assertRaises(ValueError):await self.semantic_preparation('What should she take to rehearsal?',quote=quote)
+
+    async def test_semantic_model_cannot_discard_an_explicit_activity_kind(self):
+        with self.scope():
+            for quote in ('','band rehearsal'):
+                with self.assertRaises(ValueError):await self.semantic_preparation('What should she bring for swimming?',quote=quote)
+            r=await self.semantic_preparation('What should she bring for swimming?',quote='swimming')
+            self.assertEqual(r['activity_question'],'swimming');self.assertFalse(r['source_focus'])
+
+    async def test_unknown_new_activity_is_retained_for_source_matching(self):
+        with self.scope():
+            r=await self.semantic_preparation('What should she bring for robotics?',quote='robotics',event_relation='new')
+            self.assertEqual(r['activity_question'],'robotics');self.assertFalse(r['source_focus'])
+
+    async def test_direct_preparation_can_use_semantic_read_without_legacy_keyword(self):
+        with self.scope():
+            state=self.a.agent.state('new','phone')
+            r=await self.semantic_preparation('Anything Mia needs to take along on Monday?',state=state,date_quote='monday')
+            self.assertEqual(r['subjects'],('mia',));self.assertTrue(r['start']);self.assertEqual(r['activity_question'],'')
+            self.assertIn('prepare',r['task'])
+
+    async def test_semantic_goal_is_kept_on_date_only_followup(self):
+        with self.scope():
+            state=self.selected(preparation_goal='venue')
+            r=await self.semantic_preparation('And Friday?',state=state,goal='venue',date_quote='friday')
+            self.assertEqual(r['preparation_goal'],'venue');self.assertFalse(r['source_focus'])
+            with self.assertRaises(ValueError):await self.semantic_preparation('And Friday?',state=state,goal='kit',date_quote='friday')
+
+    async def test_unknown_preparation_goal_is_rejected(self):
+        with self.scope():
+            with self.assertRaises(ValueError):await self.semantic_preparation('Where is it?',goal='send a message')
+
+    async def test_thanks_preserves_expiry_and_current_read_without_restoring_reviews(self):
+        with self.scope():
+            state=self.selected();state['last_tool']='appointments';before=deepcopy(state['read_focus'])
+            with patch.object(self.a.agent,'plan',new=AsyncMock(return_value=plan('general',operation='answer',answer='You are welcome.'))):
+                result=await self.a.process(AsyncMock()(),'Thanks, Jarvis','chat','phone')
+            self.assertEqual(result['status'],'success');self.assertEqual(state['read_focus'],before);self.assertEqual(state['last_tool'],'appointments')
+            self.assertEqual(len(state['topic_references']),1)
+
+    async def test_definition_and_thanks_are_not_forced_to_old_calendar(self):
+        with self.scope():
+            state=self.selected()
+            for text in ('Thanks, Jarvis','What is rhythmic gymnastics?','What is band rehearsal?'):
+                with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'tool':'general_chat','members':[]},{'answer':'A short explanation.'}])) as model:
+                    await self.a.agent.plan(text,'chat','phone',state)
+                self.assertEqual(model.call_args_list[0].args[3]['properties']['tool']['enum'],['general_chat'])
+
+    async def test_missing_tool_result_asks_relevant_detail(self):
+        with self.scope():
+            state=self.a.agent.state('new','phone')
+            self.assertIn('Which day',self.a.agent.missing_detail('appointments',['mia'],state)['message'])
+            self.assertIn('Mia',self.a.agent.missing_detail('plans',['mia'],state)['message'])
+            self.assertIn('Whose plans',self.a.agent.missing_detail('plans',[],state)['message'])
+            self.assertIn('Which appointment',self.a.agent.missing_detail('calendar',[],state)['message'])
+            state=self.selected()
+            self.assertIn('what to bring',self.a.agent.missing_detail('appointments',['mia'],state)['message'])
+
+    async def test_shorter_reply_uses_only_expiring_presentation_reference(self):
+        with self.scope():
+            state=self.selected();before=deepcopy(state['read_focus'])
+            state['response_reference']={'text':'Mia has band rehearsal at 17:30. The venue is not confirmed.','expires':300}
+            answers=[{'answer':'Band rehearsal is at 17:30; the venue is not confirmed.'},{'faithful':True}]
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=answers)) as model:
+                result=await self.a.agent.present_answer('Can you make that shorter?',state)
+            self.assertIn('not confirmed',result);self.assertEqual(state['read_focus'],before)
+            self.assertEqual(model.call_args_list[0].args[2]['previous_answer'],state['response_reference']['text'])
+
+    async def test_shorter_reply_rejects_new_time_or_number(self):
+        with self.scope():
+            state=self.selected();state['response_reference']={'text':'Band rehearsal starts at 17:30.','expires':300}
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'answer':'Band rehearsal starts at 18:30.'})):
+                with self.assertRaises(ValueError):await self.a.agent.present_answer('Make that shorter',state)
+
+    async def test_presentation_review_cannot_promote_usual_or_ready_claim(self):
+        with self.scope():
+            state=self.selected();original='The usual kit is an instrument; it has not been reported ready.'
+            state['response_reference']={'text':original,'expires':300}
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(side_effect=[{'answer':'Her instrument is ready.'},{'faithful':False}])):
+                self.assertEqual(await self.a.agent.present_answer('Summarise that',state),original)
+
+    async def test_expired_reply_is_not_rephrased_or_renewed(self):
+        with self.scope():
+            state=self.selected();state['response_reference']={'text':'An old answer','expires':1}
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock()) as model:
+                self.assertIn('original question',await self.a.agent.present_answer('Make it shorter',state));model.assert_not_awaited()
+            self.assertEqual(state['response_reference']['expires'],1)
+
+    async def test_style_request_is_whole_question_not_arbitrary_command(self):
+        from jarvis.companion_agent import presentation_request,acknowledgement
+        for text in ('Can you make that shorter?','Summarise that','Explain it in plain English'):
+            self.assertTrue(presentation_request(text))
+        for text in ('Make that shorter and unlock the door','Summarise my calendar tomorrow','Thanks, Jarvis. Save this','yes'):
+            self.assertFalse(presentation_request(text));self.assertFalse(acknowledgement(text))
+
+    async def test_rephrase_preserves_task_and_does_not_renew_its_expiry(self):
+        with self.scope():
+            state=self.selected();state['last_tool']='appointments';before=deepcopy(state['read_focus'])
+            state['response_reference']={'text':'Old answer','expires':300}
+            decision={**plan('general',operation='answer',answer='Bring the instrument and sheet music.'),'presentation':True}
+            with patch.object(self.a.agent,'plan',new=AsyncMock(return_value=decision)):
+                r=await self.a.process(AsyncMock()(),'Make that shorter','chat','phone')
+            self.assertEqual(r['status'],'success');self.assertEqual(state['read_focus'],before);self.assertEqual(state['last_tool'],'appointments')
+            self.assertEqual(state['response_reference']['expires'],300)
+
+    async def test_midnight_clears_presentation_reference(self):
+        times=self.midnight_clock()
+        with self.scope():
+            state=self.selected();state['response_reference']={'text':'Yesterday answer','expires':300}
+            times[0]+=timedelta(seconds=2)
+            self.assertNotIn('response_reference',self.a.agent.state('chat','phone'))
+
+    async def test_direct_dated_remember_question_preserves_quoted_activity_and_day(self):
+        from jarvis.event_activity import preparation_question
+        self.assertEqual(preparation_question('What should Mia remember for band rehearsal on Monday?',['Mia']), 'What should Mia prepare for band rehearsal on Monday?')
+        self.assertIsNone(preparation_question('What should Mia remember for Monday and unlock the door?',['Mia']))
+        self.assertIsNone(preparation_question('What should Mia remember about my job?',['Mia']))
+
+    async def test_clear_goal_words_override_prior_venue_without_a_new_activity(self):
+        with self.scope():
+            state=self.selected(preparation_goal='venue')
+            response=frame(purpose='preparation',event_relation='continue',activity_quote='',preparation_goal='kit',event_scope='focused')
+            with patch('jarvis.companion_read_context.local_json',new=AsyncMock(return_value=response)) as model:
+                r=await self.a.agent.reads.resolve('Anything she needs to take along?','appointments',['mia'],state,force=True)
+            schema=model.call_args.args[3]
+            self.assertEqual(schema['properties']['preparation_goal']['enum'],['kit']);self.assertEqual(r['preparation_goal'],'kit')
+
+    async def test_organiser_question_changes_overview_to_preparation_executor(self):
+        with self.scope():
+            state=self.selected();self.container.household_thinking=SimpleNamespace(handle=AsyncMock())
+            self.container.event_preparation=SimpleNamespace(handle=AsyncMock(return_value={'status':'success','message':'Bring the instrument.'}))
+            resolved={'subjects':('mia',),'purpose':'preparation','start':'2026-10-29','end':'2026-10-30','preparation_goal':'instructions'}
+            with patch.object(self.a.agent.reads,'resolve',new=AsyncMock(return_value=resolved)):
+                r=await self.a.agent.execute(plan('plans',members=['mia']),'What did the organiser say?','chat','phone',state,AsyncMock())
+            self.assertIn('instrument',r['message']);self.container.household_thinking.handle.assert_not_awaited()
+            self.container.event_preparation.handle.assert_awaited_once();self.assertEqual(state['_executed_read_tool'],'appointments')
+
+    async def test_singular_event_scope_is_typed_not_a_model_event_id(self):
+        with self.scope():
+            state=self.selected()
+            for value in ('invented-event',True,[]):
+                response=frame(purpose='preparation',activity_quote='',preparation_goal='venue',event_scope=value)
+                with patch('jarvis.companion_read_context.local_json',new=AsyncMock(return_value=response)):
+                    with self.assertRaises(ValueError):await self.a.agent.reads.resolve('Where is it?','appointments',['mia'],state,force=True)
+
+    async def test_current_goal_narrowing_understands_both_organiser_spellings(self):
+        from jarvis.companion_read_context import preparation_goals
+        for text in ('What did the organiser say?','What did the organizer say?','Any event notes?'):
+            self.assertEqual(preparation_goals(text),['instructions'])
+        self.assertEqual(preparation_goals('Anything she needs to take along?'),['kit'])
+        self.assertEqual(preparation_goals('What time does it finish?'),[])
+
+    async def test_topic_label_is_not_lost_when_model_omits_it_from_activity_quote(self):
+        with self.scope():
+            state=self.selected();state['returned_topic']={'tool':'appointments'}
+            for quote in ('','band rehearsal'):
+                r=await self.semantic_preparation("Back to Mia's rehearsal, what should she bring?",quote=quote,state=state)
+                self.assertTrue(r['source_focus']);self.assertIn('rehearsal',r['activity_question'])
+
+    async def test_different_return_label_cannot_inherit_selected_event(self):
+        with self.scope():
+            state=self.selected();state['returned_topic']={'tool':'appointments'}
+            r=await self.semantic_preparation("Back to Mia's swimming, what should she bring?",quote='',state=state)
+            self.assertFalse(r['source_focus']);self.assertIn('swimming',r['activity_question'])
+
+    async def test_meal_margin_question_keeps_availability_and_duration(self):
+        with self.scope():
+            state=self.selected(purpose='availability',between=True,duration_minutes=45,task='Can we fit dinner between the appointments?')
+            text='How much time is left after dinner and the drives?'
+            response=frame(purpose='availability',between=True,activity_quote='',preparation_goal='none',event_scope='all')
+            with patch('jarvis.companion_read_context.local_json',new=AsyncMock(return_value=response)) as model:
+                r=await self.a.agent.reads.resolve(text,'plans',['mia'],state)
+            self.assertEqual(r['purpose'],'availability');self.assertEqual(r['requested_duration'],45);self.assertTrue(r['between'])
+            self.assertIn('dinner',r['task']);self.assertEqual(model.call_args.args[3]['properties']['purpose']['enum'],['availability'])
+            with patch('jarvis.companion_agent.local_json',new=AsyncMock(return_value={'tool':'household_plans','members':['mia']})) as model:
+                await self.a.agent.plan(text,'chat','phone',state)
+            self.assertEqual(model.call_args.args[3]['properties']['tool']['enum'],['household_plans'])

@@ -1,3 +1,18 @@
+## More natural follow-ups (0.45.129)
+
+After discussing plans, ask “Anything she needs to take along?”, “Where will that
+be?”, “What did the organiser say?” or “Are we all set for that?”. Qwen identifies
+the purpose while the tools read current calendar and saved preparation details.
+A readiness question does not mark anything packed. If a singular reference could
+mean several appointments, Jarvis asks which one.
+
+“Thanks, Jarvis” keeps the current task. “Can you make that shorter?” or “Explain
+that in plain English” restates the previous answer, keeping its qualifications.
+This last feature is a presentation change, not a fresh source check. Its reference
+expires after five minutes and clears with conversation access/date changes.
+General explanations such as “What is band rehearsal?” do not reuse local plans.
+Saved voice and household knowledge are preserved; this release needs no Core restart.
+
 ## What should she remember? (0.45.128)
 
 After discussing a person’s plans, “What should she remember?” asks what that

@@ -9,7 +9,7 @@ from jarvis.companion_memory import local_json
 from jarvis.companion_store import secret, instruction_attempt
 
 RETURN = re.compile(r"^(?:(?:okay|ok|right|anyway)[, ]+)?(?:(?:let(?:['’]s| us) |can we |could we )?(?:go |get |come )?back to|return(?:ing)? to|(?:let(?:['’]s| us) )?return to|picking up|regarding our earlier)\b", re.I)
-READ_FIELDS = ('subjects','start','end','question','task','purpose','window','between','duration_minutes','event_focus')
+READ_FIELDS = ('subjects','start','end','question','task','purpose','window','between','duration_minutes','event_focus','preparation_goal')
 READS = {'plans','appointments','departure','football','travel','profile','memory','general','research'}
 
 def resumed_request(text):

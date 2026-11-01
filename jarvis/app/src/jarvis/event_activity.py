@@ -65,8 +65,11 @@ def preparation_question(text,people=()):
               r'(?:is there )?anything '+subject+r' (?:should|needs? to) remember',
               r'(?:does|do) '+subject+r' need to remember (?:anything|something)')
     for pattern in patterns:
-        match=re.fullmatch(r'(?:and )?'+pattern+r'(?: to (?:bring|pack))?[ .?!]*',value,re.I)
-        if match:return 'What should '+match[1]+(' bring?' if re.search(r'\bto (?:bring|pack)\b',value,re.I) else ' prepare?')
+        match=re.fullmatch(r'(?:and )?'+pattern+r'(?: to (?:bring|pack))?(?P<context> (?:for|at|on) [^.!?;\n]{1,160})?[ .?!]*',value,re.I)
+        if match:
+            context=match['context'] or ''
+            if re.search(r'\b(?:remember|save|forget|delete|confirm|approve|create|add|cancel|send|book|unlock|turn|switch|set|buy|pay|move|reschedule|update|remind)\b',context,re.I):return None
+            return 'What should '+match[1]+(' bring' if re.search(r'\bto (?:bring|pack)\b',value,re.I) else ' prepare')+context.rstrip(' .?!')+'?'
     return None
 
 
