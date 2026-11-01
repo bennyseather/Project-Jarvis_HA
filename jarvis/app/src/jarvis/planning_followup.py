@@ -66,7 +66,7 @@ class PlanningFollowups:
   source=SOURCE_NAMES[event['source']];version=digest({k:event[k] for k in ('key','title','start','end','all_day','members','location','notes')})[:20]
   key='P'+digest([event['source'],event['key'],person])[:14];date=datetime.fromisoformat(event['start']).astimezone(ZONE).date().isoformat()
   usual=next((r for r in self.owner.profile._data.get('activity_profiles',[]) if r['person']==person and r['source']==source and title_key(r['title'])==title_key(event['title'])),None)
-  item={'id':key,'version':version,'title':event['title'],'person':person,'name':next((p['preferred_name'] for p in self.owner.profile._data['members'] if p['id']==person),'Unassigned'),'source':event['source'],'date':date,'start':event['start'],'end':event['end'],'all_day':event['all_day'],'category':event['category'],'calendar_writable':event['source']==CALENDAR,'gaps':[],'checklist':[],'_event':deepcopy(event),'_usual':deepcopy(usual)}
+  item={'id':key,'version':version,'title':event['title'],'activity':(usual or {}).get('activity') or event['title'],'person':person,'name':next((p['preferred_name'] for p in self.owner.profile._data['members'] if p['id']==person),'Unassigned'),'source':event['source'],'date':date,'start':event['start'],'end':event['end'],'all_day':event['all_day'],'category':event['category'],'calendar_writable':event['source']==CALENDAR,'gaps':[],'checklist':[],'_event':deepcopy(event),'_usual':deepcopy(usual)}
   report=self.reports.get(item);details=(report or {}).get('details',{})
   current=event['location'];reported=details.get('venue');item['venue']=current or reported or (usual or {}).get('usual_venue') or ''
   item['venue_basis']='calendar' if current else 'reported for this appointment' if reported else 'usual venue' if item['venue'] else 'unknown'
@@ -78,7 +78,7 @@ class PlanningFollowups:
   if event['category'] in ('sport','music') and not equipment and not preparation and not event['notes']:item['gaps'].append('preparation')
   def step(kind,label,basis):
    if not safe(label,300):return
-   sid='C'+digest([kind,label])[:12];item['checklist'].append({'id':sid,'text':label,'basis':basis,'ready':sid in (report or {}).get('checked',[])})
+   sid='C'+digest([kind,label])[:12];item['checklist'].append({'id':sid,'kind':kind,'text':label,'basis':basis,'ready':sid in (report or {}).get('checked',[])})
   for value in equipment[:12]:step('equipment',value,'reported for this appointment' if 'equipment' in details else 'usual equipment; check organiser notes')
   if preparation:step('preparation',preparation,'reported for this appointment' if 'preparation' in details else 'usual preparation; check organiser notes')
   if event['notes']:step('organiser','Review the organiser notes','calendar notes; requirements are not inferred')
@@ -90,7 +90,8 @@ class PlanningFollowups:
  def public(self,item):return {k:deepcopy(v) for k,v in item.items() if not k.startswith('_')}
  def project(self):
   if not self.enabled():return {'status':'disabled','items':[],'read_only':True}
-  valid=self.binding==self.scope() and self.owner.clock()-self.checked_clock<=180 and all(v['status'] in ('fresh','not_configured') for v in current_health(self.source_health,self.owner.now()).values())
+  from jarvis.assistant_priorities import next_steps
+  valid=self.binding==self.scope() and self.owner.clock()-self.checked_clock<=180 and all(next_steps(i,self.owner.now())['in_progress']==i['followthrough']['in_progress'] for i in self.items.values()) and all(v['status'] in ('fresh','not_configured') for v in current_health(self.source_health,self.owner.now()).values())
   brief=self.brief if valid and self.brief and self.brief['fingerprint']==self.brief_key() else None
   return {'status':self.status if valid else 'preparing','checked_at':self.checked_at,'items':[self.public(v) for v in self.items.values()] if valid else [],'summary':brief['summary'] if brief else None,'summary_model_composed':brief['model_composed'] if brief else False,'source_failures':list(self.failures) if valid else [],'source_health':current_health(self.source_health,self.owner.now()),'read_only':True,'report_basis':'Readiness is household-reported, never attendance or location.'}
  def brief_key(self):return digest([self.scope(),[self.public(i) for i in self.items.values()],self.failures])
@@ -99,7 +100,7 @@ class PlanningFollowups:
   fingerprint=self.brief_key()
   if self.brief and self.brief['fingerprint']==fingerprint:return
   from jarvis.assistant_priorities import compose,fallback
-  items=[i for i in self.items.values() if i['followthrough']['actionable']][:6]
+  items=[i for i in self.items.values() if i['followthrough']['actionable'] and not i['followthrough']['in_progress']][:6]
   summary,model=await compose(self.owner,'What should the household focus on preparing in the next seven days?',items,provider=self.owner.background) if items else (fallback([]),False)
   if self.owner.foreground or self.binding!=self.scope():return
   await self.refresh() # Recheck source versions after model work, before publishing.
@@ -251,17 +252,25 @@ class PlanningFollowups:
    if not speaker:raise ValueError('Whose preparation do you mean? Please name a household member.')
    members=[speaker]
   await self.refresh();projection=self.project()
-  items=[v for v in projection['items'] if not members or v['person'] in members]
+  from jarvis.household_planning import DATE_PATTERN,resolve_dates
+  today=self.owner.now().astimezone(ZONE).date();date_phrase=DATE_PATTERN.search(text.casefold())
+  start,end=resolve_dates(date_phrase[0] if date_phrase else 'next seven days',today.isoformat())
+  items=[v for v in projection['items'] if (not members or v['person'] in members) and start<=v['date']<end]
   binding=self.scope()
-  schema={'type':'object','properties':{'selection':{'type':'array','items':{'type':'string','enum':['none']+[i['id'] for i in items]},'maxItems':6},'view':{'type':'string','enum':['remaining','status']}},'required':['selection','view'],'additionalProperties':False}
-  selected=await local_json(self.owner.provider,'Choose supplied appointments relevant to this preparation-report/needs-attention question. Dates use Norway time. view=remaining for priorities/unfinished preparations: choose earliest unresolved items, not settled ones. view=status only when explicitly asking what is already ready/reported or for all reports. Return selection ids or [none]. No invented facts or actions.',{'today':self.owner.now().astimezone(ZONE).date().isoformat(),'latest':text,'appointments':[{k:i[k] for k in ('id','title','name','date','start','state')} for i in items]},schema,tokens=160)
+  candidates=items[:24]
+  schema={'type':'object','properties':{'selection':{'type':'array','items':{'type':'string','enum':['none']+[i['id'] for i in candidates]},'maxItems':6},'view':{'type':'string','enum':['remaining','status']},'coverage':{'type':'string','enum':['period','selected']}},'required':['selection','view','coverage'],'additionalProperties':False}
+  selected=await local_json(self.owner.provider,'Interpret this preparation question. coverage=period for a household/person weekly overview or general priorities: code will include all upcoming preparations, not just missing venues. coverage=selected ONLY for a particular activity/report. view=remaining for unfinished preparations; status for explicitly asking already ready/reported or all reports. Select ids for a particular activity, otherwise selection=[none]. No facts/actions. JSON only.',{'today':today.isoformat(),'latest':text,'checked_period':{'start':start,'end':end},'appointments':[{'id':i['id'],'title':i['title'][:80],'name':i['name'],'date':i['date'],'state':i['state'],'gaps':i['gaps']} for i in candidates]},schema,tokens=180)
   ids=selected.get('selection') if isinstance(selected,dict) else None
-  if not isinstance(ids,list) or len(ids)>6 or any(v not in ['none']+[i['id'] for i in items] for v in ids) or selected.get('view') not in ('remaining','status'):raise ValueError('I could not select that preparation report')
-  chosen=[await self.resolve(i['id'],i['version']) for i in items if i['id'] in ids]
-  if selected['view']=='remaining':chosen=[i for i in chosen if i['followthrough']['actionable']]
+  if not isinstance(ids,list) or len(ids)>6 or any(v not in ['none']+[i['id'] for i in candidates] for v in ids) or selected.get('view') not in ('remaining','status') or selected.get('coverage') not in ('period','selected'):raise ValueError('I could not select that preparation report')
+  selected_items=items if selected.get('coverage')=='period' else [i for i in candidates if i['id'] in ids]
+  if selected['view']=='remaining':selected_items=[i for i in selected_items if i['followthrough']['actionable'] and not i['followthrough']['in_progress']]
+  chosen=[await self.resolve(i['id'],i['version']) for i in selected_items[:6]]
   from jarvis.assistant_priorities import compose,fallback
   message,model=await compose(self.owner,text,chosen) if chosen else (fallback([]),False)
-  for item in chosen:await self.resolve(item['id'],item['version'])
+  for item in chosen:
+   checked=await self.resolve(item['id'],item['version'])
+   if selected['view']=='remaining' and checked['followthrough']['in_progress']!=item['followthrough']['in_progress']:return {'provider':'companion','status':'unavailable','message':'The scheduled start passed while I was checking. Please ask again for current preparation advice.','cacheable':False}
   if binding!=self.scope():return {'provider':'companion','status':'unavailable','message':'The preparation details changed while I was checking. Please ask again.','cacheable':False}
   if projection['source_failures']:message+=' Some calendar sources could not be checked, so this may be incomplete.'
+  if end>(today+timedelta(days=7)).isoformat() or len(selected_items)>6:message+=' This brief covers up to six preparation items in the next seven days.'
   return {'provider':'companion','status':'success','message':message,'cacheable':False,'planning_report_read':True,'language_model_composition':model,'priority_items':[i['id'] for i in chosen]}

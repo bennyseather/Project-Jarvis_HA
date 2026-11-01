@@ -1180,3 +1180,11 @@ remaining-step evidence and a background brief. Reported-ready steps stay
 inspectable through Show ready and are not requested again as unfinished work.
 Calendar versions, reported readiness and usual venues retain their distinct
 meanings. This feature does not send reminders or operate devices.
+
+
+Weekly preparation summaries (.137) include the checked period rather than only
+appointments with missing fields. Repeated kit requirements can be grouped across
+days; genuine unknowns are mentioned alongside known preparations. Timed events
+whose scheduled start has passed stay inspectable through status reads and are
+excluded from future preparation advice. Saved activity knowledge remains scoped
+to its exact person/calendar/title; similar titles do not inherit venues.

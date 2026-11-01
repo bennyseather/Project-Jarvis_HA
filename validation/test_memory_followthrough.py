@@ -118,7 +118,7 @@ class FollowthroughTests(unittest.IsolatedAsyncioTestCase):
   self.assertFalse(model);self.assertIn('sheet music',answer);self.assertNotIn('already packed',answer)
  async def test_native_read_rechecks_after_composition_and_never_writes(self):
   item=await self.prepared();before='\n'.join(self.store.db.iterdump())
-  async def fake(*args,**kw):return {'selection':[item['id']],'view':'remaining'}
+  async def fake(*args,**kw):return {'selection':[item['id']],'view':'remaining','coverage':'selected'}
   with patch('jarvis.companion_memory.local_json',side_effect=fake),patch('jarvis.assistant_priorities.compose',return_value=('Check the sheet music for rehearsal.',True)):
    result=await self.f.native_read('What should Mia focus on this week?',['mia'])
   self.assertEqual(result['status'],'success');self.assertEqual(result['message'],'Check the sheet music for rehearsal.');self.assertEqual(before,'\n'.join(self.store.db.iterdump()))

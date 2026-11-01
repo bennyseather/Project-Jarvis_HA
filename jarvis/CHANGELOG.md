@@ -1,3 +1,11 @@
+## 0.45.137
+
+- Summarise known preparation across the requested period before mentioning genuine missing details.
+- Group repeated kit requirements, use natural day labels and keep weekly coverage separate from selecting one report.
+- Exclude already-started timed appointments from future preparation priorities and withdraw cached advice when the scheduled start passes.
+- Preserve exact activity mappings, reported readiness and current source rechecks.
+- Keep focused recall free of unrelated same-person memories, while retaining broad preference lookups.
+
 ## 0.45.136
 
 - Keep explicit kit names and usual-venue checks when shortening preparation answers.

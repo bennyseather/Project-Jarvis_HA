@@ -133,8 +133,13 @@ class CompanionStore:
             if subjects and owners and not owners.intersection(subjects):continue
             if subjects and not owners and re.search(r'\b(i|my|mine|me)\b',item['quote'],re.I):continue
             tokens=words(' '.join(item.get('tags',[]))+' '+item.get('topic','')+' '+item['quote']+' '+item.get('interpretation',''))
-            score=4*len(terms.intersection(tokens))+2*len(expanded.intersection(tokens))+(1 if owners.intersection(subjects) else 0)
-            if score:ranked.append((score,-index,item))
+            relevance=4*len(terms.intersection(tokens))+2*len(expanded.intersection(tokens))
+            score=relevance+(1 if owners.intersection(subjects) else 0)
+            if score:ranked.append((score,-index,item,relevance))
+        # Once topic evidence exists, unrelated same-person records are noise,
+        # not useful extra context for an answer. Broad preference reads with no
+        # topic still retain their owner-only candidate set.
+        if any(row[3] for row in ranked):ranked=[row for row in ranked if row[3]]
         ranked.sort(key=lambda row:(row[0],row[1]),reverse=True)
         return [row[2] for row in ranked[:maximum]]
     def forget(self,ids=None):
