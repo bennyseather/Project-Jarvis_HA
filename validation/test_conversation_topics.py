@@ -638,3 +638,47 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
                 result=await self.a.agent.present_answer('maje that shorter',state)
             self.assertEqual(result,good);self.assertEqual(model.await_count,3)
             self.assertIn('only USUAL',model.call_args_list[1].args[2]['feedback'])
+
+    async def test_generic_overview_typo_does_not_become_a_prior_activity(self):
+        with self.scope():
+            state=self.selected(purpose='overview',task='what pla s does mia have on monday',event_focus=[])
+            r=await self.semantic_preparation('What should she prepare?',goal='prepare',state=state,prior_activity_quote='')
+            self.assertEqual(r['activity_reference'],{'groups':[],'literals':[]})
+            self.assertFalse(r['source_focus']);self.assertEqual(r['subjects'],('mia',))
+
+    async def test_explicit_unknown_prior_activity_is_kept_for_positive_source_check(self):
+        with self.scope():
+            state=self.selected(purpose='overview',task='What does Mia have for archery on Monday?',event_focus=[])
+            r=await self.semantic_preparation('What should she bring?',state=state,prior_activity_quote='archery')
+            self.assertEqual(r['activity_reference']['literals'],['archery'])
+
+    async def test_prior_activity_quote_must_come_from_prior_user_task(self):
+        with self.scope():
+            state=self.selected(purpose='overview',task='what pla s does mia have on monday',event_focus=[])
+            for quote in ('swimming',None,[], 'x'*101):
+                with self.assertRaises(ValueError):await self.semantic_preparation('What should she bring?',state=state,prior_activity_quote=quote)
+
+    async def test_new_unknown_activity_does_not_inherit_event_even_if_model_says_continue(self):
+        with self.scope():
+            state=self.selected()
+            r=await self.semantic_preparation('What should she bring for robotics?',quote='robotics',state=state,prior_activity_quote='band rehearsal')
+            self.assertFalse(r['source_focus']);self.assertEqual(r['activity_reference']['literals'],['robotics'])
+
+    async def test_new_activity_overrides_a_different_prior_activity(self):
+        with self.scope():
+            state=self.selected(purpose='overview',task='What does Mia have for swimming on Monday?',event_focus=[])
+            r=await self.semantic_preparation('What should she bring for robotics?',quote='robotics',state=state,prior_activity_quote='swimming')
+            self.assertEqual(r['activity_reference'],{'groups':[],'literals':['robotics']})
+
+    async def test_prior_reference_can_use_the_entire_single_selected_source_title(self):
+        with self.scope():
+            state=self.selected(task='what pla s does mia have on monday')
+            r=await self.semantic_preparation('What should she bring?',state=state,prior_activity_quote='Band rehearsal')
+            self.assertIn('band',r['activity_reference']['groups']);self.assertTrue(r['source_focus'])
+            with self.assertRaises(ValueError):await self.semantic_preparation('What should she bring?',state=state,prior_activity_quote='Band')
+
+    async def test_prior_reference_cannot_choose_one_of_multiple_source_titles(self):
+        with self.scope():
+            state=self.selected(task='what pla s does mia have on monday')
+            state['read_focus']['event_focus'].append(['Robotics','family','2026-10-29T17:00:00+01:00','2026-10-29T18:00:00+01:00',['mia']])
+            with self.assertRaises(ValueError):await self.semantic_preparation('Where is it?',goal='venue',state=state,prior_activity_quote='Band rehearsal')

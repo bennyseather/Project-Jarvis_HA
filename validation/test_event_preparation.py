@@ -138,6 +138,21 @@ class PreparationTests(unittest.IsolatedAsyncioTestCase):
             result=await self.h.handle('And Saturday?','timing',resolved=resolved)
         self.assertIn('finishes at 18:00',result['message']);self.assertNotIn('starts at',result['message'])
 
+    async def test_typed_empty_activity_does_not_reparse_prior_overview_typo(self):
+        with scope(self.p,'benny','typed'):
+            resolved=self.h.request('What should Mia prepare for tomorrow?','typed')
+            resolved.update(shared_read_context=True,activity_question='',activity_reference={'groups':[],'literals':[]},previous_question='what pla s does mia have tomorrow')
+            result=await self.h.handle('What should she prepare?','typed',resolved=resolved)
+        self.assertEqual(result['status'],'success');self.assertIn('blue music folder',result['message'])
+        self.assertNotIn('cannot confirm that activity',result['message'])
+
+    async def test_typed_unknown_activity_never_substitutes_the_available_rehearsal(self):
+        with scope(self.p,'benny','typed'):
+            resolved=self.h.request('What should Mia prepare for tomorrow?','typed')
+            resolved.update(shared_read_context=True,activity_question='',activity_reference={'groups':[],'literals':['archery']},previous_question='What does Mia have for archery tomorrow?')
+            result=await self.h.handle('What should she prepare?','typed',resolved=resolved)
+        self.assertEqual(result['status'],'clarification_required');self.assertNotIn('blue music folder',result['message'])
+
     async def test_answer_to_clarification_keeps_location_person_and_day(self):
         await self.pending_choice()
         r=await self.ask('Fitness')

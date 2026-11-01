@@ -459,12 +459,13 @@ class EventPreparation(HouseholdThinking):
                          subject=plan['subjects'][0] if len(plan['subjects'])==1 else None)
         focus=[e['id'] for e in events if self.event_identity(e) in plan.get('source_focus',[])]
         people=[p['preferred_name'] for p in self.profile._data['members']]
-        activity=event_activity.requirement(plan.get('activity_question',plan['question']) if plan.get('shared_read_context') else plan['question'],people)
+        typed_activity=plan.get('activity_reference') if plan.get('shared_read_context') else None
+        activity=typed_activity if typed_activity is not None else event_activity.requirement(plan.get('activity_question',plan['question']) if plan.get('shared_read_context') else plan['question'],people)
         continuing=bool(plan.get('source_focus') and plan.get('shared_read_context') and (not event_activity.requested(activity) or plan.get('event_continuation')))
         if continuing:
             if not focus:return reply('The selected appointment changed or is no longer available. Please name the event and date again.','clarification_required')
             events=[e for e in events if e['id'] in focus];exact_selection=True
-        if not continuing and not event_activity.requested(activity) and not selection:
+        if typed_activity is None and not continuing and not event_activity.requested(activity) and not selection:
             activity=plan.get('previous_activity') or event_activity.requirement(plan['previous_question'] or '',people)
         plan['activity_request']=activity
         if event_activity.requested(activity) and not exact_selection:

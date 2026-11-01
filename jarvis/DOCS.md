@@ -1,3 +1,11 @@
+## Follow-ups after an imperfectly typed agenda question (0.45.134)
+
+After Jarvis finds a person's plans, preparation follow-ups carry a validated
+activity reference rather than reparsing the earlier question as an activity
+name. A generic question with a split word such as “pla s” does not become an
+activity filter. Explicitly named activities still need current positive calendar
+support, and a single source-event reference is rechecked rather than cached.
+
 ## Qualified venues in short replies (0.45.133)
 
 Shortening keeps a named usual venue explicitly usual, or leaves that venue out.

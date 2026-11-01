@@ -1,3 +1,9 @@
+## 0.45.134
+
+- Keep an explicitly interpreted activity reference separate from raw agenda question wording.
+- Follow up a generic agenda containing a split-word typo without treating that typo as an activity name.
+- Validate inherited activity quotes against the previous user task or the entire title of one selected source event; recheck sources and keep unknown/new activity filtering.
+
 ## 0.45.133
 
 - Check named usual venues directly when restating an answer: keep a usual qualifier in the venue clause or omit the venue.

@@ -46,6 +46,12 @@ not the prior overview. 'Actually I meant Emrik' is correction with Emrik only.
 Do not copy question verbs, venue requests, organiser, equipment, clothing or
 readiness words as an activity name. Do not drop a newly named activity to keep
 an old one. 'Anything she needs to take along?' has activity_quote="".
+'prior_activity_quote' is an exact activity name explicitly named in
+prior_user_task.task, the ENTIRE title of its ONE selected event, or empty.
+Several selected events never justify choosing one. Generic agenda questions
+name NO activity when there is no single selected event reference.
+Question wording and typos such as 'pla s' meaning plans are not activity names.
+Do not quote an assistant answer or infer a sport from equipment or venue.
 For preparation_goal: none for a non-preparation overview/timing question;
 kit asks what to bring/pack, clothing asks what to wear, timing asks a selected
 appointment's start/finish time, venue asks where, instructions
@@ -66,6 +72,7 @@ SCHEMA={'type':'object','properties':{
  'window':{'type':'string','enum':['all_day','morning','afternoon','evening']},
  'between':{'type':'boolean'},'duration_quote':{'type':'string'},'event_relation':{'type':'string','enum':['continue','new','unspecified']},
  'activity_quote':{'type':'string','maxLength':100},
+ 'prior_activity_quote':{'type':'string','maxLength':100},
  'preparation_goal':{'type':'string','enum':['none','prepare','kit','clothing','timing','venue','instructions','remaining','status']},
  'event_scope':{'type':'string','enum':['focused','all']}},
  'required':['intent','subjects','date_quote','purpose','window','between','duration_quote'],'additionalProperties':False}
@@ -126,7 +133,8 @@ class ReadDialogue:
   date_only=bool(dates and not re.sub(r'\b(?:and|what about|how about|on)\b','',DATE_PATTERN.sub(' ',text.casefold())).strip(' .?!'))
   duration_only=bool(durations and re.fullmatch(r'(?:about |around )?'+re.escape(durations[0])+r'[.?!]?',text,re.I))
   schema=deepcopy(SCHEMA)
-  schema['required']+=['activity_quote','preparation_goal','event_scope']
+  schema['required']+=['activity_quote','prior_activity_quote','preparation_goal','event_scope']
+  if not old:schema['properties']['prior_activity_quote']['enum']=['']
   if tool=='appointments':schema['properties']['preparation_goal']['enum'].remove('none')
   goals=preparation_goals(text)
   budget_followup=meal_remainder(text,old)
@@ -205,14 +213,22 @@ class ReadDialogue:
    activity_question=(return_label+' '+quote).strip()
   latest_activity=requirement(activity_question,people.values());prior_activity=requirement((old or {}).get('task',''),people.values())
   selected=(old or {}).get('event_focus',[])
+  selected_title=selected[0][0] if len(selected)==1 and len(selected[0])==5 and isinstance(selected[0][0],str) else ''
+  typed_activity=semantic_preparation and 'prior_activity_quote' in data
+  if 'prior_activity_quote' in data:
+   prior_quote=data['prior_activity_quote'];prior_text=(old or {}).get('task','')
+   if not isinstance(prior_quote,str) or len(prior_quote)>100:raise ValueError('Please clarify which plans you mean.')
+   if prior_quote and not (selected_title and prior_quote.casefold()==selected_title.casefold()) and not re.search(r'(?<!\w)'+re.escape(prior_quote)+r'(?!\w)',prior_text,re.I):raise ValueError('Please clarify which plans you mean.')
+   prior_activity=requirement(prior_quote,people.values())
+  activity_reference=latest_activity if requested(latest_activity) else prior_activity
   # A generic original question can still have selected one concrete source
   # event. Its title is part of the identity, not a cached appointment answer.
-  selected_title=selected[0][0] if len(selected)==1 and len(selected[0])==5 and isinstance(selected[0][0],str) else ''
   selected_activity=requirement(selected_title,people.values())
   known_groups=set(prior_activity['groups'])|set(selected_activity['groups'])
   relation=data.get('event_relation','unspecified')
   if relation not in ('continue','new','unspecified'):raise ValueError('Please clarify which plans you mean.')
-  new_kind=bool(latest_activity['groups'] and not set(latest_activity['groups']).issubset(known_groups))
+  known_literals=set(prior_activity['literals'])|set(selected_activity['literals'])
+  new_kind=bool(not set(latest_activity['groups']).issubset(known_groups) or semantic_preparation and 'activity_quote' in data and not set(latest_activity['literals']).issubset(known_literals))
   if returning and selected_title:
    label=requirement(activity_question.split(',',1)[0],people.values())
    known_literals=set(prior_activity['literals'])|set(selected_activity['literals'])
@@ -227,7 +243,7 @@ class ReadDialogue:
   if preparation_goal=='timing':
    ending=bool(re.search(r'\b(?:finish\w*|end\w*)\b',text,re.I));beginning=bool(re.search(r'\b(?:start\w*|begin\w*)\b',text,re.I))
    timing_kind='both' if ending and beginning else 'finish' if ending else 'start' if beginning else (old or {}).get('timing_kind') or 'start'
-  return {'subjects':tuple(subjects),'start':a,'end':b,'speaker':speaker,'date':reference,
+  return {**({'activity_reference':activity_reference} if typed_activity else {}),'subjects':tuple(subjects),'start':a,'end':b,'speaker':speaker,'date':reference,
    'revision':self.owner.profile._data['revision'],'expires':self.owner.clock()+300,
    'activity_question':activity_question,'preparation_goal':preparation_goal,'timing_kind':timing_kind,'event_scope':data.get('event_scope','all'),'question':text,'previous_question':old.get('task') or old['question'] if old else None,
    'window':window,'purpose':purpose,'between':between,'weather':False,
