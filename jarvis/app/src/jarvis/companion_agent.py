@@ -400,7 +400,7 @@ class QwenConversation:
       try:issue=await self.owner.issues.handle(text,key,source,state)
       except Exception:issue=reply('I could not safely attach that answer report. Please repeat the original question, then describe the problem. Nothing is confirmed as changed.','unavailable') if report_request(text) or state.get('issue_pending') else None
       if issue is not None:
-       state['history'].extend([{'role':'user','text':text[:450]},{'role':'assistant','text':issue['message'][:700]}]);state['history']=state['history'][-6:]
+       state['history'].extend([{'role':'user','text':'[credential-related text omitted]' if secret(text) else text[:450]},{'role':'assistant','text':issue['message'][:700]}]);state['history']=state['history'][-6:]
        state['last_tool']='development' if issue.get('development_case') else 'issue'
        self.owner.last_activity=self.clock();return issue
       if state.get('issue_pending'):self.owner.issues.clear(state)
@@ -427,7 +427,7 @@ class QwenConversation:
       if tool=='issue':
        try:result=await self.owner.issues.handle(text,key,source,state,force=True)
        except Exception:return reply('I could not safely attach that report. Please ask the original question again and describe the error.','unavailable')
-       state['history'].extend([{'role':'user','text':text[:450]},{'role':'assistant','text':result['message'][:700]}]);state['history']=state['history'][-6:]
+       state['history'].extend([{'role':'user','text':'[credential-related text omitted]' if secret(text) else text[:450]},{'role':'assistant','text':result['message'][:700]}]);state['history']=state['history'][-6:]
        state['last_tool']='development' if result.get('development_case') else 'issue';self.owner.last_activity=self.clock();return result
       if tool!='development':self.owner.development.deactivate(key,source)
       if tool in ('football','planning_report','planning_followthrough','memory','profile','plans','appointments','calendar','household_update','reminders','travel','travel_brief','connected','route','activity_knowledge','departure') and not access.read:return reply('Your signed-in HA account needs household read access for that tool.','forbidden')

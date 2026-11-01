@@ -1,3 +1,8 @@
+## 0.45.143
+
+- Redact rejected credential-containing answer reports from conversation history as well as the report journal.
+- Preserve the tested fresh-source, reviewed knowledge and supervised-code investigation flow.
+
 ## 0.45.142
 
 - Check current organiser requirements and negative/conditional exceptions before diagnosing a missing preparation item.
