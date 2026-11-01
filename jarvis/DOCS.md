@@ -1,3 +1,16 @@
+## Conversational development cases (0.45.139)
+
+After opening or selecting a case, ask “What did you find?”, “How is it going?”,
+“Show the patch” or “Did the tests pass?” in the same conversation. After
+changing topic, “Back to development, what did you find?” returns to that case.
+Account/conversation boundaries and existing permissions still apply.
+
+Default summaries focus on current household-requested work. Diagnostic cases
+remain available in development history. The Assistant card shows reported test
+outcomes, expandable source/patch evidence and independent-review requirements.
+Expanded evidence and scroll position survive refreshes. Inspection alone
+never implies that a patch or passing tests exist.
+
 ## Separately enabled supervised development workspace (0.45.138)
 
 The Node Qwen can inspect a pinned public-source snapshot, propose a small

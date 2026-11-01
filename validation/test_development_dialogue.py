@@ -7,6 +7,14 @@ from jarvis.development_workspace import DevelopmentWorkspace,canonical,sha
 import test_development_workspace as base
 
 class PresentationTests(unittest.TestCase):
+ def test_expected_failure_requires_the_correct_phase_and_both_flags(self):
+  for name,passed,failed,expected in [('original_regression',False,True,True),('original_regression',False,False,False),('original_regression',True,True,False),('candidate_suite',False,True,False),('original_suite',False,True,False)]:
+   with self.subTest(name=name,passed=passed,failed=failed):
+    text=phase_line(name,{'tests_reported':1,'passed':passed,'assertion_failure':failed})
+    self.assertEqual('failed as expected' in text,expected)
+    if not passed and not expected:self.assertIn('did not pass',text)
+ def test_singular_and_plural_keep_reported_counts(self):
+  for count,noun in ((0,'tests'),(1,'test'),(2,'tests')):self.assertIn(str(count)+' '+noun+' reported',phase_line('candidate_suite',{'tests_reported':count,'passed':True}))
  def test_closed_followups_do_not_steal_household_topics(self):
   for text,kind in [('What did you find?','findings'),('How is it going?','status'),('Show the patch','patch'),('Did the tests pass?','tests')]:self.assertEqual(followup(text),kind)
   for text in ('What should Mia bring?','And her birthday?','Did Mia pass her tests?','Show the patch and deploy it','How is Mia going tomorrow?'):self.assertIsNone(followup(text))
@@ -73,3 +81,12 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
    await self.w.handle('Did the tests pass?','chat','phone')
    self.assertEqual((await self.w.handle('cancel '+row['id'],'chat','phone'))['status'],'forbidden')
   self.assertEqual(len(self.w.jobs()),before);self.assertFalse(any(path=='/v1/jobs' for path,_ in self.calls))
+
+class QwenRegressionTests(unittest.TestCase):
+ # Qwen supplied this valid positive regression in W687e4d2d6634. Its proposed
+ # implementation failed independent semantic review and was not applied.
+ def test_original_regression_failure(self):
+  phase={'tests_reported':1,'passed':False,'assertion_failure':True}
+  result=phase_line('original_regression',phase)
+  self.assertIn('failed as expected',result)
+  self.assertNotIn('did not pass',result)

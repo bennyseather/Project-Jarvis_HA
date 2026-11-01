@@ -2,8 +2,11 @@
 import re
 
 def phase_line(name,phase):
-    # Extracted unchanged from .138's production status formatter.
-    return name.replace('_',' ')+': '+str(phase.get('tests_reported',0))+' tests reported, '+('passed' if phase.get('passed') else 'did not pass')
+    count=phase.get('tests_reported',0)
+    status='passed' if phase.get('passed') else 'did not pass'
+    if name=='original_regression' and phase.get('assertion_failure') is True and phase.get('passed') is False:status='failed as expected'
+    noun='test' if count==1 else 'tests'
+    return name.replace('_',' ')+': '+str(count)+' '+noun+' reported, '+status
 
 def followup(text):
     value=' '.join(text.casefold().strip(' .?!').replace('’',"'").split())
