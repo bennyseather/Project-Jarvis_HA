@@ -171,16 +171,22 @@ The supersedes field links a current replacement to that previous memory ID.
 It is valid to contrast those linked old/current preferences with clear tense. If records
 conflict, explain the uncertainty instead of silently choosing one. Answer the
 actual question in 1-3 warm connected sentences, not a ledger. Include only memory
-IDs actually supporting the answer. If the memories do not answer the question,
+IDs actually supporting the answer in memory_ids ONLY. Never include internal
+memory IDs in the answer prose. If the memories do not answer the question,
 return memory_ids=[] instead of an unrelated memory. Do not invent facts. JSON only.
 """
 async def answer_memory(provider,text,memories,people,speaker=None):
     rows=[{k:r.get(k) for k in ('id','kind','subjects','quote','interpretation','confidence','anchor','valid_from','valid_until','date_unresolved','status','currently_applicable','temporal_state','supersedes')} for r in memories[:8]]
-    result=await local_json(provider,ANSWER_PROMPT,{'question':text,'people':people,'identified_speaker':speaker,'memories':rows},ANSWER_SCHEMA,tokens=240)
-    if not isinstance(result,dict) or set(result)!={'answer','memory_ids'}:raise ValueError('Invalid memory answer')
-    message=bounded(result['answer'],1300);ids=result['memory_ids'];known={r['id'] for r in rows}
-    if ids==[]:raise MemoryNoMatch('No learned memory answers that question')
-    if not message or not isinstance(ids,list) or not set(ids)<=known or secret(message):raise ValueError('Unsupported memory answer')
+    data={'question':text,'people':people,'identified_speaker':speaker,'memories':rows};known={r['id'] for r in rows}
+    for attempt in range(2):
+        prompt=ANSWER_PROMPT+('\nThe previous generation included internal metadata in prose. Regenerate from these original records; put IDs ONLY in memory_ids, never in answer. Do not add facts.' if attempt else '')
+        result=await local_json(provider,prompt,data,ANSWER_SCHEMA,tokens=240)
+        if not isinstance(result,dict) or set(result)!={'answer','memory_ids'}:raise ValueError('Invalid memory answer')
+        message=bounded(result['answer'],1300);ids=result['memory_ids']
+        if ids==[]:raise MemoryNoMatch('No learned memory answers that question')
+        if not message or not isinstance(ids,list) or any(not isinstance(i,str) for i in ids) or not set(ids)<=known or secret(message):raise ValueError('Unsupported memory answer')
+        if not re.search(r'\bM[0-9a-f]{8}\b',message,re.I):break
+        if attempt:raise ValueError('Memory answer repeated an internal ID')
     selected=[r for r in rows if r['id'] in ids]
     if any(r.get('currently_applicable') is False for r in selected) and not re.search(r'\b(?:previously|earlier|historical|past|then|at the time|no longer|used to|unresolved|not current|could not date)\b',message,re.I):raise ValueError('Historical memory was presented as current')
     if any(r['kind']=='hint' for r in selected) and not re.search(r'\b(may|might|could|possible|suggest|seem|inferred)\b',message,re.I):raise ValueError('Inference was presented as fact')

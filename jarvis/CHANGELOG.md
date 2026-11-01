@@ -1,3 +1,10 @@
+## 0.45.140
+
+- Recover once from internal memory IDs in answer prose while retaining every grounding check.
+- Discuss case rationale, effects and next steps naturally from persisted evidence.
+- Distinguish independently reviewed releases from unreviewed candidates; no self-deployment authority.
+- Preserve saved voice and held audio/reminder tests.
+
 ## 0.45.139
 
 - Follow the current development case within one authenticated conversation using natural findings, patch and test-result questions.

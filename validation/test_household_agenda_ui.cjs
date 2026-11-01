@@ -27,6 +27,9 @@ assert.ok(workshopCards.some(c=>c.devId==='W123456789abc'&&c.lines.some(l=>l.inc
 const dev=card.developmentCards({enabled:true,diagnostic_count:1,cases:[{id:'W000000000001',state:'inspection_complete',diagnostic:true,problem:'Diagnostic'},{id:'W000000000002',state:'review_required',problem:'Real change',diff:'<script>unsafe()</script>',source_quote:'return items',test_summary:['Candidate suite: 2 reported tests passed.']}]});
 assert.equal(dev.length,2);assert.ok(dev[1].lines.some(l=>l.includes('2 reported tests')));
 const html=card.developmentEvidence(dev[1]);assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(html.includes('Candidate patch'));
+const released=card.developmentCards({enabled:true,cases:[{id:'W000000000003',state:'released',release_note:'Independently reviewed and released as Jarvis 0.45.140.',problem:'Memory ID repair',diff:'a checked patch'}]})[1];
+assert.ok(released.lines.some(l=>l.includes('released as Jarvis 0.45.140')));assert.ok(!released.lines.some(l=>l.includes('Results need independent review')));
+assert.ok(card.developmentEvidence(released).includes('Reviewed release patch'));
 card._devHistory=true;assert.equal(card.developmentCards({enabled:true,cases:[{diagnostic:true,state:'cancelled',problem:'Diagnostic'}]}).length,2);
 card.data.assistant.development_workspace.enabled=false;
 assert.ok(!card.cards().some(c=>c.title==='Jarvis development workspace'));

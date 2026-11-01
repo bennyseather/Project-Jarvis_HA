@@ -1,12 +1,31 @@
 """Conversational case reads, permissions, history and truthful evidence."""
 import json,unittest
 from unittest.mock import patch
-from jarvis.development_dialogue import followup,resumed,phase_line,result_lines
+from jarvis.development_dialogue import followup,resumed,phase_line,result_lines,proposal_lines,release_note
 from jarvis.calendar_context import calendar_scope
 from jarvis.development_workspace import DevelopmentWorkspace,canonical,sha
 import test_development_workspace as base
 
 class PresentationTests(unittest.TestCase):
+ def test_only_complete_independent_release_receipt_changes_the_label(self):
+  row={'state':'released','release':{'version':'0.45.140','commit':'a'*40,'reviewed_by':'Codex'},'result':{'phases':{'candidate_suite':{'passed':True,'tests_reported':3}}}}
+  self.assertIn('released as Jarvis 0.45.140',release_note(row));self.assertNotIn('not passed',' '.join(result_lines(row)))
+  row['diff']='checked patch';self.assertNotIn('before release',proposal_lines(row,'risks'));self.assertIn('review has been recorded',proposal_lines(row,'risks'))
+  for malformed in ({'state':'review_required'}, {'release':{'version':'0.45.140','commit':'a'*40,'reviewed_by':'Qwen'}},{'release':{'version':'latest','commit':'a'*40,'reviewed_by':'Codex'}}):self.assertEqual(release_note({**row,**malformed}),'')
+ def test_proposal_discussion_is_closed_to_unrelated_topics(self):
+  for text,kind in [('Why this change?','why'),('What could it affect?','risks'),('What would you improve next?','next')]:self.assertEqual(followup(text),kind)
+  for text in ("What could Mia's appointment affect?",'Why this change and deploy it','What should Mia improve next?'):self.assertIsNone(followup(text))
+ def test_inspection_discussion_does_not_invent_a_defect_or_candidate(self):
+  row={'scope':'memory','summary':'It reads attributed memories.','state':'inspection_complete','mode':'inspect','citations':[{'symbol':'answer_memory'}]}
+  self.assertIn('not evidence of a defect',proposal_lines(row,'why'))
+  self.assertIn('no candidate change',proposal_lines(row,'risks').lower())
+  self.assertIn('concrete failing example',proposal_lines(row,'next'))
+ def test_candidate_risks_and_next_step_do_not_treat_tests_as_approval(self):
+  row={'scope':'memory','problem':'IDs appeared in an answer.','summary':'Request one clean rewrite.','state':'review_required','diff':'a real diff','citations':[{'symbol':'answer_memory'}],'result':{'phases':{'candidate_suite':{'passed':True,'tests_reported':3}}}}
+  self.assertIn(row['problem'],proposal_lines(row,'why'));self.assertIn(row['summary'],proposal_lines(row,'why'))
+  self.assertIn('do not prove every behaviour',proposal_lines(row,'risks'));self.assertIn('independently review',proposal_lines(row,'next'))
+  row['state']='needs_revision';row['result']['phases']['candidate_suite']['passed']=False
+  self.assertIn('no passing full candidate',proposal_lines(row,'risks'));self.assertIn('failed checks',proposal_lines(row,'next'))
  def test_expected_failure_requires_the_correct_phase_and_both_flags(self):
   for name,passed,failed,expected in [('original_regression',False,True,True),('original_regression',False,False,False),('original_regression',True,True,False),('candidate_suite',False,True,False),('original_suite',False,True,False)]:
    with self.subTest(name=name,passed=passed,failed=failed):
@@ -36,6 +55,14 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
  request=base.WorkspaceTests.request
  model=base.WorkspaceTests.model
  row=base.WorkspaceTests.row
+ async def test_proposal_discussion_is_read_only_and_case_bound(self):
+  row=self.row();row.update(mode='inspect',state='inspection_complete',summary='It reads evidence.');self.w.save(row)
+  with calendar_scope({'actor':'owner','read':True,'write':False}):
+   await self.w.handle('show '+row['id'],'chat','phone')
+   for text in ('Why this change?','What could it affect?','What would you improve next?'):
+    out=await self.w.handle(text,'chat','phone');self.assertEqual(out['development_case'],row['id'])
+    self.assertIn('Which development case',(await self.w.handle(text,'other','phone'))['message'])
+  self.assertEqual(len(self.w.jobs()),1);self.assertFalse(any(path=='/v1/jobs' for path,_ in self.calls))
  async def test_natural_reads_use_current_case_in_same_conversation(self):
   row=self.row();row.update(state='inspection_complete',summary='It joins items.',mode='inspect');self.w.save(row)
   with calendar_scope({'actor':'owner','read':True,'write':True}):

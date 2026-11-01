@@ -11,7 +11,7 @@ SCOPES={
   'src/jarvis/assistant_priorities.py':['preparation_groups','priority_key','fallback'],
   'src/jarvis/preparation_wording.py':['join_words','activity_name','kit_item','usual_preparation']},
   'tests':['test_priority_summary','test_preparation_wording','test_memory_followthrough']},
- 'memory':{'label':'Relevant memory lookup','files':{'src/jarvis/companion_store.py':['CompanionStore.relevant']},
+ 'memory':{'label':'Relevant memory lookup and answers','files':{'src/jarvis/companion_store.py':['CompanionStore.relevant'],'src/jarvis/companion_memory.py':['answer_memory']},
   'tests':['test_companion_memory','test_memory_followthrough']},
  'conversation':{'label':'Conversation references','files':{'src/jarvis/companion_read_context.py':['duration_quotes','preparation_goals','meal_remainder']},
   'tests':['test_companion_read_context','test_conversation_topics']},

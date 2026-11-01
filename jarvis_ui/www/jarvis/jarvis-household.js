@@ -10,11 +10,11 @@ function householdLines(value,prefix=''){
  return [(prefix?prefix+': ':'')+String(value)];
 }
 class JarvisHouseholdCard extends HTMLElement{
- get uiRevision(){return 2026110102;}
+ get uiRevision(){return 2026110103;}
  setConfig(config){this.config=config||{};this.toggleAttribute?.('data-standalone',this.config.layout==='standalone');this.section=this.config.initial_section==='assistant'?'assistant':'planner';this.render();}
  getCardSize(){return 8;}
  constructor(){super();this.attachShadow({mode:'open'});this.section='planner';this.period='today';this.agendaDay='today';this.agendaPerson='all';this.page=0;this.serial=0;this.error='';this.loading=false;}
- set hass(hass){const previousRevision=this._plannerUiRevision,upgrade=previousRevision!==2026110102;this._plannerUiRevision=2026110102;if(upgrade&&!previousRevision&&!this.shadowRoot.querySelector?.('jarvis-planner-card'))this.section=this.config?.initial_section==='assistant'?'assistant':'planner';const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(upgrade)this.render();if(!this.data&&!this.loading&&hass)this.load();}
+ set hass(hass){const previousRevision=this._plannerUiRevision,upgrade=previousRevision!==2026110103;this._plannerUiRevision=2026110103;if(upgrade&&!previousRevision&&!this.shadowRoot.querySelector?.('jarvis-planner-card'))this.section=this.config?.initial_section==='assistant'?'assistant':'planner';const changed=this._hass?.user?.id!==hass?.user?.id;this._hass=hass;if(changed){this.data=null;this.serial++;this.loading=false;}if(upgrade)this.render();if(!this.data&&!this.loading&&hass)this.load();}
  connectedCallback(){this.render();this.timer=setInterval(()=>{if(!document.hidden)this.load();},60000);}
  disconnectedCallback(){clearInterval(this.timer);this.serial++;this.data=null;this.loading=false;}
  async load(){if(!this._hass||this.loading||!this.isConnected)return;const serial=++this.serial;this.loading=true;this.error='';this.render();try{const data=await this._hass.callWS({type:'jarvis_conversation/household',period:this.period});if(serial!==this.serial||!this.isConnected)return;if(data.schema_version!==1||data.read_only!==true||(this.period!=='today'&&data.planning?.period!==this.period))throw Error('Invalid response');this.data=data;}catch{if(serial!==this.serial)return;this.data=null;this.error='Household information unavailable. Nothing has been changed. Try Refresh.';}finally{if(serial===this.serial){this.loading=false;this.render();}}}
@@ -35,7 +35,7 @@ class JarvisHouseholdCard extends HTMLElement{
   if(!workspace?.enabled)return [];
   const all=workspace.cases||[],shown=all.filter(r=>this._devHistory||!r.diagnostic);
   return [{title:'Jarvis development workspace',developmentHistory:!!workspace.diagnostic_count,lines:[workspace.mode,'Ask: inspect your preparation code. Then ask: What did you find? or Did the tests pass?',this._devHistory?'Showing current cases and diagnostic history.':'Showing your work. Diagnostic cases remain in history.']},
-   ...shown.map(r=>({title:(r.title||r.scope||'Development')+' · '+(r.state_label||r.state.replaceAll('_',' ')),devId:r.id,patch:r.diff,excerpt:r.source_quote,lines:[r.problem,r.summary||'Waiting for the next supervised step.',...(r.test_summary||[]),...(r.citations||[]).map(c=>c.path+':'+c.start+' · '+c.symbol+' · '+c.version),r.id+' · Results need independent review before release.']}))];
+   ...shown.map(r=>({title:(r.title||r.scope||'Development')+' · '+(r.state_label||r.state.replaceAll('_',' ')),devId:r.id,patch:r.diff,releaseNote:r.release_note,excerpt:r.source_quote,lines:[r.problem,r.summary||'Waiting for the next supervised step.',...(r.test_summary||[]),...(r.citations||[]).map(c=>c.path+':'+c.start+' · '+c.symbol+' · '+c.version),r.id+' · '+(r.release_note||'Results need independent review before release.')]}))];
  }
  developmentEvidence(card){
   const esc=escapeHousehold,block=(kind,label,text)=>{
@@ -43,7 +43,7 @@ class JarvisHouseholdCard extends HTMLElement{
    const key=card.devId+':'+kind;
    return `<details data-dev-evidence="${esc(key)}" ${this._devOpen?.has(key)?'open':''}><summary>${esc(label)}</summary><pre>${esc(text)}</pre></details>`;
   };
-  return (card.developmentHistory?`<button data-dev-history aria-pressed="${!!this._devHistory}">${this._devHistory?'Hide diagnostic history':'Show diagnostic history'}</button>`:'')+block('patch','Candidate patch — review required',card.patch)+block('source','Inspected source excerpt',card.excerpt);
+  return (card.developmentHistory?`<button data-dev-history aria-pressed="${!!this._devHistory}">${this._devHistory?'Hide diagnostic history':'Show diagnostic history'}</button>`:'')+block('patch',card.releaseNote?'Reviewed release patch':'Candidate patch — review required',card.patch)+block('source','Inspected source excerpt',card.excerpt);
  }
  cards(){const d=this.data;if(!d)return [];let cards=[];
  if(this.section==='assistant'){
@@ -91,7 +91,7 @@ if(this.section==='changes')cards=(d.changes||[]).map(c=>({title:'Revision '+c.r
 customElements.whenDefined('ha-card').then(()=>{
  const active=customElements.get('jarvis-household-card');
  if(!active)customElements.define('jarvis-household-card',JarvisHouseholdCard);
- else if((active.prototype.uiRevision||0)<2026110102){
+ else if((active.prototype.uiRevision||0)<2026110103){
   // HA can announce this module to a still-open companion WebView. Upgrade its
   // existing compatible element instead of silently retaining the cached class.
   for(const name of Object.getOwnPropertyNames(JarvisHouseholdCard.prototype)){

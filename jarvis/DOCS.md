@@ -1216,3 +1216,5 @@ days; genuine unknowns are mentioned alongside known preparations. Timed events
 whose scheduled start has passed stay inspectable through status reads and are
 excluded from future preparation advice. Saved activity knowledge remains scoped
 to its exact person/calendar/title; similar titles do not inherit venues.
+
+For a current development case, ask “Why this change?”, “What could it affect?” or “What would you improve next?”. Replies use case/source/test evidence and distinguish inspections, candidates and an independently recorded release. Jarvis cannot grant its own release approval.

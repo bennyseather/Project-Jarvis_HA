@@ -11,7 +11,7 @@ from jarvis.companion_store import bounded,secret,stamp
 from jarvis.companion_dialogue import response as base_response
 from jarvis.companion_memory import local_json
 from jarvis.development_contract import PUBLIC_SCOPES,SCOPES,canonical,sha,apply_candidate,make_snapshot
-from jarvis.development_dialogue import followup,resumed,state_words,result_lines,case_title
+from jarvis.development_dialogue import followup,resumed,state_words,result_lines,case_title,proposal_lines,release_note
 
 ACTIVE={'selecting','inspecting','drafting','regression','submitting','testing'}
 FIELDS={'enabled','url','token','snapshot','approval_source','recorded_on'}
@@ -75,7 +75,7 @@ class DevelopmentWorkspace:
         if row.get('result'):
             result=row['result'];out['result']={k:v for k,v in result.items() if k not in ('phases','diff')}
             out['result']['phases']={name:{k:v for k,v in phase.items() if k not in ('output',)} for name,phase in result.get('phases',{}).items()}
-        out.update(review_required=True,state_label=state_words(row['state']),title=case_title(row),test_summary=result_lines(row) if row.get('result') or row.get('state')=='inspection_complete' else [])
+        out.update(review_required=not bool(release_note(row)),release_note=release_note(row),state_label=state_words(row['state']),title=case_title(row),test_summary=result_lines(row) if row.get('result') or row.get('state')=='inspection_complete' else [])
         return out
     def project(self):return {'enabled':self.enabled,'status':self.status,'mode':'Supervised source inspection and isolated candidate tests; production release requires review','diagnostic_count':sum(bool(r.get('diagnostic')) for r in self.jobs()),'cases':[self.public(r) for r in self.jobs()[:32]]}
     def focus_key(self,key,source):return (current_calendar_access.get().actor,str(key),source or '')
@@ -150,7 +150,8 @@ class DevelopmentWorkspace:
                     row['state']='cancelled';self.save(row)
                 return response(identifier+' is '+row['state'].replace('_',' ')+'.','success',development_workspace=True)
             if read_kind=='tests' or re.search(r'\btest results\b',value,re.I):return response(' '.join(result_lines(row)),'success',development_workspace=True,development_case=identifier)
-            if read_kind=='patch' or re.search(r'\b(?:diff|patch)\b',value,re.I):return response((identifier+' candidate patch (unreviewed):\n'+row['diff']) if row.get('diff') else 'No candidate patch has been produced for this case.','success',development_workspace=True,development_case=identifier)
+            if read_kind=='patch' or re.search(r'\b(?:diff|patch)\b',value,re.I):return response((identifier+' patch ('+(release_note(row) or 'unreviewed candidate')+'):\n'+row['diff']) if row.get('diff') else 'No candidate patch has been produced for this case.','success',development_workspace=True,development_case=identifier)
+            if read_kind in ('why','risks','next'):return response(proposal_lines(row,read_kind),'success',development_workspace=True,development_case=identifier)
             return self.explain(row)
         if action not in ('inspect','investigate') or scope not in PUBLIC_SCOPES:return response('Which part should I inspect: preparation summaries, memory lookup or conversation references?')
         if not access.write:return response('Your signed-in HA account needs control permission to start a development case.','forbidden')
@@ -178,7 +179,9 @@ class DevelopmentWorkspace:
             except asyncio.CancelledError:
                 if self.closed:raise
             finally:self.work=None
-    async def model(self,prompt,data,schema):return await local_json(self.owner.background,prompt,data,schema,tokens=240,timeout=6)
+    async def model(self,prompt,data,schema):
+        drafting=bool(set(schema.get('properties',{})) & {'old','new','test_source'})
+        return await local_json(self.owner.background,prompt,data,schema,tokens=900 if drafting else 240,timeout=12 if drafting else 6)
     async def step(self,row):
         self.status=row['state']
         try:
