@@ -185,5 +185,16 @@ class NativeBoundaryTests(unittest.IsolatedAsyncioTestCase):
   for new_activity in ('svømming','robotikk'):
    self.provider.frames.append(frame(purpose='preparation',activity_quote='band rehearsal',prior_activity_quote='band rehearsal',event_relation='continue',preparation_goal='kit',event_scope='focused'))
    with self.assertRaises(ValueError):await self.a.agent.reads.resolve('Tilbake til Mias øving, hva må hun ta med seg til '+new_activity+'?','appointments',['mia'],self.state)
+ async def test_timing_followup_cannot_copy_norwegian_source_title_as_latest_quote(self):
+  from test_companion_read_context import ReadTests,frame
+  from jarvis.event_preparation import EventPreparation
+  event={'text':'Fellesøving Korps','source':'family','start':'2026-10-29T17:30:00+01:00','end':'2026-10-29T19:30:00+01:00','owners':['mia']};identity=EventPreparation.event_identity(event)
+  ReadTests.prior(self,task='What should Mia prepare for band rehearsal tomorrow?',purpose='preparation',event_focus=[identity])
+  self.provider.frames.append(frame(purpose='preparation',activity_quote='Fellesøving Korps',prior_activity_quote='Fellesøving Korps',event_relation='continue',preparation_goal='timing',event_scope='focused'))
+  out=await self.a.agent.reads.resolve('What time does it finish?','appointments',['mia'],self.state)
+  self.assertEqual(out['source_focus'],[identity]);self.assertEqual(out['timing_kind'],'finish');self.assertEqual(self.provider.calls[-1]['response_schema']['properties']['activity_quote']['enum'],[''])
+ def test_named_activity_is_not_a_generic_timing_followup(self):
+  from jarvis.companion_read_context import generic_timing
+  self.assertTrue(generic_timing('What time does it finish?'));self.assertFalse(generic_timing('What time does swimming finish?'));self.assertFalse(generic_timing('What time does it finish for swimming?'))
 
 if __name__=='__main__':unittest.main()

@@ -46,6 +46,8 @@ not the prior overview. 'Actually I meant Emrik' is correction with Emrik only.
 Do not copy question verbs, venue requests, organiser, equipment, clothing or
 readiness words as an activity name. Do not drop a newly named activity to keep
 an old one. 'Anything she needs to take along?' has activity_quote="".
+Generic timing follow-ups such as 'What time does it finish?' also name no
+activity: activity_quote=""; the existing event reference supplies the identity.
 For Norwegian questions, keep exact Norwegian activity quotes; never translate
 or copy the prior English title into activity_quote. 'Hva må hun ta med seg?'
 asks for kit and names no activity. A return label øving can refer to rehearsal.
@@ -97,6 +99,10 @@ def preparation_goals(text):
  if not goals and re.search(r'\b(?:prepare|preparation)\b|\bget ready\b',text,re.I):return ['prepare']
  return goals
 
+def generic_timing(text):
+ """A whole pronoun-only timing question names no new activity in any model field."""
+ return bool(re.fullmatch(r'(?:and )?(?:what time|when) (?:does|will|did) (?:it|that|this) (?:start|finish|end|begin)[ .?!]*',text.strip(),re.I))
+
 def meal_remainder(text,prior):
  return bool(prior and prior.get('purpose')=='availability' and prior.get('between') and re.search(r'\b(?:dinner|meal)\b',prior.get('task',''),re.I)
   and re.search(r'\b(?:left|remaining|margin|spare)\b',text,re.I) and re.search(r'\b(?:time|minutes?|dinner|meal|drives?|journeys?|travel)\b',text,re.I)
@@ -145,6 +151,7 @@ class ReadDialogue:
   if goals and not date_only:
    schema['properties']['preparation_goal']['enum']=goals
    schema['properties']['purpose']['enum']=['preparation']
+  if generic_timing(text):schema['properties']['activity_quote']['enum']=['']
   if tool=='appointments' and date_only and old and old.get('preparation_goal'):
    schema['properties']['preparation_goal']['enum']=[old['preparation_goal']]
   schema['properties']['subjects']['items']['enum']=sorted(allowed)
@@ -204,6 +211,7 @@ class ReadDialogue:
   if semantic_preparation and 'activity_quote' in data:
    quote=data['activity_quote']
    if not isinstance(quote,str) or len(quote)>100:raise ValueError('Please clarify which plans you mean.')
+   if generic_timing(text):quote='' # Identity comes only from the scoped prior event.
    if quote and quote.casefold() not in activity_question.casefold():
     # An explicit topic label is already carried in the reference. A model may
     # repeat its fuller old title, but cannot invent a quote in the new request.

@@ -1,3 +1,9 @@
+## 0.45.148
+
+- Keep pronoun-only timing follow-ups attached to the current appointment.
+- Prevent copied source titles from being mistaken for a newly named activity.
+- Preserve explicit different-activity checks after Norwegian topic returns.
+
 ## 0.45.147
 
 - Preserve the selected rehearsal when returning with a fully Norwegian kit question.
