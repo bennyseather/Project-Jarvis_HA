@@ -144,4 +144,32 @@ class OriginRouteTests(unittest.IsolatedAsyncioTestCase):
   with calendar_scope({'actor':'u','read':True,'write':False}):result=await self.router.handle("We're leaving from work to Ulsteinvik instead.",'s',self.state)
   self.assertEqual(result['status'],'clarification_required');self.assertIn('work address',result['message']);self.assertEqual(self.transport.calls,[]);self.assertEqual(self.state['route_pending']['destination'],'Ulsteinvik')
 
+class NativeBoundaryTests(unittest.IsolatedAsyncioTestCase):
+ def setUp(self):
+  from test_companion_read_context import ReadTests
+  ReadTests.setUp(self)
+ async def test_timing_status_reaches_control_executor_without_memory_capture(self):
+  from jarvis.calendar_context import calendar_scope
+  with calendar_scope({'actor':'fixture','read':True,'write':True}):
+   self.a.request_timing.record(0,'success');out=await self.a.handle('How fast do you respond?','s','phone',semantic='control')
+  self.assertIn('median',out['message']);self.assertIn('speech',out['message']);self.assertFalse(self.store.memories())
+ async def test_norwegian_date_preposition_is_not_unknown_english_identity(self):
+  from test_companion_read_context import ReadTests,frame
+  ReadTests.prior(self);self.provider.frames.append(frame(date_quote='i morgen'))
+  out=await self.a.agent.reads.resolve('Hva har Mia i morgen?','plans',['mia'],self.state)
+  self.assertEqual(out['subjects'],('mia',));self.assertEqual(out['start'],'2026-10-29')
+ def test_fresh_planning_executor_distinguishes_date_from_first_person(self):
+  from jarvis.household_thinking import HouseholdThinking
+  thinking=HouseholdThinking(self.p,object(),(),self.provider,now=self.a.now)
+  out=thinking.request('Hva har Mia i morgen?','fresh',tool_selected=True);self.assertEqual(out['subjects'],('mia',));self.assertEqual(out['start'],'2026-10-29')
+  with self.assertRaisesRegex(ValueError,'Whose plans'):thinking.request('What do I have tomorrow?','other',tool_selected=True)
+ async def test_norwegian_possessive_return_keeps_rehearsal_identity(self):
+  from test_companion_read_context import ReadTests,frame
+  from jarvis.event_preparation import EventPreparation
+  event={'text':'Band rehearsal','source':'family','start':'2026-10-29T17:30:00+01:00','end':'2026-10-29T19:30:00+01:00','owners':['mia']}
+  identity=EventPreparation.event_identity(event);ReadTests.prior(self,task='What should Mia prepare for band rehearsal tomorrow?',purpose='preparation',event_focus=[identity]);self.state['returned_topic']={'subjects':['mia']}
+  self.provider.frames.append(frame(purpose='preparation',activity_quote='øving',prior_activity_quote='band rehearsal',event_relation='continue',preparation_goal='kit',event_scope='focused'))
+  out=await self.a.agent.reads.resolve('Tilbake til Mias øving, what should she bring?','appointments',['mia'],self.state)
+  self.assertTrue(out['event_continuation']);self.assertEqual(out['source_focus'],[identity])
+
 if __name__=='__main__':unittest.main()

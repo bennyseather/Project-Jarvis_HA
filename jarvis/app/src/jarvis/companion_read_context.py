@@ -118,7 +118,7 @@ class ReadDialogue:
   people={p['id']:p['preferred_name'] for p in self.owner.profile._data['members']}
   named={p for p,n in people.items() if re.search(r'\b'+re.escape(n)+r'\b',text,re.I)}
   speaker=current_speaker.get().member_id
-  personal=bool(re.search(r'\b(?:i|my|me|mine)\b',re.sub(r'\bI (?:meant|mean)\b','',text,flags=re.I),re.I))
+  personal=bool(re.search(r'\b(?:i|my|me|mine)\b',re.sub(r'\bI (?:meant|mean)\b','',DATE_PATTERN.sub(' ',text),flags=re.I),re.I))
   collective=bool(re.search(r'\b(?:we|us|our|household|family)\b',text,re.I))
   if personal and speaker not in people:raise ValueError('Whose plans do you mean? Please name a household member.')
   prior_people=old['subjects'] if old else []

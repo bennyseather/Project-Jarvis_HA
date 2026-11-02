@@ -159,8 +159,6 @@ class Companion:
   if not declarative and not development:return
   # A question alone supplies no new fact. A clearly embedded reported
   # preference can still be selected by Qwen from the user statement.
-  from jarvis.request_timing import timing_question,timing_answer
-  if timing_question(text):return response(timing_answer(self.request_timing.project()),'success')
   previous=self.dialogue.previous(key,source) if self.dialogue else None
   context={'conversation':digest([str(key)]),'actor':digest([access.actor]),'speaker':current_speaker.get().member_id,'speaker_basis':current_speaker.get().basis,
     'anchor':self.now().astimezone(ZoneInfo('Europe/Oslo')).date().isoformat(),
@@ -256,6 +254,8 @@ class Companion:
  async def handle(self,text,key,source=None,*,semantic=None):
   access=current_calendar_access.get()
   if not access.actor or not access.read or not shared_knowledge_enabled(self.profile._data):return None
+  from jarvis.request_timing import timing_question,timing_answer
+  if timing_question(text):return response(timing_answer(self.request_timing.project()),'success')
   value=' '.join(text.casefold().replace('’',"'").strip(' .?!').split());binding=self.binding(key,source)
   previous=self.dialogue.previous(key,source) if self.dialogue else None
   if previous and len(previous['subjects'])>1 and re.search(r'\b(?:her|his|their) (?:birthday|age|job)\b',value):

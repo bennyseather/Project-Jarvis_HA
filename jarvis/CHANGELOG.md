@@ -1,3 +1,9 @@
+## 0.45.146
+
+- Repair native HA execution of response-time questions.
+- Distinguish Norwegian date preposition i from English first-person I.
+- Keep Norwegian possessive activity labels attached to the selected topic.
+
 ## 0.45.145
 
 - Keep longer mixed-topic references and resolve explicit Norwegian planning dates in code.

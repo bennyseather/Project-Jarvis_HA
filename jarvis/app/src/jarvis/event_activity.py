@@ -83,7 +83,7 @@ def requirement(question,people):
     # this surface repair to the question's opening, never source titles.
     value=re.sub(r"^(\s*(?:(?:please|jarvis)[, ]+)*)(what|where|when|how)(?:['’]s|s)\b",lambda m:m[1]+m[2]+' is',value)
     value=DATE_PATTERN.sub(' ',value)
-    for name in people:value=re.sub(r'(?<!\w)'+re.escape(normalise(name))+r'(?!\w)',' ',value)
+    for name in people:value=re.sub(r'(?<!\w)'+re.escape(normalise(name))+r"(?:['’]?s)?(?!\w)",' ',value)
     groups=[]
     # Strip matched aliases before retrieving unknown literal labels. Specific
     # groups do not make a generic source a positive example of the subtype.
