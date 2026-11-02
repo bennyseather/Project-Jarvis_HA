@@ -1,3 +1,9 @@
+## 0.45.150
+
+- Retain bounded checked event identities from household plan overviews.
+- Constrain prior activity names to the scoped source or explicit task.
+- Keep clarified plan returns bound to fresh calendar and preparation reads.
+
 ## 0.45.149
 
 - Combine explicit day and person replies within a bounded read-only clarification.

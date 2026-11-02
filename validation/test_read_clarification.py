@@ -37,3 +37,27 @@ class ScopeTests(unittest.IsolatedAsyncioTestCase):
   with calendar_scope({'actor':'one','read':True,'write':True}):seed();self.assertNotIn('read_clarification',self.a.agent.state('other','phone'));self.assertNotIn('read_clarification',self.a.agent.state('chat','tablet'))
   with calendar_scope({'actor':'two','read':True,'write':True}):self.assertNotIn('read_clarification',self.a.agent.state('chat','phone'));seed();self.profile._data['revision']+=1;self.assertNotIn('read_clarification',self.a.agent.state('chat','phone'));seed()
   with calendar_scope({'actor':'two','read':True,'write':False}):self.assertNotIn('read_clarification',self.a.agent.state('chat','phone'))
+ async def test_overview_retains_checked_event_identity_for_later_topic_return(self):
+  from test_household_thinking import ThinkingTests
+  from test_planning_preparation_bundle import scope
+  f=ThinkingTests();f.setUp()
+  try:
+   with scope(f.p,'benny','s'):out=await f.thinking.handle('What does Mia have tomorrow?','s',tool_selected=True)
+   self.assertEqual(out['status'],'success');self.assertEqual(len(f.thinking.sessions['s']['source_focus']),1);self.assertEqual(f.thinking.sessions['s']['source_focus'][0][0],'Fellesøving Korps')
+  finally:f.doCleanups()
+ async def test_generic_plan_cannot_invent_an_earlier_activity_quote(self):
+  from test_companion_read_context import ReadTests,frame
+  f=ReadTests();f.setUp()
+  try:
+   f.prior(task="What are Mia's plans?",purpose='overview',event_focus=[]);f.provider.frames.append(frame(purpose='preparation',activity_quote='øving',prior_activity_quote='',event_relation='continue',preparation_goal='kit',event_scope='focused'));f.state['returned_topic']={'subjects':['mia']}
+   await f.a.agent.reads.resolve('Tilbake til mias øving, hva må hun ta med?','appointments',['mia'],f.state)
+   self.assertEqual(f.provider.calls[-1]['response_schema']['properties']['prior_activity_quote']['enum'],[''])
+  finally:f.doCleanups()
+ async def test_school_finish_does_not_focus_the_unrelated_calendar_rehearsal(self):
+  from test_household_thinking import ThinkingTests
+  from test_planning_preparation_bundle import scope
+  f=ThinkingTests();f.setUp()
+  try:
+   with scope(f.p,'benny','s'):out=await f.thinking.handle('What time does Mia finish school tomorrow?','s',tool_selected=True)
+   self.assertEqual(out['status'],'success');self.assertEqual(f.thinking.sessions['s']['source_focus'],[])
+  finally:f.doCleanups()

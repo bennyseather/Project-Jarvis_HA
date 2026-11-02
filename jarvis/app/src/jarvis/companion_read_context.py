@@ -146,6 +146,11 @@ class ReadDialogue:
   schema=deepcopy(SCHEMA)
   schema['required']+=['activity_quote','prior_activity_quote','preparation_goal','event_scope']
   if not old:schema['properties']['prior_activity_quote']['enum']=['']
+  if old:
+   from jarvis.event_activity import requirement as activity_requirement,requested as activity_requested
+   focused=old.get('event_focus') or []
+   if len(focused)==1 and len(focused[0])==5:schema['properties']['prior_activity_quote']['enum']=['',focused[0][0]]
+   elif not focused and not activity_requested(activity_requirement(old.get('task',''),people.values())):schema['properties']['prior_activity_quote']['enum']=['']
   if tool=='appointments':schema['properties']['preparation_goal']['enum'].remove('none')
   goals=preparation_goals(text)
   budget_followup=meal_remainder(text,old)

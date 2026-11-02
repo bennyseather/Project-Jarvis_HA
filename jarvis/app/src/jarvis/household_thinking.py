@@ -229,6 +229,7 @@ class HouseholdThinking:
         if changed():return reply('That question was superseded or its context changed. Please ask again.','unavailable')
         if not loaded or loaded['status']!='success':return reply('I could not reliably check those plans just now.','unavailable')
         evidence=loaded['evidence']
+        plan['source_focus']=[]
         coordination_routines=bool(plan.get('companion_coordination') and any(f['kind']=='routine' for f in evidence['facts']))
         if not any(f['kind']=='appointment' for f in evidence['facts']) and any('calendar' in gap for gap in evidence['source_failures']) and not coordination_routines:
             # Absence cannot be interpreted when the appointment source failed.
@@ -298,6 +299,12 @@ class HouseholdThinking:
             evidence['facts'].append({'id':'C1','kind':'request_constraint','owners':plan['coordination_subjects'],
                 'text':'User-requested hypothetical coordination: '+text+'. This does not assign a driver, establish availability or change a calendar.'})
         board=insights(evidence,text,plan['speaker'],plan['purpose'],duration_override=plan.get('requested_duration'))
+        # An appointment overview can retain identities; a school/work time
+        # answer must not acquire an unrelated appointment as its referent.
+        from jarvis.event_preparation import EventPreparation
+        observed=[f for f in evidence['facts'] if f['kind']=='appointment']
+        if board['purpose']=='overview' and not board.get('routine_time_question') and len(observed)<=4:
+            plan['source_focus']=[EventPreparation.event_identity(f) for f in observed]
         board['preparation_reports']=[{'event':f['text'],'owners':f['owners'],'date':f['date'],'context':f['planning_context']} for f in evidence['facts'] if f.get('planning_context')]
         if board['preparation_reports']:board['answer_the_question']+=' Use relevant confirmed one-off reports for this appointment only. Readiness is reported, not attendance. Explicit calendar/report venue conflicts need clarification, not a guessed location.'
         if 'remaining_calendar_minutes_after_activity' in board:
