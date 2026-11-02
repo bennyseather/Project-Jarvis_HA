@@ -171,5 +171,19 @@ class NativeBoundaryTests(unittest.IsolatedAsyncioTestCase):
   self.provider.frames.append(frame(purpose='preparation',activity_quote='øving',prior_activity_quote='band rehearsal',event_relation='continue',preparation_goal='kit',event_scope='focused'))
   out=await self.a.agent.reads.resolve('Tilbake til Mias øving, what should she bring?','appointments',['mia'],self.state)
   self.assertTrue(out['event_continuation']);self.assertEqual(out['source_focus'],[identity])
+ async def test_fully_norwegian_return_handles_model_copy_of_prior_english_label(self):
+  from test_companion_read_context import ReadTests,frame
+  from jarvis.event_preparation import EventPreparation
+  event={'text':'Band rehearsal','source':'family','start':'2026-10-29T17:30:00+01:00','end':'2026-10-29T19:30:00+01:00','owners':['mia']};identity=EventPreparation.event_identity(event)
+  ReadTests.prior(self,task='What should Mia prepare for band rehearsal tomorrow?',purpose='preparation',event_focus=[identity]);self.state['returned_topic']={'subjects':['mia']}
+  self.provider.frames.append(frame(purpose='preparation',activity_quote='band rehearsal',prior_activity_quote='Band rehearsal',event_relation='continue',preparation_goal='kit',event_scope='focused'))
+  out=await self.a.agent.reads.resolve('tilbake til Mias øving, hva må hun ta med seg?','appointments',['mia'],self.state)
+  self.assertTrue(out['event_continuation']);self.assertEqual(out['source_focus'],[identity]);self.assertEqual(out['preparation_goal'],'kit')
+ async def test_norwegian_return_cannot_drop_a_new_named_activity(self):
+  from test_companion_read_context import ReadTests,frame
+  ReadTests.prior(self,task='What should Mia prepare for band rehearsal tomorrow?',purpose='preparation');self.state['returned_topic']={'subjects':['mia']}
+  for new_activity in ('svømming','robotikk'):
+   self.provider.frames.append(frame(purpose='preparation',activity_quote='band rehearsal',prior_activity_quote='band rehearsal',event_relation='continue',preparation_goal='kit',event_scope='focused'))
+   with self.assertRaises(ValueError):await self.a.agent.reads.resolve('Tilbake til Mias øving, hva må hun ta med seg til '+new_activity+'?','appointments',['mia'],self.state)
 
 if __name__=='__main__':unittest.main()

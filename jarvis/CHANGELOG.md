@@ -1,3 +1,9 @@
+## 0.45.147
+
+- Preserve the selected rehearsal when returning with a fully Norwegian kit question.
+- Keep Norwegian question grammar separate from explicit activity names.
+- Retain exact-quote checks and reject silently dropping a different named activity.
+
 ## 0.45.146
 
 - Repair native HA execution of response-time questions.

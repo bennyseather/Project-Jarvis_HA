@@ -46,6 +46,9 @@ not the prior overview. 'Actually I meant Emrik' is correction with Emrik only.
 Do not copy question verbs, venue requests, organiser, equipment, clothing or
 readiness words as an activity name. Do not drop a newly named activity to keep
 an old one. 'Anything she needs to take along?' has activity_quote="".
+For Norwegian questions, keep exact Norwegian activity quotes; never translate
+or copy the prior English title into activity_quote. 'Hva må hun ta med seg?'
+asks for kit and names no activity. A return label øving can refer to rehearsal.
 'prior_activity_quote' is an exact activity name explicitly named in
 prior_user_task.task, the ENTIRE title of its ONE selected event, or empty.
 Several selected events never justify choosing one. Generic agenda questions
@@ -89,7 +92,7 @@ def preparation_goals(text):
   'venue':r'\b(?:venue|location)\b',
   'remaining':r'\b(?:left|remaining|sorting out|still.*(?:do|check|prepare|sort))\b',
   'status':r'\b(?:all set|ready|packed|have.*everything)\b',
-  'kit':r'\b(?:bring|pack|equipment|kit|take along|have with)\b'}
+  'kit':r'\b(?:bring|pack|equipment|kit|take along|have with)\b|\b(?:hva|kva)\b.{0,55}\b(?:ta med|ha med|pakke)\b'}
  goals=[goal for goal,pattern in patterns.items() if re.search(pattern,text,re.I)]
  if not goals and re.search(r'\b(?:prepare|preparation)\b|\bget ready\b',text,re.I):return ['prepare']
  return goals

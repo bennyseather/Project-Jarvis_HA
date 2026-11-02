@@ -46,6 +46,9 @@ STOP=set(('what when where which how should could would can do does did is are a
     'morning afternoon evening tonight later early upcoming scheduled coming up '
     'have has got doing leave leaving depart departing departure set off time arrive arrival '
     'home drive driving journey travel minutes minute mins min hours hour allowance').split())
+STOP.update(('hva kva hvem kven når kor hvor hvilken hvilket hvilke korleis hvordan '
+    'bør skal skulle må kan kunne trenger treng hun ho han de dei vi oss jeg eg meg '
+    'min mitt vår vårt deres dykk sin sitt sine hennes hans ta med seg ha pakke huske hugse til').split())
 UNCERTAIN=re.compile(r'\b(?:no|not|non|never|without|excluding|if|unless|maybe|possibly|might|could|may|'
     r'cancel\w*|example|or|whether|tbc|tbd|unconfirmed|uncertain|unknown|possible|perhaps|'
     r'ikke|ingen|hvis|dersom|kanskje|muligens|eventuelt|avlyst|eller|uavklart|ubekreftet)\b|'
