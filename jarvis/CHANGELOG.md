@@ -1,3 +1,9 @@
+## 0.45.151
+
+- Resolve a matching weekday in an explicit topic return against its selected day.
+- Exclude date prepositions from requested activity names.
+- Keep explicit dates, qualified weekdays and corrections authoritative for new reads.
+
 ## 0.45.150
 
 - Retain bounded checked event identities from household plan overviews.

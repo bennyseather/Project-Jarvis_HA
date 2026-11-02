@@ -50,6 +50,15 @@ class Plan:
     end: str
 
 
+def resolve_return_dates(text, reference, previous=None, *, returning=False):
+    """A matching bare weekday can name the one-day task explicitly resumed."""
+    phrase=DATE_ALIAS_PATTERN.sub(lambda m:DATE_ALIASES[m.group().casefold()],text.casefold()).strip()
+    if returning and previous and phrase in WEEKDAYS:
+        a,b=validate_range(previous.start,previous.end,reference)
+        if (b-a).days==1 and a.weekday()==WEEKDAYS.index(phrase):return previous.start,previous.end
+    return resolve_dates(text,reference,previous)
+
+
 def resolve_dates(text, reference, previous=None):
     """Never accept model-calculated dates. Return explicit, exclusive bounds."""
     text=DATE_ALIAS_PATTERN.sub(lambda m:DATE_ALIASES[m.group().casefold()],text.casefold())

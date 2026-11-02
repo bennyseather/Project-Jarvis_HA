@@ -8,7 +8,7 @@ import re
 from zoneinfo import ZoneInfo
 from copy import deepcopy
 from jarvis.companion_memory import local_json
-from jarvis.household_planning import DATE_PATTERN, Plan, resolve_dates
+from jarvis.household_planning import DATE_PATTERN, Plan, resolve_dates,resolve_return_dates
 from jarvis.household_speaker import current_speaker
 from jarvis.calendar_insights import duration_minutes
 from jarvis.companion_store import secret, instruction_attempt
@@ -27,6 +27,8 @@ event choice is handled by the downstream tool, not subject ambiguity. This
 step resolves the user task only; it does not need appointment details.
 Use date_quote ONLY from supplied latest date phrases; empty keeps prior dates.
 Date-only followups preserve the previous purpose, window, between and duration.
+An explicit return to the prior task with its matching bare weekday continues
+that task's date. A qualified/new date or explicit correction can change it.
 A bare duration answers a pending duration question; keep the prior task/date/person.
 Purpose availability includes fitting dinner/another activity between appointments.
 If comparing a proposed driver to a child's activities use conflicts. Preparation
@@ -201,7 +203,9 @@ class ReadDialogue:
   if not date_quote and not old:
    state['read_clarification']={'subjects':list(subjects),'start':None,'end':None,'purpose':data['purpose'],'tool':tool,'task':text,'expires':self.owner.clock()+300}
    raise ValueError('Which day should I check?')
-  a,b=resolve_dates('today' if date_quote=='tonight' else date_quote,reference,previous)
+  from jarvis.conversation_topics import RETURN
+  returning_date=bool(state.get('returned_topic') and RETURN.search(text.strip()) and data.get('event_relation')=='continue' and not re.search(r'\b(?:instead|actually|meant|i stedet|egentlig|mente)\b',text,re.I))
+  a,b=resolve_return_dates('today' if date_quote=='tonight' else date_quote,reference,previous,returning=returning_date)
   purpose=data['purpose'];window=data['window']
   if purpose not in schema['properties']['purpose']['enum'] or window not in permitted_windows or type(data['between']) is not bool:raise ValueError('Please clarify the comparison.')
   minutes=duration_minutes(quote) if quote else old.get('duration_minutes') if old and purpose=='availability' and old['purpose']=='availability' else None

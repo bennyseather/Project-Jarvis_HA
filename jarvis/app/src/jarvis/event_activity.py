@@ -85,6 +85,7 @@ def requirement(question,people):
     # Question contractions without punctuation are not activity names. Limit
     # this surface repair to the question's opening, never source titles.
     value=re.sub(r"^(\s*(?:(?:please|jarvis)[, ]+)*)(what|where|when|how)(?:['’]s|s)\b",lambda m:m[1]+m[2]+' is',value)
+    value=re.sub(r'\b(?:on|på)\s+('+DATE_PATTERN.pattern+r')',lambda m:m[1],value,flags=re.I)
     value=DATE_PATTERN.sub(' ',value)
     for name in people:value=re.sub(r'(?<!\w)'+re.escape(normalise(name))+r"(?:['’]?s)?(?!\w)",' ',value)
     groups=[]
