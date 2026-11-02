@@ -74,10 +74,15 @@ class ConversationTopics:
         self.owner.intake_pending.pop(str(state['binding'][1]),None)
         self.owner.pending.pop(str(state['binding'][1]),None)
         state.pop('activity_learning_draft',None)
+        state.pop('read_clarification',None)
         refs = self.references(state)
+        from jarvis.read_clarification import named
+        people={p['id']:p['preferred_name'] for p in self.owner.profile._data['members']}
+        subjects=named(text,people)
+        if subjects:refs=[r for r in refs if subjects.issubset(set(r['subjects']))]
         if not refs:
             return 'Which earlier topic do you mean? Please name the person, appointment or trip and date.'
-        data = [{'id':r['id'], 'tool':r['tool'], 'subjects':r['subjects'], 'user_request':r['question'],
+        data = [{'id':r['id'], 'tool':r['tool'], 'subjects':r['subjects'], 'user_request':r['question'],'user_task':r.get('read',{}).get('task'),
                  'dates':{k:r.get('read',{}).get(k) for k in ('start','end')},
                  'selected_events':[str(v[0])[:160] for v in r.get('read',{}).get('event_focus',[])[:4] if v]}
                 for r in refs]

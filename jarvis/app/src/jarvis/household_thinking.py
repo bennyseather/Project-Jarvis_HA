@@ -180,7 +180,7 @@ class HouseholdThinking:
         if not tool_selected and not follow and not (question and words):return None
         if not tool_selected and re.search(r'\b(next (?:trip|flight|travel|journey)|perth|airport|layover)\b',value):return None
         people=self.profile._data['members']
-        named=tuple(p['id'] for p in people if re.search(r'\b'+re.escape(p['preferred_name'])+r"(?:'s)?\b",value,re.I))
+        named=tuple(p['id'] for p in people if re.search(r'(?<!\w)'+re.escape(p['preferred_name'])+r"(?:['’]?s)?(?!\w)",value,re.I))
         personal=bool(re.search(r'\b(i|my|me|mine)\b',DATE_PATTERN.sub(' ',value)))
         collective=bool(re.search(r'\b(we|us|our|household|family)\b',value))
         if personal and not hint['member_id']:

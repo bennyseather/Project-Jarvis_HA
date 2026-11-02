@@ -117,6 +117,8 @@ class ReadDialogue:
  async def resolve(self,text,tool,members,state,*,force=False):
   if tool not in READ_TOOLS:return None
   old=self.prior(state)
+  from jarvis.read_clarification import resolve as clarify_read,named as named_people
+  old=clarify_read(self.owner,text,tool,state,old)
   checked=re.sub(r'\bset off\b','leave',text,flags=re.I) if force else text
   # "Are we all set?" is a readiness question, not a request to set a device.
   if tool in ('plans','appointments') and re.match(r'^(?:and )?(?:are|is|what|do|does)\b',checked,re.I):checked=re.sub(r'\ball set\b','ready',checked,flags=re.I)
@@ -125,7 +127,7 @@ class ReadDialogue:
   # Complete direct queries retain the fast established executor path.
   if not old and not special and not force:return None
   people={p['id']:p['preferred_name'] for p in self.owner.profile._data['members']}
-  named={p for p,n in people.items() if re.search(r'\b'+re.escape(n)+r'\b',text,re.I)}
+  named=named_people(text,people)
   speaker=current_speaker.get().member_id
   personal=bool(re.search(r'\b(?:i|my|me|mine)\b',re.sub(r'\bI (?:meant|mean)\b','',DATE_PATTERN.sub(' ',text),flags=re.I),re.I))
   collective=bool(re.search(r'\b(?:we|us|our|household|family)\b',text,re.I))
@@ -191,7 +193,9 @@ class ReadDialogue:
   if dates and not date_quote:raise ValueError('Which date should I use?')
   reference=self.owner.now().astimezone(ZoneInfo('Europe/Oslo')).date().isoformat()
   previous=Plan(tuple(subjects),'overview',old['start'],old['end']) if old else None
-  if not date_quote and not old:raise ValueError('Which day should I check?')
+  if not date_quote and not old:
+   state['read_clarification']={'subjects':list(subjects),'start':None,'end':None,'purpose':data['purpose'],'tool':tool,'task':text,'expires':self.owner.clock()+300}
+   raise ValueError('Which day should I check?')
   a,b=resolve_dates('today' if date_quote=='tonight' else date_quote,reference,previous)
   purpose=data['purpose'];window=data['window']
   if purpose not in schema['properties']['purpose']['enum'] or window not in permitted_windows or type(data['between']) is not bool:raise ValueError('Please clarify the comparison.')
@@ -267,7 +271,7 @@ class ReadDialogue:
   if tool!='route':state.pop('route_pending',None)
   if tool=='route':return # A route read can supplement the existing planning task.
   if tool not in READ_TOOLS:
-   state.pop('read_focus',None);return
+   state.pop('read_focus',None);state.pop('read_clarification',None);return
   if result.get('status') not in ('success','clarification_required'):
    state.pop('read_focus',None);return
   key=state['binding'][1];container=self.owner.container

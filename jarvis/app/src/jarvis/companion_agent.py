@@ -157,7 +157,7 @@ class QwenConversation:
   prior=self.reads.prior(state) or state.get('subject_reference') or {}
   subjects=list(prior.get('subjects',[]));expiry=prior.get('expires',0)
   self.clear_dated_context(state,key)
-  for field in ('read_focus','topic_references','returned_topic','departure_focus','route_focus','route_pending','meal_route_pending','meal_venue_overrides','activity_focus','activity_learning_draft','football_focus_until','history','pending_identity','subject_reference','response_reference'):
+  for field in ('read_focus','read_clarification','topic_references','returned_topic','departure_focus','route_focus','route_pending','meal_route_pending','meal_venue_overrides','activity_focus','activity_learning_draft','football_focus_until','history','pending_identity','subject_reference','response_reference'):
    state.pop(field,None)
   state.update(binding=self.binding(key,source),history=[],pending_identity=False)
   if len(subjects)==1 and 'all' not in subjects and expiry>self.clock():state['subject_reference']={'subjects':subjects,'expires':expiry}
@@ -197,6 +197,10 @@ class QwenConversation:
   if re.fullmatch(r'(?i)(?:(?:hi|hello) Jarvis[, ]+)?this is (?:'+names+r')(?: speaking)?[.!]?',text.strip()):
    schema['properties']['tool']['enum']=['identity']
   from jarvis.companion_routing import previous_route,meal_draft
+  from jarvis.read_clarification import partial,pending as pending_read
+  bare_name,bare_date=partial(text,people)
+  if (bare_name or bare_date) and (pending_read(self.owner,state) or state.get('last_tool') in ('plans','appointments','departure') or bare_date and state.get('last_tool') is None):
+   schema['properties']['tool']['enum']=['activity_preparation' if (pending_read(self.owner,state) or {}).get('tool')=='appointments' else 'household_plans']
   routing=previous_route(self.owner,state);meal=meal_draft(self.owner,state)
   from jarvis.departure_continuation import current as current_departure,origin_quote
   departure=current_departure(self.owner,state)

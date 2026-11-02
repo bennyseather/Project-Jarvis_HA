@@ -1,3 +1,9 @@
+## 0.45.149
+
+- Combine explicit day and person replies within a bounded read-only clarification.
+- Resolve Norwegian possessive household names without claiming speaker identity.
+- Keep clarified planning topics resumable across unrelated conversation.
+
 ## 0.45.148
 
 - Keep pronoun-only timing follow-ups attached to the current appointment.
