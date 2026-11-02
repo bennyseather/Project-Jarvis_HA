@@ -1,0 +1,12 @@
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..'),base=fs.existsSync(path.join(root,'home_assistant'))?'home_assistant/jarvis_ui/www/jarvis':'jarvis_ui/www/jarvis',registry=new Map();
+const source=fs.readFileSync(path.join(root,base,'jarvis-household.js'),'utf8').replace(/^import .*;\r?\n/gm,'');
+vm.runInNewContext(source,{HTMLElement:class{attachShadow(){this.shadowRoot={};}},customElements:{whenDefined:()=>({then:f=>f()}),get:n=>registry.get(n),define:(n,c)=>registry.set(n,c)},Date,setInterval,clearInterval,document:{hidden:false}});
+const card=new (registry.get('jarvis-household-card'))();
+assert.equal(card.initiativeCards({}).length,0);
+let rows=card.initiativeCards({planning_followthrough:{changes:{status:'baseline',summary_lines:['First complete check.'],coverage:'Connected preparation view only.'}},request_timing:{sample_count:3,median_seconds:2.1,p95_seconds:4.3,last_seconds:1.2,scope:'Server text only.',retention:'Last 100 requests.'}});
+assert.equal(rows.length,2);assert.equal(rows[0].title,'What changed');assert.ok(rows[1].lines[0].includes('Median 2.1 s'));assert.ok(rows[1].lines.includes('Server text only.'));
+assert.equal(card.initiativeCards({request_timing:{sample_count:3,median_seconds:NaN,p95_seconds:4,last_seconds:2}}).length,0,'Malformed timings must not look measured');
+const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Oslo'}).format(new Date());card.agendaDay='today';card.agendaPerson='all';card.data={assistant:{people:{mia:'Mia'},household_planning:{days:[{label:'Today',date:today,state:'ready',people:[],coordination:[]}]},planning_followthrough:{changes:{changes:[{}],summary_lines:['<img src=x onerror=alert(1)>']}}}};
+const markup=card.overviewMarkup();assert.ok(markup.includes('What changed'));assert.ok(markup.includes('&lt;img'));assert.ok(!markup.includes('<img src=x'));
+console.log('Assistant change/timing cards PASS: optional data, measured values, malformed-value withholding, escaped source text.');

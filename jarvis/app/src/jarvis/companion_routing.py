@@ -218,6 +218,9 @@ class CompanionRouting:
     else:message+=' The drives are estimated at '+str(estimates[0])+' minutes home from '+labels[0]+' and '+str(estimates[1])+' minutes on to '+labels[1]+'.'
     if remaining<0:message+=' A shorter dinner or eating nearer the next activity could be worth considering.'
     elif remaining<=10:message+=' That is a tight margin.'
+    if remaining<10 and gap_minutes-known>=10:
+     safer_meal=max(0,gap_minutes-known-10)
+     message+=' Reserving a 10-minute planning allowance for parking and getting ready would leave about '+number(safer_meal)+' minutes for dinner.'
   else:
    missing=[i for i,v in enumerate(estimates) if v is None]
    state['meal_route_pending']={'read_binding':read_binding(self.owner,state),'expires':self.owner.clock()+300,'missing':[{'index':i,'event':labels[i],'event_binding':event_binding(endpoints[i])} for i in missing]}
@@ -266,6 +269,10 @@ class CompanionRouting:
   filled=await self.meal_venue_reply(text,key,state)
   if filled is not None:return filled
   previous=previous_route(self.owner,state)
+  from jarvis.departure_continuation import current as current_departure
+  departure=current_departure(self.owner,state)
+  if previous is None and departure and departure['destination']:
+   previous={'origin':'home','destination':departure['destination'],'mode':'driving','awaiting':'lookup','destination_from_context':True}
   venues=await self.context_venues(state)
   venue_texts=[v[k] for v in venues for k in ('current_venue','usual_venue') if v[k]]
   if previous and previous.get('destination_from_context') and not any(previous['destination'].casefold() in v.casefold() for v in venue_texts):
@@ -298,6 +305,9 @@ class CompanionRouting:
     origin,destination=destination,origin;contextual=False
    awaiting='origin' if not origin else 'destination' if not destination else 'mode' if mode=='unknown' else 'lookup'
    state['route_pending']={'origin':origin,'destination':destination,'mode':mode,'awaiting':awaiting,'read_binding':read_binding(self.owner,state),'destination_from_context':contextual,'expires':self.owner.clock()+300}
+   if origin.casefold() in ('work','the office','office','jobben','arbeid'):
+    state['route_pending'].update(origin='',awaiting='origin')
+    return reply('Which work address or named starting place should I use? I have kept the selected destination.','clarification_required')
    if not origin:return reply('Where will you be setting out from: home or another place?','clarification_required')
    if not destination:return reply('Where would you like me to check the route to?','clarification_required')
    if mode=='unknown':return reply('Do you mean driving or public transport?','clarification_required')
@@ -328,6 +338,9 @@ class CompanionRouting:
    state.pop('route_pending',None)
    state['route_focus']={'origin':origin,'destination':destination,'mode':mode,'minutes':minutes,'read_binding':read_binding(self.owner,state),'destination_from_context':contextual,'expires':self.owner.clock()+300}
    message='From '+('the saved home location' if start_label=='home' else start_label)+' to '+('home' if stop_label=='home' else stop_label)+', Entur estimates about '+str(minutes)+' minutes by car. '
+   from jarvis.departure_continuation import note as departure_note
+   continuation=await departure_note(self.owner,state,minutes,origin,destination)
+   if continuation:message+=continuation+' '
    message+='That is a route estimate, without live traffic, parking or the exact gym entrance.' if re.search(r'\b(?:gym|gymnastics|turnhallen|turnhall|gymnastik)\w*\b',text,re.I) else 'That is a route estimate, without live traffic or parking time.'
    usual_context=bool(contextual and any(destination.casefold() in v['usual_venue'].casefold() and destination.casefold() not in v['current_venue'].casefold() for v in venues if v['usual_venue']))
    if usual_context:message+=' This uses the saved usual venue for a town-level planning estimate; the precise appointment location still needs checking.'

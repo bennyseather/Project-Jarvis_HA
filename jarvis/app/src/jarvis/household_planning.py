@@ -22,6 +22,9 @@ FOCUSES = ('overview', 'school', 'school_end', 'work_finish', 'calendar', 'after
 DATE_PATTERN = re.compile(r'\b(?:\d{4}-\d{2}-\d{2}|day after tomorrow|tomorrow|today|'
     r'(?:the )?following week|(?:this|next) weekend|(?:this|next) week|week ahead|'
     r'(?:the )?next (?:7|seven) days|(?:(?:this|next) )?(?:'+'|'.join(WEEKDAYS)+r'))\b')
+DATE_ALIASES = {'i overmorgen': 'day after tomorrow', 'i morgen': 'tomorrow', 'i dag': 'today', 'neste uke': 'next week', 'denne uken': 'this week', 'denne uka': 'this week', 'neste helg': 'next weekend', 'denne helgen': 'this weekend', 'denne helga': 'this weekend', 'neste syv dager': 'next seven days', 'neste sju dager': 'next seven days', 'mandag': 'monday', 'neste mandag': 'next monday', 'denne mandag': 'this monday', 'tirsdag': 'tuesday', 'neste tirsdag': 'next tuesday', 'denne tirsdag': 'this tuesday', 'onsdag': 'wednesday', 'neste onsdag': 'next wednesday', 'denne onsdag': 'this wednesday', 'torsdag': 'thursday', 'neste torsdag': 'next thursday', 'denne torsdag': 'this thursday', 'fredag': 'friday', 'neste fredag': 'next friday', 'denne fredag': 'this friday', 'lørdag': 'saturday', 'neste lørdag': 'next saturday', 'denne lørdag': 'this saturday', 'søndag': 'sunday', 'neste søndag': 'next sunday', 'denne søndag': 'this sunday'}
+DATE_ALIAS_PATTERN = re.compile(r"\b(?:"+"|".join(re.escape(v) for v in sorted(DATE_ALIASES,key=len,reverse=True))+r")\b",re.I)
+DATE_PATTERN = re.compile("(?:"+DATE_ALIAS_PATTERN.pattern+"|"+DATE_PATTERN.pattern+")",re.I)
 PLAN_WORDS = re.compile(r'\b(plan\w*|schedul\w*|appointment\w*|activit\w*|school|work|bus|'
     r'weekend|week|tomorrow|today|happening|going on|stay\w*|finish\w*|routine\w*|calendar|events?)\b')
 ACTION_WORDS = re.compile(r'\b(turn (?:on|off)|switch (?:on|off)|unlock|lock the|open the|close the|'
@@ -49,6 +52,7 @@ class Plan:
 
 def resolve_dates(text, reference, previous=None):
     """Never accept model-calculated dates. Return explicit, exclusive bounds."""
+    text=DATE_ALIAS_PATTERN.sub(lambda m:DATE_ALIASES[m.group().casefold()],text.casefold())
     today = date.fromisoformat(reference)
     matches = list(DATE_PATTERN.finditer(text))
     remainder = DATE_PATTERN.sub('',text)

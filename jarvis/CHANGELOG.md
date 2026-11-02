@@ -1,3 +1,13 @@
+## 0.45.145
+
+- Keep longer mixed-topic references and resolve explicit Norwegian planning dates in code.
+- Separate retained conversation facts from temporary validity intervals.
+- Show changes between complete preparation checks and measured text response times.
+- Interpret explicit already-at-venue preparation reports through review, never from questions.
+- Recheck appointments when recalculating departure from another origin; show a labelled meal/travel allowance.
+- Classify reported answer symptoms for the existing supervised inspection workflow.
+- Keep saved voices, permissions and calendar/action confirmations unchanged.
+
 ## 0.45.144
 
 - Route direct preference reports and named dated availability questions to their validated tools.

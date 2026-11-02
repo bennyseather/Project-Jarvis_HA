@@ -252,6 +252,7 @@ class ReadDialogue:
    'task':task,'source_focus':event_focus,'event_continuation':bool(preparation_follow and event_focus)}
  def observe(self,text,tool,result,members,state,resolved=None):
   if tool=='planning_report':return # Reviewed writes keep selected identity, never cached source facts.
+  if tool not in ('route','departure','appointments','planning_report'):state.pop('departure_focus',None)
   if tool!='route':state.pop('route_pending',None)
   if tool=='route':return # A route read can supplement the existing planning task.
   if tool not in READ_TOOLS:

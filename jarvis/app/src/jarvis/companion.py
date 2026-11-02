@@ -47,6 +47,8 @@ class Companion:
   self.now=now or (lambda:datetime.now(timezone.utc));self.clock=clock
   path=self.profile._source_path.with_name('jarvis.sqlite3') if getattr(self.profile,'_source_path',None) else None
   self.store=store or CompanionStore(path,now=self.now);self.provider=getattr(container,'local_reasoning_provider',None)
+  from jarvis.request_timing import RequestTiming
+  self.request_timing=RequestTiming(clock)
   self.foreground=0;self.last_activity=clock();self.last_scan=0.;self.pending=OrderedDict();self.selected=OrderedDict();self.intake_pending=OrderedDict();self.task=None
   self.background=BackgroundReasoning(self,self.provider)
   self.learner=MemoryLearner(self.profile,self.store,self.background)
@@ -70,6 +72,15 @@ class Companion:
   self.issues=AssistantIssues(self)
   self.profile._companion=self
  async def process(self,operation,text,key,source):
+  started=self.request_timing.clock();status='error'
+  try:
+   result=await self.process_request(operation,text,key,source)
+   status=result.get('status','other') if isinstance(result,dict) else 'other'
+   return result
+  except asyncio.CancelledError:
+   status='cancelled';raise
+  finally:self.request_timing.record(started,status)
+ async def process_request(self,operation,text,key,source):
   # Run at the authenticated bridge boundary after generic pending confirmations
   # have been handled, but before any legacy/household router can return early.
   if self.policy.data['enabled'] and self.policy.data.get('conversation_mode')=='qwen_tools':return await self.agent.process(operation,text,key,source)
@@ -148,6 +159,8 @@ class Companion:
   if not declarative and not development:return
   # A question alone supplies no new fact. A clearly embedded reported
   # preference can still be selected by Qwen from the user statement.
+  from jarvis.request_timing import timing_question,timing_answer
+  if timing_question(text):return response(timing_answer(self.request_timing.project()),'success')
   previous=self.dialogue.previous(key,source) if self.dialogue else None
   context={'conversation':digest([str(key)]),'actor':digest([access.actor]),'speaker':current_speaker.get().member_id,'speaker_basis':current_speaker.get().basis,
     'anchor':self.now().astimezone(ZoneInfo('Europe/Oslo')).date().isoformat(),
@@ -351,7 +364,7 @@ class Companion:
    'retention':'Until corrected or deleted','transport_preference':'Driving first, public transport alternatives',
    'people':{p['id']:p['preferred_name'] for p in self.profile._data['members']},'memories':self.store.memories(include_historical=True)[:30],'learning_jobs':self.store.job_counts(),'football':self.football.project(),'travel_briefs':self.store.briefs()[:8],
    'household_planning':self.agenda.project(),'planning_followthrough':self.followups.project(),'travel_status':self.travel.status if self.travel else 'not_configured','improvements':self.store.improvements()[:10],
-   'development_workspace':self.development.project(),'answer_problems':self.issues.project(),'development_mode':'Supervised source inspection and isolated tests; production releases require independent review','read_only':True}
+   'request_timing':self.request_timing.project(),'development_workspace':self.development.project(),'answer_problems':self.issues.project(),'development_mode':'Supervised source inspection and isolated tests; production releases require independent review','read_only':True}
 
 def create_companion(container):
  profile=getattr(container,'household_profile',None);source=getattr(profile,'_source_path',None)

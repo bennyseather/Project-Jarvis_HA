@@ -76,6 +76,17 @@ async def departure(owner,text,key,source,state,members):
  if not (approval.get('enabled') is True and approval.get('approval_source')):return answer('Home-to-Entur routing still needs the existing explicit sharing approval.','clarification_required')
  routing=getattr(owner.container,'companion_routing',None)
  if routing is None:routing=CompanionRouting(owner);owner.container.companion_routing=routing
+ from jarvis.departure_continuation import remember,origin_quote
+ destination=(routing.venue(event) or {}).get('planning_place_quote','')
+ remember(owner,state,event,buffer,destination)
+ alternate=origin_quote(text)
+ if alternate:
+  from jarvis.companion_routing import HOME
+  if not HOME.fullmatch(alternate):
+   state['read_focus']={**resolved,'event_focus':[EventPreparation.event_identity(event)],'expires':owner.clock()+600}
+   route_result=await routing.handle('Check driving from '+alternate+(' to '+destination if destination else ''),key,state)
+   if frame['include_preparation'] and route_result.get('status')=='success':route_result['message']=base['message']+' '+route_result['message']
+   return route_result
  result=await checked_journey(owner,event,buffer)
  venue=result['venue'] if result else routing.venue(event);minutes=result['minutes'] if result else None;basis=result['basis'] if result else None
  at=datetime.fromisoformat(event['start']);arrive=at-timedelta(minutes=buffer)

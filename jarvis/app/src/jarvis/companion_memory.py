@@ -62,6 +62,9 @@ def date_scope(phrase,anchor):
     for no,en in zip(('mandag','tirsdag','onsdag','torsdag','fredag','l\u00f8rdag','s\u00f8ndag'),WEEKDAYS):
         value=re.sub(r'\b'+no+r'\b',en,value)
     value=re.sub(r'\bneste\b','next',value)
+    from jarvis.memory_validity import interval_scope
+    interval=interval_scope(value,anchor,date_scope)
+    if interval is not None:return interval
     base=datetime.fromisoformat(anchor).date()
     delta=re.fullmatch(r'in (\d{1,3}|one|two|three|four|five|six|seven|eight|nine|ten) (days?|weeks?)',value)
     if delta:
@@ -120,8 +123,12 @@ class MemoryLearner:
             if not isinstance(tags,list) or len(tags)>6 or any(not isinstance(t,str) or not re.fullmatch(r'[\w -]{1,45}',t) for t in tags):raise ValueError('Invalid memory search tags')
             when=bounded(item['when_quote'],100)
             if when and when.casefold() not in source['text'].casefold():raise ValueError('Temporal source quote did not match')
+            from jarvis.memory_validity import temporal_phrase
+            interval_phrase=temporal_phrase(quote)
             temporal=re.search(r'\bin (?:\d{1,3}|one|two|three|four|five|six|seven|eight|nine|ten) (?:days?|weeks?)\b',quote,re.I) or DATE_PATTERN.search(quote.casefold()) or re.search(r'\b(?:neste |denne )?(?:mandag|tirsdag|onsdag|torsdag|fredag|l\u00f8rdag|s\u00f8ndag|uke|helg)\b',quote,re.I)
-            if temporal and kind in ('fact','plan'):
+            if interval_phrase and kind in ('fact','plan','preference'):
+                when=interval_phrase;kind='plan'
+            elif temporal and kind in ('fact','plan'):
                 when=temporal.group();kind='plan'
             elif kind!='plan':when=''
             if when and when.casefold() not in source['text'].casefold():raise ValueError('Temporal source quote did not match')

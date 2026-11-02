@@ -49,7 +49,7 @@ class TopicTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(state['read_focus'],before)
     async def test_expired_reference_is_not_renewed_by_return(self):
         with self.scope():
-            state=self.selected();self.clock[0]=602
+            state=self.selected();self.clock[0]=1802
             self.assertIn('Which earlier topic',await self.a.agent.topics.resume('Back to Mia',state))
             self.assertEqual(state['topic_references'],[])
     async def test_does_not_copy_facts_answers_or_review_tokens(self):

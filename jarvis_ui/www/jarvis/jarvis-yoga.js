@@ -2,7 +2,7 @@
 // HA installs its scoped registry during startup. Define only after its base card
 // exists, rather than racing the frontend's parallel extra-module imports.
 import './jarvis-planner.js?v=045144-command';
-import './jarvis-household.js?v=20261102-hud';
+import './jarvis-household.js?v=045145-assistant';
 customElements.whenDefined('ha-card').then(() => {
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pages=[['overview','Overview','view-dashboard-outline'],['main_floor','Main Floor','home-floor-1'],['upstairs','Upstairs','home-floor-2'],['security','Security','shield-home-outline'],['technical','Technical','server-network'],['media','Media','play-circle-outline'],['household','Household','account-group-outline']];

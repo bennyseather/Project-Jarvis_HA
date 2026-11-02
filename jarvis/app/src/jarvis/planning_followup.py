@@ -16,6 +16,8 @@ SOURCE_NAMES={value[0]:key for key,value in SOURCES.items()}
 class PlanningFollowups:
  def __init__(self,owner):
   self.owner=owner;self.reports=PlanningReports(owner.store);self.items={};self.sessions={};self.checked_at=None;self.checked_clock=-1000.;self.status='preparing';self.source_health={};self.failures=[];self.task=None;self.work=None;self.binding=None;self.brief=None
+  from jarvis.planning_changes import PlanningChanges
+  self.changes=PlanningChanges(owner)
  def enabled(self):return bool(self.owner.policy.data['enabled'] and self.owner.agenda.enabled())
  def scope(self):return (self.owner.profile._data['revision'],tuple(sorted(self.owner.container.proactive_allowed_entities)),self.owner.now().astimezone(ZONE).date().isoformat(),self.owner.store.generation,self.reports.revision,self.owner.store.revision)
  def start(self):
@@ -35,6 +37,7 @@ class PlanningFollowups:
    try:
     await self.work
     if not self.owner.foreground:
+     if self.status=='ready' and self.binding==self.scope():self.changes.observe(self.items)
      self.work=asyncio.create_task(self.prepare_brief());await self.work
    except asyncio.CancelledError:
     if asyncio.current_task().cancelling():raise
@@ -92,8 +95,11 @@ class PlanningFollowups:
   if not self.enabled():return {'status':'disabled','items':[],'read_only':True}
   from jarvis.assistant_priorities import next_steps
   valid=self.binding==self.scope() and self.owner.clock()-self.checked_clock<=180 and all(next_steps(i,self.owner.now())['in_progress']==i['followthrough']['in_progress'] for i in self.items.values()) and all(v['status'] in ('fresh','not_configured') for v in current_health(self.source_health,self.owner.now()).values())
+  changes=self.changes.project(valid and not self.failures,items=self.items)
+  from jarvis.planning_changes import lines as change_lines
+  changes['summary_lines']=change_lines(changes)
   brief=self.brief if valid and self.brief and self.brief['fingerprint']==self.brief_key() else None
-  return {'status':self.status if valid else 'preparing','checked_at':self.checked_at,'items':[self.public(v) for v in self.items.values()] if valid else [],'summary':brief['summary'] if brief else None,'summary_model_composed':brief['model_composed'] if brief else False,'source_failures':list(self.failures) if valid else [],'source_health':current_health(self.source_health,self.owner.now()),'read_only':True,'report_basis':'Readiness is household-reported, never attendance or location.'}
+  return {'status':self.status if valid else 'preparing','checked_at':self.checked_at,'items':[self.public(v) for v in self.items.values()] if valid else [],'summary':brief['summary'] if brief else None,'summary_model_composed':brief['model_composed'] if brief else False,'source_failures':list(self.failures) if valid else [],'source_health':current_health(self.source_health,self.owner.now()),'read_only':True,'changes':changes,'report_basis':'Readiness is household-reported, never attendance or location.'}
  def brief_key(self):return digest([self.scope(),[self.public(i) for i in self.items.values()],self.failures])
  async def prepare_brief(self):
   if not self.enabled() or self.owner.foreground or self.binding!=self.scope() or self.status not in ('ready','partial'):return
@@ -252,6 +258,10 @@ class PlanningFollowups:
    if not speaker:raise ValueError('Whose preparation do you mean? Please name a household member.')
    members=[speaker]
   await self.refresh();projection=self.project()
+  from jarvis.planning_changes import change_question,lines as change_lines
+  if change_question(text):
+   changes=self.changes.project(projection['status']=='ready' and not projection['source_failures'],members,items=self.items)
+   return {'provider':'companion','status':'unavailable' if changes['status']=='unavailable' else 'success','message':' '.join(change_lines(changes)),'cacheable':False,'read_only':True,'planning_changes':True}
   from jarvis.household_planning import DATE_PATTERN,resolve_dates
   today=self.owner.now().astimezone(ZONE).date();date_phrase=DATE_PATTERN.search(text.casefold())
   start,end=resolve_dates(date_phrase[0] if date_phrase else 'next seven days',today.isoformat())

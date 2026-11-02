@@ -1,3 +1,24 @@
+## Practical assistant continuity (0.45.145)
+
+Ask “What has changed in our plans?” after the first and subsequent complete
+background preparation checks. This compares the connected upcoming preparation
+view; it is not continuous monitoring, a complete calendar diff or proof of
+cancellation. Missing/stale sources withhold comparisons. Household shows the
+same checked changes and recent server text processing timings, excluding speech
+and playback. These timings reset at restart and contain no conversation text.
+
+Explicit Norwegian dates and returns such as “Tilbake til Mias øving” are supported.
+Retained facts with “for two weeks” or “through Friday” have separate validity;
+ambiguous “until Friday” remains qualified. Reporting an item already at a checked
+venue can enter preparation review. Questions never mark items ready.
+
+Changing a departure origin rechecks the selected appointment and route. A generic
+“work” requires a specific place; old home journey minutes are not reused.
+Tight meal budgets can show a labelled ten-minute planning allowance.
+
+Wrong date/person/venue and wording reports are symptoms for supervised inspection,
+not proven defects or permission for automatic production changes.
+
 ## Conversational development cases (0.45.139)
 
 After opening or selecting a case, ask “What did you find?”, “How is it going?”,
